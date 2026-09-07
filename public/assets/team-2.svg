@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 800" role="img" aria-labelledby="title desc">
+  <title id="title">Infinity Club creative workshop</title>
+  <desc id="desc">Abstract editorial illustration of a student presenting an idea</desc>
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="1" x2="1" y2="0">
+      <stop stop-color="#0a0f0d"/>
+      <stop offset="1" stop-color="#29402d"/>
+    </linearGradient>
+    <pattern id="dots" width="32" height="32" patternUnits="userSpaceOnUse"><circle cx="3" cy="3" r="2" fill="#b7f397" fill-opacity=".13"/></pattern>
+  </defs>
+  <rect width="640" height="800" fill="url(#bg2)"/>
+  <rect width="640" height="800" fill="url(#dots)"/>
+  <circle cx="500" cy="120" r="180" fill="#8fd96b" fill-opacity=".12"/>
+  <rect x="65" y="88" width="435" height="335" rx="22" fill="#f3f3e8" fill-opacity=".92"/>
+  <rect x="92" y="118" width="381" height="275" rx="10" fill="#101713"/>
+  <path d="M125 185h112M125 224h218M125 263h168" stroke="#8fd96b" stroke-width="13" stroke-linecap="round"/>
+  <path d="m367 178 59 42-59 42m-47 0-59-42 59-42" fill="none" stroke="#f3f3e8" stroke-width="8" stroke-linejoin="round"/>
+  <circle cx="410" cy="505" r="90" fill="#cbd8c7"/>
+  <path d="M321 506c4-95 60-137 127-111 43 17 70 73 46 128-26-10-66-45-76-77-23 36-55 56-97 60Z" fill="#111b15"/>
+  <path d="M247 800c21-164 83-241 175-241 102 0 166 85 184 241" fill="#8fd96b"/>
+  <path d="M295 680c-121-25-184-78-189-158M104 524l-39-39m39 39-47 19" fill="none" stroke="#cbd8c7" stroke-width="28" stroke-linecap="round"/>
+  <circle cx="83" cy="497" r="22" fill="#cbd8c7"/>
+  <text x="92" y="364" fill="#f3f3e8" font-family="monospace" font-size="17" letter-spacing="4">NO LIMITS</text>
+</svg>

@@ -1,0 +1,23 @@
+import { ArrowUp } from 'lucide-react'
+import Logo from '../components/Logo'
+import { navigation } from '../data/siteData'
+
+export default function Footer() {
+  return (
+    <footer className="px-5 py-10 sm:px-8 lg:px-12 xl:px-16">
+      <div className="mx-auto flex max-w-[1440px] flex-col gap-8">
+        <div className="flex flex-col justify-between gap-8 md:flex-row md:items-center">
+          <Logo />
+          <div className="flex flex-wrap gap-x-6 gap-y-3 text-xs font-semibold text-text-muted">
+            {navigation.slice(0, -1).map((item) => <a key={item.href} href={item.href} className="transition-colors hover:text-primary">{item.label}</a>)}
+          </div>
+          <a href="#accueil" aria-label="Retour en haut" className="grid size-11 place-items-center rounded-full border border-white/10 text-text-muted transition-colors hover:border-primary hover:text-primary"><ArrowUp className="size-4" /></a>
+        </div>
+        <div className="flex flex-col justify-between gap-2 border-t border-white/[.07] pt-6 text-[11px] tracking-[0.08em] text-text-muted/70 sm:flex-row">
+          <p>© {new Date().getFullYear()} Infinity Club. Tous droits réservés.</p>
+          <p>No Limits For Infiniters</p>
+        </div>
+      </div>
+    </footer>
+  )
+}

@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000" role="img" aria-labelledby="title desc">
+  <title id="title">Infinity Club collaborative session</title>
+  <desc id="desc">Abstract editorial illustration of students collaborating around technology</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#17271d"/>
+      <stop offset="1" stop-color="#0a0f0d"/>
+    </linearGradient>
+    <radialGradient id="halo">
+      <stop stop-color="#8fd96b" stop-opacity=".38"/>
+      <stop offset="1" stop-color="#8fd96b" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0v48" fill="none" stroke="#8fd96b" stroke-opacity=".08"/>
+    </pattern>
+  </defs>
+  <rect width="800" height="1000" fill="url(#bg)"/>
+  <rect width="800" height="1000" fill="url(#grid)"/>
+  <circle cx="570" cy="220" r="280" fill="url(#halo)"/>
+  <path d="M75 730c100-140 190-130 270 5 90-170 215-185 380-28v293H75Z" fill="#0d1510"/>
+  <circle cx="257" cy="513" r="93" fill="#d9e2d3"/>
+  <path d="M164 503c7-94 57-142 131-112 51 21 73 81 47 145-12-54-55-59-88-82-16 36-49 57-90 49Z" fill="#1f3425"/>
+  <path d="M119 805c12-151 64-224 145-224 94 0 153 83 164 247" fill="#8fd96b"/>
+  <circle cx="560" cy="548" r="86" fill="#aebbaa"/>
+  <path d="M476 553c-4-93 43-135 109-127 58 8 86 61 61 132-34-14-64-42-84-76-13 38-42 62-86 71Z" fill="#101713"/>
+  <path d="M427 840c17-151 67-222 145-222 88 0 143 71 164 222" fill="#f3f3e8"/>
+  <rect x="238" y="707" width="340" height="214" rx="22" fill="#172019" stroke="#8fd96b" stroke-opacity=".3"/>
+  <rect x="264" y="735" width="288" height="156" rx="12" fill="#0a0f0d"/>
+  <path d="m331 784-40 29 40 29M475 784l40 29-40 29M429 766l-47 94" fill="none" stroke="#8fd96b" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="89" cy="110" r="5" fill="#b7f397"/>
+  <circle cx="682" cy="389" r="8" fill="#8fd96b"/>
+  <path d="M82 178h170M626 85h92" stroke="#8fd96b" stroke-opacity=".5"/>
+</svg>
