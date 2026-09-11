@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import useMotionPreference from '../hooks/useMotionPreference'
+import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { Plus } from 'lucide-react'
 import SectionHeading from '../components/SectionHeading'
 import { faqs } from '../data/siteData'
@@ -7,10 +9,11 @@ import { SPRINGS } from '../lib/motion'
 
 export default function FAQ() {
   const [openIndex, setOpenIndex] = useState(0)
+  const reduced = useMotionPreference()
 
   return (
-    <section id="faq" className="relative scroll-mt-20 border-t border-olive/15 py-20 sm:py-24 lg:py-28">
-      <div className="mx-auto grid max-w-[1440px] gap-12 px-5 sm:px-8 lg:grid-cols-[.72fr_1.28fr] lg:gap-20 lg:px-12 xl:px-16">
+    <section id="faq" className="section-space border-t border-olive/15">
+      <div className="page-container grid gap-10 lg:grid-cols-[.8fr_1.2fr] lg:gap-20">
         <div className="lg:sticky lg:top-32 lg:h-fit">
           <SectionHeading
             title="Avant de nous rejoindre."
@@ -25,6 +28,7 @@ export default function FAQ() {
             return (
               <div key={faq.question} className="border-b border-sage/20">
                 <button
+                  id={`faq-question-${index}`}
                   type="button"
                   onClick={() => setOpenIndex(isOpen ? -1 : index)}
                   className="group flex w-full items-center justify-between gap-6 py-6 text-left sm:py-7"
@@ -33,21 +37,24 @@ export default function FAQ() {
                 >
                   <span className={`font-display text-xl font-semibold transition-colors sm:text-2xl ${isOpen ? 'text-sand' : 'text-cream group-hover:text-sage'}`}>{faq.question}</span>
                   <motion.span
-                    animate={{ rotate: isOpen ? 45 : 0 }}
+                    animate={{ rotate: reduced ? 0 : isOpen ? 45 : 0 }}
                     transition={SPRINGS.control}
                     className={`grid size-9 shrink-0 place-items-center border transition-colors ${isOpen ? 'border-sand bg-sand text-ink' : 'border-sage/20 text-text-muted'}`}
                   >
-                    <Plus className="size-4" />
+                    <Plus className="size-4" style={reduced && isOpen ? { transform: 'rotate(45deg)' } : undefined} />
                   </motion.span>
                 </button>
                 <AnimatePresence initial={false}>
                   {isOpen && (
                     <motion.div
                       id={`faq-panel-${index}`}
-                      initial={{ height: 0, opacity: 0 }}
+                      role="region"
+                      aria-labelledby={`faq-question-${index}`}
+                      initial={reduced ? false : { height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ height: SPRINGS.accordion, opacity: { duration: 0.2 } }}
+                      exit={reduced ? { opacity: 0 } : { height: 0, opacity: 0 }}
+                      transition={reduced ? { duration: 0 } : { height: SPRINGS.accordion, opacity: { duration: 0.2 } }}
+                      onAnimationComplete={() => ScrollTrigger.refresh()}
                       className="overflow-hidden"
                     >
                       <p className="max-w-[65ch] pb-7 pr-12 text-sm leading-7 text-text-muted sm:text-base">{faq.answer}</p>

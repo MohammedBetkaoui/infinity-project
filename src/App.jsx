@@ -1,5 +1,6 @@
 import { Route, Routes } from 'react-router-dom'
 import { MotionConfig } from 'framer-motion'
+import useMotionPreference from './hooks/useMotionPreference'
 import CustomCursor from './components/CustomCursor'
 import Navbar from './components/Navbar'
 import ScrollExperience from './components/ScrollExperience'
@@ -13,8 +14,9 @@ import Hero from './sections/Hero'
 import Poles from './sections/Poles'
 
 function HomePage() {
+  const reduced = useMotionPreference()
   return (
-    <MotionConfig reducedMotion="user">
+    <MotionConfig reducedMotion={reduced ? 'always' : 'never'}>
       <div className="min-h-screen overflow-clip bg-background text-text-primary">
         <ScrollExperience />
         <CustomCursor />

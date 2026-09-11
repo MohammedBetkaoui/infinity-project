@@ -1,7 +1,8 @@
-export default function Logo({ compact = false, className = '' }) {
+export default function Logo({ compact = false, className = '', onClick }) {
   return (
     <a
       href="#accueil"
+      onClick={onClick}
       className={`group inline-flex items-center gap-3 ${className}`}
       aria-label="Infinity Club - Accueil"
     >

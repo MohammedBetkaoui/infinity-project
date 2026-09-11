@@ -4,8 +4,8 @@ import { navigation } from '../data/siteData'
 
 export default function Footer() {
   return (
-    <footer className="px-5 py-10 sm:px-8 lg:px-12 xl:px-16">
-      <div className="mx-auto flex max-w-[1440px] flex-col gap-8">
+    <footer className="py-10">
+      <div className="page-container flex flex-col gap-8">
         <div className="flex flex-col justify-between gap-8 md:flex-row md:items-center">
           <Logo />
           <div className="flex flex-wrap gap-x-6 gap-y-3 text-xs font-semibold text-text-muted">

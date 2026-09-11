@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import Lenis from '@studio-freight/lenis'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
-import { lenisEasing, shouldReduceMotion } from '../lib/motion'
+import { lenisEasing } from '../lib/motion'
 
 gsap.registerPlugin(ScrollTrigger)
 
@@ -10,80 +10,94 @@ export default function ScrollExperience() {
   const progressRef = useRef(null)
 
   useEffect(() => {
-    const progress = progressRef.current
-    const reducedMotion = shouldReduceMotion()
-    const smoothWheelAvailable = window.matchMedia('(pointer: fine) and (min-width: 768px)').matches
     let lenis
-
-    gsap.set(progress, { scaleX: 0, transformOrigin: 'left center' })
-
-    const progressTrigger = ScrollTrigger.create({
-      start: 0,
-      end: 'max',
-      onUpdate: (self) => gsap.set(progress, { scaleX: self.progress }),
+    let disposed = false
+    let locked = false
+    let focusFrame
+    const media = gsap.matchMedia()
+    const setProgress = gsap.quickSetter(progressRef.current, 'scaleX')
+    const progress = ScrollTrigger.create({
+      start: 0, end: 'max', onUpdate: (self) => setProgress(self.progress),
     })
 
-    if (reducedMotion || !smoothWheelAvailable) {
-      ScrollTrigger.refresh()
-      return () => progressTrigger.kill()
-    }
-
-    lenis = new Lenis({
-      lerp: 0.22,
-      smoothWheel: true,
-      syncTouch: false,
-      wheelMultiplier: 1.05,
+    // One clock for scroll and GSAP; touch and reduced motion keep native scrolling.
+    media.add('(pointer: fine) and (min-width: 768px) and (prefers-reduced-motion: no-preference)', () => {
+      const instance = new Lenis({ lerp: .24, smoothWheel: true, syncTouch: false, wheelMultiplier: 1 })
+      lenis = instance
+      if (locked) instance.stop()
+      const off = instance.on('scroll', ScrollTrigger.update)
+      const tick = (time) => instance.raf(time * 1000)
+      gsap.ticker.add(tick)
+      return () => {
+        gsap.ticker.remove(tick)
+        off?.()
+        instance.destroy()
+        lenis = undefined
+      }
     })
 
-    const removeScrollListener = lenis.on('scroll', ScrollTrigger.update)
-    const tick = (time) => lenis.raf(time * 1000)
     const handleScrollLock = (event) => {
-      if (event.detail?.locked) lenis.stop()
-      else lenis.start()
+      locked = Boolean(event.detail?.locked)
+      if (locked) lenis?.stop()
+      else lenis?.start()
     }
     const handleAnchorClick = (event) => {
       if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
-
+      if (!(event.target instanceof Element)) return
       const anchor = event.target.closest('a[href^="#"]')
-      if (!anchor) return
-
-      const href = anchor.getAttribute('href')
-      const target = href && href.length > 1 ? document.querySelector(href) : null
+      const href = anchor?.getAttribute('href')
+      const target = href?.length > 1 ? document.getElementById(href.slice(1)) : null
       if (!target) return
-
       event.preventDefault()
-      lenis.scrollTo(target, {
-        offset: href === '#accueil' ? 0 : -84,
-        duration: 0.68,
-        easing: lenisEasing,
-        force: true,
-      })
-
-      if (window.location.hash !== href) window.history.pushState(null, '', href)
+      const focusTarget = () => {
+        if (disposed) return
+        if (!target.hasAttribute('tabindex')) {
+          target.setAttribute('tabindex', '-1')
+          target.addEventListener('blur', () => target.removeAttribute('tabindex'), { once: true })
+        }
+        target.focus({ preventScroll: true })
+      }
+      if (lenis) {
+        lenis.scrollTo(target, { offset: href === '#accueil' ? 0 : -88, duration: .55, easing: lenisEasing, force: true, onComplete: focusTarget })
+      } else {
+        // Defer until a mobile menu has released its scroll lock and inert state.
+        cancelAnimationFrame(focusFrame)
+        focusFrame = requestAnimationFrame(() => {
+          const top = href === '#accueil' ? 0 : target.getBoundingClientRect().top + scrollY - 88
+          window.scrollTo({ top, behavior: 'instant' })
+          focusTarget()
+        })
+      }
+      if (location.hash !== href) history.pushState(null, '', href)
     }
-
-    gsap.ticker.add(tick)
     window.addEventListener('infinity:scroll-lock', handleScrollLock)
     document.addEventListener('click', handleAnchorClick)
-
-    const refresh = () => ScrollTrigger.refresh()
+    const refresh = () => { if (!disposed) ScrollTrigger.refresh() }
     const refreshFrame = requestAnimationFrame(refresh)
     document.fonts?.ready.then(refresh)
+    let resizeTimer
+    const observer = new ResizeObserver(() => {
+      clearTimeout(resizeTimer)
+      resizeTimer = setTimeout(refresh, 150)
+    })
+    observer.observe(document.body)
 
     return () => {
+      disposed = true
       cancelAnimationFrame(refreshFrame)
-      document.removeEventListener('click', handleAnchorClick)
+      cancelAnimationFrame(focusFrame)
+      clearTimeout(resizeTimer)
+      observer.disconnect()
       window.removeEventListener('infinity:scroll-lock', handleScrollLock)
-      gsap.ticker.remove(tick)
-      removeScrollListener?.()
-      progressTrigger.kill()
-      lenis.destroy()
+      document.removeEventListener('click', handleAnchorClick)
+      media.revert()
+      progress.kill()
     }
   }, [])
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-0 z-[90] h-[2px] bg-cream/5" aria-hidden="true">
-      <span ref={progressRef} className="block h-full w-full bg-primary shadow-[0_0_12px_rgba(139,203,107,.55)]" />
+    <div className="pointer-events-none fixed inset-x-0 top-0 z-[90] h-[2px]" aria-hidden="true">
+      <span ref={progressRef} className="block h-full w-full origin-left scale-x-0 bg-primary" />
     </div>
   )
 }

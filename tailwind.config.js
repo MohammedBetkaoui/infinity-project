@@ -34,7 +34,7 @@ export default {
       },
       fontSize: {
         hero: ['clamp(4rem, 8.8vw, 9rem)', { lineHeight: '.78', letterSpacing: '-.055em' }],
-        section: ['clamp(2.8rem, 5.2vw, 5.6rem)', { lineHeight: '.92', letterSpacing: '-.035em' }],
+        section: ['clamp(2.7rem, 4.6vw, 4.6rem)', { lineHeight: '1', letterSpacing: '-.035em' }],
         card: ['clamp(1.65rem, 2.25vw, 2.35rem)', { lineHeight: '1', letterSpacing: '-.02em' }],
         lead: ['clamp(1rem, 1.25vw, 1.16rem)', { lineHeight: '1.75' }],
       },

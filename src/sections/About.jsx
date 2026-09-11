@@ -1,49 +1,28 @@
-import { Check } from 'lucide-react'
+import { Braces, PenTool } from 'lucide-react'
 import SectionHeading from '../components/SectionHeading'
-
-const goals = [
-  'Développer les compétences techniques par la pratique.',
-  'Créer un réseau d’entraide entre étudiants passionnés.',
-  'Accompagner les projets, de l’idée à la réalisation.',
-]
 
 export default function About() {
   return (
-    <section id="a-propos" className="relative z-10 scroll-mt-20 overflow-hidden bg-paper py-20 text-ink sm:py-24 lg:py-28">
-      <div className="absolute left-0 top-1/3 h-px w-1/3 bg-gradient-to-r from-olive/0 via-olive/60 to-olive/0" />
-      <div className="mx-auto grid max-w-[1440px] items-center gap-14 px-5 sm:px-8 lg:grid-cols-2 lg:px-12 xl:px-16">
-        <div className="relative mx-auto w-full max-w-xl pb-14 pr-5 sm:pb-16 sm:pr-14">
-          <div className="relative aspect-[4/5] w-[72%] overflow-hidden rounded-bl-md rounded-br-[3rem] rounded-tl-[3rem] rounded-tr-md bg-olive-dark">
-            <img src="/assets/team-1.svg" alt="Membres d’Infinity Club réunis autour d’un projet" className="size-full object-cover" />
-            <span className="absolute left-5 top-5 border-l-2 border-primary bg-background/80 px-3 py-2 text-xs font-semibold text-cream backdrop-blur">Atelier en équipe</span>
+    <section id="a-propos" className="about-section section-space">
+      <div className="page-container about-layout">
+        <div className="workshop-notes">
+          <div className="notebook-sheet">
+            <div className="notebook-header"><span>Dans le carnet d’un Infiniter</span><Braces size={20} /></div>
+            <p className="notebook-title">Une idée ne devrait<br />pas rester <span>une idée.<svg viewBox="0 0 260 20" aria-hidden="true"><path d="M3 12Q116 0 253 7M18 17Q141 9 242 13" /></svg></span></p>
+            <div className="notebook-flow"><span>Imaginer</span><i /><span>Essayer</span><i /><span>Partager</span></div>
+            <p className="notebook-note">Un peu de code, quelques croquis,<br />beaucoup de questions.</p>
           </div>
-          <div className="absolute right-0 top-[17%] aspect-[4/5] w-[47%] overflow-hidden border-[6px] border-paper bg-surface-light shadow-[0_18px_45px_rgba(23,32,24,.22)]">
-            <img src="/assets/team-2.svg" alt="Atelier créatif du club" className="size-full object-cover" />
-          </div>
-          <div className="absolute bottom-0 right-[9%] w-[54%] rounded-sm bg-olive-dark p-5 text-cream shadow-[0_16px_36px_rgba(23,32,24,.18)]">
-            <p className="font-display text-5xl font-semibold text-primary">∞</p>
-            <p className="mt-1 max-w-[28ch] text-sm font-semibold leading-6">Une idée prend de l’ampleur quand elle circule dans le club.</p>
-          </div>
+          <div className="workshop-sticky"><PenTool size={20} /><p>Pas besoin de tout savoir.<br /><strong>On est là pour apprendre.</strong></p></div>
+          <p className="workshop-caption">Notre terrain de jeu : la tech. Notre point d’ancrage : BBA.</p>
         </div>
-
-        <div>
-          <SectionHeading
-            tone="light"
-            title={<>Ici, on apprend en faisant.<span className="mt-2 block text-[.72em] font-medium text-olive-dark">Et on avance ensemble.</span></>}
-            description="Infinity Club réunit les étudiants de la Faculté MI autour d’une conviction simple : le meilleur moyen d’apprendre la technologie, c’est de la pratiquer ensemble."
-          />
-
-          <ul className="mt-9 border-t border-ink/20">
-            {goals.map((goal) => (
-              <li
-                key={goal}
-                className="flex items-start gap-4 border-b border-ink/20 py-5 text-sm leading-7 text-ink/75 sm:text-base"
-              >
-                <span className="mt-0.5 grid size-6 shrink-0 place-items-center bg-olive-dark text-cream"><Check className="size-3.5" /></span>
-                {goal}
-              </li>
-            ))}
-          </ul>
+        <div className="about-copy">
+          <SectionHeading tone="light" title="On vient pour la tech. On reste pour les gens." description="Infinity Club, c’est le club scientifique de la Faculté des Mathématiques et Informatique de l’Université Mohamed El Bachir El Ibrahimi. Un endroit où les étudiants de BBA peuvent apprendre les uns des autres et donner forme à leurs projets." />
+          <div className="about-principles">
+            <p><strong>Apprendre en faisant.</strong> Du développement au design, on met les mains dans le projet.</p>
+            <p><strong>Avancer ensemble.</strong> Une question, un blocage, une idée : il y a quelqu’un avec qui en parler.</p>
+            <p><strong>Passer du « et si » au concret.</strong> Un atelier, une équipe et un premier pas pour se lancer.</p>
+          </div>
+          <a href="#communaute" className="text-link light-link">Rencontrer l’esprit Infinity</a>
         </div>
       </div>
     </section>

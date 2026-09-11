@@ -25,7 +25,7 @@ export const poles = [
     description: 'Construire une présence claire, crédible et mémorable dans l’écosystème tech.',
   },
   {
-    title: 'Design & Business',
+    title: 'Design & Business of Design',
     focus: 'Identité visuelle et valeur',
     icon: Palette,
     description: 'Transformer les idées en identités fortes et en expériences qui créent de la valeur.',
@@ -65,8 +65,8 @@ export const poles = [
 export const stats = [
   { value: 3000, suffix: '+', label: 'abonnés sur Instagram' },
   { value: 130, suffix: '+', label: 'publications partagées' },
-  { value: 80, suffix: '+', label: 'membres actifs' },
-  { value: 4, suffix: '', label: 'années de projets' },
+  { value: 7, suffix: '', label: 'pôles à explorer' },
+  { value: 4, suffix: '', label: 'rendez-vous présentés' },
 ]
 
 export const events = [
