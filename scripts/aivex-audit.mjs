@@ -38,6 +38,18 @@ const evaluate = async expression => {
   return result.result.value
 }
 const click = selector => evaluate(`(() => { const element = document.querySelector(${JSON.stringify(selector)}); element.focus({preventScroll:true}); element.click() })()`)
+const settleScroll = async () => {
+  let previous = await evaluate('scrollY')
+  let stable = 0
+  for (let attempt = 0; attempt < 60; attempt++) {
+    await pause(50)
+    const current = await evaluate('scrollY')
+    stable = Math.abs(current - previous) < .5 ? stable + 1 : 0
+    if (stable >= 4) return
+    previous = current
+  }
+  assert.fail('Native anchor scrolling did not settle')
+}
 const navigate = async (path = '/aivex') => {
   const result = await send('Page.navigate', { url: `${origin}${path}` })
   if (!result.loaderId) await send('Page.reload')
@@ -191,10 +203,25 @@ try {
     if (mobile) {
       assert.equal(layout.enabled, 'false')
       assert.equal(await evaluate('document.querySelector(".ax-scene-pause")'), null)
+      assert(await evaluate('document.querySelector(".ax-scene").dataset.mobileMotion === "true"'))
+      assert(await evaluate('!document.querySelector(".pin-spacer") && !document.documentElement.classList.contains("lenis")'), 'Touch scrolling stays native')
+      const start = await evaluate('Math.max(0, document.querySelector(".ax-scene-viewport").getBoundingClientRect().top + scrollY - innerHeight * .5)')
+      await evaluate(`scrollTo({top:${start},behavior:"instant"})`)
+      await pause(150)
+      const mobileStart = await style('.ax-scene-scroll')
+      await evaluate(`scrollTo({top:${start + 120},behavior:"instant"})`)
+      await pause(150)
+      const mobileEnd = await style('.ax-scene-scroll')
+      assert.notEqual(mobileStart, mobileEnd, 'Mobile artwork follows the gesture')
+      await pause(250)
+      assert.equal(await style('.ax-scene-scroll'), mobileEnd, 'No artificial drift after the finger stops')
+      await evaluate(`scrollTo({top:${start},behavior:"instant"})`)
+      await pause(150)
+      assert.equal(await style('.ax-scene-scroll'), mobileStart, 'Mobile scrub reverses exactly')
       await click('.ax-menu-toggle')
       await pause(250)
       await click('#ax-mobile-nav a[href="#participer"]')
-      await pause(350)
+      await settleScroll()
       assert(await evaluate('document.activeElement.id === "participer" && !document.querySelector("#ax-mobile-nav")'))
       assert(await evaluate('document.querySelector("#participer").getBoundingClientRect().top >= 68'))
       await click('.ax-menu-toggle')
@@ -220,6 +247,16 @@ try {
       }
       await evaluate('scrollTo({top:0,behavior:"instant"})')
       if (width === 390) await capture('aivex-mobile')
+      if (width === 390) {
+        await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] })
+        await pause(250)
+        assert(await evaluate('!document.querySelector(".ax-scene").dataset.mobileMotion'))
+        assert.equal(await style('.ax-scene-scroll'), 'none')
+        assert.equal(await evaluate('getComputedStyle(document.documentElement).scrollBehavior'), 'auto')
+        await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] })
+        await pause(250)
+        assert(await evaluate('document.querySelector(".ax-scene").dataset.mobileMotion === "true"'))
+      }
     }
   }
   await resize(1440)

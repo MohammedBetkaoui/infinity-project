@@ -196,13 +196,16 @@ button, a { touch-action: manipulation; }
 .art-register, .art-caption { position: absolute; left: 7%; right: 4%; display: flex; justify-content: space-between; align-items: center; color: #b0ccbf; font-size: 10px; }
 .art-register { top: 4%; font-size: 9px; letter-spacing: .12em; }
 .art-caption { bottom: 3%; }
-.art-caption span:last-child { font-size: 26px; }
+.art-caption span:last-child { font-size: 10px; }
 .art-depth, .art-scroll-depth { position: absolute; inset: 0; }
 .infinity-head, .infinity-trail { transform-origin: 0 0; }
 .infinity-head { will-change: transform; opacity: 0; }
 .infinity-trail { opacity: 0; }
-.brand-journey { position: absolute; inset: 2px; width: 36px; height: 36px; opacity: 0; pointer-events: none; }
+.infinity-mark { display: block; width: 100%; height: auto; }
+.brand-symbol { position: relative; display: grid; place-items: center; width: 56px; height: 44px; padding: 9px 7px; flex-shrink: 0; border-radius: 4px; background: #f1f0ec; color: #004b37; }
+.brand-journey { position: absolute; inset: 0; width: 56px; height: 44px; opacity: 0; pointer-events: none; }
 .brand-mark { transform-origin: center; }
+.hero-emblem { position: absolute; left: 17%; top: 28%; display: grid; place-items: center; width: 66%; aspect-ratio: 1.5; padding: 9%; border: 1px solid #f1f0ec50; border-radius: 3px; background: #f1f0ec; color: #004b37; box-shadow: 8px 10px 0 #041f172b; transform: rotate(-6deg); }
 .brand-journey-head { transform-origin: 0 0; }
 .brand-copy { display: grid; gap: 4px; line-height: 1; }
 .brand-descriptor { font-size: 10px; font-weight: 400; letter-spacing: .035em; color: #b7d1c5; }

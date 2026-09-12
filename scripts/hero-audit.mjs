@@ -143,10 +143,10 @@ try {
     await scrollTo(drawEnd + progress * (maximum - drawEnd))
     const state = await signatureSample()
     report.journey.push(state)
-    assert(Math.abs(state.progress - progress) < .003, 'The small infinity follows the entire document, in both directions')
-    assert(state.error < .15, 'Navbar light stays on the same infinity path')
+    assert(Math.abs(state.progress - progress) < .003, 'The logo frame follows the entire document, in both directions')
+    assert(state.error < .15, 'Navbar light stays on the frame path')
     assert(Math.abs(state.bar - state.y / state.maximum) < .003, 'Page bar and emblem share one scroll source')
-    if (progress >= .2) assert(state.opacity === 1 && state.mark === 0, 'The reading symbol takes over without moving the wordmark')
+    if (progress >= .2) assert(state.opacity === 1 && state.mark === 1, 'The reading frame never replaces the official emblem')
     if (progress === .48) await capture('hero-page-journey')
   }
   await scrollTo(0)

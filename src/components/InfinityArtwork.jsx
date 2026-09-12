@@ -1,4 +1,5 @@
 import { INFINITY_PATH } from '../lib/infinityMotion'
+import InfinityMark from './InfinityMark'
 
 export default function InfinityArtwork() {
   return (
@@ -34,9 +35,10 @@ export default function InfinityArtwork() {
             </g>
             <path d="M54 48h16M62 40v16M510 424h16M518 416v16" stroke="#b7d1c5" opacity=".7" />
           </svg>
+          <div className="hero-emblem"><InfinityMark /></div>
         </div>
       </div>
-      <div className="art-caption"><span>Scroll. Watch infinity take shape.</span><span>∞</span></div>
+      <div className="art-caption"><span>Scroll. Watch infinity take shape.</span><span>No limits.</span></div>
     </div>
   )
 }

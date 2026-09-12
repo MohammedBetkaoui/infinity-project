@@ -6,7 +6,6 @@ const clamp = gsap.utils.clamp(0, 1)
 
 export function createPageSignature() {
   const brand = document.querySelector('.site-header .brand-symbol')
-  const mark = brand?.querySelector('.brand-mark')
   const signature = brand?.querySelector('.brand-journey')
   if (!signature) return null
 
@@ -39,21 +38,15 @@ export function createPageSignature() {
       const scroll = trigger.scroll()
       const blend = clamp((scroll - start) / (end - start))
       if (blend !== previousBlend) {
-        // The wordmark stays still: only the emblem hands over to the reading path.
-        mark.style.opacity = 1 - blend
-        mark.style.transform = `rotate(${blend * 72}deg) scale(${1 - blend * .18})`
+        // Reading progress frames the official emblem; it never replaces or distorts it.
         signature.style.opacity = blend
-        signature.style.transform = `scale(${.82 + blend * .18})`
         previousBlend = blend
       }
       follower.render((scroll - start) / (maximum - start))
     },
     destroy() {
       follower.clear()
-      for (const node of [mark, signature]) {
-        node.style.removeProperty('opacity')
-        node.style.removeProperty('transform')
-      }
+      signature.style.removeProperty('opacity')
     },
   }
 }

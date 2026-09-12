@@ -12,6 +12,7 @@ import AivexFAQ from './AivexFAQ'
 import AivexFooter from './AivexFooter'
 import useAivexExperience from './useAivexExperience'
 import useAivexReady from './useAivexReady'
+import useAivexMobileMotion from './useAivexMobileMotion'
 import './aivex.css'
 import './aivex-content.css'
 
@@ -20,6 +21,7 @@ export default function AivexPage({ ready, onReady }) {
   const reduced = useMotionPreference()
   useAivexExperience(pageRef, ready)
   useAivexReady(pageRef, onReady)
+  useAivexMobileMotion(pageRef, ready)
 
   return (
     <MotionConfig reducedMotion={reduced ? 'always' : 'never'}>

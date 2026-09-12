@@ -94,3 +94,29 @@ test('AIVEX keeps its separate palette, loading duration and unconfirmed details
   assert.match(await read('src/pages/aivex/AivexRoute.jsx'), /MINIMUM_LOADING_MS = 2500/)
   assert.match(await read('src/components/AivexLoader.jsx'), /Loading the AIVEX page/)
 })
+
+test('every club signature reuses the supplied emblem trace', async () => {
+  const mark = await read('src/components/InfinityMark.jsx')
+  assert.equal((mark.match(/<path /g) || []).length, 1, 'The emblem is a continuous ribbon')
+  assert.match(mark, /viewBox="14 75 432 236"/)
+  for (const component of ['Logo', 'InfinityArtwork']) {
+    assert.match(await read(`src/components/${component}.jsx`), /<InfinityMark/)
+  }
+  for (const component of ['Navbar', 'MobileMenu']) {
+    assert.match(await read(`src/components/${component}.jsx`), /<Logo /)
+  }
+  assert.match(await read('src/sections/Footer.jsx'), /<Logo \/>/)
+  assert.doesNotMatch(await read('src/lib/pageSignature.js'), /mark\.style\.(opacity|transform)/)
+  assert.equal(declaration('.hero-emblem', 'color'), declaration('.brand-symbol', 'color'))
+  assert.equal(declaration('.hero-emblem', 'background'), declaration('.brand-symbol', 'background'))
+})
+
+test('mobile AIVEX motion is scroll-driven, scoped and reversible without a custom scroll loop', async () => {
+  const source = await read('src/pages/aivex/useAivexMobileMotion.js')
+  assert.match(source, /prefers-reduced-motion: reduce/)
+  assert.match(source, /if \(conditions\.reduced/)
+  assert.equal((source.match(/scrub: true/g) || []).length, 2)
+  assert.doesNotMatch(source, /pin:\s*true|repeat:\s*-1|requestAnimationFrame|\.ticker|new Lenis/)
+  assert.match(source, /return \(\) => media\.revert\(\)/)
+  assert.match(await read('src/pages/aivex/AivexPage.jsx'), /useAivexMobileMotion\(pageRef, ready\)/)
+})

@@ -85,12 +85,17 @@ export default function useAivexExperience(pageRef, ready) {
     const media = gsap.matchMedia()
     media.add('(prefers-reduced-motion: no-preference)', () => {
       // The Hero starts when the loader leaves, not underneath its two-second hold.
-      gsap.timeline({ defaults: { ease: 'power4.out' }, onComplete: () => { introPlayed.current = true } })
-        .from('.ax-scene-reveal', { rotationY: -16, rotationX: 6, z: -80, duration: 1.36 }, 0)
+      const touchLayout = matchMedia('(max-width: 799px), (pointer: coarse)').matches
+      const intro = gsap.timeline({ defaults: { ease: 'power4.out' }, onComplete: () => { introPlayed.current = true } })
+      if (!touchLayout) intro.from('.ax-scene-reveal', { rotationY: -16, rotationX: 6, z: -80, duration: 1.36 }, 0)
+      intro
         .from('.ax-art-reveal', { opacity: 0, duration: .88 }, .06)
         .from('.ax-orbit-arc', { strokeDashoffset: 1, duration: 1.1, ease: 'power3.inOut' }, .08)
         .from('.ax-title-line', { yPercent: 110, duration: .68, stagger: .085 }, .32)
         .from('.ax-intro-detail', { opacity: 0, duration: .52, stagger: .035 }, .66)
+      const finishIntro = () => { if (window.scrollY > 32 && intro.progress() < 1) intro.progress(1) }
+      window.addEventListener('scroll', finishIntro, { passive: true })
+      return () => window.removeEventListener('scroll', finishIntro)
     }, pageRef)
     return () => media.revert()
   }, [pageRef, ready])
