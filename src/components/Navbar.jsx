@@ -1,30 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence } from 'framer-motion'
 import useMotionPreference from '../hooks/useMotionPreference'
-import gsap from 'gsap'
-import { ScrollTrigger } from 'gsap/ScrollTrigger'
-import { ArrowUpRight, Menu, X } from 'lucide-react'
-import { navigation } from '../data/siteData'
-import { MOTION_EASE } from '../lib/motion'
+import useSectionNavigation from '../hooks/useSectionNavigation'
+import DesktopNavigation from './DesktopNavigation'
+import MobileMenu from './MobileMenu'
 import Logo from './Logo'
 
-gsap.registerPlugin(ScrollTrigger)
-
 export default function Navbar() {
-  const [scrolled, setScrolled] = useState(false)
+  const { scrolled, activeHref } = useSectionNavigation()
   const [menuOpen, setMenuOpen] = useState(false)
   const reduced = useMotionPreference()
   const dialogRef = useRef(null)
   const toggleRef = useRef(null)
   const returningFocus = useRef(true)
-
-  useEffect(() => {
-    const trigger = ScrollTrigger.create({
-      start: 40, end: 'max',
-      onUpdate: () => setScrolled(window.scrollY > 40),
-    })
-    return () => trigger.kill()
-  }, [])
 
   useEffect(() => {
     if (!menuOpen) return
@@ -56,41 +44,34 @@ export default function Navbar() {
       window.dispatchEvent(new CustomEvent('infinity:scroll-lock', { detail: { locked: false } }))
       document.removeEventListener('keydown', handleKey)
       window.removeEventListener('resize', closeAtDesktop)
-      if (returningFocus.current) toggle?.focus()
+      if (returningFocus.current) {
+        const destination = toggle?.getClientRects().length ? toggle : document.querySelector('.site-nav > a')
+        destination?.focus()
+      }
     }
   }, [menuOpen])
+
+  const closeMenu = () => setMenuOpen(false)
+  const navigateFromMenu = () => { returningFocus.current = false; setMenuOpen(false) }
 
   return (
     <>
       <header className={`site-header ${scrolled ? 'is-scrolled' : ''}`} inert={menuOpen}>
         <nav className="site-nav page-container" aria-label="Navigation principale">
-          <Logo scrollLinked />
-          <div className="nav-links">
-            {navigation.map((item) => <a key={item.href} href={item.href} className="nav-link">{item.label}</a>)}
-          </div>
+          <Logo scrollLinked descriptor="Faculté MI, BBA" />
+          <DesktopNavigation activeHref={activeHref} reduced={reduced} />
           <a href="#contact" className="nav-join" data-magnetic data-ripple>Rejoindre le club</a>
           <button ref={toggleRef} className="menu-toggle" type="button" aria-label="Ouvrir le menu"
             aria-expanded={menuOpen} aria-controls="mobile-menu"
-            onClick={() => { returningFocus.current = true; setMenuOpen(true) }}><Menu size={21} /></button>
+            onClick={() => { returningFocus.current = true; setMenuOpen(true) }}>
+            <span>Menu</span><span className="menu-toggle-lines" aria-hidden="true"><i /><i /></span>
+          </button>
         </nav>
       </header>
       <AnimatePresence>
         {menuOpen && (
-          <motion.div ref={dialogRef} id="mobile-menu" role="dialog" aria-modal="true" aria-label="Menu de navigation"
-            data-lenis-prevent className="mobile-menu"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: .2 }}>
-            <div className="menu-top"><Logo onClick={() => { returningFocus.current = false; setMenuOpen(false) }} /><button type="button" aria-label="Fermer le menu" onClick={() => setMenuOpen(false)}><X size={22} /></button></div>
-            <nav className="mobile-links" aria-label="Navigation mobile">
-              {navigation.map((item, index) => (
-                <motion.a key={item.href} href={item.href}
-                  initial={reduced ? false : { x: 12, rotate: 1, opacity: 0 }}
-                  animate={{ x: 0, rotate: 0, opacity: 1 }}
-                  transition={{ duration: .35, delay: reduced ? 0 : index * .035, ease: MOTION_EASE.smooth }}
-                  onClick={() => { returningFocus.current = false; setMenuOpen(false) }}>{item.label}</motion.a>
-              ))}
-            </nav>
-            <div className="mobile-menu-footer"><p>No Limits For Infiniters</p><a className="text-link" href="https://www.instagram.com/club_.infinity/" target="_blank" rel="noreferrer">@club_.infinity <ArrowUpRight size={16} /></a></div>
-          </motion.div>
+          <MobileMenu dialogRef={dialogRef} activeHref={activeHref} reduced={reduced}
+            onClose={closeMenu} onNavigate={navigateFromMenu} />
         )}
       </AnimatePresence>
     </>

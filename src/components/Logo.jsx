@@ -1,6 +1,6 @@
 import { INFINITY_PATH } from '../lib/infinityMotion'
 
-export default function Logo({ compact = false, scrollLinked = false, className = '', onClick }) {
+export default function Logo({ compact = false, scrollLinked = false, descriptor, className = '', onClick }) {
   return (
     <a
       href="#accueil"
@@ -29,8 +29,9 @@ export default function Logo({ compact = false, scrollLinked = false, className 
         )}
       </span>
       {!compact && (
-        <span className="font-display text-xl font-bold tracking-[0.18em] text-cream">
-          INFINITY
+        <span className="brand-copy">
+          <span className="font-display text-xl font-bold tracking-[0.18em] text-cream">INFINITY</span>
+          {descriptor && <span className="brand-descriptor">{descriptor}</span>}
         </span>
       )}
     </a>

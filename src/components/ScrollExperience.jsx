@@ -113,6 +113,36 @@ export default function ScrollExperience() {
     const refresh = () => { if (!disposed) ScrollTrigger.refresh() }
     const refreshFrame = requestAnimationFrame(refresh)
     document.fonts?.ready.then(refresh)
+    const initialHash = location.hash
+    let hashFrame
+    let interacted = false
+    const cancelInitialAnchor = () => { interacted = true }
+    const alignInitialAnchor = () => {
+      document.fonts.ready.then(() => {
+        if (disposed || interacted || !initialHash || location.hash !== initialHash) return
+        hashFrame = requestAnimationFrame(() => {
+          if (disposed || interacted) return
+          const target = document.getElementById(initialHash.slice(1))
+          if (!target) return
+          // A native fragment jump happens before the Hero's pin has its final size.
+          refresh()
+          const offset = initialHash === '#accueil' ? 0 : -88
+          if (lenis) {
+            lenis.resize()
+            lenis.scrollTo(target, { offset, immediate: true, force: true })
+          } else {
+            window.scrollTo({ top: target.getBoundingClientRect().top + scrollY + offset, behavior: 'instant' })
+          }
+          ScrollTrigger.update()
+        })
+      })
+    }
+    const inputEvents = ['wheel', 'touchstart', 'pointerdown', 'keydown']
+    if (initialHash) {
+      inputEvents.forEach((event) => window.addEventListener(event, cancelInitialAnchor, { passive: true }))
+      if (document.readyState === 'complete') alignInitialAnchor()
+      else window.addEventListener('load', alignInitialAnchor, { once: true })
+    }
     let resizeTimer
     const observer = new ResizeObserver(() => {
       clearTimeout(resizeTimer)
@@ -124,10 +154,13 @@ export default function ScrollExperience() {
       disposed = true
       cancelAnimationFrame(refreshFrame)
       cancelAnimationFrame(focusFrame)
+      cancelAnimationFrame(hashFrame)
       clearTimeout(resizeTimer)
       observer.disconnect()
       window.removeEventListener('infinity:scroll-lock', handleScrollLock)
       document.removeEventListener('click', handleAnchorClick)
+      window.removeEventListener('load', alignInitialAnchor)
+      inputEvents.forEach((event) => window.removeEventListener(event, cancelInitialAnchor))
       window.removeEventListener('scroll', trackScroll)
       gsap.removeEventListener('matchMediaInit', rememberScroll)
       gsap.removeEventListener('matchMedia', restoreScroll)

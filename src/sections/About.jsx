@@ -1,20 +1,16 @@
-import { Braces, PenTool } from 'lucide-react'
+import { useRef } from 'react'
 import SectionHeading from '../components/SectionHeading'
+import WorkshopNotebook from '../components/WorkshopNotebook'
+import useAboutMotion from '../hooks/useAboutMotion'
 
 export default function About() {
+  const sectionRef = useRef(null)
+  useAboutMotion(sectionRef)
+
   return (
-    <section id="a-propos" className="about-section section-space">
+    <section id="a-propos" ref={sectionRef} className="about-section section-space">
       <div className="page-container about-layout">
-        <div className="workshop-notes">
-          <div className="notebook-sheet">
-            <div className="notebook-header"><span>Dans le carnet d’un Infiniter</span><Braces size={20} /></div>
-            <p className="notebook-title">Une idée ne devrait<br />pas rester <span>une idée.<svg viewBox="0 0 260 20" aria-hidden="true"><path d="M3 12Q116 0 253 7M18 17Q141 9 242 13" /></svg></span></p>
-            <div className="notebook-flow"><span>Imaginer</span><i /><span>Essayer</span><i /><span>Partager</span></div>
-            <p className="notebook-note">Un peu de code, quelques croquis,<br />beaucoup de questions.</p>
-          </div>
-          <div className="workshop-sticky"><PenTool size={20} /><p>Pas besoin de tout savoir.<br /><strong>On est là pour apprendre.</strong></p></div>
-          <p className="workshop-caption">Notre terrain de jeu : la tech. Notre point d’ancrage : BBA.</p>
-        </div>
+        <WorkshopNotebook />
         <div className="about-copy">
           <SectionHeading tone="light" title="On vient pour la tech. On reste pour les gens." description="Infinity Club, c’est le club scientifique de la Faculté des Mathématiques et Informatique de l’Université Mohamed El Bachir El Ibrahimi. Un endroit où les étudiants de BBA peuvent apprendre les uns des autres et donner forme à leurs projets." />
           <div className="about-principles">
