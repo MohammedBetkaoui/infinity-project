@@ -64,7 +64,7 @@ export default function Navbar() {
     <>
       <header className={`site-header ${scrolled ? 'is-scrolled' : ''}`} inert={menuOpen}>
         <nav className="site-nav page-container" aria-label="Navigation principale">
-          <Logo />
+          <Logo scrollLinked />
           <div className="nav-links">
             {navigation.map((item) => <a key={item.href} href={item.href} className="nav-link">{item.label}</a>)}
           </div>

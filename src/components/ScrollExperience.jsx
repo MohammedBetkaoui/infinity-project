@@ -3,6 +3,7 @@ import Lenis from '@studio-freight/lenis'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { lenisEasing } from '../lib/motion'
+import { createPageSignature } from '../lib/pageSignature'
 
 gsap.registerPlugin(ScrollTrigger)
 
@@ -14,10 +15,47 @@ export default function ScrollExperience() {
     let disposed = false
     let locked = false
     let focusFrame
+    let mediaScroll
+    let lastScroll = window.scrollY
+    let rebuilding = false
     const media = gsap.matchMedia()
+    const trackScroll = () => {
+      if (!rebuilding && !ScrollTrigger.isRefreshing) lastScroll = window.scrollY
+    }
+    const rememberScroll = () => { rebuilding = true; mediaScroll = lastScroll }
+    const restoreScroll = () => {
+      if (mediaScroll === undefined) return
+      // Rebuilding a pin must not send a reader back to the beginning of the page.
+      if (lenis) {
+        lenis.resize()
+        lenis.scrollTo(mediaScroll, { immediate: true, force: true })
+      } else {
+        window.scrollTo({ top: mediaScroll, behavior: 'instant' })
+      }
+      mediaScroll = undefined
+      ScrollTrigger.update()
+      lastScroll = window.scrollY
+      rebuilding = false
+    }
+    window.addEventListener('scroll', trackScroll, { passive: true })
+    gsap.addEventListener('matchMediaInit', rememberScroll)
+    gsap.addEventListener('matchMedia', restoreScroll)
     const setProgress = gsap.quickSetter(progressRef.current, 'scaleX')
+    let signature
+    const render = (trigger) => {
+      setProgress(trigger.progress)
+      signature?.render(trigger)
+    }
     const progress = ScrollTrigger.create({
-      start: 0, end: 'max', onUpdate: (self) => setProgress(self.progress),
+      id: 'infinity-page', start: 0, end: 'max', refreshPriority: -10,
+      onUpdate: render,
+      onRefresh: (trigger) => { signature?.refresh(trigger); render(trigger) },
+    })
+    media.add('(prefers-reduced-motion: no-preference)', () => {
+      signature = createPageSignature()
+      signature?.refresh(progress)
+      render(progress)
+      return () => { signature?.destroy(); signature = undefined }
     })
 
     // One clock for scroll and GSAP; touch and reduced motion keep native scrolling.
@@ -90,6 +128,9 @@ export default function ScrollExperience() {
       observer.disconnect()
       window.removeEventListener('infinity:scroll-lock', handleScrollLock)
       document.removeEventListener('click', handleAnchorClick)
+      window.removeEventListener('scroll', trackScroll)
+      gsap.removeEventListener('matchMediaInit', rememberScroll)
+      gsap.removeEventListener('matchMedia', restoreScroll)
       media.revert()
       progress.kill()
     }
@@ -97,7 +138,7 @@ export default function ScrollExperience() {
 
   return (
     <div className="pointer-events-none fixed inset-x-0 top-0 z-[90] h-[2px]" aria-hidden="true">
-      <span ref={progressRef} className="block h-full w-full origin-left scale-x-0 bg-primary" />
+      <span ref={progressRef} data-scroll-progress className="block h-full w-full origin-left scale-x-0 bg-primary" />
     </div>
   )
 }
