@@ -214,6 +214,8 @@ button, a { touch-action: manipulation; }
 .event-mini-mark { display: grid; place-items: center; width: 46px; height: 46px; flex-shrink: 0; border: 1px solid #78816650; color: #b7d397; font-family: Rajdhani, sans-serif; font-size: 24px; }
 .hero-event-link strong { font-family: Rajdhani, sans-serif; color: #f1ebdd; font-size: 23px; font-weight: 600; }
 .hero-event-link small { display: block; margin-top: 1px; color: #9ca58e; font-size: 11px; }
+.event-page-link { flex-shrink: 0; padding-block: 12px; border-bottom: 1px solid #788166; color: #c2dcab; font-size: 12px; font-weight: 600; }
+.event-page-link:hover { color: #f1ebdd; }
 .event-link-action { margin-left: auto; font-size: 11px; color: #b7d397; }
 .hero-social { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid #78816640; border-radius: 50%; color: #b7d397; transition: background .2s; }
 .hero-social:hover { background: #30392d; }

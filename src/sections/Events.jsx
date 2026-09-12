@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef } from 'react'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { ArrowUpRight } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import SectionHeading from '../components/SectionHeading'
 import EventArtwork from '../components/EventArtwork'
 import TiltCard from '../components/TiltCard'
@@ -44,10 +45,10 @@ export default function Events() {
                     <p className="event-type">{event.type}</p>
                     <div className="event-title-row">
                       <h4>{event.name}</h4>
-                      <a href="https://www.instagram.com/club_.infinity/" target="_blank" rel="noreferrer"
+                      {event.href ? <Link to={event.href} className="event-page-link" aria-label={`Découvrir la compétition ${event.name}`}>Découvrir</Link> : <a href="https://www.instagram.com/club_.infinity/" target="_blank" rel="noreferrer"
                         aria-label={`Découvrir ${event.name} sur Instagram`} className="event-external">
                         <ArrowUpRight size={20} />
-                      </a>
+                      </a>}
                     </div>
                     <p className="event-description">{event.description}</p>
                   </div>

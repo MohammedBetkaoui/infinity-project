@@ -4,6 +4,7 @@ import useMotionPreference from './hooks/useMotionPreference'
 import CustomCursor from './components/CustomCursor'
 import Navbar from './components/Navbar'
 import ScrollExperience from './components/ScrollExperience'
+import RouteScrollReset from './components/RouteScrollReset'
 import About from './sections/About'
 import Community from './sections/Community'
 import Contact from './sections/Contact'
@@ -12,6 +13,7 @@ import FAQ from './sections/FAQ'
 import Footer from './sections/Footer'
 import Hero from './sections/Hero'
 import Poles from './sections/Poles'
+import AivexRoute from './pages/aivex/AivexRoute'
 
 function HomePage() {
   const reduced = useMotionPreference()
@@ -38,8 +40,12 @@ function HomePage() {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="*" element={<HomePage />} />
-    </Routes>
+    <>
+      <RouteScrollReset />
+      <Routes>
+        <Route path="/aivex" element={<AivexRoute />} />
+        <Route path="*" element={<HomePage />} />
+      </Routes>
+    </>
   )
 }

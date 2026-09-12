@@ -20,6 +20,7 @@ export function createInfinityFollower(path, head, trails = []) {
 
   return {
     render(value) {
+      if (!Number.isFinite(value)) return
       const progress = clamp(value)
       if (progress === previous) return
       if (previous >= 0 && Math.abs(progress - previous) > .00001) direction = Math.sign(progress - previous)

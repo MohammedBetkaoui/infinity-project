@@ -1,0 +1,53 @@
+import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { AnimatePresence, motion } from 'framer-motion'
+import { ArrowLeft, Menu, X } from 'lucide-react'
+import AivexWordmark from './AivexWordmark'
+import useMotionPreference from '../../hooks/useMotionPreference'
+
+const links = [
+  { href: '#competition', label: 'La compétition' },
+  { href: '#approche', label: 'L’approche' },
+  { href: '#preparation', label: 'Se préparer' },
+  { href: '#participer', label: 'Infos pratiques' },
+  { href: '#questions', label: 'FAQ' },
+]
+
+export default function AivexHeader() {
+  const [open, setOpen] = useState(false)
+  const toggleRef = useRef(null)
+  const reduced = useMotionPreference()
+
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 800px)')
+    const close = () => { if (media.matches) setOpen(false) }
+    media.addEventListener('change', close)
+    return () => media.removeEventListener('change', close)
+  }, [])
+
+  return (
+    <header className="ax-header" onKeyDown={(event) => {
+      if (event.key === 'Escape' && open) { setOpen(false); toggleRef.current?.focus() }
+    }}>
+      <div className="ax-container ax-header-inner">
+        <a href="#competition" aria-label="AIVEX, début de page" className="ax-brand"><AivexWordmark /><span>2e édition</span></a>
+        <nav className="ax-desktop-nav" aria-label="Navigation AIVEX">
+          {links.map(link => <a key={link.href} href={link.href}>{link.label}</a>)}
+        </nav>
+        <Link to="/#evenements" className="ax-back"><ArrowLeft size={14} aria-hidden="true" /><span>Infinity Club</span></Link>
+        <button className="ax-menu-toggle" ref={toggleRef} aria-expanded={open} aria-controls="ax-mobile-nav"
+          aria-label={open ? 'Fermer la navigation' : 'Ouvrir la navigation'} onClick={() => setOpen(!open)}>
+          {open ? <X size={22} /> : <Menu size={22} />}
+        </button>
+      </div>
+      <AnimatePresence initial={false}>
+        {open && <motion.nav id="ax-mobile-nav" className="ax-mobile-nav" aria-label="Navigation AIVEX mobile"
+          initial={{ opacity: 0, y: reduced ? 0 : -6 }} animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0 }} transition={{ duration: reduced ? .1 : .19 }}>
+          {links.map(link => <a key={link.href} href={link.href} onClick={() => setOpen(false)}>{link.label}</a>)}
+        </motion.nav>}
+      </AnimatePresence>
+      <div className="ax-scroll-progress" aria-hidden="true" />
+    </header>
+  )
+}

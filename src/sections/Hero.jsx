@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import { Link } from 'react-router-dom'
 import { ArrowDown, ArrowUpRight } from 'lucide-react'
 import InfinityArtwork from '../components/InfinityArtwork'
 import useHeroMotion from '../hooks/useHeroMotion'
@@ -44,11 +45,11 @@ export default function Hero() {
             <div className="hero-footnote">
               <p className="official-motto">No Limits For Infiniters<span>Une devise. Un état d’esprit.</span></p>
               <div className="hero-event-depth">
-                <a href="#evenements" className="hero-event-link">
+                <Link to="/aivex" className="hero-event-link">
                   <span className="event-mini-mark" aria-hidden="true">AI</span>
-                  <span><strong>AIVEX</strong><small>Explorer l’intelligence artificielle, ensemble.</small></span>
+                  <span><strong>AIVEX</strong><small>Compétition nationale d’applications IA. 2e édition.</small></span>
                   <span className="event-link-action">Découvrir</span>
-                </a>
+                </Link>
               </div>
               <a href="https://www.instagram.com/club_.infinity/" target="_blank" rel="noreferrer" className="hero-social" aria-label="Infinity Club sur Instagram">
                 <ArrowUpRight size={20} />
