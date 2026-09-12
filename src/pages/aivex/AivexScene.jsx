@@ -24,7 +24,7 @@ export default function AivexScene() {
 
   return (
     <figure className="ax-hero-art ax-scene" ref={sceneRef} data-scene-enabled={enabled} data-scene-paused={paused}>
-      <div className="ax-scene-register ax-intro-detail"><span>De l’idée à la machine</span><span className="ax-scene-edition">2<sup>e</sup> édition</span></div>
+      <div className="ax-scene-register ax-intro-detail"><span>From an idea to the machine</span><span className="ax-scene-edition">2<sup>nd</sup> edition</span></div>
       <div className="ax-scene-viewport" {...pointerEvents}>
         <div className="ax-scene-perspective">
           <div className="ax-scene-scroll">
@@ -35,19 +35,19 @@ export default function AivexScene() {
                 <div className="ax-scene-orbits" aria-hidden="true"><Orbit /><Orbit front /></div>
                 <div className="ax-scene-image">
                   <img className="ax-art-reveal" src="/assets/aivex-brain-chip.jpg" width="1122" height="1402"
-                    alt="Un cerveau rouge suspendu au-dessus d’un processeur, reliés par des filaments lumineux ambrés." fetchPriority="high" />
+                    alt="A red brain suspended above a processor, connected by glowing amber filaments." fetchPriority="high" />
                 </div>
-                <div className="ax-scene-annotation" aria-hidden="true"><i /><span>Intelligence<br /><strong>en application.</strong></span></div>
+                <div className="ax-scene-annotation" aria-hidden="true"><i /><span>Intelligence<br /><strong>in action.</strong></span></div>
               </div>
             </motion.div>
           </div>
         </div>
       </div>
       <div className="ax-scene-footer ax-intro-detail">
-        <figcaption>{enabled ? 'Une autre perspective. La même ambition.' : 'L’intelligence prend forme.'}</figcaption>
+        <figcaption>{enabled ? 'A new perspective. The same ambition.' : 'Intelligence takes shape.'}</figcaption>
         {enabled && <button className="ax-scene-pause" onClick={() => setPaused(!paused)} aria-pressed={paused}
-          aria-label={paused ? 'Reprendre l’animation 3D' : 'Mettre l’animation 3D en pause'}>
-          {paused ? <Play size={12} aria-hidden="true" /> : <Pause size={12} aria-hidden="true" />}<span>{paused ? 'Reprendre' : 'Pause'}</span>
+          aria-label={paused ? 'Resume the 3D animation' : 'Pause the 3D animation'}>
+          {paused ? <Play size={12} aria-hidden="true" /> : <Pause size={12} aria-hidden="true" />}<span>{paused ? 'Resume' : 'Pause'}</span>
         </button>}
       </div>
     </figure>

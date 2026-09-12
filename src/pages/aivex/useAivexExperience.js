@@ -12,8 +12,8 @@ export default function useAivexExperience(pageRef, ready) {
     const description = document.querySelector('meta[name="description"]')
     const theme = document.querySelector('meta[name="theme-color"]')
     const previous = { title: document.title, description: description?.content, theme: theme?.content, page: html.dataset.page }
-    document.title = 'AIVEX | Compétition nationale IA, 2e édition'
-    if (description) description.content = 'AIVEX, deuxième édition de la compétition nationale de programmation d’applications d’intelligence artificielle, portée par Infinity Club à BBA.'
+    document.title = 'AIVEX | National AI Competition, Second Edition'
+    if (description) description.content = 'AIVEX, the second edition of the national artificial intelligence application programming competition, organised by Infinity Club in BBA.'
     if (theme) theme.content = '#111111'
     html.dataset.page = 'aivex'
     if (!location.hash) window.scrollTo({ top: 0, behavior: 'instant' })

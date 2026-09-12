@@ -6,10 +6,10 @@ export default function AivexDetails() {
     <section className="ax-details" id="participer" aria-labelledby="ax-details-title" tabIndex={-1}>
       <div className="ax-container ax-details-layout">
         <div className="ax-details-intro">
-          <h2 id="ax-details-title">La prochaine étape,<br />c’est par ici.</h2>
-          <p>Tu veux prendre part à AIVEX ? Voici les informations disponibles pour cette deuxième édition.</p>
-          <div className="ax-announcement"><CalendarDays size={21} aria-hidden="true" /><div><strong>Les détails se préparent.</strong><p>Dates, règlement et inscriptions : retrouve les annonces officielles sur le compte du club.</p></div></div>
-          <a href={INSTAGRAM_URL} target="_blank" rel="noreferrer" className="ax-text-link">Voir les annonces sur Instagram <ArrowUpRight size={16} aria-hidden="true" /></a>
+          <h2 id="ax-details-title">Your next step<br />starts here.</h2>
+          <p>Want to take part in AIVEX? Here is what we can share about the second edition so far.</p>
+          <div className="ax-announcement"><CalendarDays size={21} aria-hidden="true" /><div><strong>The details are taking shape.</strong><p>Dates, rules and registration: follow the club account for official announcements.</p></div></div>
+          <a href={INSTAGRAM_URL} target="_blank" rel="noreferrer" className="ax-text-link">See announcements on Instagram <ArrowUpRight size={16} aria-hidden="true" /></a>
         </div>
         <dl className="ax-facts">
           {practicalDetails.map(item => (

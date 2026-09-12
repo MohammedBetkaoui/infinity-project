@@ -9,82 +9,82 @@ import {
 } from 'lucide-react'
 
 export const navigation = [
-  { label: 'Accueil', href: '#accueil' },
-  { label: 'À propos', href: '#a-propos' },
-  { label: 'Communauté', href: '#communaute' },
-  { label: 'Événements', href: '#evenements' },
-  { label: 'Pôles', href: '#poles' },
+  { label: 'Home', href: '#accueil' },
+  { label: 'About', href: '#a-propos' },
+  { label: 'Community', href: '#communaute' },
+  { label: 'Events', href: '#evenements' },
+  { label: 'Our fields', href: '#poles' },
   { label: 'Contact', href: '#contact' },
 ]
 
 export const poles = [
   {
     title: 'Personal Branding',
-    focus: 'Image, réseau et prise de parole',
+    focus: 'Your voice, your network, your presence',
     icon: PenTool,
-    description: 'Construire une présence claire, crédible et mémorable dans l’écosystème tech.',
+    description: 'Build a clear, credible presence and find your own voice in tech.',
   },
   {
     title: 'Design & Business of Design',
-    focus: 'Identité visuelle et valeur',
+    focus: 'Visual identity and creative value',
     icon: Palette,
-    description: 'Transformer les idées en identités fortes et en expériences qui créent de la valeur.',
+    description: 'Turn ideas into strong identities and experiences that make a difference.',
   },
   {
     title: 'Intro to Coding',
-    focus: 'Fondamentaux et premiers projets',
+    focus: 'The basics and your first projects',
     icon: Braces,
-    description: 'Apprendre les fondamentaux du code à travers des ateliers concrets et progressifs.',
+    description: 'Learn the foundations of coding through hands-on workshops, one project at a time.',
   },
   {
     title: 'Mobile Development',
-    focus: 'Applications et prototypes',
+    focus: 'Apps and prototypes',
     icon: Smartphone,
-    description: 'Imaginer, prototyper et développer des applications mobiles utiles au quotidien.',
+    description: 'Sketch, prototype and build mobile apps that are useful in everyday life.',
   },
   {
-    title: 'IA & Automatisation',
-    focus: 'n8n, agents et stratégies IA',
+    title: 'AI & Automation',
+    focus: 'n8n, agents and AI strategies',
     icon: Bot,
-    description: 'Explorer les stratégies IA, les agents et les workflows automatisés avec n8n.',
+    description: 'Explore AI strategies, agents and automated workflows with n8n.',
   },
   {
     title: 'Video Editing',
-    focus: 'Montage, rythme et motion',
+    focus: 'Editing, rhythm and motion',
     icon: Clapperboard,
-    description: 'Raconter des histoires dynamiques avec le montage, le rythme et le motion design.',
+    description: 'Tell stories through thoughtful editing, rhythm and motion design.',
   },
   {
-    title: 'Cybersécurité',
-    focus: 'Systèmes et sécurité numérique',
+    title: 'Cybersecurity',
+    focus: 'Systems and digital security',
     icon: Fingerprint,
-    description: 'Comprendre les menaces, sécuriser les systèmes et cultiver les bons réflexes.',
+    description: 'Understand threats, secure systems and develop good security habits.',
   },
 ]
 
 export const stats = [
-  { value: 3000, suffix: '+', label: 'abonnés sur Instagram' },
-  { value: 130, suffix: '+', label: 'publications partagées' },
-  { value: 7, suffix: '', label: 'pôles à explorer' },
-  { value: 4, suffix: '', label: 'rendez-vous présentés' },
+  { value: 3000, suffix: '+', label: 'Instagram followers' },
+  { value: 130, suffix: '+', label: 'posts shared' },
+  { value: 7, suffix: '', label: 'fields to explore' },
+  { value: 4, suffix: '', label: 'featured events' },
 ]
 
 export const events = [
   {
     year: '2026',
     name: 'AIVEX',
-    type: 'Intelligence artificielle',
-    description: 'La compétition nationale de programmation d’applications d’intelligence artificielle. Découvrez la deuxième édition.',
+    type: 'Artificial intelligence',
+    description: 'The national AI application programming competition. Explore the second edition.',
     href: '/aivex',
-    accent: '#B7F397',
+    accent: '#a4e5cc',
     code: 'AI/VX',
     visual: 'ai',
   },
   {
     year: '2026',
     name: 'DesignLab v2',
-    type: 'Atelier de design',
-    description: 'Un laboratoire intensif pour passer du concept à une expérience visuelle cohérente.',
+    type: 'Design workshop',
+    description: 'An intensive design lab, from the first concept to a coherent visual experience.',
     accent: '#F3F3E8',
     code: 'D/L02',
     visual: 'design',
@@ -92,18 +92,18 @@ export const events = [
   {
     year: '2025',
     name: 'Ramadan Conferences',
-    type: 'Cycle de conférences',
-    description: 'Des rencontres inspirantes qui font dialoguer technologie, parcours et communauté.',
-    accent: '#8FD96B',
+    type: 'Conference series',
+    description: 'Conversations that bring technology, personal journeys and our community together.',
+    accent: '#039869',
     code: 'RMDN',
     visual: 'ramadan',
   },
   {
     year: '2025',
     name: 'ACCESS0',
-    type: 'Programme de découverte',
-    description: 'Le point d’entrée vers les métiers numériques, pensé pour apprendre en construisant.',
-    accent: '#73C95B',
+    type: 'Discovery programme',
+    description: 'A first step into digital careers, built around learning by doing.',
+    accent: '#63d5ad',
     code: 'ACC/0',
     visual: 'access',
   },
@@ -111,28 +111,28 @@ export const events = [
 
 export const faqs = [
   {
-    question: 'Qui peut rejoindre Infinity Club ?',
+    question: 'Who can join Infinity Club?',
     answer:
-      'Tout étudiant motivé de l’Université de Bordj Bou Arréridj peut suivre nos activités. Les campagnes de recrutement précisent chaque année les conditions d’adhésion active.',
+      'Any motivated student at the University of Bordj Bou Arreridj can follow our activities. Each annual recruitment campaign sets out the requirements for active membership.',
   },
   {
-    question: 'Comment devenir membre ?',
+    question: 'How do I become a member?',
     answer:
-      'Surveille nos annonces sur Instagram. Pendant la période de recrutement, il suffit de remplir le formulaire puis de participer à un échange avec notre équipe.',
+      'Watch for our announcements on Instagram. During recruitment, fill in the application form, then have a conversation with our team.',
   },
   {
-    question: 'Faut-il déjà savoir coder pour rejoindre ?',
+    question: 'Do I need to know how to code?',
     answer:
-      'Non. La curiosité, l’envie d’apprendre et l’engagement comptent davantage que le niveau de départ. Plusieurs pôles sont justement conçus pour débuter.',
+      'No. Curiosity, a willingness to learn and commitment matter more than your starting level. Several of our fields are designed to welcome beginners.',
   },
   {
-    question: 'Quels types d’événements organisez-vous ?',
+    question: 'What kinds of events do you organise?',
     answer:
-      'Des conférences, ateliers pratiques, challenges, formations et rencontres autour du développement, de l’IA, du design, du business et de la cybersécurité.',
+      'Conferences, hands-on workshops, challenges and training sessions on development, AI, design, business and cybersecurity.',
   },
   {
-    question: 'Y a-t-il des opportunités de leadership ?',
+    question: 'Are there opportunities to lead?',
     answer:
-      'Oui. Les membres peuvent piloter des projets, coordonner une équipe, animer un atelier ou prendre des responsabilités dans l’organisation des événements.',
+      'Yes. Members can lead projects, coordinate a team, host a workshop or help organise events.',
   },
 ]

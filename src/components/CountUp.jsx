@@ -5,7 +5,7 @@ import useMotionPreference from '../hooks/useMotionPreference'
 
 gsap.registerPlugin(ScrollTrigger)
 
-const formatValue = (value, suffix) => `${Math.round(value).toLocaleString('fr-FR')}${suffix}`
+const formatValue = (value, suffix) => `${Math.round(value).toLocaleString('en-GB')}${suffix}`
 
 export default function CountUp({ value, suffix = '', delay = 0 }) {
   const ref = useRef(null)

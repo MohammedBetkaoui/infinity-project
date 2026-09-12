@@ -8,28 +8,28 @@ export default function AivexHero() {
     <section className="ax-hero" id="competition" aria-labelledby="ax-title" tabIndex={-1}>
       <div className="ax-container">
         <div className="ax-hero-topline ax-intro-detail">
-          <p>Compétition nationale de programmation d’applications IA</p>
-          <span>Imaginée ici. Ouverte sur demain.</span>
+          <p>National AI application programming competition</p>
+          <span>Imagined here. Built for what’s next.</span>
         </div>
         <div className="ax-hero-layout">
           <div className="ax-hero-copy">
-            <h1 id="ax-title"><span className="sr-only">AIVEX. L’intelligence en application.</span><span aria-hidden="true"><AivexWordmark large data-aivex-logo-target /></span></h1>
+            <h1 id="ax-title"><span className="sr-only">AIVEX. Intelligence in action.</span><span aria-hidden="true"><AivexWordmark large data-aivex-logo-target /></span></h1>
             <p className="ax-hero-statement" aria-hidden="true">
-              <span><span className="ax-title-line">L’intelligence.</span></span>
-              <span><span className="ax-title-line">En application.</span></span>
+              <span><span className="ax-title-line">Intelligence.</span></span>
+              <span><span className="ax-title-line">In action.</span></span>
             </p>
-            <p className="ax-hero-description ax-intro-detail">Les idées ne manquent pas.<br />Ce qui compte, c’est ce qu’on en fait.</p>
+            <p className="ax-hero-description ax-intro-detail">Ideas are everywhere.<br />What matters is what we do with them.</p>
             <div className="ax-hero-actions ax-intro-detail">
-              <a className="ax-button ax-button-amber" href="#participer">Découvrir la 2e édition</a>
-              <a className="ax-text-link" href={INSTAGRAM_URL} target="_blank" rel="noreferrer">Suivre les annonces <ArrowUpRight size={16} aria-hidden="true" /></a>
+              <a className="ax-button ax-button-amber" href="#participer">Explore the second edition</a>
+              <a className="ax-text-link" href={INSTAGRAM_URL} target="_blank" rel="noreferrer">Follow the announcements <ArrowUpRight size={16} aria-hidden="true" /></a>
             </div>
           </div>
           <AivexScene />
         </div>
         <div className="ax-hero-rail ax-intro-detail">
-          <div><span>Porté par</span><strong>Infinity Club</strong></div>
-          <div><span>À l’université</span><strong>Faculté des Mathématiques et Informatique</strong></div>
-          <p><MapPin size={16} aria-hidden="true" /> Bordj Bou Arréridj, Algérie</p>
+          <div><span>Organised by</span><strong>Infinity Club</strong></div>
+          <div><span>At our university</span><strong>Faculty of Mathematics and Computer Science</strong></div>
+          <p><MapPin size={16} aria-hidden="true" /> Bordj Bou Arréridj, Algeria</p>
         </div>
       </div>
     </section>

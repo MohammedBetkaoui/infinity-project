@@ -24,7 +24,7 @@ export default function AivexPage({ ready, onReady }) {
   return (
     <MotionConfig reducedMotion={reduced ? 'always' : 'never'}>
       <div className="aivex-page" ref={pageRef}>
-        <a className="ax-skip" href="#ax-main">Aller au contenu</a>
+        <a className="ax-skip" href="#ax-main">Skip to content</a>
         <AivexHeader />
         <main id="ax-main" tabIndex={-1}>
           <AivexHero />

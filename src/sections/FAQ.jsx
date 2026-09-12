@@ -16,10 +16,10 @@ export default function FAQ() {
       <div className="page-container grid gap-10 lg:grid-cols-[.8fr_1.2fr] lg:gap-20">
         <div className="lg:sticky lg:top-32 lg:h-fit">
           <SectionHeading
-            title="Avant de nous rejoindre."
-            description="Les réponses aux questions que les étudiants nous posent le plus souvent sur la vie du club."
+            title="Before you join."
+            description="Answers to the questions students ask us most about life at the club."
           />
-          <p className="mt-7 hidden max-w-[28ch] border-l border-olive pl-5 text-sm leading-6 text-sage lg:block">Une autre question ? Écris-nous directement sur Instagram.</p>
+          <p className="mt-7 hidden max-w-[28ch] border-l border-olive pl-5 text-sm leading-6 text-sage lg:block">Something else on your mind? Send us a message on Instagram.</p>
         </div>
 
         <div className="border-t border-sage/20">

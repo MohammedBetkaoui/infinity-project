@@ -14,7 +14,7 @@ function PoleDetail({ pole, reduced }) {
       animate={{ opacity: 1 }} transition={{ duration: .25, ease: MOTION_EASE.smooth }}>
       <div className="pole-art" aria-hidden="true">
         <div className="pole-art-grid" />
-        <span className="pole-art-label">L’atelier Infinity</span>
+        <span className="pole-art-label">The Infinity workshop</span>
         <div className="pole-icon-orbit"><Icon size={78} strokeWidth={.9} /></div>
         <Braces className="pole-art-corner" size={24} strokeWidth={1} />
       </div>
@@ -22,7 +22,7 @@ function PoleDetail({ pole, reduced }) {
         <p className="pole-focus">{pole.focus}</p>
         <h3>{pole.title}</h3>
         <p>{pole.description}</p>
-        <a href="#contact" className="text-link light-link">Ça m’intéresse</a>
+        <a href="#contact" className="text-link light-link">Count me in</a>
       </div>
     </motion.div>
   )
@@ -55,8 +55,8 @@ export default function Poles() {
     <section id="poles" className="section-space poles-section">
       <div className="page-container">
         <div className="section-intro">
-          <SectionHeading title="Trouve ce qui te fait vibrer." />
-          <p>Sept pôles, autant de portes d’entrée.<br />Choisis une curiosité. Fais-en une compétence.</p>
+          <SectionHeading title="Find what sparks your curiosity." />
+          <p>Seven fields. Seven ways to begin.<br />Follow a curiosity. Make it a skill.</p>
         </div>
         {mobile ? (
           <div className="pole-accordion">
@@ -76,7 +76,7 @@ export default function Poles() {
           </div>
         ) : (
           <div className="poles-explorer">
-            <div className="pole-tabs" role="tablist" aria-label="Les pôles du club" aria-orientation="vertical">
+            <div className="pole-tabs" role="tablist" aria-label="Explore our fields" aria-orientation="vertical">
               {poles.map((pole, index) => (
                 <button key={pole.title} ref={(node) => { tabsRef.current[index] = node }} id={`pole-tab-${index}`}
                   type="button" role="tab" aria-selected={selected === index} aria-controls={`pole-panel-${index}`}
@@ -94,11 +94,11 @@ export default function Poles() {
                   {selected === index && <PoleDetail pole={pole} reduced={reduced} />}
                 </div>
               ))}
-              {selected === -1 && <p className="pole-empty">Choisis un pôle pour découvrir son atelier.</p>}
+              {selected === -1 && <p className="pole-empty">Choose a field to explore its workshop.</p>}
             </div>
           </div>
         )}
-        <p className="poles-note">Tu hésites entre plusieurs pôles ? <a href="#contact">Viens en discuter avec nous.</a></p>
+        <p className="poles-note">Torn between a few fields? <a href="#contact">Come and talk it through with us.</a></p>
       </div>
     </section>
   )

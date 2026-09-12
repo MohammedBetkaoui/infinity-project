@@ -18,7 +18,7 @@ function WorkshopFlow() {
         {[26, 180, 334].map((x) => (
           <g key={x} transform={`translate(${x} 38)`}>
             <circle r="20" fill="#f3eee2" />
-            <circle className="notebook-node-wash" r="20" fill="#d5dfbe" />
+            <circle className="notebook-node-wash" r="20" fill="#c4e5d3" />
           </g>
         ))}
         <g className="notebook-flow-icons">
@@ -28,8 +28,8 @@ function WorkshopFlow() {
           <circle cx="324" cy="38" r="5" /><circle cx="342" cy="27" r="4" /><circle cx="342" cy="49" r="4" />
         </g>
       </svg>
-      <ol aria-label="De l’idée au projet partagé">
-        <li>Imaginer</li><li>Essayer</li><li>Partager</li>
+      <ol aria-label="From an idea to a shared project">
+        <li>Imagine</li><li>Try</li><li>Share</li>
       </ol>
     </div>
   )
@@ -39,9 +39,9 @@ export default function WorkshopNotebook() {
   return (
     <div className="workshop-notes">
       <div className="notebook-sheet">
-        <div className="notebook-header"><span>Dans le carnet d’un Infiniter</span><Braces size={20} aria-hidden="true" /></div>
+        <div className="notebook-header"><span>Inside an Infiniter’s notebook</span><Braces size={20} aria-hidden="true" /></div>
         <p className="notebook-title">
-          Une idée ne devrait<br />pas rester <span>une idée.
+          An idea deserves<br />to become <span>something.
             <svg viewBox="0 0 260 20" aria-hidden="true">
               <path className="notebook-title-ink" d="M3 12Q116 0 253 7" />
               <path className="notebook-title-ink" d="M18 17Q141 9 242 13" />
@@ -49,17 +49,17 @@ export default function WorkshopNotebook() {
           </span>
         </p>
         <WorkshopFlow />
-        <p className="notebook-note">Un peu de code, quelques croquis,<br />beaucoup de questions.</p>
+        <p className="notebook-note">A little code, a few sketches,<br />a lot of questions.</p>
       </div>
       <div className="workshop-sticky">
         <PenTool size={20} aria-hidden="true" />
-        <p>Pas besoin de tout savoir.<br />
-          <strong>On est là pour apprendre.
+        <p>You do not need every answer.<br />
+          <strong>We are here to learn.
             <svg viewBox="0 0 210 12" aria-hidden="true"><path className="notebook-sticky-ink" d="M3 8Q105 1 206 6" /></svg>
           </strong>
         </p>
       </div>
-      <p className="workshop-caption">Notre terrain de jeu : la tech. Notre point d’ancrage : BBA.</p>
+      <p className="workshop-caption">Tech is our playground. BBA is our home.</p>
     </div>
   )
 }

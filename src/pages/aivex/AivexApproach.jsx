@@ -26,15 +26,15 @@ export default function AivexApproach() {
     <section className="ax-approach" id="approche" aria-labelledby="ax-approach-title" tabIndex={-1}>
       <div className="ax-container">
         <div className="ax-manifesto">
-          <h2 id="ax-approach-title">Moins de promesses.<br />Plus de <span>concret.<svg viewBox="0 0 280 18" aria-hidden="true"><path className="ax-ink-line" pathLength="1" d="M3 12 Q132 0 277 8 M30 16 Q150 9 251 13" /></svg></span></h2>
+          <h2 id="ax-approach-title">Less talk.<br />More <span>making.<svg viewBox="0 0 280 18" aria-hidden="true"><path className="ax-ink-line" pathLength="1" d="M3 12 Q132 0 277 8 M30 16 Q150 9 251 13" /></svg></span></h2>
           <div className="ax-manifesto-copy">
-            <p>AIVEX est une compétition nationale consacrée à la programmation d’applications d’intelligence artificielle.</p>
-            <p>Portée par Infinity Club à l’Université Mohamed El Bachir El Ibrahimi de Bordj Bou Arréridj, cette deuxième édition met une conviction au premier plan : l’IA prend tout son sens quand on en fait quelque chose.</p>
+            <p>AIVEX is a national competition dedicated to programming artificial intelligence applications.</p>
+            <p>Led by Infinity Club at Mohamed El Bachir El Ibrahimi University in Bordj Bou Arreridj, this second edition puts one conviction first: AI matters most when we do something with it.</p>
           </div>
         </div>
         <div className="ax-workbench">
-          <div className="ax-workbench-top"><h3>De l’idée à l’application.</h3><p>Notre façon de voir les choses.</p></div>
-          <div className="ax-process-tabs" role="tablist" aria-label="Explorer l’approche AIVEX">
+          <div className="ax-workbench-top"><h3>From an idea to an application.</h3><p>The way we see it.</p></div>
+          <div className="ax-process-tabs" role="tablist" aria-label="Explore the AIVEX approach">
             {approach.map((item, index) => (
               <button key={item.id} role="tab" id={`ax-tab-${item.id}`} aria-selected={selected === index}
                 aria-controls="ax-process-panel" tabIndex={selected === index ? 0 : -1}

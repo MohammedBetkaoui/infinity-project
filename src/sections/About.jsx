@@ -12,13 +12,13 @@ export default function About() {
       <div className="page-container about-layout">
         <WorkshopNotebook />
         <div className="about-copy">
-          <SectionHeading tone="light" title="On vient pour la tech. On reste pour les gens." description="Infinity Club, c’est le club scientifique de la Faculté des Mathématiques et Informatique de l’Université Mohamed El Bachir El Ibrahimi. Un endroit où les étudiants de BBA peuvent apprendre les uns des autres et donner forme à leurs projets." />
+          <SectionHeading tone="light" title="Come for the tech. Stay for the people." description="Infinity Club is the scientific club of the Faculty of Mathematics and Computer Science at Mohamed El Bachir El Ibrahimi University. A place for BBA students to learn from each other and bring their projects to life." />
           <div className="about-principles">
-            <p><strong>Apprendre en faisant.</strong> Du développement au design, on met les mains dans le projet.</p>
-            <p><strong>Avancer ensemble.</strong> Une question, un blocage, une idée : il y a quelqu’un avec qui en parler.</p>
-            <p><strong>Passer du « et si » au concret.</strong> Un atelier, une équipe et un premier pas pour se lancer.</p>
+            <p><strong>Learn by doing.</strong> From development to design, we get hands-on with the work.</p>
+            <p><strong>Work through it together.</strong> A question, a roadblock, an idea: there is someone to talk it through with.</p>
+            <p><strong>Turn “what if” into something real.</strong> A workshop, a team and a first step to get started.</p>
           </div>
-          <a href="#communaute" className="text-link light-link">Rencontrer l’esprit Infinity</a>
+          <a href="#communaute" className="text-link light-link">Meet the Infinity community</a>
         </div>
       </div>
     </section>

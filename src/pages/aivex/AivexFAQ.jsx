@@ -11,7 +11,7 @@ export default function AivexFAQ() {
   return (
     <section className="ax-faq" id="questions" aria-labelledby="ax-faq-title" tabIndex={-1}>
       <div className="ax-container ax-faq-layout">
-        <div className="ax-faq-intro"><h2 id="ax-faq-title">Avant de<br />te lancer.</h2><p>Les réponses utiles, et ce qui reste à préciser. Pour le reste, on préfère en parler directement.</p><a href={INSTAGRAM_URL} target="_blank" rel="noreferrer" className="ax-text-link">Poser ma question <ArrowUpRight size={15} aria-hidden="true" /></a></div>
+        <div className="ax-faq-intro"><h2 id="ax-faq-title">Before you<br />dive in.</h2><p>Useful answers, and what is still to be confirmed. For everything else, let’s have a conversation.</p><a href={INSTAGRAM_URL} target="_blank" rel="noreferrer" className="ax-text-link">Ask a question <ArrowUpRight size={15} aria-hidden="true" /></a></div>
         <div className="ax-faq-list">
           {aivexFaqs.map(item => {
             const expanded = open === item.id

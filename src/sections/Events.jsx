@@ -31,8 +31,8 @@ export default function Events() {
     <section id="evenements" ref={sectionRef} className="events-section section-space">
       <div className="page-container">
         <div className="section-intro">
-          <SectionHeading title="Des idées qui se rencontrent." />
-          <p>Un atelier, une conférence, une première démo. Des rendez-vous pour sortir des cours et passer à la pratique.</p>
+          <SectionHeading title="Where ideas meet." />
+          <p>A workshop, a conference, a first demo. Reasons to step outside the classroom and put ideas into practice.</p>
         </div>
         {years.map((year) => (
           <div key={year} className="event-year-group">
@@ -45,8 +45,8 @@ export default function Events() {
                     <p className="event-type">{event.type}</p>
                     <div className="event-title-row">
                       <h4>{event.name}</h4>
-                      {event.href ? <Link to={event.href} className="event-page-link" aria-label={`Découvrir la compétition ${event.name}`}>Découvrir</Link> : <a href="https://www.instagram.com/club_.infinity/" target="_blank" rel="noreferrer"
-                        aria-label={`Découvrir ${event.name} sur Instagram`} className="event-external">
+                      {event.href ? <Link to={event.href} className="event-page-link" aria-label={`Explore the ${event.name} competition`}>Explore</Link> : <a href="https://www.instagram.com/club_.infinity/" target="_blank" rel="noreferrer"
+                        aria-label={`Explore ${event.name} on Instagram`} className="event-external">
                         <ArrowUpRight size={20} />
                       </a>}
                     </div>
@@ -57,7 +57,7 @@ export default function Events() {
             </div>
           </div>
         ))}
-        <p className="event-note">Les annonces et les souvenirs du club se retrouvent sur <a href="https://www.instagram.com/club_.infinity/" target="_blank" rel="noreferrer">Instagram <ArrowUpRight size={12} /></a>.</p>
+        <p className="event-note">Find club announcements and shared memories on <a href="https://www.instagram.com/club_.infinity/" target="_blank" rel="noreferrer">Instagram <ArrowUpRight size={12} /></a>.</p>
       </div>
     </section>
   )

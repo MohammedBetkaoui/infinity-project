@@ -4,14 +4,14 @@ import { projectDirections } from './aivexData'
 function DocumentStudy() {
   return (
     <div className="ax-document-study" aria-hidden="true">
-      <div className="ax-source-sheet"><FileText size={22} strokeWidth={1.3} /><span>Une source</span><i /><i /><i className="ax-source-highlight" /><i /><i /></div>
+      <div className="ax-source-sheet"><FileText size={22} strokeWidth={1.3} /><span>A source</span><i /><i /><i className="ax-source-highlight" /><i /><i /></div>
       <svg className="ax-document-wire" viewBox="0 0 180 150" preserveAspectRatio="none" fill="none">
         <path className="ax-brief-wire-guide" d="M0 110H36Q48 110 48 98V43Q48 31 60 31H112Q124 31 124 43V76Q124 88 136 88H180" />
         <path className="ax-brief-wire" pathLength="1" d="M0 110H36Q48 110 48 98V43Q48 31 60 31H112Q124 31 124 43V76Q124 88 136 88H180" />
       </svg>
       <span className="ax-document-node"><Check size={16} strokeWidth={1.5} /></span>
-      <div className="ax-answer-sheet"><span>Une réponse</span><strong>Lisible.<br />Vérifiable.</strong><p>Revenir au passage source</p><i /></div>
-      <p className="ax-study-caption">Le résultat compte. Son origine aussi.</p>
+      <div className="ax-answer-sheet"><span>An answer</span><strong>Clear.<br />Verifiable.</strong><p>Back to the source passage</p><i /></div>
+      <p className="ax-study-caption">The result matters. So does its source.</p>
     </div>
   )
 }
@@ -22,8 +22,8 @@ export default function AivexChallenge() {
     <section className="ax-challenge" id="defi" aria-labelledby="ax-challenge-title" tabIndex={-1}>
       <div className="ax-container">
         <div className="ax-challenge-heading">
-          <h2 id="ax-challenge-title">Un vrai besoin.<br />Un projet qui y répond.</h2>
-          <div><p>Le point de départ n’est pas forcément un modèle spectaculaire. C’est parfois une tâche que l’on aimerait rendre plus simple, plus claire ou plus accessible.</p><a href="#preparation" className="ax-text-link">Préparer mon idée</a></div>
+          <h2 id="ax-challenge-title">A real need.<br />A project that answers it.</h2>
+          <div><p>The starting point does not have to be a spectacular model. Sometimes it is a task you wish were simpler, clearer or more accessible.</p><a href="#preparation" className="ax-text-link">Work on my idea</a></div>
         </div>
         <div className="ax-project-board">
           <article className="ax-project-feature">
@@ -40,7 +40,7 @@ export default function AivexChallenge() {
             })}
           </div>
         </div>
-        <p className="ax-editorial-note"><strong>Des pistes, pas des sujets imposés.</strong> Ces exemples sont proposés pour nourrir ta réflexion. Les thèmes et contraintes officiels seront définis dans le règlement d’AIVEX.</p>
+        <p className="ax-editorial-note"><strong>Starting points, not assigned topics.</strong> These examples are here to get you thinking. The official AIVEX rules will define the topics and constraints.</p>
       </div>
     </section>
   )

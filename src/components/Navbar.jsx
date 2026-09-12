@@ -57,11 +57,11 @@ export default function Navbar() {
   return (
     <>
       <header className={`site-header ${scrolled ? 'is-scrolled' : ''}`} inert={menuOpen}>
-        <nav className="site-nav page-container" aria-label="Navigation principale">
-          <Logo scrollLinked descriptor="Faculté MI, BBA" />
+        <nav className="site-nav page-container" aria-label="Main navigation">
+          <Logo scrollLinked descriptor="MI Faculty, BBA" />
           <DesktopNavigation activeHref={activeHref} reduced={reduced} />
-          <a href="#contact" className="nav-join" data-magnetic data-ripple>Rejoindre le club</a>
-          <button ref={toggleRef} className="menu-toggle" type="button" aria-label="Ouvrir le menu"
+          <a href="#contact" className="nav-join" data-magnetic data-ripple>Join the club</a>
+          <button ref={toggleRef} className="menu-toggle" type="button" aria-label="Open menu"
             aria-expanded={menuOpen} aria-controls="mobile-menu"
             onClick={() => { returningFocus.current = true; setMenuOpen(true) }}>
             <span>Menu</span><span className="menu-toggle-lines" aria-hidden="true"><i /><i /></span>

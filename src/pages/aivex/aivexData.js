@@ -3,85 +3,85 @@ export const INSTAGRAM_URL = 'https://www.instagram.com/club_.infinity/'
 // These are editorial principles, not a published competition schedule or rules.
 export const approach = [
   {
-    id: 'question', label: 'Une question', title: 'Partir du réel.',
-    text: 'Un problème que l’on comprend, un usage que l’on observe. Avant de choisir un modèle, prendre le temps de formuler la bonne question.',
-    code: ['const question = observer(leReel)', 'const idee = imaginer(question)'],
-    caption: 'L’idée commence par un besoin.',
+    id: 'question', label: 'A question', title: 'Start with the real world.',
+    text: 'A problem you understand, a need you have noticed. Before choosing a model, take the time to ask the right question.',
+    code: ['const question = observe(reality)', 'const idea = imagine(question)'],
+    caption: 'An idea starts with a need.',
   },
   {
-    id: 'prototype', label: 'Du code', title: 'Donner forme à l’idée.',
-    text: 'Relier la logique, les données et une interface. Tester, se tromper, ajuster : c’est là qu’une intuition devient une application.',
-    code: ['const prototype = construire(idee)', 'tester(prototype, usagesReels)'],
-    caption: 'Le code transforme l’intuition.',
+    id: 'prototype', label: 'Some code', title: 'Give the idea a shape.',
+    text: 'Connect logic, data and an interface. Test, get it wrong, adjust: this is where an intuition becomes an application.',
+    code: ['const prototype = build(idea)', 'test(prototype, realUseCases)'],
+    caption: 'Code turns an intuition into something tangible.',
   },
   {
-    id: 'application', label: 'Une application', title: 'Montrer ce qui change.',
-    text: 'Une application se comprend aussi par ce qu’elle permet de faire. Rendre son utilité visible, expliquer ses choix et reconnaître ses limites.',
-    code: ['const application = affiner(prototype)', 'partager(application, sesLimites)'],
-    caption: 'L’usage donne du sens à la technique.',
+    id: 'application', label: 'An application', title: 'Show what it changes.',
+    text: 'An application makes sense through what it helps people do. Make its usefulness visible, explain your choices and acknowledge its limits.',
+    code: ['const application = refine(prototype)', 'share(application, itsLimits)'],
+    caption: 'Real use gives technology its purpose.',
   },
 ]
 
 export const practicalDetails = [
-  { label: 'Format', value: 'Compétition nationale', detail: 'Programmation d’applications d’intelligence artificielle' },
-  { label: 'Édition', value: 'Deuxième édition', detail: 'AIVEX, par Infinity Club' },
-  { label: 'Dates et lieu précis', value: 'À confirmer', pending: true, detail: 'Le calendrier et les espaces d’accueil seront annoncés par le club.' },
-  { label: 'Inscriptions', value: 'Modalités à venir', pending: true, detail: 'Le lien officiel et les conditions de participation seront communiqués avec l’annonce.' },
-  { label: 'Programme et règlement', value: 'À annoncer', pending: true, detail: 'Les étapes, les contraintes techniques et les critères officiels seront précisés par l’organisation.' },
+  { label: 'Format', value: 'National competition', detail: 'Artificial intelligence application programming' },
+  { label: 'Edition', value: 'Second edition', detail: 'AIVEX, by Infinity Club' },
+  { label: 'Dates and venue', value: 'To be confirmed', pending: true, detail: 'The club will announce the schedule and exact venue.' },
+  { label: 'Registration', value: 'Details to follow', pending: true, detail: 'The official registration link and participation requirements will be shared with the announcement.' },
+  { label: 'Programme and rules', value: 'To be announced', pending: true, detail: 'The organisers will publish the stages, technical constraints and official criteria.' },
 ]
 
 export const projectDirections = [
   {
-    id: 'documents', title: 'Faire parler les documents.',
-    description: 'Retrouver une information dans un ensemble de textes, la rendre compréhensible et permettre de revenir à sa source.',
-    question: 'Comment aider quelqu’un à trouver la bonne information, sans perdre le contexte ?',
-    angle: 'Langage et recherche d’information',
+    id: 'documents', title: 'Let documents tell their story.',
+    description: 'Find information in a collection of texts, make it understandable and let people trace it back to its source.',
+    question: 'How can you help someone find the right information without losing the context?',
+    angle: 'Language and information retrieval',
   },
   {
-    id: 'vision', title: 'Donner du sens aux images.',
-    description: 'Organiser une collection visuelle ou repérer un élément dans une image. Un terrain pour réfléchir au lien entre perception et usage.',
-    question: 'Que doit-on reconnaître, et dans quelles situations le système se trompe-t-il ?',
-    angle: 'Vision par ordinateur',
+    id: 'vision', title: 'Make sense of images.',
+    description: 'Organise a visual collection or identify something in an image. A chance to explore the link between perception and practical use.',
+    question: 'What needs to be recognised, and when does the system get it wrong?',
+    angle: 'Computer vision',
   },
   {
-    id: 'data', title: 'Rendre les données lisibles.',
-    description: 'Explorer un jeu de données, faire émerger des tendances et les expliquer dans une interface que l’on comprend sans mode d’emploi.',
-    question: 'Quelle information change réellement la compréhension de l’utilisateur ?',
-    angle: 'Analyse et visualisation',
+    id: 'data', title: 'Make data understandable.',
+    description: 'Explore a dataset, uncover patterns and explain them in an interface that needs no instruction manual.',
+    question: 'Which piece of information genuinely changes what the user understands?',
+    angle: 'Analysis and visualisation',
   },
 ]
 
 export const preparationItems = [
-  { id: 'need', title: 'Formuler un besoin précis', detail: 'Pour qui construis-tu ? Quel problème rencontres-tu ? Décris un usage concret en quelques phrases.' },
-  { id: 'sources', title: 'Identifier les données et leurs limites', detail: 'Note tes sources, ce que tu peux utiliser et ce qui manque. Prévois des exemples sans informations personnelles sensibles.' },
-  { id: 'demo', title: 'Esquisser une démonstration simple', detail: 'Une entrée, un traitement, un résultat visible. Commence par un parcours court qui montre l’utilité de ton idée.' },
-  { id: 'choices', title: 'Savoir expliquer tes choix', detail: 'Pourquoi cette approche ? Quelle place occupe l’IA ? Garde aussi une trace des essais qui n’ont pas fonctionné.' },
-  { id: 'limits', title: 'Préparer un regard critique', detail: 'Teste plusieurs cas, montre les limites du prototype et identifie ce que tu améliorerais ensuite.' },
+  { id: 'need', title: 'Define a specific need', detail: 'Who are you building for? What problem have you noticed? Describe a concrete use case in a few sentences.' },
+  { id: 'sources', title: 'Identify your data and its limits', detail: 'Note your sources, what you can use and what is missing. Prepare examples without sensitive personal information.' },
+  { id: 'demo', title: 'Sketch a simple demonstration', detail: 'An input, a process, a visible result. Start with a short flow that shows why your idea is useful.' },
+  { id: 'choices', title: 'Be ready to explain your choices', detail: 'Why this approach? What role does AI play? Keep a record of the attempts that did not work, too.' },
+  { id: 'limits', title: 'Take a critical look', detail: 'Test different cases, show the limits of your prototype and identify what you would improve next.' },
 ]
 
 export const aivexFaqs = [
   {
-    id: 'format', question: 'AIVEX, c’est une conférence ou une compétition ?',
-    answer: 'AIVEX est une compétition nationale de programmation d’applications d’intelligence artificielle. Cette page présente sa deuxième édition. Le programme détaillé et les éventuelles activités complémentaires seront précisés par l’organisation.',
+    id: 'format', question: 'Is AIVEX a conference or a competition?',
+    answer: 'AIVEX is a national artificial intelligence application programming competition. This page presents its second edition. The organisers will announce the detailed programme and any additional activities.',
   },
   {
-    id: 'eligibility', question: 'Qui peut participer ? Seul ou en équipe ?',
-    answer: 'Les conditions d’éligibilité, le format de participation et la taille éventuelle des équipes restent à annoncer. Le caractère national de la compétition ne remplace pas ces conditions : consulte le règlement officiel dès sa publication.',
+    id: 'eligibility', question: 'Who can participate? Individually or as a team?',
+    answer: 'Eligibility requirements, participation format and any team size limits are still to be announced. The national scope of the competition does not replace these requirements: read the official rules when they are published.',
   },
   {
-    id: 'topics', question: 'Les exemples de projets sont-ils les sujets imposés ?',
-    answer: 'Non. Les exemples de cette page sont des pistes pour réfléchir à un usage de l’IA. Ils ne constituent ni des catégories officielles, ni une liste de technologies autorisées. Seul le règlement définira les sujets et contraintes de la compétition.',
+    id: 'topics', question: 'Are the example projects the required topics?',
+    answer: 'No. The examples on this page are starting points for thinking about an AI use case. They are neither official categories nor a list of permitted technologies. Only the official rules will define the competition topics and constraints.',
   },
   {
-    id: 'registration', question: 'Comment et quand pourrai-je m’inscrire ?',
-    answer: 'Les dates et modalités d’inscription seront annoncées sur les canaux officiels d’Infinity Club. Aucun formulaire d’inscription n’est ouvert sur cette page. Le carnet de préparation est un outil personnel, pas une candidature.',
+    id: 'registration', question: 'How and when can I register?',
+    answer: 'Registration dates and details will be announced through the official Infinity Club channels. No registration form is open on this page. The preparation notebook is a personal tool, not an application.',
   },
   {
-    id: 'evaluation', question: 'Quels seront les critères, le jury et les récompenses ?',
-    answer: 'Ces éléments ne sont pas encore confirmés sur cette page. La composition du jury, les critères d’évaluation et les éventuelles récompenses seront communiqués par l’organisation. Les conseils de préparation présentés ici ne sont pas une grille de notation.',
+    id: 'evaluation', question: 'What about judging criteria, the jury and prizes?',
+    answer: 'These details are not yet confirmed on this page. The organisers will announce the jury, evaluation criteria and any prizes. The preparation advice here is not a scoring rubric.',
   },
   {
-    id: 'contact', question: 'Où poser une question à l’équipe ?',
-    answer: 'Écris directement à Infinity Club sur Instagram, via @club_.infinity. Précise que ta question concerne AIVEX et la deuxième édition pour faciliter l’échange avec l’équipe.',
+    id: 'contact', question: 'Where can I ask the team a question?',
+    answer: 'Message Infinity Club directly on Instagram at @club_.infinity. Mention AIVEX and the second edition so the team can help you more easily.',
   },
 ]

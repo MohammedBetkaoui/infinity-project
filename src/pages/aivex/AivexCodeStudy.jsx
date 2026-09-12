@@ -11,7 +11,7 @@ export default function AivexCodeStudy({ current, selected }) {
         <div className="ax-code-layer ax-code-layer-back" />
         <div className="ax-code-layer ax-code-layer-mid" />
         <div className="ax-code-study">
-          <div className="ax-code-header"><Braces size={18} /><span>idée en construction</span><i /></div>
+          <div className="ax-code-header"><Braces size={18} /><span>idea in progress</span><i /></div>
           <div className="ax-code-lines">{current.code.map(line => <p key={line}><span>{line.split(' ')[0]}</span>{line.slice(line.indexOf(' '))}</p>)}</div>
           <p className="ax-code-caption">{current.caption}</p>
           <svg className="ax-circuit" viewBox="0 0 440 88" fill="none">
