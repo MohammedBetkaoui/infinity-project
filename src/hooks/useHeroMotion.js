@@ -22,6 +22,9 @@ export default function useHeroMotion(sectionRef) {
       const stage = section.querySelector('.hero-stage')
       const surface = section.querySelector('.hero-surface')
       const artwork = section.querySelector('.infinity-art')
+      const emblemMark = section.querySelector('.hero-emblem .infinity-mark')
+      const emblemShape = section.querySelector('.hero-emblem .infinity-mark-shape')
+      const emblemSignal = section.querySelector('.hero-emblem .infinity-mark-signal')
       const path = section.querySelector('.ribbon-trace')
       const head = section.querySelector('.infinity-head')
       const trails = [...section.querySelectorAll('.infinity-trail')].reverse()
@@ -57,6 +60,9 @@ export default function useHeroMotion(sectionRef) {
       })
       intro.to(orbitLines, { strokeDashoffset: 0, duration: .94, stagger: .055, ease: 'power3.inOut' }, 0)
         .fromTo(head, { opacity: 0 }, { opacity: 1, duration: .26 }, .22)
+        .from(emblemShape, { opacity: 0, scale: .8, rotation: -3.6, duration: .67, ease: 'power3.out' }, .24)
+        .fromTo(emblemSignal, { opacity: 0, strokeDashoffset: 1 }, { opacity: .52, strokeDashoffset: 0, duration: .78, ease: 'power3.inOut' }, .2)
+        .to(emblemSignal, { opacity: .3, duration: .24 }, .87)
         .from('.hero-topline', { opacity: 0, y: 7, duration: .29 }, .46)
         .from('.hero-prelude', { opacity: 0, duration: .27 }, .58)
         .from(words, { yPercent: 108, rotate: 1.4, duration: .67, stagger: .065 }, .65)
@@ -106,6 +112,7 @@ export default function useHeroMotion(sectionRef) {
         },
       })
       scene.fromTo(draw, { progress: 0 }, { progress: 1, duration: canPin ? DRAW_SHARE : 1, onUpdate: renderPath, immediateRender: false }, 0)
+        .to(emblemMark, { rotation: canPin ? 4.8 : 2.6, scaleX: .94, scaleY: 1.025, duration: 1 }, 0)
       if (canPin) {
         scene.addLabel('enter-club', DRAW_SHARE)
           .to(surface, { scale: .978, y: -6, duration: 1 - DRAW_SHARE }, DRAW_SHARE)

@@ -202,10 +202,16 @@ button, a { touch-action: manipulation; }
 .infinity-head { will-change: transform; opacity: 0; }
 .infinity-trail { opacity: 0; }
 .infinity-mark { display: block; width: 100%; height: auto; }
-.brand-symbol { position: relative; display: grid; place-items: center; width: 56px; height: 44px; padding: 9px 7px; flex-shrink: 0; border-radius: 4px; background: #f1f0ec; color: #004b37; }
+.infinity-mark-shape, .infinity-mark-signal { transform-box: fill-box; transform-origin: center; }
+.infinity-mark-signal { fill: none; stroke: #f1ebdd; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: .13 .87; opacity: .18; vector-effect: non-scaling-stroke; }
+.brand-symbol { position: relative; display: grid; place-items: center; width: 56px; height: 44px; padding: 7px 2px; flex-shrink: 0; background: transparent; color: #a4e5cc; }
 .brand-journey { position: absolute; inset: 0; width: 56px; height: 44px; opacity: 0; pointer-events: none; }
-.brand-mark { transform-origin: center; }
-.hero-emblem { position: absolute; left: 17%; top: 28%; display: grid; place-items: center; width: 66%; aspect-ratio: 1.5; padding: 9%; border: 1px solid #f1f0ec50; border-radius: 3px; background: #f1f0ec; color: #004b37; box-shadow: 8px 10px 0 #041f172b; transform: rotate(-6deg); }
+.brand-mark { width: 100%; transform-origin: center; transition: transform .38s var(--ease-smooth); }
+.group:hover .brand-mark, .group:focus-visible .brand-mark { transform: scale(1.045); }
+.hero-emblem { position: absolute; z-index: 1; left: 50%; top: 50%; width: min(76%, 430px); color: #a4e5cc; opacity: .94; transform: translate(-50%, -50%); filter: drop-shadow(0 0 22px rgba(3, 152, 105, .24)); }
+.hero-emblem .infinity-mark { transform-origin: center; }
+.hero-emblem .infinity-mark-signal { stroke-width: 3.2; opacity: .3; }
+.group:hover .infinity-mark-signal, .group:focus-visible .infinity-mark-signal { opacity: .72; stroke-dashoffset: -1; transition: stroke-dashoffset .62s var(--ease-smooth), opacity .22s; }
 .brand-journey-head { transform-origin: 0 0; }
 .brand-copy { display: grid; gap: 4px; line-height: 1; }
 .brand-descriptor { font-size: 10px; font-weight: 400; letter-spacing: .035em; color: #b7d1c5; }
@@ -373,7 +379,7 @@ button, a { touch-action: manipulation; }
 .menu-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-bottom: 20px; border-bottom: 1px solid #041f1730; }
 .mobile-menu .brand-copy > span:first-child { color: #041f17; }
 .mobile-menu .brand-descriptor { color: #326451; }
-.mobile-menu .brand-symbol { box-shadow: none; }
+.mobile-menu .brand-symbol { color: #0b4b37; }
 .menu-top button { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 44px; padding: 10px 12px; border: 1px solid #041f1740; border-radius: 3px; font-size: 11px; }
 .menu-introduction { padding-block: 23px 20px; font-size: 12px; line-height: 1.7; color: #326451; }
 .menu-introduction strong { font-weight: 500; color: #041f17; }
@@ -436,6 +442,7 @@ button, a { touch-action: manipulation; }
   .hero-description { margin-top: 24px; font-size: 14px; }
   .hero-actions { gap: 20px; }
   .infinity-art { max-width: 440px; margin: 28px auto 0; }
+  .hero-emblem { width: min(72%, 330px); filter: drop-shadow(0 0 16px rgba(3, 152, 105, .2)); }
   .hero-footnote { grid-template-columns: 1fr; gap: 20px; padding-block: 24px; }
   .official-motto { display: flex; justify-content: space-between; gap: 18px; font-size: 18px; }
   .official-motto span { max-width: 15ch; text-align: right; font-size: 10px; }
@@ -524,5 +531,6 @@ button, a { touch-action: manipulation; }
   .notebook-title-ink, .notebook-route-ink, .notebook-sticky-ink { stroke-dashoffset: 0 !important; }
   .notebook-node-wash { opacity: 1 !important; }
   .brand-journey { display: none; }
+  .infinity-mark-signal { display: none; }
   .site-header .brand-mark { opacity: 1 !important; transform: none !important; }
 }

@@ -6,8 +6,10 @@ const clamp = gsap.utils.clamp(0, 1)
 
 export function createPageSignature() {
   const brand = document.querySelector('.site-header .brand-symbol')
+  const shape = brand?.querySelector('.infinity-mark-shape')
+  const signal = brand?.querySelector('.infinity-mark-signal')
   const signature = brand?.querySelector('.brand-journey')
-  if (!signature) return null
+  if (!shape || !signal || !signature) return null
 
   const follower = createInfinityFollower(
     signature.querySelector('.brand-journey-ink'),
@@ -37,16 +39,26 @@ export function createPageSignature() {
       if (!brand.isConnected) return
       const scroll = trigger.scroll()
       const blend = clamp((scroll - start) / (end - start))
+      const progress = clamp((scroll - start) / (maximum - start))
       if (blend !== previousBlend) {
-        // Reading progress frames the official emblem; it never replaces or distorts it.
-        signature.style.opacity = blend
+        signature.style.opacity = blend * .36
         previousBlend = blend
       }
-      follower.render((scroll - start) / (maximum - start))
+      // A restrained pulse keeps the asymmetric emblem legible throughout the page.
+      const wave = Math.sin(progress * Math.PI * 2)
+      shape.style.transform = `rotate(${wave * 4.2}deg) scale(${1 - Math.abs(wave) * .025})`
+      signal.style.strokeDashoffset = 1 - progress * 1.35
+      signal.style.opacity = .18 + blend * .52
+      follower.render(progress)
     },
     destroy() {
       follower.clear()
       signature.style.removeProperty('opacity')
+      for (const node of [shape, signal]) {
+        node.style.removeProperty('transform')
+        node.style.removeProperty('stroke-dashoffset')
+        node.style.removeProperty('opacity')
+      }
     },
   }
 }

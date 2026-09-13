@@ -97,7 +97,9 @@ test('AIVEX keeps its separate palette, loading duration and unconfirmed details
 
 test('every club signature reuses the supplied emblem trace', async () => {
   const mark = await read('src/components/InfinityMark.jsx')
-  assert.equal((mark.match(/<path /g) || []).length, 1, 'The emblem is a continuous ribbon')
+  assert.equal((mark.match(/<path /g) || []).length, 2, 'One official ribbon plus its matching signal contour')
+  assert.match(mark, /className="infinity-mark-shape"/)
+  assert.match(mark, /className="infinity-mark-signal" pathLength="1"/)
   assert.match(mark, /viewBox="14 75 432 236"/)
   for (const component of ['Logo', 'InfinityArtwork']) {
     assert.match(await read(`src/components/${component}.jsx`), /<InfinityMark/)
@@ -108,7 +110,8 @@ test('every club signature reuses the supplied emblem trace', async () => {
   assert.match(await read('src/sections/Footer.jsx'), /<Logo \/>/)
   assert.doesNotMatch(await read('src/lib/pageSignature.js'), /mark\.style\.(opacity|transform)/)
   assert.equal(declaration('.hero-emblem', 'color'), declaration('.brand-symbol', 'color'))
-  assert.equal(declaration('.hero-emblem', 'background'), declaration('.brand-symbol', 'background'))
+  assert.equal(declaration('.brand-symbol', 'background'), 'transparent')
+  assert.equal(declaration('.hero-emblem', 'background'), undefined)
 })
 
 test('mobile AIVEX motion is scroll-driven, scoped and reversible without a custom scroll loop', async () => {
