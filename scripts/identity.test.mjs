@@ -66,8 +66,8 @@ test('small text and primary CTA labels meet 4.5:1 contrast', () => {
 test('English labels preserve existing section links and club content', async () => {
   assert.match(await read('index.html'), /<html lang="en">/)
   assert.deepEqual(navigation.map(item => item.label), ['Home', 'About', 'Community', 'Events', 'Our fields', 'Contact'])
-  assert.deepEqual(navigation.map(item => item.href), ['#accueil', '/about', '#communaute', '#evenements', '#poles', '#contact'])
-  assert.deepEqual(navigation.map(item => item.to), ['/', '/about', '/#communaute', '/#evenements', '/#poles', '/#contact'])
+  assert.deepEqual(navigation.map(item => item.href), ['#accueil', '/about', '#communaute', '/events', '#poles', '#contact'])
+  assert.deepEqual(navigation.map(item => item.to), ['/', '/about', '/#communaute', '/events', '/#poles', '/#contact'])
   assert.equal(poles.length, 7)
   assert.equal(poles[4].title, 'AI & Automation')
   assert.equal(poles[6].title, 'Cybersecurity')
@@ -91,6 +91,22 @@ test('About is a dedicated routed page with restrained, content-driven motion', 
   assert.match(motion, /getPointAtLength/)
   assert.match(styles, /prefers-reduced-motion: reduce/)
   assert.match(await read('src/components/NavigationLink.jsx'), /motion\.create\(Link\)/)
+})
+
+test('Events is a dedicated routed page with one real programme and scroll-linked motion', async () => {
+  const app = await read('src/App.jsx')
+  const page = await read('src/pages/events/EventsPage.jsx')
+  const programme = await read('src/pages/events/EventsProgramme.jsx')
+  const motion = await read('src/pages/events/useEventsPageMotion.js')
+  const styles = await read('src/pages/events/events.css')
+  assert.match(app, /path="\/events" element={<SitePage><EventsPage \/><\/SitePage>}/)
+  assert.match(page, /<EventsHero \/>/)
+  assert.match(page, /<EventsProgramme \/>/)
+  assert.match(programme, /events\.filter\(\(event\) => event\.href\)/)
+  assert.match(programme, /<EventFeatureCard/)
+  assert.match(motion, /getPointAtLength/)
+  assert.match(motion, /scrub: true/)
+  assert.match(styles, /prefers-reduced-motion: reduce/)
 })
 
 test('no old French UI copy remains, including hidden controls and the loader', async () => {

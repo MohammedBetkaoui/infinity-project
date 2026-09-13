@@ -12,7 +12,7 @@ export const navigation = [
   { label: 'Home', href: '#accueil', section: 'accueil', to: '/' },
   { label: 'About', href: '/about', to: '/about' },
   { label: 'Community', href: '#communaute', section: 'communaute', to: '/#communaute' },
-  { label: 'Events', href: '#evenements', section: 'evenements', to: '/#evenements' },
+  { label: 'Events', href: '/events', to: '/events' },
   { label: 'Our fields', href: '#poles', section: 'poles', to: '/#poles' },
   { label: 'Contact', href: '#contact', section: 'contact', to: '/#contact' },
 ]
