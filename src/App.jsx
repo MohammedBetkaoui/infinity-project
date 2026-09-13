@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { MotionConfig } from 'framer-motion'
 import useMotionPreference from './hooks/useMotionPreference'
@@ -17,6 +17,8 @@ import Poles from './sections/Poles'
 import AivexRoute from './pages/aivex/AivexRoute'
 import AboutPage from './pages/about/AboutPage'
 import EventsPage from './pages/events/EventsPage'
+
+const CommunityPage = lazy(() => import('./pages/community/CommunityPage'))
 
 const MINIMUM_HOME_LOADING_MS = 2500
 const HOME_LOADER_SESSION_KEY = 'infinity-home-loader-seen'
@@ -99,6 +101,7 @@ export default function App() {
         <Route path="/aivex" element={<AivexRoute />} />
         <Route path="/about" element={<SitePage><AboutPage /></SitePage>} />
         <Route path="/events" element={<SitePage><EventsPage /></SitePage>} />
+        <Route path="/community" element={<SitePage><Suspense fallback={<p className="page-container py-40" role="status">Opening the community...</p>}><CommunityPage /></Suspense></SitePage>} />
         <Route path="/" element={<HomeRoute />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
