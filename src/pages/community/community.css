@@ -101,7 +101,7 @@
 }
 .community-gallery-controls button:hover:not(:disabled) { background: var(--community-cream); color: var(--community-ink); border-color: var(--community-cream); }
 .community-gallery-controls button:disabled { opacity: .3; cursor: default; }
-.community-name-index { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-top: 1px solid var(--community-rule); }
+.community-name-index { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); border-top: 1px solid var(--community-rule); }
 .community-name-index button { position: relative; min-height: 80px; padding: 17px 11px 15px; text-align: left; transition: background .24s; }
 .community-name-index button::before { content: ''; position: absolute; top: -1px; inset-inline: 0; height: 2px; background: var(--community-mint); transform: scaleX(0); transform-origin: left; transition: transform .31s var(--ease-smooth); }
 .community-name-index button[aria-pressed='true'] { background: rgb(158 215 196 / .065); }

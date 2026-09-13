@@ -45,7 +45,7 @@ export default function CommunityPortrait({ portrait, index, active, onSelect, o
           onBlur={resetTilt}
           style={reduced ? undefined : { rotateX: active ? tiltX : 0, rotateY: active ? tiltY : 0 }}
         >
-          <img src={portrait.src} alt={portrait.alt} width={portrait.width} height={portrait.height} loading={index >= 2 && index <= 4 ? 'eager' : 'lazy'} decoding="async" draggable="false" />
+          <img src={portrait.src} alt={portrait.alt} width={portrait.width} height={portrait.height} loading={index <= 1 ? 'eager' : 'lazy'} decoding="async" draggable="false" />
           <motion.span className="community-portrait-shade" aria-hidden="true" style={{ opacity: reduced ? 0 : shade }} />
           <span className="community-portrait-expand" aria-hidden="true"><Maximize2 size={15} /> View portrait</span>
         </motion.button>

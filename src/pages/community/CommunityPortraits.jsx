@@ -10,7 +10,8 @@ import usePortraitRail from './usePortraitRail'
 export default function CommunityPortraits() {
   const railRef = useRef(null)
   const [viewerIndex, setViewerIndex] = useState(null)
-  const { activeIndex, goTo, onKeyDown, scrollX, step, origin, reduced } = usePortraitRail(railRef, communityPortraits.length, 3)
+  const presidentIndex = communityPortraits.findIndex((portrait) => portrait.role === 'President')
+  const { activeIndex, goTo, onKeyDown, scrollX, step, origin, reduced } = usePortraitRail(railRef, communityPortraits.length, presidentIndex)
   const active = communityPortraits[activeIndex]
 
   return (
