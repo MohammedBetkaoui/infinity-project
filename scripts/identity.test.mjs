@@ -104,7 +104,6 @@ test('Events is a dedicated routed page with one real programme and scroll-linke
   assert.match(page, /<EventsProgramme \/>/)
   assert.match(programme, /events\.filter\(\(event\) => event\.href\)/)
   assert.match(programme, /<EventFeatureCard/)
-  assert.match(motion, /getPointAtLength/)
   assert.match(motion, /scrub: true/)
   assert.match(styles, /prefers-reduced-motion: reduce/)
 })

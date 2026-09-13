@@ -1,42 +1,28 @@
 import { Link } from 'react-router-dom'
-import AivexWordmark from '../aivex/AivexWordmark'
+import EventPreview from './EventPreview'
 
-export default function EventFeatureCard({ event, index, total }) {
-  const serial = String(index + 1).padStart(2, '0')
-  const count = String(total).padStart(2, '0')
+export default function EventFeatureCard({ event }) {
+  const titleId = `event-${event.name.toLowerCase()}-title`
 
   return (
-    <article id={`event-${event.name.toLowerCase()}`} className="events-feature">
-      <svg className="events-feature-network" viewBox="0 0 1200 600" preserveAspectRatio="none" aria-hidden="true">
-        <path className="events-feature-guide" d="M34 112H208c72 0 52-67 132-67h624c92 0 55 81 202 81v370h-146" />
-        <path className="events-feature-route" d="M34 112H208c72 0 52-67 132-67h624c92 0 55 81 202 81v370h-146" />
-        <circle className="events-feature-head-glow" cx="0" cy="0" r="17" />
-        <circle className="events-feature-head" cx="0" cy="0" r="4" />
-      </svg>
+    <article className="events-feature" aria-labelledby={titleId}>
+      <Link to={event.href} className="events-feature-link" aria-labelledby={`${titleId} ${titleId}-action`}>
+        <header className="events-feature-heading">
+          <div className="events-feature-name">
+            <h3 id={titleId}>{event.name}</h3>
+            <span className="events-feature-edition">{event.edition}</span>
+          </div>
+          <p>{event.type}</p>
+        </header>
 
-      <Link to={event.href} className="events-feature-visual" aria-label={`Open the ${event.name} event page`}>
-        <div className="events-feature-media">
-          <img src="/assets/aivex-brain-chip.jpg" alt="Artificial intelligence represented by a brain connected to a processor" />
+        <EventPreview preview={event.preview} />
+
+        <div className="events-feature-details">
+          <p className="events-feature-summary">{event.summary}</p>
+          <p className="events-feature-location">Infinity Club<span>Bordj Bou Arreridj, Algeria</span></p>
+          <span className="events-feature-action" id={`${titleId}-action`}>Explore {event.name}</span>
         </div>
-        <span className="events-feature-edition">Second edition</span>
-        <span className="events-feature-open">View event</span>
       </Link>
-
-      <div className="events-feature-copy">
-        <div className="events-feature-register">
-          <span>{serial} / {count}</span>
-          <span>Current programme</span>
-        </div>
-        <AivexWordmark />
-        <h3>National AI application programming competition.</h3>
-        <p>{event.description}</p>
-        <dl>
-          <div><dt>Discipline</dt><dd>Artificial intelligence</dd></div>
-          <div><dt>Edition</dt><dd>Second</dd></div>
-          <div><dt>Location</dt><dd>Bordj Bou Arreridj</dd></div>
-        </dl>
-        <Link to={event.href} className="events-feature-link" data-magnetic data-ripple>Explore AIVEX</Link>
-      </div>
     </article>
   )
 }

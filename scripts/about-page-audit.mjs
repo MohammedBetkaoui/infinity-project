@@ -87,7 +87,7 @@ try {
     assert.equal(await evaluate('document.querySelectorAll("main h1").length'), 1)
     assert.equal(await evaluate('Boolean(document.querySelector("vite-error-overlay"))'), false)
     assert(!await evaluate('document.documentElement.scrollWidth > innerWidth'), `${width}: no horizontal overflow`)
-    assert.equal(await evaluate('getComputedStyle(document.querySelector(".about-hero-route")).strokeDashoffset'), '0px')
+    assert.equal(await evaluate('document.querySelector(".page-hero h1").getAttribute("aria-label")'), 'About.')
     await capture(`about-page-hero-${width}`)
     const range = await evaluate(`(() => {
       const compact = innerWidth < 768
@@ -126,7 +126,7 @@ try {
   assert.equal(await evaluate('document.querySelector(".about-page").dataset.motion'), 'reduced')
   assert.equal(await evaluate('getComputedStyle(document.querySelector(".about-scene-shared")).opacity'), '1')
   await scroll(0)
-  assert.equal(await evaluate('getComputedStyle(document.querySelector(".about-title-line")).transform'), 'none')
+  assert.equal(await evaluate('getComputedStyle(document.querySelector(".page-hero-letter")).transform'), 'none')
   assert.equal(await evaluate('document.documentElement.classList.contains("lenis")'), false)
   await evaluate('document.querySelector(".menu-toggle").click()')
   await pause(300)
