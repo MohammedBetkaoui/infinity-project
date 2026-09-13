@@ -42,7 +42,8 @@ test('the official Infinity green is consistent across the main page and both lo
   assert.equal(declaration('.button-primary', 'background'), 'var(--primary)')
   assert.equal(declaration('.nav-join', 'background'), 'var(--primary)')
   assert.match(await read('src/components/infinity-loader.css'), /color: #094a36/)
-  assert.match(await read('src/components/infinity-loader.css'), /stroke: #c6ddd4/)
+  assert.match(await read('src/components/infinity-loader.css'), /color: #9ed7c4/)
+  assert.match(await read('src/components/infinity-loader.css'), /stroke: transparent/)
   assert.match(await read('index.html'), /name="theme-color" content="#094A36"/)
 })
 

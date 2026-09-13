@@ -66,14 +66,15 @@
 
 .infinity-loader-mark {
   width: 100%;
-  color: #094a36;
-  filter: drop-shadow(0 0 34px rgba(241, 235, 221, .15));
+  overflow: visible;
+  color: #9ed7c4;
+  filter: none;
   transform-origin: 0 0;
 }
 
 .infinity-loader .infinity-mark-shape {
-  stroke: #c6ddd4;
-  stroke-width: 5;
+  stroke: transparent;
+  stroke-width: 0;
   stroke-linejoin: round;
   paint-order: stroke fill;
   animation: infinity-loader-breathe 1.42s cubic-bezier(.45, 0, .2, 1) infinite alternate;
@@ -82,10 +83,10 @@
 .infinity-loader .infinity-mark-signal {
   display: block;
   stroke: #f1ebdd;
-  stroke-width: 3;
+  stroke-width: 0;
   stroke-dasharray: .09 .91;
-  opacity: .92;
-  animation: infinity-loader-signal 1.16s linear infinite;
+  opacity: 0;
+  animation: none;
 }
 
 .infinity-loader-coordinate {
@@ -144,7 +145,6 @@
   from { transform: scaleX(.982) scaleY(1.008); }
   to { transform: scaleX(1.008) scaleY(.987); }
 }
-@keyframes infinity-loader-signal { to { stroke-dashoffset: -1; } }
 @keyframes infinity-loader-blink { 50% { opacity: .32; transform: scale(.74); } }
 @keyframes infinity-loader-step {
   0%, 15% { opacity: .4; transform: translateX(0); }

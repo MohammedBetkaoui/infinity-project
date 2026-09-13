@@ -64,7 +64,10 @@ export default function useInfinityLoaderHandoff(loaderRef, leaving, onComplete)
           duration: compact ? .76 : .82,
           ease: 'power3.inOut',
         }, .03)
-        .to(shape, { strokeWidth: 13, duration: compact ? .7 : .76, ease: 'power3.inOut' }, .03)
+        .to(shape, {
+          fill: '#094a36', stroke: '#f1ebdd', strokeWidth: 13,
+          duration: compact ? .7 : .76, ease: 'power3.inOut',
+        }, .03)
         .to(signal, { strokeWidth: 2.2, opacity: .88, duration: compact ? .7 : .76, ease: 'power3.inOut' }, .03)
     }, loader)
 
