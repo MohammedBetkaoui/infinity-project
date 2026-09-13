@@ -9,12 +9,12 @@ import {
 } from 'lucide-react'
 
 export const navigation = [
-  { label: 'Home', href: '#accueil' },
-  { label: 'About', href: '#a-propos' },
-  { label: 'Community', href: '#communaute' },
-  { label: 'Events', href: '#evenements' },
-  { label: 'Our fields', href: '#poles' },
-  { label: 'Contact', href: '#contact' },
+  { label: 'Home', href: '#accueil', section: 'accueil', to: '/' },
+  { label: 'About', href: '/about', to: '/about' },
+  { label: 'Community', href: '#communaute', section: 'communaute', to: '/#communaute' },
+  { label: 'Events', href: '#evenements', section: 'evenements', to: '/#evenements' },
+  { label: 'Our fields', href: '#poles', section: 'poles', to: '/#poles' },
+  { label: 'Contact', href: '#contact', section: 'contact', to: '/#contact' },
 ]
 
 export const poles = [
@@ -76,7 +76,7 @@ export const events = [
     type: 'Artificial intelligence',
     description: 'The national AI application programming competition. Explore the second edition.',
     href: '/aivex',
-    accent: '#a4e5cc',
+    accent: '#9ed7c4',
     code: 'AI/VX',
     visual: 'ai',
   },
@@ -94,7 +94,7 @@ export const events = [
     name: 'Ramadan Conferences',
     type: 'Conference series',
     description: 'Conversations that bring technology, personal journeys and our community together.',
-    accent: '#039869',
+    accent: '#094a36',
     code: 'RMDN',
     visual: 'ramadan',
   },
@@ -103,7 +103,7 @@ export const events = [
     name: 'ACCESS0',
     type: 'Discovery programme',
     description: 'A first step into digital careers, built around learning by doing.',
-    accent: '#63d5ad',
+    accent: '#77bda5',
     code: 'ACC/0',
     visual: 'access',
   },

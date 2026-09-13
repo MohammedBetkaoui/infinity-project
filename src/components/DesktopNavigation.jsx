@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef } from 'react'
 import gsap from 'gsap'
 import { navigation } from '../data/siteData'
 import { GSAP_EASE } from '../lib/motion'
+import NavigationLink from './NavigationLink'
 
 export default function DesktopNavigation({ activeHref, reduced }) {
   const linksRef = useRef(null)
@@ -40,8 +41,8 @@ export default function DesktopNavigation({ activeHref, reduced }) {
   return (
     <div ref={linksRef} className="nav-links">
       {navigation.map((item) => (
-        <a key={item.href} href={item.href} className="nav-link"
-          aria-current={activeHref === item.href ? 'location' : undefined}>{item.label}</a>
+        <NavigationLink key={item.href} item={item} className="nav-link"
+          aria-current={activeHref === item.href ? 'location' : undefined}>{item.label}</NavigationLink>
       ))}
       <span ref={markerRef} className="nav-active-line" aria-hidden="true" />
     </div>

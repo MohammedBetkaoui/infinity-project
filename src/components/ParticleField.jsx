@@ -13,7 +13,7 @@ export default function ParticleField() {
           {particles.map(([left, top, size, delay], index) => index % 3 === layer && (
             <span
               key={`${left}-${top}`}
-              className={`particle absolute rounded-full bg-primary-glow ${index % 4 === 0 ? 'shadow-[0_0_14px_3px_rgba(164,229,204,.4)]' : ''}`}
+              className={`particle absolute rounded-full bg-primary-glow ${index % 4 === 0 ? 'shadow-[0_0_14px_3px_rgba(158,215,196,.4)]' : ''}`}
               style={{ left: `${left}%`, top: `${top}%`, width: size, height: size, animationDelay: `${delay}s` }}
             />
           ))}

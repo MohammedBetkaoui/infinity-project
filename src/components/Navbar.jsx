@@ -5,6 +5,8 @@ import useSectionNavigation from '../hooks/useSectionNavigation'
 import DesktopNavigation from './DesktopNavigation'
 import MobileMenu from './MobileMenu'
 import Logo from './Logo'
+import NavigationLink from './NavigationLink'
+import { navigation } from '../data/siteData'
 
 export default function Navbar() {
   const { scrolled, activeHref } = useSectionNavigation()
@@ -60,7 +62,7 @@ export default function Navbar() {
         <nav className="site-nav page-container" aria-label="Main navigation">
           <Logo scrollLinked descriptor="MI Faculty, BBA" />
           <DesktopNavigation activeHref={activeHref} reduced={reduced} />
-          <a href="#contact" className="nav-join" data-magnetic data-ripple>Join the club</a>
+          <NavigationLink item={navigation.at(-1)} className="nav-join" data-magnetic data-ripple>Join the club</NavigationLink>
           <button ref={toggleRef} className="menu-toggle" type="button" aria-label="Open menu"
             aria-expanded={menuOpen} aria-controls="mobile-menu"
             onClick={() => { returningFocus.current = true; setMenuOpen(true) }}>

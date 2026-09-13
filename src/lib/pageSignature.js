@@ -5,11 +5,12 @@ import { createInfinityFollower, HERO_DRAW_SHARE } from './infinityMotion'
 const clamp = gsap.utils.clamp(0, 1)
 
 export function createPageSignature() {
+  const home = document.getElementById('accueil')
   const brand = document.querySelector('.site-header .brand-symbol')
   const shape = brand?.querySelector('.infinity-mark-shape')
   const signal = brand?.querySelector('.infinity-mark-signal')
   const signature = brand?.querySelector('.brand-journey')
-  if (!shape || !signal || !signature) return null
+  if (!home || !shape || !signal || !signature) return null
 
   const follower = createInfinityFollower(
     signature.querySelector('.brand-journey-ink'),
@@ -23,16 +24,15 @@ export function createPageSignature() {
   return {
     refresh(trigger) {
       const hero = ScrollTrigger.getById('infinity-hero')
-      const about = document.getElementById('a-propos')
-      const home = document.getElementById('accueil')
+      const nextSection = document.querySelector('main > section:not(#accueil)')
       // Another route may refresh its scene before the outgoing page's passive cleanup.
-      if (!brand.isConnected || !about || !home) return
-      const aboutTop = about.getBoundingClientRect().top + window.scrollY
+      if (!brand.isConnected || !nextSection || !home) return
+      const nextSectionTop = nextSection.getBoundingClientRect().top + window.scrollY
       const pinned = home.dataset.heroMode === 'pinned'
       // Media-query changes can expose the new Hero trigger before it has measured.
       const measured = hero && Number.isFinite(hero.start) && Number.isFinite(hero.end)
-      start = measured ? hero.start + (hero.end - hero.start) * (pinned ? HERO_DRAW_SHARE : 1) : Math.max(0, aboutTop - innerHeight)
-      end = Math.max(start + 1, aboutTop - 96)
+      start = measured ? hero.start + (hero.end - hero.start) * (pinned ? HERO_DRAW_SHARE : 1) : Math.max(0, nextSectionTop - innerHeight)
+      end = Math.max(start + 1, nextSectionTop - 96)
       maximum = Math.max(start + 1, Number.isFinite(trigger.end) ? trigger.end : document.documentElement.scrollHeight - innerHeight)
     },
     render(trigger) {

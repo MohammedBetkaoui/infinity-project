@@ -7,12 +7,12 @@ export default function EventArtwork({ variant }) {
       <div className="poster-register"><span>Infinity Club</span><span>MI Faculty / BBA</span></div>
       {variant === 'ai' && <>
         <svg viewBox="0 0 600 360" className="poster-network">
-          <g fill="none" stroke="#63b696" strokeWidth="1" opacity=".65">
+          <g fill="none" stroke="#5f9f89" strokeWidth="1" opacity=".65">
             <path className="event-network-path" pathLength="1" d="M310 34 463 86 567 26M310 34 352 183 463 86 568 203" />
             <path className="event-network-path" pathLength="1" d="M352 183 487 316 568 203 463 86M352 183 568 203" />
             <path className="event-network-path" pathLength="1" d="m487 316 80-290M310 34l177 282" />
           </g>
-          <g fill="#99d8bf">{[[310,34],[463,86],[567,26],[352,183],[568,203],[487,316]].map(([x,y]) => <circle key={x} cx={x} cy={y} r="3" />)}</g>
+          <g fill="#8cc7b3">{[[310,34],[463,86],[567,26],[352,183],[568,203],[487,316]].map(([x,y]) => <circle key={x} cx={x} cy={y} r="3" />)}</g>
         </svg>
         <div className="poster-title">AI<span>VEX</span></div>
         <p className="poster-foot">Understand. Experiment. Imagine.</p>

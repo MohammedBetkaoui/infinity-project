@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import gsap from 'gsap'
 import { navigation } from '../data/siteData'
@@ -8,10 +9,11 @@ gsap.registerPlugin(ScrollTrigger)
 export default function useSectionNavigation() {
   const [activeHref, setActiveHref] = useState('#accueil')
   const [scrolled, setScrolled] = useState(false)
+  const { pathname } = useLocation()
 
   useEffect(() => {
     let sections = []
-    let current = '#accueil'
+    let current = pathname === '/' ? '#accueil' : pathname
     let compact = false
     const update = (trigger) => {
       const position = trigger.scroll()
@@ -27,15 +29,15 @@ export default function useSectionNavigation() {
       id: 'infinity-navigation', start: 0, end: 'max', refreshPriority: -12,
       onUpdate: update,
       onRefresh: (self) => {
-        sections = navigation.map((item) => {
-          const node = document.getElementById(item.href.slice(1))
+        sections = pathname === '/' ? navigation.map((item) => {
+          const node = item.section ? document.getElementById(item.section) : null
           return node ? { href: item.href, top: node.getBoundingClientRect().top + window.scrollY } : null
-        }).filter(Boolean).sort((a, b) => a.top - b.top)
+        }).filter(Boolean).sort((a, b) => a.top - b.top) : []
         update(self)
       },
     })
     return () => trigger.kill()
-  }, [])
+  }, [pathname])
 
-  return { activeHref, scrolled }
+  return { activeHref: pathname === '/' ? activeHref : pathname, scrolled }
 }

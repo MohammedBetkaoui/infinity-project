@@ -3,6 +3,7 @@ import { ArrowUpRight, X } from 'lucide-react'
 import { navigation } from '../data/siteData'
 import { MOTION_EASE } from '../lib/motion'
 import Logo from './Logo'
+import NavigationLink from './NavigationLink'
 
 export default function MobileMenu({ dialogRef, activeHref, reduced, onClose, onNavigate }) {
   const present = useIsPresent()
@@ -21,7 +22,7 @@ export default function MobileMenu({ dialogRef, activeHref, reduced, onClose, on
         <p className="menu-introduction">A place to meet.<br /><strong>Possibilities without limits.</strong></p>
         <nav className="mobile-links" aria-label="Mobile navigation">
           {navigation.map((item, index) => (
-            <motion.a key={item.href} href={item.href}
+            <NavigationLink key={item.href} item={item} animated
               aria-current={activeHref === item.href ? 'location' : undefined}
               initial={reduced ? false : { x: 14, rotate: .7, opacity: 0 }}
               animate={{ x: 0, rotate: 0, opacity: 1 }}
@@ -29,11 +30,11 @@ export default function MobileMenu({ dialogRef, activeHref, reduced, onClose, on
               onClick={onNavigate}>
               <span>{item.label}</span>
               {activeHref === item.href && <small>You are here</small>}
-            </motion.a>
+            </NavigationLink>
           ))}
         </nav>
         <div className="mobile-menu-footer">
-          <a href="#contact" className="button-primary menu-join" onClick={onNavigate}>Join the club</a>
+          <NavigationLink item={navigation.at(-1)} className="button-primary menu-join" onClick={onNavigate}>Join the club</NavigationLink>
           <div className="menu-social-row">
             <p>No Limits For Infiniters</p>
             <a href="https://www.instagram.com/club_.infinity/" target="_blank" rel="noreferrer">@club_.infinity <ArrowUpRight size={14} /></a>

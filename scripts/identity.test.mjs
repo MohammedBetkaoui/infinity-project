@@ -30,27 +30,32 @@ function contrast(foreground, background) {
   return (values[0] + .05) / (values[1] + .05)
 }
 
-test('requested forest and emerald are consistent across Tailwind, CSS and metadata', async () => {
-  assert.equal(colors.background.toLowerCase(), '#0b4b37')
-  assert.equal(colors.primary.toLowerCase(), '#039869')
+test('the official Infinity green is consistent across the main page and both logos', async () => {
+  assert.equal(colors.primary.toLowerCase(), '#094a36')
+  assert.equal(colors.leaf.toLowerCase(), '#094a36')
   assert.equal(declaration(':root', '--background'), colors.background.toLowerCase())
   assert.equal(declaration(':root', '--primary'), colors.primary.toLowerCase())
   assert.equal(declaration('.hero-section', 'background'), colors.background.toLowerCase())
+  assert.equal(declaration('.brand-symbol', 'color'), colors.primary.toLowerCase())
+  assert.equal(declaration('.hero-emblem', 'color'), colors.primary.toLowerCase())
+  assert.equal(declaration('.hero-emblem .infinity-mark-shape', 'stroke'), '#c6ddd4')
   assert.equal(declaration('.button-primary', 'background'), 'var(--primary)')
   assert.equal(declaration('.nav-join', 'background'), 'var(--primary)')
-  assert.match(await read('index.html'), /name="theme-color" content="#0B4B37"/)
+  assert.match(await read('src/components/infinity-loader.css'), /color: #094a36/)
+  assert.match(await read('src/components/infinity-loader.css'), /stroke: #c6ddd4/)
+  assert.match(await read('index.html'), /name="theme-color" content="#094A36"/)
 })
 
 test('small text and primary CTA labels meet 4.5:1 contrast', () => {
   const cases = [
-    [colors.ink, colors.primary],
+    [colors.cream, colors.primary],
     [colors.cream, colors.background],
     [colors['text-muted'], colors.background],
     [colors['text-muted'], colors.surface],
     [colors.sage, colors.background],
     [colors.sand, colors.background],
     [colors.ink, colors.paper],
-    [colors.cream, '#0b4b37'],
+    [colors.cream, '#094a36'],
     ['#c3ded0', '#08573f'],
   ]
   for (const [foreground, background] of cases) {
@@ -61,7 +66,8 @@ test('small text and primary CTA labels meet 4.5:1 contrast', () => {
 test('English labels preserve existing section links and club content', async () => {
   assert.match(await read('index.html'), /<html lang="en">/)
   assert.deepEqual(navigation.map(item => item.label), ['Home', 'About', 'Community', 'Events', 'Our fields', 'Contact'])
-  assert.deepEqual(navigation.map(item => item.href), ['#accueil', '#a-propos', '#communaute', '#evenements', '#poles', '#contact'])
+  assert.deepEqual(navigation.map(item => item.href), ['#accueil', '/about', '#communaute', '#evenements', '#poles', '#contact'])
+  assert.deepEqual(navigation.map(item => item.to), ['/', '/about', '/#communaute', '/#evenements', '/#poles', '/#contact'])
   assert.equal(poles.length, 7)
   assert.equal(poles[4].title, 'AI & Automation')
   assert.equal(poles[6].title, 'Cybersecurity')
@@ -69,6 +75,22 @@ test('English labels preserve existing section links and club content', async ()
   assert.equal(faqs.length, 5)
   assert.deepEqual(stats.map(item => item.value), [3000, 130, 7, 4])
   assert.match(await read('src/components/CountUp.jsx'), /toLocaleString\('en-GB'\)/)
+})
+
+test('About is a dedicated routed page with restrained, content-driven motion', async () => {
+  const app = await read('src/App.jsx')
+  const page = await read('src/pages/about/AboutPage.jsx')
+  const motion = await read('src/pages/about/useAboutPageMotion.js')
+  const styles = await read('src/pages/about/about.css')
+  assert.match(app, /path="\/about" element={<SitePage><AboutPage \/><\/SitePage>}/)
+  assert.doesNotMatch(app, /<About \/>/)
+  assert.match(page, /<AboutHero \/>/)
+  assert.match(page, /<AboutStory \/>/)
+  assert.match(page, /<AboutProcess \/>/)
+  assert.match(page, /<AboutFields \/>/)
+  assert.match(motion, /getPointAtLength/)
+  assert.match(styles, /prefers-reduced-motion: reduce/)
+  assert.match(await read('src/components/NavigationLink.jsx'), /motion\.create\(Link\)/)
 })
 
 test('no old French UI copy remains, including hidden controls and the loader', async () => {
@@ -122,4 +144,25 @@ test('mobile AIVEX motion is scroll-driven, scoped and reversible without a cust
   assert.doesNotMatch(source, /pin:\s*true|repeat:\s*-1|requestAnimationFrame|\.ticker|new Lenis/)
   assert.match(source, /return \(\) => media\.revert\(\)/)
   assert.match(await read('src/pages/aivex/AivexPage.jsx'), /useAivexMobileMotion\(pageRef, ready\)/)
+})
+
+test('the home loader uses the official emblem and preserves the 2.5-second minimum', async () => {
+  const app = await read('src/App.jsx')
+  const loader = await read('src/components/InfinityLoader.jsx')
+  const styles = await read('src/components/infinity-loader.css')
+  const handoff = await read('src/hooks/useInfinityLoaderHandoff.js')
+  assert.match(app, /MINIMUM_HOME_LOADING_MS = 2500/)
+  assert.match(app, /<InfinityLoader leaving=/)
+  assert.match(loader, /<InfinityMark className="infinity-loader-mark"/)
+  assert.match(loader, /Question.+Prototype.+Shared project/s)
+  assert.match(loader, /36\.07 N/)
+  assert.match(handoff, /\.hero-emblem \.infinity-mark/)
+  assert.match(handoff, /const candidates = \[navigationMark, heroMark\]/)
+  assert.match(handoff, /handoffTarget/)
+  assert.match(handoff, /strokeWidth: 13/)
+  assert.match(handoff, /power3\.inOut/)
+  assert.match(styles, /animation: infinity-loader-progress 2\.5s/)
+  assert.match(styles, /infinity-loader-route-mobile/)
+  assert.match(styles, /env\(safe-area-inset-top\)/)
+  assert.match(styles, /prefers-reduced-motion: reduce/)
 })

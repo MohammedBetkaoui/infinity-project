@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowDown, ArrowUpRight } from 'lucide-react'
+import { ArrowUpRight } from 'lucide-react'
 import InfinityArtwork from '../components/InfinityArtwork'
 import useHeroMotion from '../hooks/useHeroMotion'
 
@@ -55,7 +55,7 @@ export default function Hero() {
                 <ArrowUpRight size={20} />
               </a>
             </div>
-            <a href="#a-propos" className="hero-scroll-link"><ArrowDown size={14} /> Get to know the club</a>
+            <Link to="/about" className="hero-scroll-link">Get to know the club</Link>
           </div>
           <div className="hero-shade" aria-hidden="true" />
         </div>

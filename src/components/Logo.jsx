@@ -1,9 +1,10 @@
 import InfinityMark from './InfinityMark'
+import NavigationLink from './NavigationLink'
 
 export default function Logo({ compact = false, scrollLinked = false, descriptor, className = '', onClick }) {
   return (
-    <a
-      href="#accueil"
+    <NavigationLink
+      item={{ href: '#accueil', section: 'accueil', to: '/' }}
       onClick={onClick}
       className={`group inline-flex items-center gap-3 ${className}`}
       aria-label="Infinity Club - Home"
@@ -23,6 +24,6 @@ export default function Logo({ compact = false, scrollLinked = false, descriptor
           {descriptor && <span className="brand-descriptor">{descriptor}</span>}
         </span>
       )}
-    </a>
+    </NavigationLink>
   )
 }
