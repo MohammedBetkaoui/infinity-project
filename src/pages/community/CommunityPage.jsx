@@ -1,15 +1,11 @@
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import PageHero from '../../components/PageHero'
-import CommunityPortraits from './CommunityPortraits'
+import TeamCarousel from './TeamCarousel'
 import CommunityLife from './CommunityLife'
 import CommunityInvitation from './CommunityInvitation'
-import useCommunityMotion from './useCommunityMotion'
 import './community.css'
 
 export default function CommunityPage() {
-  const pageRef = useRef(null)
-  useCommunityMotion(pageRef)
-
   useEffect(() => {
     const previousTitle = document.title
     document.title = 'Community | Infinity Club'
@@ -17,7 +13,7 @@ export default function CommunityPage() {
   }, [])
 
   return (
-    <div ref={pageRef} id="community-page" className="community-page">
+    <div id="community-page" className="community-page">
       <PageHero
         className="community-page-hero"
         title="Community"
@@ -27,7 +23,7 @@ export default function CommunityPage() {
         href="#meet-infiniters"
         linkLabel="Meet the Infiniters"
       />
-      <CommunityPortraits />
+      <TeamCarousel />
       <CommunityLife />
       <CommunityInvitation />
     </div>
