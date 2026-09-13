@@ -3,6 +3,7 @@ import { MotionConfig } from 'framer-motion'
 import useMotionPreference from '../../hooks/useMotionPreference'
 import AivexHeader from './AivexHeader'
 import AivexHero from './AivexHero'
+import AivexGallery from './AivexGallery'
 import AivexApproach from './AivexApproach'
 import AivexChallenge from './AivexChallenge'
 import AivexPreparation from './AivexPreparation'
@@ -30,6 +31,7 @@ export default function AivexPage({ ready, onReady }) {
         <AivexHeader />
         <main id="ax-main" tabIndex={-1}>
           <AivexHero />
+          <AivexGallery ready={ready} />
           <AivexApproach />
           <AivexChallenge />
           <AivexPreparation />
