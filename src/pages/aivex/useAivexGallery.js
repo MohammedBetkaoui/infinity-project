@@ -1,101 +1,193 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { useInView } from 'framer-motion'
+import { animate, useInView, useMotionValue, useMotionValueEvent, useScroll } from 'framer-motion'
 import useMotionPreference from '../../hooks/useMotionPreference'
-import { firstEditionPhotos, galleryIndex, GALLERY_INTERVAL_MS } from './aivexGalleryData'
+import { firstEditionPhotos, GALLERY_INTERVAL_MS } from './aivexGalleryData'
 import { prepareGalleryPhoto } from './aivexGalleryImages'
+import { clamp, GALLERY_EASE, galleryPosition, galleryScrollTarget } from './gallery/galleryTimeline'
 
 const subscribeVisibility = (notify) => {
   document.addEventListener('visibilitychange', notify)
   return () => document.removeEventListener('visibilitychange', notify)
 }
 const isPageVisible = () => document.visibilityState === 'visible'
+const subscribeViewport = (notify) => {
+  const queries = ['(max-width: 799px)', '(max-height: 559px)'].map((query) => window.matchMedia(query))
+  queries.forEach((query) => query.addEventListener('change', notify))
+  return () => queries.forEach((query) => query.removeEventListener('change', notify))
+}
+const viewportMode = () => `${window.innerWidth <= 799 ? 'mobile' : 'desktop'}-${window.innerHeight <= 559 ? 'short' : 'tall'}`
 
-export default function useAivexGallery(rootRef, ready) {
+export default function useAivexGallery(trackRef, panelRef, ready) {
+  const count = firstEditionPhotos.length
+  const reduced = useMotionPreference()
+  const viewport = useSyncExternalStore(subscribeViewport, viewportMode, () => 'mobile-short')
+  const mobile = viewport.startsWith('mobile')
+  const scrollEnabled = !reduced && !viewport.endsWith('short')
+  const inset = mobile ? 76 : 94
+  const { scrollYProgress } = useScroll({ target: trackRef, offset: [`start ${inset}px`, 'end end'] })
+  const position = useMotionValue(0)
+  const indexRef = useRef(0)
+  const seekRef = useRef(null)
   const requestRef = useRef(0)
-  const requestedIndexRef = useRef(0)
   const cacheRef = useRef(new Map())
-  const [slide, setSlide] = useState({ index: 0, direction: 1 })
-  const [autoplay, setAutoplay] = useState(true)
+  const animationRef = useRef(null)
+  const [activeIndex, setActiveIndex] = useState(0)
+  const [loaded, setLoaded] = useState(() => new Set())
+  const [fallbackIndex, setFallbackIndex] = useState(0)
+  const [autoplay, setAutoplay] = useState(false)
   const [hovered, setHovered] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const reduced = useMotionPreference()
-  const visible = useInView(rootRef, { amount: 0.3 })
+  const [announcement, setAnnouncement] = useState('')
+  const near = useInView(panelRef, { margin: '280px', once: true })
+  const visible = useInView(panelRef, { amount: 0.45 })
   const pageVisible = useSyncExternalStore(subscribeVisibility, isPageVisible, () => true)
   const playing = ready && autoplay && visible && pageVisible && !hovered && !reduced && !loading
 
-  const showPhoto = async (index, direction = 1) => {
-    const next = galleryIndex(index)
-    const request = ++requestRef.current
-    requestedIndexRef.current = next
-    setAutoplay(false)
-    setError('')
-    if (next === slide.index) {
-      setLoading(false)
-      return
-    }
-    setLoading(true)
-    try {
-      // Decode before swapping: the outgoing photograph stays visible on slower connections.
-      await prepareGalleryPhoto(firstEditionPhotos[next], cacheRef.current)
-      if (request !== requestRef.current) return
-      setSlide({ index: next, direction })
-      setLoading(false)
-    } catch {
-      if (request !== requestRef.current) return
-      setError('This photograph could not be loaded. Please try another.')
-      setLoading(false)
-      setAutoplay(false)
+  useMotionValueEvent(scrollYProgress, 'change', (progress) => {
+    if (ready && scrollEnabled) position.set(galleryPosition(progress, count))
+  })
+  useMotionValueEvent(position, 'change', (value) => {
+    if (seekRef.current !== null && Math.abs(value - seekRef.current) < 0.025) seekRef.current = null
+    const next = clamp(Math.round(value), 0, count - 1)
+    if (next === indexRef.current) return
+    indexRef.current = next
+    setActiveIndex(next)
+  })
+
+  useEffect(() => {
+    if (ready && scrollEnabled) position.set(galleryPosition(scrollYProgress.get(), count))
+  }, [ready, scrollEnabled, count, position, scrollYProgress])
+
+  useEffect(() => {
+    if (!near) return
+    let cancelled = false
+    const indices = [activeIndex, activeIndex - 1, activeIndex + 1].filter((index) => index >= 0 && index < count)
+    indices.forEach((index) => {
+      prepareGalleryPhoto(firstEditionPhotos[index], cacheRef.current).then(() => {
+        if (cancelled) return
+        setLoaded((previous) => previous.has(index) ? previous : new Set([...previous, index]))
+        if (index === activeIndex) {
+          setFallbackIndex(index)
+          setError('')
+        }
+      }).catch(() => {
+        if (!cancelled && index === activeIndex) setError('This photograph is unavailable. You can continue to the next one.')
+      })
+    })
+    return () => { cancelled = true }
+  }, [near, activeIndex, count])
+
+  const moveTo = (index) => {
+    animationRef.current?.stop()
+    if (scrollEnabled) {
+      // Seek the native page position, not a second slider clock. Scroll and controls stay in agreement.
+      const bounds = trackRef.current.getBoundingClientRect()
+      const top = galleryScrollTarget({
+        top: bounds.top + window.scrollY, height: bounds.height,
+        viewportHeight: window.innerHeight, inset,
+      }, index, count)
+      window.scrollTo({ top, behavior: 'smooth' })
+    } else if (reduced) {
+      position.set(index)
+    } else {
+      animationRef.current = animate(position, index, { duration: 0.42, ease: GALLERY_EASE })
     }
   }
 
-  const step = (direction) => showPhoto(requestedIndexRef.current + direction, direction)
+  const showPhoto = async (index) => {
+    const next = clamp(index, 0, count - 1)
+    const request = ++requestRef.current
+    seekRef.current = next
+    setAutoplay(false)
+    setLoading(true)
+    setError('')
+    try {
+      await prepareGalleryPhoto(firstEditionPhotos[next], cacheRef.current)
+      if (request !== requestRef.current) return
+      setLoaded((previous) => new Set([...previous, next]))
+      setLoading(false)
+      setAnnouncement(`Photograph ${next + 1} of ${count}. ${firstEditionPhotos[next].caption}`)
+      moveTo(next)
+    } catch {
+      if (request !== requestRef.current) return
+      setLoading(false)
+      seekRef.current = null
+      setError('This photograph could not be loaded. Please try another.')
+    }
+  }
 
   useEffect(() => {
     if (!playing) return
     let cancelled = false
     const timer = window.setTimeout(async () => {
-      const next = galleryIndex(slide.index + 1)
+      const next = Math.min(activeIndex + 1, count - 1)
+      if (next === activeIndex) { setAutoplay(false); return }
       try {
         await prepareGalleryPhoto(firstEditionPhotos[next], cacheRef.current)
         if (cancelled) return
-        requestedIndexRef.current = next
-        setSlide({ index: next, direction: 1 })
+        setLoaded((previous) => new Set([...previous, next]))
+        if (scrollEnabled) {
+          const bounds = trackRef.current.getBoundingClientRect()
+          window.scrollTo({
+            top: galleryScrollTarget({ top: bounds.top + window.scrollY, height: bounds.height, viewportHeight: window.innerHeight, inset }, next, count),
+            behavior: 'smooth',
+          })
+        } else {
+          animationRef.current?.stop()
+          animationRef.current = animate(position, next, { duration: 0.42, ease: GALLERY_EASE })
+        }
       } catch {
         if (cancelled) return
         setError('This photograph could not be loaded. Please try another.')
         setAutoplay(false)
       }
     }, GALLERY_INTERVAL_MS)
-    return () => {
-      // A paused or offscreen album must not advance when a slow image finally arrives.
-      cancelled = true
-      window.clearTimeout(timer)
-    }
-  }, [playing, slide.index])
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [playing, activeIndex, count, scrollEnabled, inset, position, trackRef])
 
   useEffect(() => {
-    if (!visible) return
-    // Only warm the current frame and its two previews, not the entire album at page load.
-    for (const offset of [0, 1, 2]) {
-      prepareGalleryPhoto(firstEditionPhotos[galleryIndex(slide.index + offset)], cacheRef.current).catch(() => {})
+    const stop = () => {
+      // A reader's new gesture also cancels a pending seek on a slow connection.
+      requestRef.current += 1
+      seekRef.current = null
+      animationRef.current?.stop()
+      setLoading(false)
+      setAutoplay(false)
     }
-  }, [visible, slide.index])
+    const stopWithKey = (event) => {
+      if (event.defaultPrevented) return
+      if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', 'Escape'].includes(event.key)) stop()
+    }
+    window.addEventListener('wheel', stop, { passive: true })
+    window.addEventListener('touchmove', stop, { passive: true })
+    window.addEventListener('keydown', stopWithKey)
+    return () => {
+      window.removeEventListener('wheel', stop)
+      window.removeEventListener('touchmove', stop)
+      window.removeEventListener('keydown', stopWithKey)
+    }
+  }, [])
 
-  useEffect(() => () => { requestRef.current += 1 }, [])
+  useEffect(() => () => {
+    requestRef.current += 1
+    animationRef.current?.stop()
+  }, [])
 
   return {
-    slide, reduced, playing, autoplay, loading, error, step, showPhoto,
+    position, activeIndex, loaded, fallbackIndex, reduced, mobile, scrollEnabled,
+    autoplay, playing, loading, error, announcement, showPhoto,
+    step: (direction) => showPhoto((seekRef.current ?? indexRef.current) + direction),
     pause: () => setAutoplay(false),
-    togglePlayback: () => setAutoplay((value) => !value),
+    togglePlayback: () => {
+      if (!autoplay && activeIndex === count - 1) moveTo(0)
+      setAutoplay((value) => !value)
+    },
     onPointerEnter: (event) => { if (event.pointerType === 'mouse') setHovered(true) },
     onPointerLeave: () => setHovered(false),
     onFocusCapture: (event) => {
       if (!event.target.closest('[data-gallery-playback]')) setAutoplay(false)
     },
-    onImageError: () => {
-      setError('This photograph could not be loaded. Please try another.')
-      setAutoplay(false)
-    },
+    onImageError: () => setError('This photograph is unavailable. You can continue to the next one.'),
   }
 }

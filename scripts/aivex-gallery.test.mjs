@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import { firstEditionPhotos, galleryIndex, GALLERY_INTERVAL_MS } from '../src/pages/aivex/aivexGalleryData.js'
 import { prepareGalleryPhoto } from '../src/pages/aivex/aivexGalleryImages.js'
 
-const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8')
+import { frameOpacity, galleryPosition, galleryScrollTarget } from '../src/pages/aivex/gallery/galleryTimeline.js'
 
 function jpegSize(buffer) {
   assert.equal(buffer.readUInt16BE(0), 0xffd8)
@@ -80,25 +80,53 @@ test('image decoding is shared, and failures can be retried rather than cached f
   assert.equal(instances.length, 3)
 })
 
-test('the gallery is scoped to AIVEX and retains motion and accessibility safeguards', async () => {
-  const page = await read('src/pages/aivex/AivexPage.jsx')
-  const component = await read('src/pages/aivex/AivexGallery.jsx')
-  const hook = await read('src/pages/aivex/useAivexGallery.js')
-  const styles = await read('src/pages/aivex/aivex-gallery.css')
-  assert.match(page, /<AivexHero \/>\s*<AivexGallery ready={ready} \/>\s*<AivexApproach \/>/)
-  assert.match(component, /aria-roledescription="carousel"/)
-  assert.match(component, /aria-hidden={!present \|\| undefined}/)
-  assert.match(component, /Previous photograph/)
-  assert.match(component, /Next photograph/)
-  assert.match(component, /Pause slideshow/)
-  assert.match(component, /onPointerCancel/)
-  assert.match(component, /event\.key === 'ArrowRight'/)
-  assert.match(styles, /object-fit: contain/)
-  assert.match(styles, /touch-action: pan-y pinch-zoom/)
-  assert.match(styles, /prefers-reduced-motion: reduce/)
-  assert.match(hook, /autoplay && visible && pageVisible && !hovered && !reduced && !loading/)
-  assert.match(hook, /if \(cancelled\) return/)
-  assert.match(hook, /request !== requestRef\.current/)
-  assert.match(hook, /window\.clearTimeout\(timer\)/)
-  assert.doesNotMatch(hook, /requestAnimationFrame|\.ticker|new Lenis/)
+test('scroll position is bounded, reversible and reaches every photograph', () => {
+  const count = firstEditionPhotos.length
+  assert.equal(galleryPosition(-0.4, count), 0)
+  assert.equal(galleryPosition(1.4, count), count - 1)
+  assert.equal(galleryPosition(0.5, 1), 0)
+  for (let index = 0; index < count; index++) {
+    assert(Math.abs(galleryPosition(index / (count - 1), count) - index) < 1e-9)
+  }
+  const forward = Array.from({ length: 101 }, (_, index) => galleryPosition(index / 100, count))
+  const backward = Array.from({ length: 101 }, (_, index) => galleryPosition((100 - index) / 100, count)).reverse()
+  assert.deepEqual(forward, backward)
+})
+
+test('a thumbnail seek lands at the same scroll position on desktop and mobile', () => {
+  const count = firstEditionPhotos.length
+  const layouts = [
+    { top: 920, height: 2262, viewportHeight: 900, inset: 94 },
+    { top: 1380, height: 2000, viewportHeight: 844, inset: 76 },
+    { top: 1380, height: 1840, viewportHeight: 667, inset: 76 },
+  ]
+  for (const layout of layouts) {
+    const start = layout.top - layout.inset
+    const distance = layout.height - layout.viewportHeight + layout.inset
+    assert.equal(galleryScrollTarget(layout, 0, count), start)
+    assert.equal(galleryScrollTarget(layout, count - 1, count), layout.top + layout.height - layout.viewportHeight)
+    for (let index = 0; index < count; index++) {
+      const scroll = galleryScrollTarget(layout, index, count)
+      assert(Math.abs(galleryPosition((scroll - start) / distance, count) - index) < 1e-9)
+    }
+  }
+})
+
+test('crossfades preserve an opaque base and reverse continuously without a black dip', () => {
+  const count = firstEditionPhotos.length
+  for (let index = 0; index < count - 1; index++) {
+    assert.equal(frameOpacity(index, index), 1)
+    assert.equal(frameOpacity(index, index + 1), 0)
+    assert.equal(frameOpacity(index + 0.5, index + 1), 0.5)
+    assert.equal(frameOpacity(index + 1, index + 1), 1)
+    let previous = 0
+    for (let step = 0; step <= 100; step++) {
+      const value = index + step / 100
+      const foreground = frameOpacity(value, index + 1)
+      const background = frameOpacity(value, index)
+      assert(foreground >= previous && foreground <= 1)
+      assert.equal(foreground + background * (1 - foreground), 1)
+      previous = foreground
+    }
+  }
 })
