@@ -1,8 +1,12 @@
-html[data-page='aivex'] { background: #111111; scroll-padding-top: 0; }
+html[data-page='aivex'] { background: #111111; scroll-padding-top: 0; scrollbar-color: #9f1748 #1a1114; scrollbar-width: thin; }
 html[data-page='aivex'] body { background: #111111; }
 html[data-page='aivex'] ::selection { color: #111111; background: #f59e0b; }
-html[data-page='aivex']::-webkit-scrollbar-track { background: #111111; }
-html[data-page='aivex']::-webkit-scrollbar-thumb { background: #80435a; border-color: #111111; }
+html[data-page='aivex']::-webkit-scrollbar { width: 10px; }
+html[data-page='aivex']::-webkit-scrollbar-track { background: #1a1114; }
+html[data-page='aivex']::-webkit-scrollbar-thumb { min-height: 42px; border: 2px solid #1a1114; border-radius: 99px; background: #9f1748; }
+html[data-page='aivex']::-webkit-scrollbar-thumb:hover { background: #db0051; }
+html[data-page='aivex']::-webkit-scrollbar-thumb:active { background: #f59e0b; }
+html[data-page='aivex']::-webkit-scrollbar-corner { background: #111111; }
 
 .aivex-page {
   --ax-black: #111111;
@@ -176,8 +180,14 @@ html[data-page='aivex']::-webkit-scrollbar-thumb { background: #80435a; border-c
 .ax-footer-contact > span { display: block; font-size: 11px; margin-top: 15px; color: #e8bbcc; }
 .ax-footer-cross { position: absolute; z-index: -1; right: 19%; top: -114px; font-family: Rajdhani, sans-serif; font-size: 480px; color: var(--ax-pink); opacity: .22; line-height: 1; pointer-events: none; }
 .ax-footer-bottom { display: flex; justify-content: space-between; align-items: center; gap: 30px; padding-block: 28px; border-top: 1px solid #efede825; }
-.ax-footer-home { display: flex; align-items: center; gap: 20px; }
-.ax-footer-home > span:last-child { font-size: 10px; color: #dfb3c4; }
+.ax-footer-home { display: flex; align-items: center; gap: 16px; min-height: 48px; }
+.ax-footer-club-brand { display: inline-flex; align-items: center; gap: 10px; color: var(--ax-paper); }
+.ax-footer-infinity-mark { display: block; width: 39px; height: auto; color: var(--ax-paper); filter: drop-shadow(0 0 10px #db00512b); }
+.ax-footer-club-brand strong { font-family: Rajdhani, sans-serif; font-size: 15px; font-weight: 700; line-height: 1; letter-spacing: .14em; white-space: nowrap; }
+.ax-footer-brand-rule { display: block; width: 1px; height: 31px; background: #efede838; }
+.ax-footer-event-brand { display: grid; gap: 5px; }
+.ax-footer-event-brand .ax-wordmark { font-size: 20px; }
+.ax-footer-event-brand small { font-size: 9px; line-height: 1; color: #dfb3c4; }
 .ax-footer-bottom > p { font-size: 10px; line-height: 1.8; color: #dfb3c4; }
 .ax-to-top { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid #efede84d; }
 .ax-to-top:hover { background: var(--ax-pink); }
@@ -259,8 +269,12 @@ html[data-page='aivex']::-webkit-scrollbar-thumb { background: #80435a; border-c
   .ax-footer-contact p { font-size: 14px; max-width: 44ch; margin-bottom: 19px; }
   .ax-footer-cross { right: -40px; top: -10px; font-size: 350px; }
   .ax-footer-bottom { flex-wrap: wrap; gap: 21px; padding-block: 24px; }
-  .ax-footer-home { width: calc(100% - 65px); gap: 14px; }
-  .ax-footer-home > span:last-child { max-width: 14ch; line-height: 1.5; }
+  .ax-footer-home { width: calc(100% - 65px); gap: 11px; }
+  .ax-footer-infinity-mark { width: 34px; }
+  .ax-footer-club-brand { gap: 8px; }
+  .ax-footer-club-brand strong { font-size: 13px; }
+  .ax-footer-event-brand .ax-wordmark { font-size: 18px; }
+  .ax-footer-event-brand small { font-size: 8px; }
   .ax-to-top { order: 1; }
   .ax-footer-bottom > p { order: 2; width: 100%; }
 }
@@ -273,6 +287,8 @@ html[data-page='aivex']::-webkit-scrollbar-thumb { background: #80435a; border-c
   .ax-brand > span:last-child { display: none; }
   .ax-back { gap: 6px; }
   .ax-wordmark-large { font-size: 21.5vw; }
+  .ax-footer-club-brand strong { display: none; }
+  .ax-footer-event-brand small { display: none; }
   .aivex-page .ax-hero-statement { font-size: 44px; }
   .ax-hero-actions { gap: 9px; }
   .ax-process-tabs { grid-template-columns: .95fr .75fr 1.15fr; }
