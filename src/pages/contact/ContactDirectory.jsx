@@ -1,35 +1,31 @@
-import { ArrowUpRight, MapPin } from 'lucide-react'
+import { ArrowUpRight, MessageCircle } from 'lucide-react'
 import { contactInstagram, contactReasons } from './contactData'
 
 export default function ContactDirectory() {
   return (
     <section id="contact-directory" className="contact-directory" aria-labelledby="contact-directory-title">
       <div className="page-container">
-        <header className="contact-directory-heading">
-          <h2 id="contact-directory-title">Start with<br />the reason.</h2>
-          <p>A short message with the right context is enough. Choose the subject that is closest to yours and talk directly with the club team.</p>
-        </header>
-
-        <a className="contact-primary-channel" href={contactInstagram} target="_blank" rel="noreferrer" data-magnetic data-ripple>
-          <span className="contact-channel-index">Primary channel</span>
-          <span className="contact-channel-handle">@club_.infinity</span>
-          <span className="contact-channel-action">Open Instagram <ArrowUpRight size={20} strokeWidth={1.45} /></span>
-        </a>
-
-        <div className="contact-reason-grid">
-          {contactReasons.map(({ title, label, description, Icon }) => (
-            <article key={title} className="contact-reason">
-              <div className="contact-reason-top"><Icon size={22} strokeWidth={1.25} /><span>{label}</span></div>
-              <h3>{title}</h3>
-              <p>{description}</p>
-            </article>
-          ))}
+        <div className="contact-directory-layout">
+          <div className="contact-channel">
+            <span className="contact-channel-caption"><MessageCircle size={18} strokeWidth={1.5} aria-hidden="true" /> A direct line to Infinity</span>
+            <h2 id="contact-directory-title">Say hello.</h2>
+            <p>You do not need a finished idea to get in touch. Send a message and tell us what you have in mind.</p>
+            <a className="contact-primary-channel" href={contactInstagram} target="_blank" rel="noreferrer">
+              <span>@club_.infinity</span><ArrowUpRight size={27} strokeWidth={1.25} />
+            </a>
+            <span className="contact-channel-note">Find the club on Instagram</span>
+          </div>
+          <div className="contact-reasons" aria-label="What to contact the club about">
+            {contactReasons.map(({ title, description, Icon }) => (
+              <article key={title} className="contact-reason">
+                <Icon size={20} strokeWidth={1.35} aria-hidden="true" />
+                <div><h3>{title}</h3><p>{description}</p></div>
+              </article>
+            ))}
+          </div>
         </div>
-
-        <div className="contact-campus-note">
-          <p><MapPin size={15} strokeWidth={1.4} /> Faculty of Mathematics and Computer Science</p>
-          <span>University of Bordj Bou Arreridj, Algeria</span>
-        </div>
+        <div className="contact-directory-rule" aria-hidden="true"><i /></div>
+        <p className="contact-directory-note">For recruitment dates and event announcements, follow the club on Instagram.</p>
       </div>
     </section>
   )

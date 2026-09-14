@@ -59,6 +59,7 @@ export default function Poles() {
           <SectionHeading title="Find what sparks your curiosity." />
           <p>Seven fields. Seven ways to begin.<br />Follow a curiosity. Make it a skill.</p>
         </div>
+        <div className="poles-stage">
         {mobile ? (
           <div className="pole-accordion">
             {poles.map((pole, index) => (
@@ -99,6 +100,7 @@ export default function Poles() {
             </div>
           </div>
         )}
+        </div>
         <p className="poles-note">Torn between a few fields? <Link to="/contact">Come and talk it through with us.</Link></p>
       </div>
     </section>

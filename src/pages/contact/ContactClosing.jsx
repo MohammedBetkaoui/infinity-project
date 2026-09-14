@@ -1,20 +1,18 @@
-import { ArrowUpRight, MapPin } from 'lucide-react'
+import { MapPin } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { contactInstagram } from './contactData'
 
 export default function ContactClosing() {
   return (
-    <section className="contact-closing" aria-labelledby="contact-closing-title">
-      <div className="page-container">
-        <div className="contact-closing-layout">
-          <h2 id="contact-closing-title">Bring the idea.<br />We will start there.</h2>
-          <div className="contact-closing-copy">
-            <p>Send the club a direct message. For recruitment dates and event announcements, Instagram is also where the latest information is shared.</p>
-            <a href={contactInstagram} target="_blank" rel="noreferrer" className="contact-closing-primary" data-magnetic data-ripple>Write to Infinity Club <ArrowUpRight size={18} /></a>
-            <Link to="/community" className="contact-closing-secondary">Meet the community</Link>
+    <section className="contact-campus" aria-labelledby="contact-campus-title">
+      <div className="page-container contact-campus-layout">
+        <div className="contact-campus-address">
+          <MapPin size={21} strokeWidth={1.4} aria-hidden="true" />
+          <div>
+            <h2 id="contact-campus-title">Rooted in BBA. Open to new ideas.</h2>
+            <p>Faculty of Mathematics and Computer Science<br />University of Bordj Bou Arreridj, Algeria</p>
           </div>
         </div>
-        <div className="contact-closing-foot"><span>No Limits For Infiniters</span><span><MapPin size={14} /> Bordj Bou Arreridj, Algeria</span></div>
+        <Link to="/community" className="text-link">Meet the people behind Infinity</Link>
       </div>
     </section>
   )

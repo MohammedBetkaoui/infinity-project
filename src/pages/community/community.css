@@ -12,6 +12,7 @@
 .community-page :is(h1, h2, h3) { font-family: Rajdhani, sans-serif; }
 .community-page p { max-width: 64ch; text-wrap: pretty; }
 .community-page :is(a, button, [tabindex]):focus-visible { outline: 2px solid currentColor; outline-offset: 5px; box-shadow: none; }
+.community-page [data-scroll-reveal]:focus-within { opacity: 1 !important; transform: none !important; }
 .community-page h2 { font-size: clamp(38px, 4.4vw, 64px); line-height: 1.04; letter-spacing: -.035em; font-weight: 500; }
 .community-page-hero .page-hero-layout { grid-template-columns: 1.5fr 1fr; gap: 40px; }
 .community-page-hero .page-hero-layout h1 { font-size: clamp(72px, 9.3vw, 145px); }

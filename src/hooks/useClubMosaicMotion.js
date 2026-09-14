@@ -7,7 +7,11 @@ gsap.registerPlugin(ScrollTrigger)
 export default function useClubMosaicMotion(galleryRef) {
   useLayoutEffect(() => {
     const media = gsap.matchMedia()
-    media.add('(min-width: 1024px) and (prefers-reduced-motion: no-preference)', () => {
+    media.add({
+      motion: '(prefers-reduced-motion: no-preference)',
+      desktop: '(min-width: 1024px)',
+    }, ({ conditions }) => {
+      if (!conditions.motion) return
       const frames = galleryRef.current.querySelectorAll('.club-moments-frame')
       const depths = [
         { from: -13, to: 13, angle: -1.15, turn: 2.1 },
@@ -16,14 +20,14 @@ export default function useClubMosaicMotion(galleryRef) {
       ]
       // The photographs sit at different depths, but the reading flow never changes height.
       const scene = gsap.timeline({
-        scrollTrigger: { trigger: galleryRef.current, start: 'top bottom', end: 'bottom top', scrub: true },
+        scrollTrigger: { id: 'home-club-photos', trigger: galleryRef.current, start: 'top bottom', end: 'bottom top', scrub: true, invalidateOnRefresh: true },
         defaults: { ease: 'none' },
       })
       frames.forEach((frame, index) => {
         const depth = depths[index]
         scene.fromTo(frame,
-          { y: depth.from, rotation: depth.angle, rotationY: depth.turn },
-          { y: depth.to, rotation: depth.angle * .5, rotationY: -depth.turn, duration: 1 }, 0)
+          { y: depth.from * (conditions.desktop ? 1.5 : .35), rotation: conditions.desktop ? depth.angle : 0, rotationY: conditions.desktop ? depth.turn : 0 },
+          { y: depth.to * (conditions.desktop ? 1.5 : .35), rotation: conditions.desktop ? depth.angle * .5 : 0, rotationY: conditions.desktop ? -depth.turn : 0, duration: 1 }, 0)
       })
     }, galleryRef)
     return () => media.revert()

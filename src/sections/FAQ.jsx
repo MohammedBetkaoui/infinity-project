@@ -14,7 +14,7 @@ export default function FAQ() {
   return (
     <section id="faq" className="section-space border-t border-olive/15">
       <div className="page-container grid gap-10 lg:grid-cols-[.8fr_1.2fr] lg:gap-20">
-        <div className="lg:sticky lg:top-32 lg:h-fit">
+        <div className="home-faq-intro lg:sticky lg:top-32 lg:h-fit">
           <SectionHeading
             title="Before you join."
             description="Answers to the questions students ask us most about life at the club."
@@ -26,7 +26,7 @@ export default function FAQ() {
           {faqs.map((faq, index) => {
             const isOpen = openIndex === index
             return (
-              <div key={faq.question} className="border-b border-sage/20">
+              <div key={faq.question} className="home-faq-item border-b border-sage/20">
                 <button
                   id={`faq-question-${index}`}
                   type="button"

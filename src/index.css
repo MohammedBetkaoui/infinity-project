@@ -109,10 +109,6 @@ a:focus-visible {
   animation: particle-drift 7s ease-in-out infinite;
 }
 
-.hero-motion-active [data-orbit-spin] {
-  will-change: transform;
-}
-
 .cursor-ring,
 .cursor-dot {
   translate: -50% -50%;
@@ -175,32 +171,6 @@ button, a { touch-action: manipulation; }
 .light-link { color: #00271b; border-color: #00271b60; }
 .light-link:hover { color: #094a36; }
 .about-section :focus-visible, .pole-detail :focus-visible, .contact-section :focus-visible { outline-color: #094a36; box-shadow: 0 0 0 2px #f1ebdd; }
-.hero-section { position: relative; background: #002a1e; }
-.hero-stage { position: relative; }
-.hero-surface { position: relative; padding-top: 126px; overflow: clip; transform-origin: 50% 38%; background: radial-gradient(ellipse at 83% 43%, #094a36a3, transparent 48%), #002a1e; }
-.hero-shade { position: absolute; inset: 0; z-index: 3; pointer-events: none; background: #002a1e; opacity: 0; }
-.hero-section[data-hero-mode="pinned"] { margin-bottom: calc(-1 * var(--hero-overlap, 0px)); }
-.hero-section[data-hero-mode="pinned"] + section { position: relative; z-index: 2; }
-.hero-topline { display: flex; justify-content: space-between; gap: 24px; border-top: 1px solid #638f8040; padding-top: 18px; color: #b6cec5; font-size: 11px; }
-.hero-topline > span:first-child { display: flex; align-items: center; gap: 10px; }
-.hero-topline i { width: 5px; height: 5px; border-radius: 50%; background: #77bda5; }
-.hero-layout { display: grid; grid-template-columns: 1.08fr 1fr; align-items: center; gap: 20px; padding-block: 52px 58px; }
-.hero-editorial { position: relative; z-index: 1; }
-.hero-prelude { margin-bottom: 23px; color: #cdbfa9; font-size: 13px; }
-.hero-editorial h1 { font-family: Rajdhani, sans-serif; font-size: clamp(76px, 8.6vw, 132px); font-weight: 600; line-height: .89; letter-spacing: -.055em; color: #f1ebdd; }
-.hero-line { display: block; overflow: hidden; white-space: nowrap; padding: .06em 0 .1em; margin-block: -.025em; }
-.hero-word { display: inline-block; }
-.hero-description { max-width: 43ch; margin-top: 30px; font-size: 15px; line-height: 1.85; color: #b6cec5; }
-.hero-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 26px; margin-top: 28px; }
-.infinity-art { position: relative; width: 100%; aspect-ratio: 1.02; }
-.art-register, .art-caption { position: absolute; left: 7%; right: 4%; display: flex; justify-content: space-between; align-items: center; color: #afccc1; font-size: 10px; }
-.art-register { top: 4%; font-size: 9px; letter-spacing: .12em; }
-.art-caption { bottom: 3%; }
-.art-caption span:last-child { font-size: 10px; }
-.art-depth, .art-scroll-depth { position: absolute; inset: 0; }
-.infinity-head, .infinity-trail { transform-origin: 0 0; }
-.infinity-head { will-change: transform; opacity: 0; }
-.infinity-trail { opacity: 0; }
 .infinity-mark { display: block; width: 100%; height: auto; }
 .infinity-mark-shape, .infinity-mark-signal { transform-box: fill-box; transform-origin: center; }
 .infinity-mark-signal { fill: none; stroke: #f1ebdd; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: .13 .87; opacity: .18; vector-effect: non-scaling-stroke; }
@@ -219,30 +189,15 @@ footer .infinity-mark-signal { stroke: #9ed7c4; opacity: .88; }
 .brand-journey { position: absolute; inset: 0; width: 56px; height: 44px; opacity: 0; pointer-events: none; }
 .brand-mark { width: 100%; transform-origin: center; transition: transform .38s var(--ease-smooth); }
 .group:hover .brand-mark, .group:focus-visible .brand-mark { transform: scale(1.045); }
-.hero-emblem { position: absolute; z-index: 1; left: 50%; top: 50%; width: min(76%, 430px); color: #094a36; opacity: 1; transform: translate(-50%, -50%); filter: drop-shadow(0 0 22px rgba(241, 235, 221, .16)); }
-.hero-emblem .infinity-mark { transform-origin: center; }
-.hero-emblem .infinity-mark-shape { stroke: #c6ddd4; stroke-width: 5; stroke-linejoin: round; paint-order: stroke fill; }
-.hero-emblem .infinity-mark-signal { stroke: #f1ebdd; stroke-width: 3.2; opacity: .86; }
 .group:hover .infinity-mark-signal, .group:focus-visible .infinity-mark-signal { opacity: .72; stroke-dashoffset: -1; transition: stroke-dashoffset .62s var(--ease-smooth), opacity .22s; }
 .brand-journey-head { transform-origin: 0 0; }
 .brand-copy { display: grid; gap: 4px; line-height: 1; }
 .brand-descriptor { font-size: 10px; font-weight: 400; letter-spacing: .035em; color: #b6cec5; }
-.hero-event-depth { min-width: 0; }
-.art-orbit { position: absolute; inset: 0; color: #638f8080; }
-.art-orbit svg { width: 100%; height: 100%; }
-.infinity-ribbon { position: absolute; inset: 8% 0; width: 100%; height: 84%; }
-.hero-footnote { display: grid; grid-template-columns: 1fr 1.25fr 48px; align-items: center; border-top: 1px solid #638f8040; border-bottom: 1px solid #638f8040; padding-block: 22px; gap: 32px; }
-.official-motto { font-family: Rajdhani, sans-serif; font-size: 20px; font-weight: 600; color: #e7dfcf; }
-.official-motto span { display: block; margin-top: 3px; font-family: Manrope, sans-serif; font-size: 11px; font-weight: 400; color: #afccc1; }
-.hero-event-link { display: flex; align-items: center; gap: 17px; padding-left: 28px; border-left: 1px solid #638f8040; }
-.event-mini-mark { display: grid; place-items: center; width: 46px; height: 46px; flex-shrink: 0; border: 1px solid #638f8050; color: #8cc7b3; font-family: Rajdhani, sans-serif; font-size: 24px; }
-.hero-event-link strong { font-family: Rajdhani, sans-serif; color: #f1ebdd; font-size: 23px; font-weight: 600; }
-.hero-event-link small { display: block; margin-top: 1px; color: #afccc1; font-size: 11px; }
-.event-link-action { margin-left: auto; font-size: 11px; color: #8cc7b3; }
-.hero-social { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid #638f8040; border-radius: 50%; color: #8cc7b3; transition: background .2s; }
-.hero-social:hover { background: #0a5a43; }
-.hero-scroll-link { display: flex; justify-content: center; align-items: center; gap: 10px; padding-block: 26px; font-size: 10px; color: #afccc1; }
 .about-section { background: #e7dfcf; color: #00271b; background-image: radial-gradient(#00271b0b .7px, transparent .7px); background-size: 6px 6px; }
+.poles-section > .page-container { perspective: 1400px; }
+.poles-stage { transform-origin: center top; }
+/* Keyboard navigation must never land on a transparent control. */
+[data-scroll-reveal]:focus-within { opacity: 1 !important; transform: none !important; }
 .about-layout { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(40px, 6vw, 94px); align-items: center; }
 .workshop-notes { position: relative; padding: 22px 28px 0 0; }
 .notebook-sheet { position: relative; padding: 30px 30px 36px; background: #f3eee2; border: 1px solid #b7ad9660; transform: rotate(-2.1deg); transform-origin: 44% 58%; box-shadow: 9px 12px 0 #d5ccb9; }
@@ -397,12 +352,6 @@ footer .infinity-mark-signal { stroke: #9ed7c4; opacity: .88; }
   .poster-foot { font-size: 9px; bottom: 17px; }
   .contact-layout { gap: 32px; }
   .page-container { width: calc(100% - 64px); }
-  .hero-layout { gap: 0; }
-  .hero-editorial h1 { font-size: clamp(68px, 10vw, 106px); }
-  .hero-topline > span:last-child { display: none; }
-  .hero-footnote { grid-template-columns: 1fr 1.3fr; gap: 20px; }
-  .hero-social { display: none; }
-  .event-link-action { display: none; }
   .about-layout { gap: 42px; }
   .notebook-sheet { padding: 22px; }
   .workshop-sticky { width: 220px; }
@@ -426,19 +375,6 @@ footer .infinity-mark-signal { stroke: #9ed7c4; opacity: .88; }
   .contact-layout h2 { font-size: clamp(48px,11vw,70px); }
   .contact-bottom { margin-top: 0; flex-direction: column; gap: 12px; }
   .page-container { width: calc(100% - 40px); }
-  .hero-surface { padding-top: 106px; }
-  .hero-layout { grid-template-columns: 1fr; padding-block: 38px 20px; }
-  .hero-editorial h1 { font-size: clamp(58px, 18vw, 110px); }
-  .hero-prelude { margin-bottom: 18px; font-size: 12px; }
-  .hero-description { margin-top: 24px; font-size: 14px; }
-  .hero-actions { gap: 20px; }
-  .infinity-art { max-width: 440px; margin: 28px auto 0; }
-  .hero-emblem { width: min(72%, 330px); filter: drop-shadow(0 0 16px rgba(9, 74, 54, .2)); }
-  .hero-footnote { grid-template-columns: 1fr; gap: 20px; padding-block: 24px; }
-  .official-motto { display: flex; justify-content: space-between; gap: 18px; font-size: 18px; }
-  .official-motto span { max-width: 15ch; text-align: right; font-size: 10px; }
-  .hero-event-link { border-left: 0; border-top: 1px solid #638f8040; padding-left: 0; padding-top: 18px; }
-  .hero-scroll-link { padding-block: 22px; }
   .about-layout { grid-template-columns: 1fr; }
   .about-copy { order: -1; }
   .about-copy h2 { font-size: 43px; }
@@ -463,14 +399,6 @@ footer .infinity-mark-signal { stroke: #9ed7c4; opacity: .88; }
   .community-social { align-items: start; flex-direction: column; gap: 22px; }
 }
 
-@media (min-width: 1024px) and (min-height: 720px) {
-  .hero-surface { padding-top: 108px; min-height: 100svh; display: flex; }
-  .hero-surface > .page-container { display: flex; flex-direction: column; }
-  .hero-layout { padding-block: 38px 34px; flex: 1; }
-  .hero-editorial h1 { font-size: clamp(76px, min(8.6vw, 14svh), 132px); }
-  .infinity-art { width: min(100%, 57svh); justify-self: end; }
-}
-
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -490,19 +418,6 @@ footer .infinity-mark-signal { stroke: #9ed7c4; opacity: .88; }
     display: none !important;
   }
 
-  .hero-word,
-  .hero-badge,
-  .hero-copy,
-  .hero-featured,
-  .hero-explorer {
-    visibility: visible !important;
-    opacity: 1 !important;
-    clip-path: none !important;
-    transform: none !important;
-  }
-
-  .hero-mark-line,
-  .hero-orbit-line,
   .event-network-path {
     stroke-dashoffset: 0 !important;
   }
@@ -512,13 +427,10 @@ footer .infinity-mark-signal { stroke: #9ed7c4; opacity: .88; }
   }
 
   .interaction-ripple,
-  .pole-connection,
-  .infinity-head,
-  .infinity-trail {
+  .pole-connection {
     display: none !important;
   }
 
-  .ribbon-trace, .orbit-intro-line { stroke-dashoffset: 0 !important; }
   .notebook-title-ink, .notebook-route-ink, .notebook-sticky-ink { stroke-dashoffset: 0 !important; }
   .notebook-node-wash { opacity: 1 !important; }
   .brand-journey { display: none; }

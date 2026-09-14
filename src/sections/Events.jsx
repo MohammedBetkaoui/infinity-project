@@ -15,14 +15,24 @@ export default function Events() {
     const media = gsap.matchMedia()
     if (!featured) return undefined
 
-    media.add('(min-width: 768px) and (prefers-reduced-motion: no-preference)', () => {
+    media.add({
+      motion: '(prefers-reduced-motion: no-preference)',
+      desktop: '(min-width: 768px)',
+    }, ({ conditions }) => {
+      if (!conditions.motion) return
       const preview = sectionRef.current.querySelector('.home-event-preview')
 
       // The preview settles onto the page as it enters the reading area; no pinned scroll.
-      gsap.fromTo(preview, { rotationX: 3.6, y: 14, scale: .975 }, {
+      gsap.fromTo(preview, {
+        rotationX: conditions.desktop ? 5.4 : 0,
+        y: conditions.desktop ? 21 : 8,
+        scale: conditions.desktop ? .965 : .99,
+      }, {
         rotationX: 0, y: 0, scale: 1, ease: 'none',
         scrollTrigger: {
-          trigger: preview, start: 'top 92%', end: 'top 45%', scrub: true,
+          id: 'home-featured-event',
+          trigger: sectionRef.current.querySelector('.home-event-visual'),
+          start: 'top 92%', end: 'top 40%', scrub: true,
           invalidateOnRefresh: true,
         },
       })

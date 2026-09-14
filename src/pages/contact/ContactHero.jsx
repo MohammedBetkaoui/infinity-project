@@ -6,8 +6,8 @@ export default function ContactHero() {
       className="contact-page-hero"
       title="Contact"
       titleId="contact-page-title"
-      lead="Good conversations start with a clear first line."
-      summary="Whether you want to join, ask about an event or propose a collaboration, this is the place to reach Infinity Club."
+      lead="Talk to the club."
+      summary="Join the team, ask about an event or share an idea. The conversation starts here."
       href="#contact-directory"
       linkLabel="Start a conversation"
     />

@@ -1,0 +1,61 @@
+.home-hero {
+  position: relative;
+  overflow: clip;
+  isolation: isolate;
+  background: radial-gradient(ellipse at 50% 42%, #094a3666, transparent 63%), #002a1e;
+  color: #f1ebdd;
+}
+
+.home-hero-inner { display: flex; flex-direction: column; min-height: min(850px, 100svh); padding-top: 128px; }
+.home-hero-scene { position: relative; display: grid; place-items: center; flex: 1; padding-block: 70px 76px; }
+.home-hero-copy { position: relative; z-index: 1; text-align: center; }
+.home-hero-copy:focus-within { opacity: 1 !important; }
+.home-hero-brand { margin-bottom: 23px; font-size: 13px; font-weight: 650; letter-spacing: .075em; color: #b9d3c8; }
+.home-hero h1 { font-family: Rajdhani, sans-serif; font-size: clamp(78px, 8.4vw, 124px); font-weight: 600; letter-spacing: -.045em; line-height: .93; }
+.home-hero-line { display: block; overflow: hidden; padding: .04em .08em .12em; margin: -.02em -.08em; }
+.home-hero-line > span { display: block; }
+.home-hero-line:last-child { color: #9ed7c4; }
+.home-hero-description { max-width: 42ch; margin: 27px auto 0; font-size: 14px; line-height: 1.85; color: #b6cec5; }
+.home-hero-actions { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 28px; margin-top: 28px; }
+.home-hero-join { display: inline-flex; align-items: center; justify-content: center; min-height: 49px; padding: 14px 25px; border: 1px solid #f1ebdd; border-radius: 3px; background: #f1ebdd; color: #094a36; font-size: 13px; font-weight: 750; transition: background .24s, border-color .24s; }
+.home-hero-join:hover { background: #cde5d9; border-color: #cde5d9; }
+.home-hero-join:focus-visible { outline-color: #f1ebdd; outline-offset: 5px; }
+
+.home-hero-art { position: absolute; inset: 0 -3%; pointer-events: none; }
+.home-hero-mark-depth { position: absolute; width: min(82%, 750px); left: 50%; top: 43%; transform: translate(-50%, -50%); }
+.home-hero-mark { transform: rotate(-12deg); }
+.home-hero-mark .infinity-mark { overflow: visible; }
+.home-hero-mark .infinity-mark-shape { fill: #094a36; fill-opacity: .14; stroke: #80b49f; stroke-width: 1; stroke-linejoin: round; opacity: .31; vector-effect: non-scaling-stroke; }
+.home-hero-mark .infinity-mark-signal { stroke: #afd9c9; stroke-width: 1.2; stroke-dasharray: 1; stroke-dashoffset: 0; opacity: .55; }
+.home-hero-spark { position: absolute; width: 3px; height: 3px; background: #a7cebd; border-radius: 50%; opacity: .55; }
+.home-hero-spark-one { left: 9%; top: 32%; }
+.home-hero-spark-two { right: 13%; top: 19%; width: 5px; height: 5px; border-radius: 0; transform: rotate(45deg); opacity: .32; }
+.home-hero-spark-three { left: 21%; bottom: 25%; width: 4px; height: 4px; }
+.home-hero-spark-four { right: 7%; bottom: 31%; }
+
+.home-hero-foot { position: relative; display: flex; justify-content: space-between; align-items: center; gap: 24px; padding-block: 23px 27px; border-top: 1px solid #9ed7c42b; font-size: 11px; color: #abc8bb; }
+.home-hero-foot a { display: flex; align-items: center; gap: 10px; min-height: 28px; transition: color .24s; }
+.home-hero-foot a:hover { color: #f1ebdd; }
+.home-hero-foot i { display: block; width: 1px; height: 18px; background: #9ed7c4; transform-origin: top; }
+
+@media (max-width: 767px) {
+  .home-hero-inner { min-height: min(760px, 94svh); padding-top: 108px; }
+  .home-hero-scene { padding-block: 51px 58px; }
+  .home-hero h1 { font-size: clamp(55px, 12.3vw, 86px); }
+  .home-hero-brand { margin-bottom: 24px; font-size: 12px; }
+  .home-hero-description { margin-top: 25px; font-size: 13px; }
+  .home-hero-actions { gap: 21px; }
+  .home-hero-mark-depth { width: 116%; top: 39%; }
+  .home-hero-mark .infinity-mark-signal { opacity: .4; }
+  .home-hero-spark-one { left: 0; top: 23%; }
+  .home-hero-spark-three { left: 2%; bottom: 16%; }
+  .home-hero-spark-four { right: 0; bottom: 21%; }
+  .home-hero-foot { padding-block: 16px 22px; gap: 15px; font-size: 10px; }
+  .home-hero-foot > span { max-width: 19ch; line-height: 1.7; }
+  .home-hero-foot a { font-size: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-hero-mark .infinity-mark-signal { display: block; stroke-dashoffset: 0 !important; }
+  .home-hero-join, .home-hero-foot a { transition: none; }
+}

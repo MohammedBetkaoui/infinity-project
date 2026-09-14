@@ -13,7 +13,6 @@ export const navigation = [
   { label: 'About', href: '/about', to: '/about' },
   { label: 'Community', href: '/community', to: '/community' },
   { label: 'Events', href: '/events', to: '/events' },
-  { label: 'Our fields', href: '#poles', section: 'poles', to: '/#poles' },
   { label: 'Contact', href: '/contact', to: '/contact' },
 ]
 

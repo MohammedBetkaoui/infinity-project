@@ -6,19 +6,19 @@ export const contactReasons = [
   {
     title: 'Join the club',
     label: 'For future Infiniters',
-    description: 'Ask about the next recruitment campaign, the fields you can explore and how active membership works.',
+    description: 'Curious about membership? Ask about recruitment and find a field you would like to explore.',
     Icon: Users,
   },
   {
     title: 'Build a collaboration',
     label: 'For clubs and organisations',
-    description: 'Introduce your organisation, the idea, the format and the period you have in mind for a shared initiative.',
+    description: 'Tell us who you are and what you would like to build with the team.',
     Icon: Handshake,
   },
   {
     title: 'Ask about an event',
     label: 'For participants and guests',
-    description: 'Mention the event name and edition so the team can understand your question from the first message.',
+    description: 'Include the event name and edition so we can point you in the right direction.',
     Icon: CalendarDays,
   },
 ]

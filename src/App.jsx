@@ -1,7 +1,8 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useRef } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { MotionConfig } from 'framer-motion'
 import useMotionPreference from './hooks/useMotionPreference'
+import useHomeScrollMotion from './hooks/useHomeScrollMotion'
 import CustomCursor from './components/CustomCursor'
 import Navbar from './components/Navbar'
 import ScrollExperience from './components/ScrollExperience'
@@ -20,7 +21,7 @@ import EventsPage from './pages/events/EventsPage'
 const CommunityPage = lazy(() => import('./pages/community/CommunityPage'))
 const ContactPage = lazy(() => import('./pages/contact/ContactPage'))
 
-function SitePage({ children }) {
+function SitePage({ children, mainRef }) {
   const reduced = useMotionPreference()
   return (
     <MotionConfig reducedMotion={reduced ? 'always' : 'never'}>
@@ -28,7 +29,7 @@ function SitePage({ children }) {
         <ScrollExperience />
         <CustomCursor />
         <Navbar />
-        <main>{children}</main>
+        <main ref={mainRef}>{children}</main>
         <Footer />
       </div>
     </MotionConfig>
@@ -36,8 +37,10 @@ function SitePage({ children }) {
 }
 
 function HomePage() {
+  const mainRef = useRef(null)
+  useHomeScrollMotion(mainRef)
   return (
-    <SitePage>
+    <SitePage mainRef={mainRef}>
       <Hero />
       <Poles />
       <Events />
