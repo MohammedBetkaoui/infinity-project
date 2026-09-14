@@ -10,6 +10,7 @@ export default function useEventsPageMotion(pageRef) {
     pageRef.current.querySelectorAll('h2').forEach((title) => motion.revealText(title))
     pageRef.current.querySelectorAll('.events-feature-summary, .events-closing-layout p')
       .forEach((copy) => motion.revealText(copy, { type: 'lines' }))
+    motion.revealAllText()
   })
   useLayoutEffect(() => {
     const page = pageRef.current

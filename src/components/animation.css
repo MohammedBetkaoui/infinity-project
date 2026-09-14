@@ -1,5 +1,13 @@
-[data-motion-text] .motion-text-line { padding-block: .075em; margin-block: -.075em; }
-[data-motion-text] .motion-text-word { white-space: nowrap; }
+[data-motion-text] { text-wrap: pretty; }
+[data-motion-text='display'] { perspective: 900px; }
+[data-motion-text='display'] .motion-text-line { padding-block: .09em .1em; margin-block: -.09em -.1em; }
+[data-motion-text='reading'] .motion-text-line { padding-block: .075em; margin-block: -.075em; }
+[data-motion-text] .motion-text-line { overflow: hidden; }
+[data-motion-text] .motion-text-word { white-space: nowrap; backface-visibility: hidden; }
+[data-motion-text='display'] .motion-text-word { will-change: transform, opacity; }
+/* Keyboard users always get readable text, even mid-scrub. */
+[data-motion-text]:focus-within .motion-text-word { opacity: 1 !important; transform: none !important; }
+[data-motion-text]:focus-within { opacity: 1 !important; }
 .motion-wipe-surface { position: relative; isolation: isolate; }
 .motion-curtain { position: absolute; z-index: 5; inset: -1px; background: var(--motion-curtain, #002a1e); pointer-events: none; transform-origin: center top; }
 [data-motion-reveal]:focus-within { opacity: 1 !important; transform: none !important; }

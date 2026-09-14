@@ -6,7 +6,7 @@ export default function EventFeatureCard({ event }) {
 
   return (
     <article className="events-feature" aria-labelledby={titleId}>
-      <Link to={event.href} className="events-feature-link" aria-labelledby={`${titleId} ${titleId}-action`}>
+      <Link to={event.href} target={event.newTab ? '_blank' : undefined} rel={event.newTab ? 'noreferrer' : undefined} className="events-feature-link" aria-labelledby={`${titleId} ${titleId}-action`}>
         <header className="events-feature-heading">
           <div className="events-feature-name">
             <h3 id={titleId}>{event.name}</h3>

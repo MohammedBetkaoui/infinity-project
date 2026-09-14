@@ -76,6 +76,7 @@ export const events = [
     type: 'Artificial intelligence',
     description: 'The national AI application programming competition. Explore the second edition.',
     href: '/aivex',
+    newTab: true,
     edition: 'Second edition',
     summary: 'National AI application programming competition.',
     preview: {

@@ -11,6 +11,7 @@ export default function useContactMotion(pageRef) {
     pageRef.current.querySelectorAll('.contact-channel > p, .contact-campus-address > p')
       .forEach((copy) => motion.revealText(copy, { type: 'lines' }))
     pageRef.current.querySelectorAll('.contact-reason').forEach((row) => motion.revealSection(row, { mode: 'fade' }))
+    motion.revealAllText()
   })
   useLayoutEffect(() => {
     const media = gsap.matchMedia()

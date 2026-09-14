@@ -24,27 +24,105 @@ export function createScrollAnimations(scope, { compact, reduced, canPin }) {
 
   function revealText(ref, options = {}) {
     const target = element(ref)
-    if (!target || reduced || target.dataset.motionText === 'active') return null
-    target.dataset.motionText = 'active'
+    if (!target || reduced || target.dataset.motionText) return null
+    // Display headings rise word by word inside line masks; body copy
+    // illuminates word by word like an editorial reading state.
+    const reading = (compact ? 'lines' : options.type || 'words') !== 'words'
+    target.dataset.motionText = reading ? 'reading' : 'display'
     cleanups.push(() => { delete target.dataset.motionText })
-    const type = compact ? 'lines' : options.type || 'words'
     const split = SplitText.create(target, {
-      type: type === 'words' ? 'lines,words' : 'lines',
+      type: 'lines,words',
       mask: 'lines', autoSplit: true, aria: 'auto',
       linesClass: 'motion-text-line', wordsClass: 'motion-text-word',
       ignore: 'svg, .sr-only',
       onSplit: (instance) => {
-        const parts = type === 'words' ? instance.words : instance.lines
-        // Initialise the whole line before the stagger: later words must not flash before their turn.
-        gsap.set(parts, { yPercent: compact ? 35 : 108, opacity: 0 })
-        const tween = gsap.to(parts, {
-          yPercent: 0, opacity: 1, duration: SCROLL_MOTION.textDuration,
-          stagger: type === 'words' ? SCROLL_MOTION.textStagger : SCROLL_MOTION.lineStagger,
-          ease: SCROLL_MOTION.ease,
-          ...(options.scroll === false ? { delay: options.delay || 0 } : { scrollTrigger: settings(target, options) }),
+        const words = instance.words
+        if (!words.length) return null
+        // Load-time intro (heroes): same choreography, played once on a clock.
+        if (options.scroll === false) {
+          gsap.set(words, { yPercent: 115, rotation: compact ? 0 : 5, opacity: 0, transformOrigin: '0% 100%' })
+          const intro = gsap.to(words, {
+            yPercent: 0, rotation: 0, opacity: 1,
+            duration: reading ? 0.9 : 1.05,
+            stagger: reading ? 0.02 : 0.045,
+            ease: SCROLL_MOTION.introEase,
+            delay: options.delay || 0,
+          })
+          requestScrollRefresh()
+          return intro
+        }
+        // Explicit one-shot escape hatch (API compat): enter only, no exit.
+        if (options.once) {
+          gsap.set(words, reading
+            ? { opacity: SCROLL_MOTION.readingDim, y: 0 }
+            : { yPercent: 115, rotation: 0, opacity: 0, transformOrigin: '0% 100%' })
+          const once = gsap.to(words, {
+            yPercent: 0, rotation: 0, opacity: 1, y: 0,
+            duration: SCROLL_MOTION.textDuration,
+            stagger: reading ? SCROLL_MOTION.lineStagger : SCROLL_MOTION.textStagger,
+            ease: SCROLL_MOTION.ease,
+            scrollTrigger: { trigger: element(options.trigger) || target, start: options.start || 'top 88%', once: true, id: options.id },
+          })
+          requestScrollRefresh()
+          return once
+        }
+        // Scroll-driven scenes: one scrubbed timeline covers entry AND exit,
+        // so scrolling back up replays the hide in reverse. This is what
+        // separates a scroll story from a generic reveal-once fade.
+        if (!reading) {
+          gsap.set(words, { yPercent: 118, rotation: compact ? 0 : SCROLL_MOTION.displayTilt, opacity: 0, transformOrigin: '0% 100%' })
+          const scene = gsap.timeline({
+            defaults: { ease: 'none' },
+            scrollTrigger: {
+              trigger: element(options.trigger) || target,
+              start: options.start || SCROLL_MOTION.displayStart,
+              end: options.end || SCROLL_MOTION.displayEnd,
+              scrub: compact ? true : (options.scrub ?? SCROLL_MOTION.displayScrub),
+              invalidateOnRefresh: true,
+              id: options.id,
+            },
+          })
+          // Act 1 — masked rise with a whisper of tilt, word after word.
+          scene.to(words, {
+            yPercent: 0, rotation: 0, opacity: 1, duration: 1,
+            stagger: compact ? 0.06 : SCROLL_MOTION.displayEnterStagger,
+            ease: 'power4.out',
+          }, 0)
+          // The whole heading breathes upward while it is read.
+          scene.fromTo(target, { y: compact ? 0 : 16 }, { y: compact ? 0 : -16, duration: 2, ease: 'power1.inOut' }, 0)
+          // Act 2 — masked dissolve toward the top, tilted the other way.
+          scene.to(words, {
+            yPercent: compact ? 0 : -118, rotation: compact ? 0 : -4, opacity: 0, duration: 0.85,
+            stagger: compact ? 0.04 : SCROLL_MOTION.displayExitStagger,
+            ease: 'power3.in',
+          }, 1.15)
+          requestScrollRefresh()
+          return scene
+        }
+        gsap.set(words, { opacity: SCROLL_MOTION.readingDim, y: compact ? 0 : 8 })
+        const scene = gsap.timeline({
+          defaults: { ease: 'none' },
+          scrollTrigger: {
+            trigger: element(options.trigger) || target,
+            start: options.start || SCROLL_MOTION.readingStart,
+            end: options.end || SCROLL_MOTION.readingEnd,
+            scrub: compact ? true : (options.scrub ?? SCROLL_MOTION.readingScrub),
+            invalidateOnRefresh: true,
+            id: options.id,
+          },
         })
+        // Act 1 — each word lights up as the scroll reaches it.
+        scene.to(words, {
+          opacity: 1, y: 0, duration: 1,
+          stagger: SCROLL_MOTION.readingWordStagger,
+          ease: 'power2.out',
+        }, 0)
+        // Act 2 — the read block lifts and dims as it leaves.
+        scene.to(target, {
+          opacity: 0, y: compact ? 0 : -14, duration: 0.6, ease: 'power2.in',
+        }, 1.15)
         requestScrollRefresh()
-        return tween
+        return scene
       },
     })
     cleanups.push(() => split.revert())
@@ -119,6 +197,47 @@ export function createScrollAnimations(scope, { compact, reduced, canPin }) {
     })
   }
 
+  // Every editorial line earns the scroll choreography, not just hero titles:
+  // headings rise and dissolve, copy illuminates word by word, both directions.
+  // Controls, heroes with their own intro, scrubbed artifacts (gallery,
+  // notebook, code study, carousel frames) and Framer-owned regions
+  // (accordions, tab panels) are deliberately left to their own motion.
+  const ALL_TEXT_EXCLUDE = [
+    'button', '[role="button"]', 'input', 'textarea', 'select', 'label',
+    '.ax-gallery', '.ax-hero', '.home-hero', '.page-hero',
+    '.workshop-notes', '.ax-code-study', '.ax-scene',
+    '.team-stage', '.team-frame', '.mobile-menu',
+    'dialog', '[role="dialog"]', '[data-lenis-prevent]',
+    '.site-header', '.site-nav', '.ax-header', 'nav',
+    '.community-numbers dd', '.motion-counter', '.sr-only',
+    '[id^="faq-panel"]', '[id^="ax-answer-"]', '[id^="pole-panel-"]',
+  ].join(',')
+
+  function revealAllText() {
+    const root = scope
+    if (!root || typeof root.querySelectorAll !== 'function' || reduced) return 0
+    const eligible = (node) => {
+      if (node.dataset.motionText || node.dataset.animatedText) return false
+      if (node.closest('[data-motion-text],[data-animated-text]')) return false
+      if (node.closest(ALL_TEXT_EXCLUDE)) return false
+      if (node.closest('[hidden]')) return false
+      if (node.getClientRects().length === 0) return false
+      return (node.textContent || '').trim().length >= 3
+    }
+    let count = 0
+    root.querySelectorAll('h1,h2,h3,h4,.poster-title').forEach((node) => {
+      if (!eligible(node)) return
+      revealText(node, { type: 'words' })
+      count += 1
+    })
+    root.querySelectorAll('p,blockquote,figcaption,dt,dd').forEach((node) => {
+      if (!eligible(node)) return
+      revealText(node, { type: 'lines' })
+      count += 1
+    })
+    return count
+  }
+
   function pinSection(ref, duration = .7, options = {}) {
     const target = element(ref)
     if (!target || !canPin || reduced) return null
@@ -136,7 +255,7 @@ export function createScrollAnimations(scope, { compact, reduced, canPin }) {
 
   return {
     gsap, ScrollTrigger, compact, reduced, canPin, select, element,
-    revealText, revealSection, parallaxElement, countUp, pinSection,
+    revealText, revealAllText, revealSection, parallaxElement, countUp, pinSection,
     cleanup: () => { cleanups.reverse().forEach((cleanup) => cleanup()) },
   }
 }

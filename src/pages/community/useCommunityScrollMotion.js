@@ -26,5 +26,6 @@ export default function useCommunityScrollMotion(pageRef) {
     })
     motion.revealSection('.community-life-note', { mode: 'fade' })
     motion.revealSection('.community-invitation-signoff', { mode: 'fade' })
+    motion.revealAllText()
   })
 }

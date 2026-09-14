@@ -17,6 +17,7 @@ export default function useAivexExperience(pageRef, ready) {
     motion.revealSection('.ax-footer-home', {
       mode: 'depth', start: 'clamp(top 99%)', end: 'clamp(bottom bottom)',
     })
+    motion.revealAllText()
     motion.parallaxElement('.ax-footer-cross', -.16, { rotation: 9 })
   }, { enabled: ready })
 

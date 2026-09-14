@@ -52,7 +52,7 @@ export default function Events() {
         </header>
 
         <article className="home-event-feature" aria-labelledby="home-featured-event-title">
-          <Link to={featured.href} className="home-event-feature-link" aria-labelledby="home-featured-event-action">
+          <Link to={featured.href} target={featured.newTab ? '_blank' : undefined} rel={featured.newTab ? 'noreferrer' : undefined} className="home-event-feature-link" aria-labelledby="home-featured-event-action">
             <ScrollReveal mode="horizontal" color="#002a1e" className="home-event-visual">
               <figure className="home-event-preview">
                 <div className="home-event-image-window">

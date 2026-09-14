@@ -1,7 +1,7 @@
 import useScrollAnimations from './useScrollAnimations'
 
 export default function useHomeScrollMotion(mainRef) {
-  useScrollAnimations(mainRef, ({ revealText, revealSection, select, reduced, gsap }) => {
+  useScrollAnimations(mainRef, ({ revealText, revealAllText, revealSection, select, reduced, gsap }) => {
     select('.section-intro > p, .home-events-heading > p, .club-life-copy > p').forEach((node) => revealText(node, { type: 'lines' }))
     select('.home-events-heading h2, .club-life-copy h2, #contact h2').forEach((node) => revealText(node))
     revealSection('.poles-stage', { mode: 'depth', end: 'top 56%' })
@@ -13,5 +13,7 @@ export default function useHomeScrollMotion(mainRef) {
       scaleX: 1, transformOrigin: 'left', ease: 'none',
       scrollTrigger: { trigger: '#contact', start: 'top 82%', end: 'top 42%', scrub: true },
     })
+    // Sweep up every editorial line the selectors above missed.
+    revealAllText()
   })
 }

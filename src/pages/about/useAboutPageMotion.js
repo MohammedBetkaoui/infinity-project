@@ -9,6 +9,8 @@ export default function useAboutPageMotion(pageRef) {
       .forEach((copy) => motion.revealText(copy, { type: 'lines' }))
     motion.revealSection('.about-story-margin', { mode: 'horizontal', color: '#e7dfcf' })
     page.querySelectorAll('.about-fields-ledger > li').forEach((row) => motion.revealSection(row, { mode: 'fade' }))
+    // Every remaining heading and paragraph gets the scroll choreography.
+    motion.revealAllText()
     if (motion.reduced) return
     const scene = page.querySelector('.about-process-scene')
     if (!scene) return
