@@ -25,7 +25,10 @@ export default function useAivexGallery(trackRef, panelRef, ready) {
   const lenis = useAnimationContext()
   const viewport = useSyncExternalStore(subscribeViewport, viewportMode, () => 'mobile-short')
   const mobile = viewport.startsWith('mobile')
-  const scrollEnabled = !reduced && !mobile && !viewport.endsWith('short')
+  // Keep the scroll-driven album on mobile too: the sticky panel pins while
+  // the finger scrolls through every photograph, like on desktop.
+  // Only very short viewports and reduced-motion fall back to buttons/swipe.
+  const scrollEnabled = !reduced && !viewport.endsWith('short')
   const inset = mobile ? 76 : 94
   const position = useMotionValue(0)
   const indexRef = useRef(0)

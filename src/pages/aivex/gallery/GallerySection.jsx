@@ -41,7 +41,7 @@ export default function GallerySection({ ready = true }) {
       id="first-edition"
       aria-labelledby={`${id}-title`}
       data-scroll-gallery={gallery.scrollEnabled ? 'true' : 'false'}
-      style={{ '--gallery-travel': `${(photos.length - 1) * (gallery.mobile ? 88 : 104)}px` }}
+      style={{ '--gallery-travel': `${(photos.length - 1) * (gallery.mobile ? 170 : 104)}px` }}
     >
       <div className="ax-container ax-gallery-layout grid items-start">
         <header className="ax-gallery-intro">
