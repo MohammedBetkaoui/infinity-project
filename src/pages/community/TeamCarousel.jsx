@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from 'react'
-import { AnimatePresence, LayoutGroup, motion, useInView, useScroll } from 'framer-motion'
+import { AnimatePresence, LayoutGroup, motion, useInView } from 'framer-motion'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import useMotionPreference from '../../hooks/useMotionPreference'
 import { communityPortraits } from './communityData'
@@ -18,9 +18,7 @@ export default function TeamCarousel() {
   const reduced = useMotionPreference()
   const groupId = useId()
   const carouselId = `${groupId}-portraits`
-  const revealed = useInView(stageRef, { once: true, amount: .12 })
   const inView = useInView(sectionRef, { margin: '40px' })
-  const { scrollYProgress } = useScroll({ target: stageRef, offset: ['start end', 'end start'] })
   const { activeIndex, x, step, geometry, goTo, move, stop, onDragStart, onDragEnd, onPointerCancel, suppressClick } = useTeamCarousel(stageRef, communityPortraits.length, initialIndex, reduced)
   const active = communityPortraits[activeIndex]
 
@@ -77,10 +75,8 @@ export default function TeamCarousel() {
                 near={Math.abs(index - activeIndex) <= 2}
                 x={x}
                 step={step}
-                scrollProgress={scrollYProgress}
                 compact={geometry.compact}
                 reduced={reduced}
-                revealed={revealed || reduced}
                 layoutId={`team-portrait-${member.id}`}
                 onActivate={() => {
                   if (suppressClick()) return

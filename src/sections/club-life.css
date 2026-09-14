@@ -55,7 +55,7 @@
   letter-spacing: -.045em;
   text-wrap: balance;
 }
-.club-life-copy h2 > span { display: block; max-width: 18ch; margin-top: 9px; color: #b9d9ca; }
+.club-life-copy h2 .club-life-title-end { display: block; max-width: 18ch; margin-top: 9px; color: #b9d9ca; }
 .club-life-copy > p { max-width: 48ch; margin-top: 27px; color: var(--moments-muted); font-size: 14px; line-height: 1.9; }
 .club-life-values { margin-top: 29px; }
 .club-life-values li {
@@ -91,7 +91,7 @@
   .club-moments-frame-2 { border-top-right-radius: 20px; }
   .club-life-copy { padding-block: 0; }
   .club-life-copy h2 { font-size: clamp(36px, 9.4vw, 49px); }
-  .club-life-copy h2 > span { max-width: none; margin-top: 5px; }
+  .club-life-copy h2 .club-life-title-end { max-width: none; margin-top: 5px; }
   .club-life-copy > p { margin-top: 23px; font-size: 13px; }
   .club-life-values { margin-top: 25px; }
   .club-life-values li { gap: 18px; padding-block: 16px; }

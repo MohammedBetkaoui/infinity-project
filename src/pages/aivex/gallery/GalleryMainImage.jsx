@@ -1,12 +1,26 @@
 import { useRef } from 'react'
-import { AnimatePresence, motion, useIsPresent, useTransform } from 'framer-motion'
+import { AnimatePresence, motion, useIsPresent } from 'framer-motion'
+import gsap from 'gsap'
+import useGalleryPosition from './useGalleryPosition'
 import { frameOpacity, GALLERY_EASE } from './galleryTimeline'
 
 function ImageLayer({ photo, index, position, reduced, onError }) {
   const present = useIsPresent()
-  const opacity = useTransform(position, (value) => frameOpacity(value, index))
-  const y = useTransform(position, [index - 1, index, index + 1], reduced ? [0, 0, 0] : [6, 0, -6])
-  const scale = useTransform(position, [index - 1, index, index + 1], reduced ? [1, 1, 1] : [0.965, 0.988, 0.974])
+  const printRef = useRef(null)
+  useGalleryPosition(printRef, position, (print) => {
+    const image = print.querySelector('img')
+    gsap.set(print, { opacity: 1 })
+    gsap.set(image, { y: 0, scale: 1 })
+    const opacity = gsap.quickSetter(print, 'opacity')
+    const y = gsap.quickSetter(image, 'y', 'px')
+    const scale = gsap.quickSetter(image, 'scale')
+    return (value) => {
+      const distance = Math.max(-1, Math.min(1, value - index))
+      opacity(frameOpacity(value, index))
+      y(reduced ? 0 : -distance * 6)
+      scale(reduced ? 1 : .988 - Math.abs(distance) * .018)
+    }
+  }, reduced)
   return (
     <motion.div
       className="ax-gallery-layer absolute inset-0"
@@ -17,13 +31,13 @@ function ImageLayer({ photo, index, position, reduced, onError }) {
       transition={{ duration: reduced ? 0.16 : 0.28, ease: GALLERY_EASE }}
       aria-hidden={!present || undefined}
     >
-      <motion.div className="ax-gallery-print absolute inset-0" style={{ opacity }}>
-        <motion.img
+      <div ref={printRef} className="ax-gallery-print absolute inset-0">
+        <img
           src={photo.src} alt="" width={photo.width} height={photo.height}
-          style={{ y, scale }} loading="lazy" decoding="async"
+          loading="lazy" decoding="async"
           draggable="false" onError={onError}
         />
-      </motion.div>
+      </div>
     </motion.div>
   )
 }

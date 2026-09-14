@@ -16,8 +16,7 @@ export default function PageHero({ title, titleId, lead, summary, href, linkLabe
         <div className="page-hero-layout">
           <h1 id={titleId} aria-label={`${title}.`}>
             <span className="page-hero-title-mask" aria-hidden="true">
-              {Array.from(title).map((letter, index) => <span className="page-hero-letter" key={index}>{letter}</span>)}
-              <span className="page-hero-letter page-hero-title-stop">.</span>
+              {title}<span className="page-hero-title-stop">.</span>
             </span>
           </h1>
           <div className="page-hero-note">

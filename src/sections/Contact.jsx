@@ -6,7 +6,7 @@ export default function Contact() {
       <div className="page-container contact-layout">
         <div>
           <p className="contact-prelude">There is room for your ideas.</p>
-          <h2>What could we<br />build <span>together?
+          <h2>What could we<br />build <span className="contact-title-emphasis">together?
             <svg viewBox="0 0 390 22" aria-hidden="true"><path d="M4 15Q157 -2 382 8M54 20Q230 8 355 17" /></svg>
           </span></h2>
         </div>

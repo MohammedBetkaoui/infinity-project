@@ -11,6 +11,12 @@ export default function AivexRoute() {
   const ready = assetsReady && minimumElapsed
 
   useEffect(() => {
+    if (entered) return
+    window.dispatchEvent(new CustomEvent('infinity:scroll-lock', { detail: { locked: true } }))
+    return () => window.dispatchEvent(new CustomEvent('infinity:scroll-lock', { detail: { locked: false } }))
+  }, [entered])
+
+  useEffect(() => {
     const timer = window.setTimeout(() => setMinimumElapsed(true), MINIMUM_LOADING_MS)
     return () => window.clearTimeout(timer)
   }, [])

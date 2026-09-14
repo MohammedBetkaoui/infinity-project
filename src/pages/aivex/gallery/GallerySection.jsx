@@ -1,12 +1,11 @@
 import { useId, useRef } from 'react'
-import { motion } from 'framer-motion'
+import AnimatedText from '../../../components/AnimatedText'
 import { firstEditionPhotos } from '../aivexGalleryData'
 import useAivexGallery from '../useAivexGallery'
 import GalleryMainImage from './GalleryMainImage'
 import GalleryThumbnailRail from './GalleryThumbnailRail'
 import GalleryControls from './GalleryControls'
 import GalleryProgressBar from './GalleryProgressBar'
-import { GALLERY_EASE } from './galleryTimeline'
 import '../aivex-gallery.css'
 
 export default function GallerySection({ ready = true }) {
@@ -46,21 +45,7 @@ export default function GallerySection({ ready = true }) {
     >
       <div className="ax-container ax-gallery-layout grid items-start">
         <header className="ax-gallery-intro">
-          <motion.h2
-            id={`${id}-title`}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, amount: 0.2 }}
-            variants={{ visible: { transition: { staggerChildren: gallery.reduced ? 0 : 0.075 } } }}
-          >
-            {['The first edition,', 'up close.'].map((line) => (
-              <motion.span
-                className="block" key={line}
-                variants={{ hidden: { opacity: 0, y: gallery.reduced ? 0 : 16 }, visible: { opacity: 1, y: 0 } }}
-                transition={{ duration: gallery.reduced ? 0.18 : 0.46, ease: GALLERY_EASE }}
-              >{line}</motion.span>
-            ))}
-          </motion.h2>
+          <AnimatedText tag="h2" id={`${id}-title`}>The first edition,<br />up close.</AnimatedText>
           <p className="ax-gallery-description">The people behind the projects. A look back at the conversations, the code and the moments in between.</p>
           <div className="ax-gallery-edition flex flex-wrap items-center gap-x-5 gap-y-2">
             <span>AIVEX, first edition</span><span>{photos.length} photographs</span>

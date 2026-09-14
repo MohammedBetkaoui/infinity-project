@@ -1,10 +1,17 @@
-import { AnimatePresence, motion, useSpring, useTransform } from 'framer-motion'
+import { useRef } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import gsap from 'gsap'
+import useGalleryPosition from './useGalleryPosition'
 import { GALLERY_EASE } from './galleryTimeline'
 
 export default function GalleryProgressBar({ gallery, photos }) {
   const count = photos.length
-  const progress = useTransform(gallery.position, (value) => (value + 1) / count)
-  const smooth = useSpring(progress, { stiffness: 330, damping: 36, mass: 0.38 })
+  const progressRef = useRef(null)
+  useGalleryPosition(progressRef, gallery.position, (node) => {
+    gsap.set(node, { scaleX: 0 })
+    const scale = gsap.quickSetter(node, 'scaleX')
+    return (value) => scale((value + 1) / count)
+  }, count)
   return (
     <div className="ax-gallery-progress-block min-w-0">
       <div className="ax-gallery-caption flex items-start gap-4">
@@ -32,7 +39,7 @@ export default function GalleryProgressBar({ gallery, photos }) {
         </div>
       </div>
       <div className="ax-gallery-progress relative overflow-hidden" role="progressbar" aria-label="Position in the photo album" aria-valuemin={1} aria-valuemax={count} aria-valuenow={gallery.activeIndex + 1}>
-        <motion.span className="absolute inset-0 block origin-left" style={{ scaleX: gallery.reduced ? progress : smooth }} />
+        <span ref={progressRef} className="absolute inset-0 block origin-left" />
       </div>
     </div>
   )

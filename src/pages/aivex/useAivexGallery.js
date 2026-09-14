@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { animate, useInView, useMotionValue, useMotionValueEvent, useScroll } from 'framer-motion'
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { animate, useInView, useMotionValue, useMotionValueEvent } from 'framer-motion'
+import { ScrollTrigger } from 'gsap/ScrollTrigger'
+import { useAnimationContext } from '../../lib/AnimationContext'
 import useMotionPreference from '../../hooks/useMotionPreference'
 import { firstEditionPhotos, GALLERY_INTERVAL_MS } from './aivexGalleryData'
 import { prepareGalleryPhoto } from './aivexGalleryImages'
@@ -20,11 +22,11 @@ const viewportMode = () => `${window.innerWidth <= 799 ? 'mobile' : 'desktop'}-$
 export default function useAivexGallery(trackRef, panelRef, ready) {
   const count = firstEditionPhotos.length
   const reduced = useMotionPreference()
+  const lenis = useAnimationContext()
   const viewport = useSyncExternalStore(subscribeViewport, viewportMode, () => 'mobile-short')
   const mobile = viewport.startsWith('mobile')
-  const scrollEnabled = !reduced && !viewport.endsWith('short')
+  const scrollEnabled = !reduced && !mobile && !viewport.endsWith('short')
   const inset = mobile ? 76 : 94
-  const { scrollYProgress } = useScroll({ target: trackRef, offset: [`start ${inset}px`, 'end end'] })
   const position = useMotionValue(0)
   const indexRef = useRef(0)
   const seekRef = useRef(null)
@@ -44,9 +46,6 @@ export default function useAivexGallery(trackRef, panelRef, ready) {
   const pageVisible = useSyncExternalStore(subscribeVisibility, isPageVisible, () => true)
   const playing = ready && autoplay && visible && pageVisible && !hovered && !reduced && !loading
 
-  useMotionValueEvent(scrollYProgress, 'change', (progress) => {
-    if (ready && scrollEnabled) position.set(galleryPosition(progress, count))
-  })
   useMotionValueEvent(position, 'change', (value) => {
     if (seekRef.current !== null && Math.abs(value - seekRef.current) < 0.025) seekRef.current = null
     const next = clamp(Math.round(value), 0, count - 1)
@@ -55,9 +54,18 @@ export default function useAivexGallery(trackRef, panelRef, ready) {
     setActiveIndex(next)
   })
 
-  useEffect(() => {
-    if (ready && scrollEnabled) position.set(galleryPosition(scrollYProgress.get(), count))
-  }, [ready, scrollEnabled, count, position, scrollYProgress])
+  useLayoutEffect(() => {
+    if (!ready || !scrollEnabled) return
+    // The same GSAP clock drives the photograph, rail and progress; Framer only handles manual playback.
+    const paint = (self) => position.set(galleryPosition(self.progress, count))
+    const trigger = ScrollTrigger.create({
+      id: 'aivex-photo-album', trigger: trackRef.current,
+      start: `top ${inset}px`, end: 'bottom bottom',
+      onUpdate: paint, onRefresh: paint, invalidateOnRefresh: true,
+    })
+    paint(trigger)
+    return () => trigger.kill()
+  }, [ready, scrollEnabled, count, position, trackRef, inset])
 
   useEffect(() => {
     if (!near) return
@@ -81,13 +89,14 @@ export default function useAivexGallery(trackRef, panelRef, ready) {
   const moveTo = (index) => {
     animationRef.current?.stop()
     if (scrollEnabled) {
-      // Seek the native page position, not a second slider clock. Scroll and controls stay in agreement.
+      // Seeking moves the real page, not a second slider clock.
       const bounds = trackRef.current.getBoundingClientRect()
       const top = galleryScrollTarget({
         top: bounds.top + window.scrollY, height: bounds.height,
         viewportHeight: window.innerHeight, inset,
       }, index, count)
-      window.scrollTo({ top, behavior: 'smooth' })
+      if (lenis?.current) lenis.current.scrollTo(top, { duration: .62 })
+      else window.scrollTo({ top, behavior: 'smooth' })
     } else if (reduced) {
       position.set(index)
     } else {
@@ -129,10 +138,9 @@ export default function useAivexGallery(trackRef, panelRef, ready) {
         setLoaded((previous) => new Set([...previous, next]))
         if (scrollEnabled) {
           const bounds = trackRef.current.getBoundingClientRect()
-          window.scrollTo({
-            top: galleryScrollTarget({ top: bounds.top + window.scrollY, height: bounds.height, viewportHeight: window.innerHeight, inset }, next, count),
-            behavior: 'smooth',
-          })
+          const top = galleryScrollTarget({ top: bounds.top + window.scrollY, height: bounds.height, viewportHeight: window.innerHeight, inset }, next, count)
+          if (lenis?.current) lenis.current.scrollTo(top, { duration: .62 })
+          else window.scrollTo({ top, behavior: 'smooth' })
         } else {
           animationRef.current?.stop()
           animationRef.current = animate(position, next, { duration: 0.42, ease: GALLERY_EASE })
@@ -144,7 +152,7 @@ export default function useAivexGallery(trackRef, panelRef, ready) {
       }
     }, GALLERY_INTERVAL_MS)
     return () => { cancelled = true; window.clearTimeout(timer) }
-  }, [playing, activeIndex, count, scrollEnabled, inset, position, trackRef])
+  }, [playing, activeIndex, count, scrollEnabled, inset, position, trackRef, lenis])
 
   useEffect(() => {
     const stop = () => {

@@ -1,9 +1,7 @@
 import { lazy, Suspense, useRef } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
-import { MotionConfig } from 'framer-motion'
-import useMotionPreference from './hooks/useMotionPreference'
 import useHomeScrollMotion from './hooks/useHomeScrollMotion'
-import CustomCursor from './components/CustomCursor'
+import AnimationProvider from './components/AnimationProvider'
 import Navbar from './components/Navbar'
 import ScrollExperience from './components/ScrollExperience'
 import RouteScrollReset from './components/RouteScrollReset'
@@ -22,17 +20,13 @@ const CommunityPage = lazy(() => import('./pages/community/CommunityPage'))
 const ContactPage = lazy(() => import('./pages/contact/ContactPage'))
 
 function SitePage({ children, mainRef }) {
-  const reduced = useMotionPreference()
   return (
-    <MotionConfig reducedMotion={reduced ? 'always' : 'never'}>
       <div className="min-h-screen overflow-clip bg-background text-text-primary">
         <ScrollExperience />
-        <CustomCursor />
         <Navbar />
         <main ref={mainRef}>{children}</main>
         <Footer />
       </div>
-    </MotionConfig>
   )
 }
 
@@ -57,7 +51,7 @@ function HomeRoute() {
 
 export default function App() {
   return (
-    <>
+    <AnimationProvider>
       <RouteScrollReset />
       <Routes>
         <Route path="/aivex" element={<AivexRoute />} />
@@ -68,6 +62,6 @@ export default function App() {
         <Route path="/" element={<HomeRoute />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </>
+    </AnimationProvider>
   )
 }

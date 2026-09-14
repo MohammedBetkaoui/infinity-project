@@ -2,8 +2,8 @@ import { motion, useTransform } from 'framer-motion'
 import { Maximize2 } from 'lucide-react'
 import { coverflowPose, TEAM_LAYOUT } from './teamMotion'
 
-export default function TeamFrame({ member, index, initialIndex, active, near, x, step, scrollProgress, compact, reduced, onActivate, layoutId, revealed }) {
-  const pose = useTransform(() => coverflowPose(index + x.get() / step.get(), scrollProgress.get(), compact))
+export default function TeamFrame({ member, index, initialIndex, active, near, x, step, compact, reduced, onActivate, layoutId }) {
+  const pose = useTransform(() => coverflowPose(index + x.get() / step.get(), .5, compact))
   const rotateY = useTransform(pose, (value) => reduced ? 0 : value.rotateY)
   const scale = useTransform(pose, (value) => reduced ? 1 : value.scale)
   const z = useTransform(pose, (value) => reduced ? 0 : value.z)
@@ -11,16 +11,10 @@ export default function TeamFrame({ member, index, initialIndex, active, near, x
   const shade = useTransform(pose, (value) => reduced ? 0 : value.shade)
   const opacity = useTransform(pose, (value) => value.opacity)
   const order = useTransform(pose, (value) => Math.round(100 + value.z))
-  const introDelay = Math.max(0, Math.min(4, index - initialIndex + 2)) * .052
 
   return (
     <motion.li className="team-frame-slot" data-active={active} data-near={near} style={{ zIndex: order }} aria-hidden={!near}>
-      <motion.div
-        className="team-frame-reveal"
-        initial={reduced ? false : { opacity: 0, y: 24 }}
-        animate={revealed ? { opacity: 1, y: 0 } : undefined}
-        transition={{ duration: reduced ? .14 : .54, delay: reduced ? 0 : introDelay, ease: [.18, .84, .24, 1] }}
-      >
+      <div className="team-frame-scroll"><div className="team-frame-reveal">
         {/* Every frame reads the same drag position, so pivot, scale and shade stay in phase. */}
         <motion.div className="team-frame-depth" style={{ rotateY, scale, z, y, opacity }}>
           <motion.button
@@ -57,7 +51,7 @@ export default function TeamFrame({ member, index, initialIndex, active, near, x
             </motion.span>
           </motion.button>
         </motion.div>
-      </motion.div>
+      </div></div>
     </motion.li>
   )
 }

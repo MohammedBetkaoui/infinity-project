@@ -1,10 +1,16 @@
 import { useLayoutEffect } from 'react'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
+import useScrollAnimations from '../../hooks/useScrollAnimations'
 
 gsap.registerPlugin(ScrollTrigger)
 
 export default function useEventsPageMotion(pageRef) {
+  useScrollAnimations(pageRef, (motion) => {
+    pageRef.current.querySelectorAll('h2').forEach((title) => motion.revealText(title))
+    pageRef.current.querySelectorAll('.events-feature-summary, .events-closing-layout p')
+      .forEach((copy) => motion.revealText(copy, { type: 'lines' }))
+  })
   useLayoutEffect(() => {
     const page = pageRef.current
     const media = gsap.matchMedia()

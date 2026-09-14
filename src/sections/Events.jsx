@@ -3,6 +3,7 @@ import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { Link } from 'react-router-dom'
 import { events } from '../data/siteData'
+import ScrollReveal from '../components/ScrollReveal'
 import './home-events.css'
 
 gsap.registerPlugin(ScrollTrigger)
@@ -52,7 +53,7 @@ export default function Events() {
 
         <article className="home-event-feature" aria-labelledby="home-featured-event-title">
           <Link to={featured.href} className="home-event-feature-link" aria-labelledby="home-featured-event-action">
-            <div className="home-event-visual">
+            <ScrollReveal mode="horizontal" color="#002a1e" className="home-event-visual">
               <figure className="home-event-preview">
                 <div className="home-event-image-window">
                   <img src={featured.preview.src} alt={featured.preview.alt}
@@ -64,7 +65,7 @@ export default function Events() {
                   <span>{featured.type}</span>
                 </figcaption>
               </figure>
-            </div>
+            </ScrollReveal>
 
             <div className="home-event-editorial">
               <p className="home-event-edition"><i aria-hidden="true" />{featured.edition}</p>

@@ -8,7 +8,7 @@ export default function ClubLife() {
       <div className="page-container club-life-layout">
         <ClubPhotoMosaic />
         <div className="club-life-copy">
-          <h2 id="club-life-title">More than projects.<span>People you grow with.</span></h2>
+          <h2 id="club-life-title">More than projects.<span className="club-life-title-end">People you grow with.</span></h2>
           <p>A shared laptop. A question that starts a conversation. Someone taking the time to help. At Infinity, these small moments are part of learning and building together.</p>
           <ul className="club-life-values">
             <li><strong>Learn by making.</strong><span>Explore code, design and new ideas through hands-on projects.</span></li>

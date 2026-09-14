@@ -5,6 +5,10 @@
   background: radial-gradient(ellipse at 50% 42%, #094a3666, transparent 63%), #002a1e;
   color: #f1ebdd;
 }
+.home-hero[data-hero-mode='pinned'] { overflow: visible; }
+.home-hero[data-hero-mode='pinned'] .home-hero-inner { min-height: 100svh; }
+.home-hero[data-hero-mode='pinned'] .home-hero-copy,
+.home-hero[data-hero-mode='pinned'] .home-hero-mark-depth { will-change: transform; }
 
 .home-hero-inner { display: flex; flex-direction: column; min-height: min(850px, 100svh); padding-top: 128px; }
 .home-hero-scene { position: relative; display: grid; place-items: center; flex: 1; padding-block: 70px 76px; }
@@ -45,7 +49,7 @@
   .home-hero-brand { margin-bottom: 24px; font-size: 12px; }
   .home-hero-description { margin-top: 25px; font-size: 13px; }
   .home-hero-actions { gap: 21px; }
-  .home-hero-mark-depth { width: 116%; top: 39%; }
+  .home-hero-mark-depth { width: 96%; top: 39%; }
   .home-hero-mark .infinity-mark-signal { opacity: .4; }
   .home-hero-spark-one { left: 0; top: 23%; }
   .home-hero-spark-three { left: 2%; bottom: 16%; }

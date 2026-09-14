@@ -1,68 +1,30 @@
-import { useLayoutEffect } from 'react'
-import gsap from 'gsap'
-import { ScrollTrigger } from 'gsap/ScrollTrigger'
-import { createScrollReveal } from '../../lib/scrollReveal'
-
-gsap.registerPlugin(ScrollTrigger)
+import useScrollAnimations from '../../hooks/useScrollAnimations'
 
 export default function useCommunityScrollMotion(pageRef) {
-  useLayoutEffect(() => {
-    const media = gsap.matchMedia()
-
-    media.add({
-      motion: '(prefers-reduced-motion: no-preference)',
-      compact: '(max-width: 767px)',
-    }, ({ conditions }) => {
-      if (!conditions.motion) return
-
-      const page = pageRef.current
-      const hero = page.querySelector('.community-page-hero')
-      const heroContent = hero.querySelector('.page-container')
-      const revealGroups = [
-        { selector: '.team-gallery-heading h2', gesture: 'title' },
-        { selector: '.team-gallery-heading p', gesture: 'copy' },
-        { selector: '.team-stage', gesture: 'depth' },
-        { selector: '.team-caption-row', gesture: 'copy' },
-        { selector: '.team-name-selector', gesture: 'depth' },
-        { selector: '.team-gallery-footnote' },
-        { selector: '.community-life-intro h2', gesture: 'title' },
-        { selector: '.community-life-intro > p, .community-life-intro > a', gesture: 'copy' },
-        { selector: '.community-life-signature', gesture: 'depth' },
-        { selector: '.community-contributions article', gesture: 'copy' },
-        { selector: '.community-life-note', gesture: 'depth' },
-        { selector: '.community-invitation h2', gesture: 'title' },
-        { selector: '.community-invitation-copy', gesture: 'copy' },
-        { selector: '.community-invitation-signoff' },
-      ]
-
-      let index = 0
-      const cleanups = revealGroups.flatMap(({ selector, gesture }) =>
-        [...page.querySelectorAll(selector)].map((target) => createScrollReveal(target, {
-          id: `community-reveal-${index++}`,
-          gesture,
-          compact: conditions.compact,
-        })),
-      )
-
-      // The page introduction exits as one editorial composition; its own load
-      // choreography remains untouched and is immediately restored on reverse.
-      gsap.fromTo(heroContent, { opacity: 1, y: 0 }, {
-        opacity: 0,
-        y: conditions.compact ? -8 : -22,
-        ease: 'none',
-        scrollTrigger: {
-          id: 'community-hero-exit',
-          trigger: hero,
-          start: '55% top',
-          end: 'bottom top',
-          scrub: true,
-          invalidateOnRefresh: true,
-        },
+  useScrollAnimations(pageRef, (motion) => {
+    const page = pageRef.current
+    page.querySelectorAll('.team-gallery-heading h2, .community-life-intro h2, .community-invitation h2')
+      .forEach((title) => motion.revealText(title))
+    page.querySelectorAll('.team-gallery-heading > p, .community-life-intro > p, .community-invitation-copy > p')
+      .forEach((copy) => motion.revealText(copy, { type: 'lines' }))
+    // Scroll owns the outer frame; Framer Motion owns the inner, draggable portrait.
+    motion.revealSection('.team-frame-reveal', {
+      mode: 'depth', trigger: page.querySelector('.team-stage'), stagger: .065,
+      start: 'clamp(top 95%)', end: 'clamp(top 38%)',
+    })
+    page.querySelectorAll('.team-frame-scroll').forEach((frame, index) => {
+      motion.parallaxElement(frame, .08 + Math.abs(index - 3) * .035, {
+        trigger: page.querySelector('.team-stage'), axis: 'y',
       })
-
-      return () => cleanups.forEach((cleanup) => cleanup())
-    }, pageRef)
-
-    return () => media.revert()
-  }, [pageRef])
+    })
+    motion.revealSection('.team-caption-row', { mode: 'fade' })
+    motion.revealSection('.team-name-selector', { mode: 'fade' })
+    motion.revealSection('.community-life-signature', { mode: 'wipe' })
+    page.querySelectorAll('.community-contributions article').forEach((item) => {
+      motion.revealText(item.querySelector('h3'))
+      motion.revealText(item.querySelector('p'), { type: 'lines' })
+    })
+    motion.revealSection('.community-life-note', { mode: 'fade' })
+    motion.revealSection('.community-invitation-signoff', { mode: 'fade' })
+  })
 }
