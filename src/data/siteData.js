@@ -14,7 +14,7 @@ export const navigation = [
   { label: 'Community', href: '/community', to: '/community' },
   { label: 'Events', href: '/events', to: '/events' },
   { label: 'Our fields', href: '#poles', section: 'poles', to: '/#poles' },
-  { label: 'Contact', href: '#contact', section: 'contact', to: '/#contact' },
+  { label: 'Contact', href: '/contact', to: '/contact' },
 ]
 
 export const poles = [
@@ -73,6 +73,7 @@ export const events = [
   {
     year: '2026',
     name: 'AIVEX',
+    featured: true,
     type: 'Artificial intelligence',
     description: 'The national AI application programming competition. Explore the second edition.',
     href: '/aivex',

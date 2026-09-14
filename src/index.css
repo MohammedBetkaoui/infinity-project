@@ -238,8 +238,6 @@ footer .infinity-mark-signal { stroke: #9ed7c4; opacity: .88; }
 .event-mini-mark { display: grid; place-items: center; width: 46px; height: 46px; flex-shrink: 0; border: 1px solid #638f8050; color: #8cc7b3; font-family: Rajdhani, sans-serif; font-size: 24px; }
 .hero-event-link strong { font-family: Rajdhani, sans-serif; color: #f1ebdd; font-size: 23px; font-weight: 600; }
 .hero-event-link small { display: block; margin-top: 1px; color: #afccc1; font-size: 11px; }
-.event-page-link { flex-shrink: 0; padding-block: 12px; border-bottom: 1px solid #638f80; color: #8cc7b3; font-size: 12px; font-weight: 600; }
-.event-page-link:hover { color: #f1ebdd; }
 .event-link-action { margin-left: auto; font-size: 11px; color: #8cc7b3; }
 .hero-social { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid #638f8040; border-radius: 50%; color: #8cc7b3; transition: background .2s; }
 .hero-social:hover { background: #0a5a43; }
@@ -317,23 +315,6 @@ footer .infinity-mark-signal { stroke: #9ed7c4; opacity: .88; }
 .community-social p { font-size: 13px; }
 .community-social p span { display: block; margin-top: 5px; color: #b6cec5; font-size: 11px; }
 
-.events-section { background: #003828; }
-.event-year-group + .event-year-group { margin-top: 44px; }
-.event-year { display: flex; gap: 24px; align-items: center; margin-bottom: 22px; color: #b6cec5; font-family: Rajdhani, sans-serif; font-size: 26px; font-weight: 500; }
-.event-year i { height: 1px; flex: 1; background: #638f8040; }
-.event-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 32px; align-items: start; }
-.event-card { min-width: 0; }
-.event-card-ai { border: 1px solid #638f8040; }
-.event-card-ai .event-copy { padding: 24px; }
-.event-copy { padding: 24px 0 0; }
-.event-type { font-size: 10px; color: #b6cec5; }
-.event-title-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 6px; }
-.event-title-row h4 { font-family: Rajdhani, sans-serif; font-size: 31px; font-weight: 600; line-height: 1.1; color: #f1ebdd; }
-.event-external { width: 42px; height: 42px; display: grid; place-items: center; flex-shrink: 0; border-radius: 50%; border: 1px solid #638f8060; color: #8cc7b3; transition: background .2s, color .2s; }
-.event-external:hover { background: #8cc7b3; color: #00271b; }
-.event-description { max-width: 55ch; margin-top: 12px; font-size: 13px; line-height: 1.85; color: #b6cec5; }
-.event-note { margin-top: 40px; font-size: 11px; color: #afccc1; }
-.event-note a { display: inline-flex; align-items: center; gap: 4px; text-decoration: underline; text-underline-offset: 4px; color: #8cc7b3; }
 .event-artwork { position: relative; aspect-ratio: 1.64; overflow: hidden; }
 .poster-register { display: flex; justify-content: space-between; gap: 16px; position: absolute; inset: 23px 27px auto; font-size: 9px; }
 .poster-title { position: absolute; left: 27px; top: 23%; font-family: Rajdhani, sans-serif; font-weight: 600; font-size: clamp(56px,6vw,90px); line-height: .83; letter-spacing: -.04em; }
@@ -411,7 +392,6 @@ footer .infinity-mark-signal { stroke: #9ed7c4; opacity: .88; }
   .nav-links { display: none; }
   .nav-join { margin-left: auto; }
   .menu-toggle { display: flex; }
-  .event-grid { gap: 24px; }
   .poster-register { inset: 18px 20px auto; font-size: 8px; }
   .poster-title, .poster-foot, .access-prompt { left: 20px; }
   .poster-foot { font-size: 9px; bottom: 17px; }
@@ -438,12 +418,10 @@ footer .infinity-mark-signal { stroke: #9ed7c4; opacity: .88; }
   .site-header.is-scrolled .site-nav { transform: translateY(-4px); }
   .mobile-menu { padding-inline: 20px; }
   .site-nav .nav-join { display: none; }
-  .event-grid { grid-template-columns: 1fr; gap: 32px; }
   .poster-title { font-size: clamp(60px,17vw,96px); }
   .artwork-design .poster-title { font-size: clamp(60px,17vw,90px); }
   .artwork-ramadan .poster-title { font-size: clamp(37px,10vw,60px); }
   .artwork-access .poster-title { font-size: clamp(40px,11vw,68px); }
-  .event-title-row h4 { font-size: 29px; }
   .contact-layout { grid-template-columns: 1fr; gap: 44px; }
   .contact-layout h2 { font-size: clamp(48px,11vw,70px); }
   .contact-bottom { margin-top: 0; flex-direction: column; gap: 12px; }

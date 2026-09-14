@@ -1,0 +1,111 @@
+.club-life-section {
+  --moments-cream: #f1ebdd;
+  --moments-mint: #9ed7c4;
+  --moments-muted: #b6cec5;
+  position: relative;
+  background:
+    radial-gradient(ellipse at 14% 48%, rgb(9 74 54 / .68), transparent 56%),
+    linear-gradient(110deg, #002c20, #00251b);
+  color: var(--moments-cream);
+}
+.club-life-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(44px, 7vw, 104px);
+}
+.club-moments { min-width: 0; border-radius: 12px; }
+.club-moments-mosaic {
+  display: grid;
+  grid-template-columns: minmax(0, 1.06fr) minmax(0, 1fr);
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: clamp(16px, 2.2vw, 31px);
+  aspect-ratio: 1.02;
+  perspective: 1200px;
+}
+.club-moments-frame {
+  position: relative;
+  min-width: 0;
+  border-radius: 11px;
+  box-shadow: 0 24px 36px -26px rgb(0 12 8 / .75);
+  transform-origin: center;
+}
+.club-moments-frame::after {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border: 1px solid rgb(241 235 221 / .2);
+  border-radius: inherit;
+  pointer-events: none;
+  content: '';
+}
+.club-moments-frame-1 { grid-area: 1 / 1 / 3 / 2; align-self: center; height: 77%; }
+.club-moments-frame-2 { grid-area: 1 / 2; border-radius: 11px 26px 11px 11px; }
+.club-moments-frame-3 { grid-area: 2 / 2; }
+.club-moments-window { position: absolute; inset: 0; overflow: hidden; isolation: isolate; border-radius: inherit; background: #094a36; }
+.club-moments-window img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; }
+.club-life-section :is(.club-moments, a):focus-visible { outline: 2px solid var(--moments-mint); outline-offset: 8px; box-shadow: none; }
+
+.club-life-copy { padding-block: 8px; }
+.club-life-copy h2 {
+  font-family: Rajdhani, sans-serif;
+  font-size: clamp(39px, 4.2vw, 60px);
+  font-weight: 500;
+  line-height: 1.05;
+  letter-spacing: -.045em;
+  text-wrap: balance;
+}
+.club-life-copy h2 > span { display: block; max-width: 18ch; margin-top: 9px; color: #b9d9ca; }
+.club-life-copy > p { max-width: 48ch; margin-top: 27px; color: var(--moments-muted); font-size: 14px; line-height: 1.9; }
+.club-life-values { margin-top: 29px; }
+.club-life-values li {
+  display: grid;
+  grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+  align-items: baseline;
+  gap: 21px;
+  padding-block: 18px;
+  border-top: 1px solid rgb(182 206 197 / .17);
+}
+.club-life-values strong { font-family: Rajdhani, sans-serif; font-size: 22px; font-weight: 500; line-height: 1.15; letter-spacing: -.025em; }
+.club-life-values span { max-width: 32ch; color: var(--moments-muted); font-size: 12px; line-height: 1.75; }
+.club-life-link { position: relative; display: inline-flex; align-items: center; min-height: 44px; margin-top: 15px; color: var(--moments-cream); font-size: 12px; font-weight: 650; }
+.club-life-link::after { position: absolute; bottom: 4px; inset-inline: 0; height: 1px; background: #cdac7b; content: ''; transform: scaleX(.38); transform-origin: left; transition: transform .38s var(--ease-smooth); }
+.club-life-link:is(:hover, :focus-visible)::after { transform: scaleX(1); }
+
+@media (max-width: 1023px) and (min-width: 768px) {
+  .club-life-layout { gap: 36px; }
+  .club-moments-mosaic { aspect-ratio: .82; gap: 17px; perspective: none; }
+  .club-moments-frame-1 { height: 78%; }
+  .club-life-copy h2 { font-size: 39px; }
+  .club-life-copy > p { margin-top: 21px; font-size: 13px; }
+  .club-life-values { margin-top: 25px; }
+  .club-life-values li { grid-template-columns: 1fr; gap: 7px; padding-block: 14px; }
+  .club-life-values span { max-width: 43ch; }
+}
+
+@media (max-width: 767px) {
+  .club-life-layout { grid-template-columns: minmax(0, 1fr); gap: 38px; }
+  .club-moments { width: 100%; max-width: 510px; margin-inline: auto; }
+  .club-moments-mosaic { gap: 16px; perspective: none; }
+  .club-moments-frame { border-radius: 8px; }
+  .club-moments-frame-2 { border-top-right-radius: 20px; }
+  .club-life-copy { padding-block: 0; }
+  .club-life-copy h2 { font-size: clamp(36px, 9.4vw, 49px); }
+  .club-life-copy h2 > span { max-width: none; margin-top: 5px; }
+  .club-life-copy > p { margin-top: 23px; font-size: 13px; }
+  .club-life-values { margin-top: 25px; }
+  .club-life-values li { gap: 18px; padding-block: 16px; }
+  .club-life-values strong { font-size: 21px; }
+  .club-life-values span { font-size: 11px; }
+  .club-life-link { margin-top: 13px; }
+}
+
+@media (max-width: 359px) {
+  .club-life-values li { grid-template-columns: 1fr; gap: 7px; }
+  .club-life-values span { max-width: 40ch; font-size: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .club-moments-frame, .club-moments-window img { transform: none !important; }
+  .club-life-link::after { transition: none; }
+}

@@ -67,8 +67,8 @@ test('small text and primary CTA labels meet 4.5:1 contrast', () => {
 test('English labels preserve existing section links and club content', async () => {
   assert.match(await read('index.html'), /<html lang="en">/)
   assert.deepEqual(navigation.map(item => item.label), ['Home', 'About', 'Community', 'Events', 'Our fields', 'Contact'])
-  assert.deepEqual(navigation.map(item => item.href), ['#accueil', '/about', '/community', '/events', '#poles', '#contact'])
-  assert.deepEqual(navigation.map(item => item.to), ['/', '/about', '/community', '/events', '/#poles', '/#contact'])
+  assert.deepEqual(navigation.map(item => item.href), ['#accueil', '/about', '/community', '/events', '#poles', '/contact'])
+  assert.deepEqual(navigation.map(item => item.to), ['/', '/about', '/community', '/events', '/#poles', '/contact'])
   assert.equal(poles.length, 7)
   assert.equal(poles[4].title, 'AI & Automation')
   assert.equal(poles[6].title, 'Cybersecurity')

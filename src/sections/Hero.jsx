@@ -36,7 +36,7 @@ export default function Hero() {
                 </h1>
                 <p className="hero-description hero-detail">From the first “how does this work?” to the project we build together. Infinity brings together students who want to give it a go.</p>
                 <div className="hero-actions hero-detail">
-                  <a href="#contact" data-magnetic data-ripple className="button-primary">Join the club</a>
+                  <Link to="/contact" data-magnetic data-ripple className="button-primary">Join the club</Link>
                   <a href="#poles" className="text-link">Find my field</a>
                 </div>
               </div>

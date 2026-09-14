@@ -178,7 +178,7 @@ try {
   assert.equal(report.navigation.backToClub.path, '/')
   assert(Math.abs(report.navigation.backToClub.top - 88) < 3, 'Return to the correct Infinity section')
   assert.equal(report.navigation.backToClub.theme, undefined)
-  await click('.event-page-link')
+  await click('.home-event-feature-link')
   await pause(4200)
   assert(await evaluate('location.pathname === "/aivex" && scrollY === 0 && !document.documentElement.classList.contains("lenis")'))
   await evaluate('scrollTo({top:document.body.scrollHeight,behavior:"instant"})')

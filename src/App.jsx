@@ -7,9 +7,9 @@ import Navbar from './components/Navbar'
 import ScrollExperience from './components/ScrollExperience'
 import RouteScrollReset from './components/RouteScrollReset'
 import InfinityLoader from './components/InfinityLoader'
-import Community from './sections/Community'
 import Contact from './sections/Contact'
 import Events from './sections/Events'
+import ClubLife from './sections/ClubLife'
 import FAQ from './sections/FAQ'
 import Footer from './sections/Footer'
 import Hero from './sections/Hero'
@@ -19,6 +19,7 @@ import AboutPage from './pages/about/AboutPage'
 import EventsPage from './pages/events/EventsPage'
 
 const CommunityPage = lazy(() => import('./pages/community/CommunityPage'))
+const ContactPage = lazy(() => import('./pages/contact/ContactPage'))
 
 const MINIMUM_HOME_LOADING_MS = 2500
 const HOME_LOADER_SESSION_KEY = 'infinity-home-loader-seen'
@@ -59,8 +60,8 @@ function HomePage() {
     <SitePage>
       <Hero />
       <Poles />
-      <Community />
       <Events />
+      <ClubLife />
       <FAQ />
       <Contact />
     </SitePage>
@@ -102,6 +103,7 @@ export default function App() {
         <Route path="/about" element={<SitePage><AboutPage /></SitePage>} />
         <Route path="/events" element={<SitePage><EventsPage /></SitePage>} />
         <Route path="/community" element={<SitePage><Suspense fallback={<p className="page-container py-40" role="status">Opening the community...</p>}><CommunityPage /></Suspense></SitePage>} />
+        <Route path="/contact" element={<SitePage><Suspense fallback={<p className="page-container py-40" role="status">Opening contact...</p>}><ContactPage /></Suspense></SitePage>} />
         <Route path="/" element={<HomeRoute />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

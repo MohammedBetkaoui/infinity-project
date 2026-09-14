@@ -6,9 +6,13 @@ import { navigation } from '../data/siteData'
 
 export default function Footer() {
   const { pathname } = useLocation()
-  const topHref = pathname === '/about'
-    ? '#about-page'
-    : pathname === '/events' ? '#events-page' : '#accueil'
+  const pageTopIds = {
+    '/about': 'about-page',
+    '/community': 'community-page',
+    '/contact': 'contact-page',
+    '/events': 'events-page',
+  }
+  const topHref = `#${pageTopIds[pathname] || 'accueil'}`
 
   return (
     <footer className="py-10">

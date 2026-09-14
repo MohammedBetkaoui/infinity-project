@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { motion } from 'framer-motion'
+import { Link } from 'react-router-dom'
 import useMotionPreference from '../hooks/useMotionPreference'
 import { Plus, Minus, Braces } from 'lucide-react'
 import SectionHeading from '../components/SectionHeading'
@@ -22,7 +23,7 @@ function PoleDetail({ pole, reduced }) {
         <p className="pole-focus">{pole.focus}</p>
         <h3>{pole.title}</h3>
         <p>{pole.description}</p>
-        <a href="#contact" className="text-link light-link">Count me in</a>
+        <Link to="/contact" className="text-link light-link">Count me in</Link>
       </div>
     </motion.div>
   )
@@ -98,7 +99,7 @@ export default function Poles() {
             </div>
           </div>
         )}
-        <p className="poles-note">Torn between a few fields? <a href="#contact">Come and talk it through with us.</a></p>
+        <p className="poles-note">Torn between a few fields? <Link to="/contact">Come and talk it through with us.</Link></p>
       </div>
     </section>
   )
