@@ -33,7 +33,8 @@ export default function ClubPhotoMosaic() {
     <div ref={galleryRef} className="club-moments" role="region" tabIndex={0}
       aria-label="Infinity Club photographs from the first AIVEX edition" aria-describedby="club-moments-help"
       data-photo-set={set.id} data-playing={gallery.playing}
-      onPointerEnter={gallery.onPointerEnter} onPointerLeave={gallery.onPointerLeave}
+      onPointerEnter={gallery.onPointerEnter} onPointerMove={gallery.onPointerMove}
+      onPointerLeave={gallery.onPointerLeave} onPointerCancel={gallery.onPointerCancel}
       onFocus={gallery.onFocus} onBlur={gallery.onBlur}>
       <div className="club-moments-mosaic" role="group" aria-label={set.label} aria-busy={!gallery.ready && !gallery.failed || undefined}>
         {set.photos.map((photo, slot) => (

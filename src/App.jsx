@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { MotionConfig } from 'framer-motion'
 import useMotionPreference from './hooks/useMotionPreference'
@@ -6,7 +6,6 @@ import CustomCursor from './components/CustomCursor'
 import Navbar from './components/Navbar'
 import ScrollExperience from './components/ScrollExperience'
 import RouteScrollReset from './components/RouteScrollReset'
-import InfinityLoader from './components/InfinityLoader'
 import Contact from './sections/Contact'
 import Events from './sections/Events'
 import ClubLife from './sections/ClubLife'
@@ -20,25 +19,6 @@ import EventsPage from './pages/events/EventsPage'
 
 const CommunityPage = lazy(() => import('./pages/community/CommunityPage'))
 const ContactPage = lazy(() => import('./pages/contact/ContactPage'))
-
-const MINIMUM_HOME_LOADING_MS = 2500
-const HOME_LOADER_SESSION_KEY = 'infinity-home-loader-seen'
-
-function hasSeenHomeLoader() {
-  try {
-    return window.sessionStorage.getItem(HOME_LOADER_SESSION_KEY) === 'true'
-  } catch {
-    return false
-  }
-}
-
-function rememberHomeLoader() {
-  try {
-    window.sessionStorage.setItem(HOME_LOADER_SESSION_KEY, 'true')
-  } catch {
-    // Storage can be unavailable in strict privacy modes; the loader still works normally.
-  }
-}
 
 function SitePage({ children }) {
   const reduced = useMotionPreference()
@@ -69,29 +49,7 @@ function HomePage() {
 }
 
 function HomeRoute() {
-  const [phase, setPhase] = useState(() => hasSeenHomeLoader() ? 'complete' : 'loading')
-
-  useEffect(() => {
-    if (phase !== 'loading') return undefined
-
-    rememberHomeLoader()
-    const timer = window.setTimeout(() => setPhase('leaving'), MINIMUM_HOME_LOADING_MS)
-    return () => window.clearTimeout(timer)
-  }, [phase])
-
-  const revealed = phase !== 'loading'
-  const complete = phase === 'complete'
-
-  return (
-    <>
-      {!complete && <InfinityLoader leaving={phase === 'leaving'} onComplete={() => setPhase('complete')} />}
-      {revealed && (
-        <div inert={!complete ? true : undefined} aria-busy={!complete || undefined}>
-          <HomePage />
-        </div>
-      )}
-    </>
-  )
+  return <HomePage />
 }
 
 export default function App() {

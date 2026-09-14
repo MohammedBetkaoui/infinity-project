@@ -83,8 +83,13 @@ export default function useClubMoments(galleryRef) {
 
   return {
     activeIndex, reduced, ready, failed, playing,
-    onPointerEnter: (event) => { if (event.pointerType === 'mouse') setHovered(true) },
+    // Pause uniquement quand la souris bouge réellement au-dessus de la galerie.
+    // onPointerEnter se déclenche aussi quand la section défile sous un curseur
+    // immobile sur desktop, ce qui bloquait la rotation (mobile = tactile, donc OK).
+    onPointerMove: (event) => { if (event.pointerType === 'mouse') setHovered(true) },
+    onPointerEnter: (event) => { if (event.pointerType === 'mouse' && event.movementX !== undefined && (event.movementX !== 0 || event.movementY !== 0)) setHovered(true) },
     onPointerLeave: () => setHovered(false),
+    onPointerCancel: () => setHovered(false),
     onFocus: () => setFocused(true),
     onBlur: () => setFocused(false),
   }
