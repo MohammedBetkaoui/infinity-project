@@ -1,5 +1,4 @@
 import { useId, useRef } from 'react'
-import AnimatedText from '../../../components/AnimatedText'
 import { firstEditionPhotos } from '../aivexGalleryData'
 import useAivexGallery from '../useAivexGallery'
 import GalleryMainImage from './GalleryMainImage'
@@ -45,7 +44,10 @@ export default function GallerySection({ ready = true }) {
     >
       <div className="ax-container ax-gallery-layout grid items-start">
         <header className="ax-gallery-intro">
-          <AnimatedText tag="h2" id={`${id}-title`}>The first edition,<br />up close.</AnimatedText>
+          {/* Plain h2: the sticky intro uses enter-once reveals (see
+              useAivexExperience) — a scrubbed exit would dissolve it while
+              it is still pinned on screen. */}
+          <h2 id={`${id}-title`}>The first edition,<br />up close.</h2>
           <p className="ax-gallery-description">The people behind the projects. A look back at the conversations, the code and the moments in between.</p>
           <div className="ax-gallery-edition flex flex-wrap items-center gap-x-5 gap-y-2">
             <span>AIVEX, first edition</span><span>{photos.length} photographs</span>

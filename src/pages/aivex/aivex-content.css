@@ -135,9 +135,20 @@
   .ax-project-board { grid-template-columns: 1fr; gap: 28px; margin-top: 29px; }
   .ax-project-feature-copy { padding: 25px 24px 0; }
   .ax-project-feature h3, .ax-project-note h3 { font-size: 31px; }
-  .ax-document-study { width: min(100%, 450px); margin-inline: auto; padding: 25px 27px 54px; min-height: 247px; }
-  .ax-source-sheet { width: 117px; min-height: 163px; }
-  .ax-answer-sheet { width: 146px; }
+  /* Airy centered pair: fixed sheets + 30px gap overflowed narrow screens and
+     pushed the node over the sheets. Centered with a 14px gap, the node sits
+     exactly in the middle of the flow. Desktop keeps space-between. */
+  /* Exact-fit pair for 380px and up (content 300px): 108 + 138 + 26 node +
+     2x14 gaps = 300. Desktop keeps space-between and full sizes. */
+  .ax-document-study { width: min(100%, 450px); margin-inline: auto; justify-content: center; gap: 14px; padding: 24px 18px 54px; min-height: 247px; }
+  /* Node joins the flex flow on mobile (static item between both sheets) so it
+     always sits exactly in the gap: with unequal sheet widths, `left: 50%`
+     missed the gap middle by ~15px. Layered above, it bridges the flow.
+     Desktop keeps the absolute node in its wide airy gap. */
+  .ax-document-node { position: static; transform: none; flex-shrink: 0; width: 26px; height: 26px; z-index: 2; }
+  .ax-source-sheet { width: 108px; min-height: 163px; }
+  .ax-answer-sheet { width: 138px; }
+  .ax-answer-sheet strong { font-size: 20px; }
   .ax-project-notes { gap: 26px; }
   .ax-project-note { padding-bottom: 0; }
   .aivex-page .ax-editorial-note { font-size: 10px; margin-top: 27px; }
@@ -170,10 +181,12 @@
   .ax-mobile-nav { max-height: calc(100svh - 68px); overflow-y: auto; }
 }
 @media (max-width: 379px) {
-  .ax-document-study { padding-inline: 18px; gap: 19px; }
-  .ax-source-sheet { width: 97px; padding: 12px; }
-  .ax-answer-sheet { width: 125px; padding-inline: 10px; }
-  .ax-answer-sheet strong { font-size: 21px; }
+  /* Exact-fit pair for 320px (content 252px): 88 + 116 + 24 node + 2x12 gaps. */
+  .ax-document-study { padding-inline: 16px; gap: 12px; }
+  .ax-source-sheet { width: 88px; padding: 12px; }
+  .ax-answer-sheet { width: 116px; padding-inline: 10px; }
+  .ax-answer-sheet strong { font-size: 18px; }
+  .ax-document-node { width: 24px; height: 24px; }
   .ax-answer-sheet > p { font-size: 7px; }
   .ax-project-feature-copy { padding-inline: 21px; }
   .ax-preparation-item { gap: 14px; }

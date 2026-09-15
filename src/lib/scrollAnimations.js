@@ -237,6 +237,8 @@ export function createScrollAnimations(scope, { reduced, canPin }) {
     '.site-header', '.site-nav', '.ax-header', 'nav',
     '.community-numbers dd', '.motion-counter', '.sr-only',
     '[id^="faq-panel"]', '[id^="ax-answer-"]', '[id^="pole-panel-"]',
+    // Live regions must stay readable and re-renderable on update.
+    '[role="status"]',
   ].join(',')
 
   function revealAllText() {

@@ -13,6 +13,21 @@ export default function useAivexExperience(pageRef, ready) {
     // behind the fixed ax-header) — not just the big h2 titles. Display nodes
     // use word masks, body copy uses line illumination; both exit at
     // `bottom top+=96` so nothing fades mid-viewport.
+    // Sticky companions first: the gallery and preparation intros stay pinned
+    // below the header while their document position travels on, so a scrubbed
+    // exit would dissolve them mid-screen. They enter once (`once: true`) and
+    // hold — the header masks them naturally when they finally release.
+    root.querySelectorAll('.ax-gallery-intro h2, .ax-preparation-intro h2')
+      .forEach((title) => motion.revealText(title, { once: true }))
+    root.querySelectorAll([
+      '.ax-gallery-description', '.ax-gallery-edition span', '.ax-gallery-reading-note p',
+      '.ax-preparation-intro > p', '.ax-tracker-heading span',
+    ].join(',')).forEach((copy) => motion.revealText(copy, { once: true, type: 'lines' }))
+    // Same rule for the sticky intro link: enter once, hold while pinned.
+    root.querySelectorAll(['.ax-gallery-reading-note a'].join(','))
+      .forEach((control) => motion.revealText(control, { once: true, drift: false }))
+    root.querySelectorAll('.ax-tracker-reset')
+      .forEach((control) => motion.revealText(control, { once: true, drift: false }))
     root.querySelectorAll('h2:not([data-animated-text])').forEach((title) => motion.revealText(title))
     // h3/h4 across workbench, project board and process panel, plus the BBA
     // signature (decorative display text, not inside a control).
@@ -33,8 +48,6 @@ export default function useAivexExperience(pageRef, ready) {
       '.ax-challenge-heading .ax-text-link',
       '.ax-organisation-copy .ax-text-link',
       '.ax-faq-intro .ax-text-link',
-      '.ax-gallery-reading-note a',
-      '.ax-tracker-reset',
     ].join(',')).forEach((control) => motion.revealText(control, { drift: false }))
     // Body copy: the three manifesto/challenge/footer leads plus every small
     // editorial span revealAllText never selects (spans/smalls are outside its
@@ -44,9 +57,7 @@ export default function useAivexExperience(pageRef, ready) {
     root.querySelectorAll('.ax-manifesto-copy > p, .ax-challenge-heading > div > p, .ax-footer-contact > p')
       .forEach((copy) => motion.revealText(copy, { type: 'lines' }))
     root.querySelectorAll([
-      '.ax-gallery-edition span',
       '.ax-preparation-copy span[id^="ax-prep-note-"]',
-      '.ax-tracker-heading span',
       '.ax-bba-signature small',
       '.ax-university strong', '.ax-university span',
       '.ax-footer-contact > span',
@@ -55,7 +66,31 @@ export default function useAivexExperience(pageRef, ready) {
     root.querySelectorAll('.ax-project-note').forEach((note) => motion.revealSection(note, { mode: 'depth' }))
     // Cards enter with the same depth choreography as the project notes; the
     // fixed header then masks them naturally, so nothing fades mid-viewport.
-    // Gallery album, code study, scene and hero keep their own motion.
+    // Code study, scene and hero keep their own motion.
+    // The album panel enters like a card; its photographs keep their own
+    // scroll-driven crossfades inside.
+    motion.revealSection('.ax-gallery-panel', { mode: 'depth' })
+    if (!motion.reduced) {
+      const panel = root.querySelector('.ax-gallery-panel')
+      const track = root.querySelector('.ax-gallery-track')
+      if (panel && track) {
+        // After the last photograph the stuck panel releases and tucks behind
+        // the fixed header: long hold, then a short dissolve in the final
+        // stretch only — the same exit language as the texts. Plain `.to`
+        // tweens (no immediate render) so the entry reveal owns the panel
+        // before that; ranges never overlap it.
+        const release = gsap.timeline({
+          defaults: { ease: 'none' },
+          scrollTrigger: {
+            id: 'aivex-gallery-release', trigger: track,
+            start: 'bottom bottom', end: 'bottom top+=96',
+            scrub: true, invalidateOnRefresh: true,
+          },
+        })
+        release.to(panel, { y: -6, duration: 2.4 }, 0)
+        release.to(panel, { opacity: 0, y: -14, duration: 0.35 }, 2.35)
+      }
+    }
     motion.revealSection('.ax-project-feature', { mode: 'depth' })
     motion.revealSection('.ax-process-panel', { mode: 'depth' })
     motion.revealSection('.ax-announcement', { mode: 'depth' })
