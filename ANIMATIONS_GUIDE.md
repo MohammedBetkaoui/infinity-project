@@ -183,8 +183,10 @@ deplacement programme ; sa valeur peut etre `null` sur mobile.
 
 ## Accessibilite et verification
 
-- Sous 768 px ou avec un pointeur tactile : pas de Lenis ni de pin, reveals
-  courts par lignes, parallax limite a 12 px, pas de curseur personnalise.
+- Sous 768 px ou avec un pointeur tactile : pas de Lenis ni de pin, pas de
+  curseur personnalise. La chorégraphie est identique au desktop partout
+  (masques, tilts, depth, wipe, parallax, scène AIVEX, intro) : seul le layout
+  reste responsive. Seul `prefers-reduced-motion` coupe les animations.
 - `prefers-reduced-motion: reduce` : textes et images immediatement visibles,
   pas de split/pin/parallax, controles manuels conserves dans les galeries.
 - Un controle recevant le focus reste visible meme pendant un reveal.

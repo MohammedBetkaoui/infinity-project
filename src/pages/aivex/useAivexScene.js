@@ -5,7 +5,10 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger'
 
 gsap.registerPlugin(ScrollTrigger)
 
-const sceneQuery = '(min-width: 800px) and (pointer: fine) and (prefers-reduced-motion: no-preference)'
+// Same scene on every viewport: orbit, scroll depth and reveal run on phones
+// exactly like desktop. Pointer-only extras (mouse viewpoint) stay guarded by
+// pointerType checks inside the handlers; reduced-motion stays fully off.
+const sceneQuery = '(prefers-reduced-motion: no-preference)'
 const subscribe = (listener) => {
   const media = window.matchMedia(sceneQuery)
   media.addEventListener('change', listener)

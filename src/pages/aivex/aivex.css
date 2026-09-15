@@ -265,7 +265,7 @@ html[data-page='aivex']::-webkit-scrollbar-corner { background: #111111; }
   .ax-process-copy h4 { font-size: 34px; margin-bottom: 11px; }
   .ax-process-copy p { max-width: 65ch; font-size: 13px; }
   .ax-code-study { min-height: 235px; padding: 22px 24px 77px; }
-  .ax-code-stack { transform: none !important; }
+  /* Same workbench tilt as desktop: the tab spring drives .ax-code-stack on every viewport. */
   .ax-code-lines { font-size: clamp(14px, 3vw, 18px); }
   .ax-details { padding-block: 61px 64px; }
   .ax-details-layout { grid-template-columns: 1fr; gap: 36px; }

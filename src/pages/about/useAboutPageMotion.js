@@ -14,10 +14,8 @@ export default function useAboutPageMotion(pageRef) {
     if (motion.reduced) return
     const scene = page.querySelector('.about-process-scene')
     if (!scene) return
-    if (motion.compact) {
-      motion.revealSection(scene, { mode: 'fade' })
-      return
-    }
+    // Same signal journey on every viewport: the SVG scales, the scrubbed
+    // choreography does not change.
     const path = scene.querySelector('.about-process-ink')
     const head = scene.querySelector('.about-process-head')
     const length = path.getTotalLength()

@@ -19,9 +19,8 @@ export default function useEventsPageMotion(pageRef) {
     media.add({
       all: 'all',
       reduced: '(prefers-reduced-motion: reduce)',
-      compact: '(max-width: 767px)',
     }, ({ conditions }) => {
-      const { reduced, compact } = conditions
+      const { reduced } = conditions
       page.dataset.motion = reduced ? 'reduced' : 'active'
       const previews = [...page.querySelectorAll('.events-preview')]
       if (!reduced) {
@@ -34,14 +33,14 @@ export default function useEventsPageMotion(pageRef) {
           gsap.timeline({
             defaults: { ease: 'none' },
             scrollTrigger: {
-              trigger: preview, start: 'top 94%', end: compact ? 'top 57%' : 'top 27%',
+              trigger: preview, start: 'top 94%', end: 'top 27%',
               scrub: true, invalidateOnRefresh: true,
               onToggle: ({ isActive }) => { preview.dataset.scrollActive = String(isActive) },
             },
           })
             .fromTo(depth, {
-              y: compact ? 8 : 24, scale: compact ? .985 : .967,
-              rotationX: compact ? 0 : 6.2, rotationY: compact ? 0 : -1.4,
+              y: 24, scale: .967,
+              rotationX: 6.2, rotationY: -1.4,
             }, { y: 0, scale: 1, rotationX: 0, rotationY: 0, duration: 1 }, 0)
             .fromTo(shadow, { opacity: .16, scaleX: .93, y: 16 }, { opacity: .07, scaleX: 1, y: 0, duration: 1 }, 0)
             .fromTo(edge, { scaleX: 0 }, { scaleX: 1, duration: 1 }, 0)

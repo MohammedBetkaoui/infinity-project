@@ -6,7 +6,10 @@ import { requestScrollRefresh } from './scrollRefresh'
 
 gsap.registerPlugin(ScrollTrigger, SplitText)
 
-export function createScrollAnimations(scope, { compact, reduced, canPin }) {
+// One choreography on every viewport: phones play the same masked rises,
+// tilts, depth, wipes and parallax as desktop. `compact` survives only as an
+// API field (responsive hooks may still read it); nothing below branches on it.
+export function createScrollAnimations(scope, { reduced, canPin }) {
   const cleanups = []
   const select = gsap.utils.selector(scope)
   const element = (ref) => typeof ref === 'string' ? select(ref)[0] : ref?.current || ref
@@ -27,7 +30,7 @@ export function createScrollAnimations(scope, { compact, reduced, canPin }) {
     if (!target || reduced || target.dataset.motionText) return null
     // Display headings rise word by word inside line masks; body copy
     // illuminates word by word like an editorial reading state.
-    const reading = (compact ? 'lines' : options.type || 'words') !== 'words'
+    const reading = (options.type || 'words') !== 'words'
     target.dataset.motionText = reading ? 'reading' : 'display'
     cleanups.push(() => { delete target.dataset.motionText })
     const split = SplitText.create(target, {
@@ -40,7 +43,7 @@ export function createScrollAnimations(scope, { compact, reduced, canPin }) {
         if (!words.length) return null
         // Load-time intro (heroes): same choreography, played once on a clock.
         if (options.scroll === false) {
-          gsap.set(words, { yPercent: 115, rotation: compact ? 0 : 5, opacity: 0, transformOrigin: '0% 100%' })
+          gsap.set(words, { yPercent: 115, rotation: 5, opacity: 0, transformOrigin: '0% 100%' })
           const intro = gsap.to(words, {
             yPercent: 0, rotation: 0, opacity: 1,
             duration: reading ? 0.9 : 1.05,
@@ -70,11 +73,11 @@ export function createScrollAnimations(scope, { compact, reduced, canPin }) {
         // so scrolling back up replays the hide in reverse. This is what
         // separates a scroll story from a generic reveal-once fade.
         if (!reading) {
-          gsap.set(words, { yPercent: 118, rotation: compact ? 0 : SCROLL_MOTION.displayTilt, opacity: 0, transformOrigin: '0% 100%' })
+          gsap.set(words, { yPercent: 118, rotation: SCROLL_MOTION.displayTilt, opacity: 0, transformOrigin: '0% 100%' })
           // Entry length grows with word count (duration + stagger tail), so
           // the exit is positioned after the real end of entry plus a reading
           // hold — never at a fixed offset that long headings never reach.
-          const enterStagger = compact ? 0.06 : SCROLL_MOTION.displayEnterStagger
+          const enterStagger = SCROLL_MOTION.displayEnterStagger
           const enterEnd = 1 + enterStagger * Math.max(0, words.length - 1)
           const hold = 1.1
           const exitDur = 0.4
@@ -84,7 +87,7 @@ export function createScrollAnimations(scope, { compact, reduced, canPin }) {
               trigger: element(options.trigger) || target,
               start: options.start || SCROLL_MOTION.displayStart,
               end: options.end || SCROLL_MOTION.displayEnd,
-              scrub: compact ? true : (options.scrub ?? SCROLL_MOTION.displayScrub),
+              scrub: (options.scrub ?? SCROLL_MOTION.displayScrub),
               invalidateOnRefresh: true,
               id: options.id,
             },
@@ -101,18 +104,18 @@ export function createScrollAnimations(scope, { compact, reduced, canPin }) {
           // Runs only in the final stretch, when the block slides behind
           // the fixed navbar.
           scene.to(words, {
-            yPercent: compact ? 0 : -118, rotation: compact ? 0 : -4, opacity: 0, duration: exitDur,
-            stagger: compact ? 0.04 : SCROLL_MOTION.displayExitStagger,
+            yPercent: -118, rotation: -4, opacity: 0, duration: exitDur,
+            stagger: SCROLL_MOTION.displayExitStagger,
             ease: 'power3.in',
           }, enterEnd + hold)
           // The whole heading breathes upward while it is read.
           if (options.drift !== false) {
-            scene.fromTo(target, { y: compact ? 0 : 16 }, { y: compact ? 0 : -16, duration: scene.duration(), ease: 'power1.inOut' }, 0)
+            scene.fromTo(target, { y: 16 }, { y: -16, duration: scene.duration(), ease: 'power1.inOut' }, 0)
           }
           requestScrollRefresh()
           return scene
         }
-        gsap.set(words, { opacity: SCROLL_MOTION.readingDim, y: compact ? 0 : 8 })
+        gsap.set(words, { opacity: SCROLL_MOTION.readingDim, y: 8 })
         // Same rule for body copy: a 30-word paragraph spreads its entry over
         // ~3.4 units, so a fixed exit at 1.45 would cut the illumination
         // mid-sentence. Exit starts after entry end + hold instead.
@@ -125,7 +128,7 @@ export function createScrollAnimations(scope, { compact, reduced, canPin }) {
             trigger: element(options.trigger) || target,
             start: options.start || SCROLL_MOTION.readingStart,
             end: options.end || SCROLL_MOTION.readingEnd,
-            scrub: compact ? true : (options.scrub ?? SCROLL_MOTION.readingScrub),
+              scrub: (options.scrub ?? SCROLL_MOTION.readingScrub),
             invalidateOnRefresh: true,
             id: options.id,
           },
@@ -139,7 +142,7 @@ export function createScrollAnimations(scope, { compact, reduced, canPin }) {
         // Act 2 — the read block holds fully legible, then lifts and dims
         // only while sliding behind the fixed navbar.
         scene.to(target, {
-          opacity: 0, y: compact ? 0 : -14, duration: readingExitDur, ease: 'power2.in',
+          opacity: 0, y: -14, duration: readingExitDur, ease: 'power2.in',
         }, readingEnterEnd + readingHold)
         requestScrollRefresh()
         return scene
@@ -152,7 +155,7 @@ export function createScrollAnimations(scope, { compact, reduced, canPin }) {
   function revealSection(ref, options = {}) {
     const targets = elements(ref)
     if (!targets.length || reduced) return null
-    const mode = compact ? 'fade' : options.mode || 'depth'
+    const mode = options.mode || 'depth'
     targets.forEach((target) => {
       target.dataset.motionReveal = mode
       cleanups.push(() => { delete target.dataset.motionReveal })
@@ -177,7 +180,7 @@ export function createScrollAnimations(scope, { compact, reduced, canPin }) {
       })
     }
     gsap.set(targets, {
-      opacity: 0, y: compact ? 9 : 28,
+      opacity: 0, y: 28,
       rotationX: mode === 'depth' ? -5 : 0,
       scale: mode === 'depth' ? .985 : 1,
       transformPerspective: mode === 'depth' ? 1200 : 0,
@@ -193,9 +196,9 @@ export function createScrollAnimations(scope, { compact, reduced, canPin }) {
     const target = element(ref)
     if (!target || reduced) return null
     const axis = options.axis || 'y'
-    const distance = () => (compact ? Math.min(12, innerHeight * Math.abs(speed) * .08) : innerHeight * Math.abs(speed) * .18) * Math.sign(speed)
+    const distance = () => innerHeight * Math.abs(speed) * .18 * Math.sign(speed)
     return gsap.fromTo(target, { [axis]: () => -distance(), rotation: options.rotation ? -options.rotation : 0 }, {
-      [axis]: distance, rotation: compact ? 0 : options.rotation || 0,
+      [axis]: distance, rotation: options.rotation || 0,
       ease: 'none', scrollTrigger: settings(target, { start: 'top bottom', end: 'bottom top', ...options }),
     })
   }
@@ -211,7 +214,7 @@ export function createScrollAnimations(scope, { compact, reduced, canPin }) {
     const state = { value: 0 }
     render(0)
     return gsap.to(state, {
-      value, duration: compact ? .82 : 1.28, delay: options.delay || 0, ease: 'expo.out',
+      value, duration: 1.28, delay: options.delay || 0, ease: 'expo.out',
       onUpdate: () => render(state.value), onComplete: () => render(value),
       scrollTrigger: { trigger: target, start: 'top 88%', once: true },
     })
@@ -284,7 +287,7 @@ export function createScrollAnimations(scope, { compact, reduced, canPin }) {
   }
 
   return {
-    gsap, ScrollTrigger, compact, reduced, canPin, select, element,
+    gsap, ScrollTrigger, reduced, canPin, select, element,
     revealText, revealAllText, revealSection, parallaxElement, countUp, pinSection,
     cleanup: () => { cleanups.reverse().forEach((cleanup) => cleanup()) },
   }

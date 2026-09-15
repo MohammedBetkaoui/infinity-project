@@ -16,7 +16,7 @@ export default function usePageHeroMotion(heroRef) {
     // fades quickly as it passes behind it.
     const layout = hero.querySelector('.page-hero-layout')
     gsap.fromTo(layout, { y: 0, opacity: 1 }, {
-      y: motion.compact ? -8 : -16, opacity: 0, ease: 'none',
+      y: -16, opacity: 0, ease: 'none',
       scrollTrigger: {
         trigger: layout,
         start: 'top top+=140',

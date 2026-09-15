@@ -105,9 +105,9 @@ export default function useAivexExperience(pageRef, ready) {
     const media = gsap.matchMedia()
     media.add('(prefers-reduced-motion: no-preference)', () => {
       // The Hero starts when the loader leaves, not underneath its two-second hold.
-      const touchLayout = matchMedia('(max-width: 799px), (pointer: coarse)').matches
+      // Same intro on every viewport, phones included.
       const intro = gsap.timeline({ defaults: { ease: 'power4.out' }, onComplete: () => { introPlayed.current = true } })
-      if (!touchLayout) intro.from('.ax-scene-reveal', { rotationY: -16, rotationX: 6, z: -80, duration: 1.36 }, 0)
+      intro.from('.ax-scene-reveal', { rotationY: -16, rotationX: 6, z: -80, duration: 1.36 }, 0)
       intro
         .from('.ax-art-reveal', { opacity: 0, duration: .88 }, .06)
         .from('.ax-orbit-arc', { strokeDashoffset: 1, duration: 1.1, ease: 'power3.inOut' }, .08)
