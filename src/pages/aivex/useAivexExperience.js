@@ -9,11 +9,61 @@ export default function useAivexExperience(pageRef, ready) {
   const introPlayed = useRef(false)
   useScrollAnimations(pageRef, (motion) => {
     const root = pageRef.current
+    // Every section shares one text choreography (rise on entry, dissolve only
+    // behind the fixed ax-header) — not just the big h2 titles. Display nodes
+    // use word masks, body copy uses line illumination; both exit at
+    // `bottom top+=96` so nothing fades mid-viewport.
     root.querySelectorAll('h2:not([data-animated-text])').forEach((title) => motion.revealText(title))
+    // h3/h4 across workbench, project board and process panel, plus the BBA
+    // signature (decorative display text, not inside a control).
+    root.querySelectorAll('.ax-workbench-top h3, .ax-project-feature h3, .ax-project-note h3, .ax-process-copy h4, .ax-bba-signature > span')
+      .forEach((title) => motion.revealText(title))
+    // Editorial text living inside interactive ancestors (revealAllText skips
+    // button/label subtrees): target the inner span/strong, never the control.
+    // Tab labels get the same display choreography as every other heading.
+    // drift:false keeps controls pinned to their layout box — only words move.
+    root.querySelectorAll('.ax-faq-item h3 > button > span:first-child, .ax-preparation-copy strong, .ax-process-tab-label')
+      .forEach((title) => motion.revealText(title, { drift: false }))
+    // Buttons and links outside the hero/header/gallery artifacts share the
+    // same display choreography. Hero keeps its load intro, the fixed header
+    // and the scrubbed gallery/scene controls keep their own motion.
+    root.querySelectorAll([
+      '.ax-details-actions .ax-button', '.ax-details-actions .ax-text-link',
+      '.ax-footer-contact .ax-button',
+      '.ax-challenge-heading .ax-text-link',
+      '.ax-organisation-copy .ax-text-link',
+      '.ax-faq-intro .ax-text-link',
+      '.ax-gallery-reading-note a',
+      '.ax-tracker-reset',
+    ].join(',')).forEach((control) => motion.revealText(control, { drift: false }))
+    // Body copy: the three manifesto/challenge/footer leads plus every small
+    // editorial span revealAllText never selects (spans/smalls are outside its
+    // h/p/blockquote/dt/dd sweep). Live regions (.ax-tracker status), numeric
+    // counts, code lines, scene captions and gallery controls keep their own
+    // motion and stay untouched here.
     root.querySelectorAll('.ax-manifesto-copy > p, .ax-challenge-heading > div > p, .ax-footer-contact > p')
       .forEach((copy) => motion.revealText(copy, { type: 'lines' }))
+    root.querySelectorAll([
+      '.ax-gallery-edition span',
+      '.ax-preparation-copy span[id^="ax-prep-note-"]',
+      '.ax-tracker-heading span',
+      '.ax-bba-signature small',
+      '.ax-university strong', '.ax-university span',
+      '.ax-footer-contact > span',
+    ].join(',')).forEach((copy) => motion.revealText(copy, { type: 'lines' }))
     motion.revealSection('.ax-document-study', { mode: 'wipe', color: '#efede8' })
     root.querySelectorAll('.ax-project-note').forEach((note) => motion.revealSection(note, { mode: 'depth' }))
+    // Cards enter with the same depth choreography as the project notes; the
+    // fixed header then masks them naturally, so nothing fades mid-viewport.
+    // Gallery album, code study, scene and hero keep their own motion.
+    motion.revealSection('.ax-project-feature', { mode: 'depth' })
+    motion.revealSection('.ax-process-panel', { mode: 'depth' })
+    motion.revealSection('.ax-announcement', { mode: 'depth' })
+    motion.revealSection('.ax-preparation-tracker', { mode: 'depth' })
+    motion.revealSection('.ax-university', { mode: 'depth' })
+    motion.revealSection('.ax-fact', { mode: 'depth', trigger: '.ax-facts', stagger: .08 })
+    motion.revealSection('.ax-preparation-item', { mode: 'depth', trigger: '.ax-preparation-list', stagger: .06 })
+    motion.revealSection('.ax-faq-item', { mode: 'depth', trigger: '.ax-faq-list', stagger: .06 })
     motion.revealSection('.ax-footer-home', {
       mode: 'depth', start: 'clamp(top 99%)', end: 'clamp(bottom bottom)',
     })

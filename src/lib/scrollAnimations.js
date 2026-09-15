@@ -71,6 +71,13 @@ export function createScrollAnimations(scope, { compact, reduced, canPin }) {
         // separates a scroll story from a generic reveal-once fade.
         if (!reading) {
           gsap.set(words, { yPercent: 118, rotation: compact ? 0 : SCROLL_MOTION.displayTilt, opacity: 0, transformOrigin: '0% 100%' })
+          // Entry length grows with word count (duration + stagger tail), so
+          // the exit is positioned after the real end of entry plus a reading
+          // hold — never at a fixed offset that long headings never reach.
+          const enterStagger = compact ? 0.06 : SCROLL_MOTION.displayEnterStagger
+          const enterEnd = 1 + enterStagger * Math.max(0, words.length - 1)
+          const hold = 1.1
+          const exitDur = 0.4
           const scene = gsap.timeline({
             defaults: { ease: 'none' },
             scrollTrigger: {
@@ -83,26 +90,35 @@ export function createScrollAnimations(scope, { compact, reduced, canPin }) {
             },
           })
           // Act 1 — masked rise with a whisper of tilt, word after word.
+          // drift:false pins the box to its layout position (buttons, tab
+          // labels): only the words travel, the control never floats.
           scene.to(words, {
             yPercent: 0, rotation: 0, opacity: 1, duration: 1,
-            stagger: compact ? 0.06 : SCROLL_MOTION.displayEnterStagger,
+            stagger: enterStagger,
             ease: 'power4.out',
           }, 0)
-          // The whole heading breathes upward while it is read.
-          // Hold at full legibility through most of the travel (1 → 1.6);
-          // the masked dissolve runs only in the final stretch, when the
-          // block slides behind the fixed navbar.
-          scene.fromTo(target, { y: compact ? 0 : 16 }, { y: compact ? 0 : -16, duration: 2, ease: 'power1.inOut' }, 0)
           // Act 2 — masked dissolve toward the top, tilted the other way.
+          // Runs only in the final stretch, when the block slides behind
+          // the fixed navbar.
           scene.to(words, {
-            yPercent: compact ? 0 : -118, rotation: compact ? 0 : -4, opacity: 0, duration: 0.4,
+            yPercent: compact ? 0 : -118, rotation: compact ? 0 : -4, opacity: 0, duration: exitDur,
             stagger: compact ? 0.04 : SCROLL_MOTION.displayExitStagger,
             ease: 'power3.in',
-          }, 1.6)
+          }, enterEnd + hold)
+          // The whole heading breathes upward while it is read.
+          if (options.drift !== false) {
+            scene.fromTo(target, { y: compact ? 0 : 16 }, { y: compact ? 0 : -16, duration: scene.duration(), ease: 'power1.inOut' }, 0)
+          }
           requestScrollRefresh()
           return scene
         }
         gsap.set(words, { opacity: SCROLL_MOTION.readingDim, y: compact ? 0 : 8 })
+        // Same rule for body copy: a 30-word paragraph spreads its entry over
+        // ~3.4 units, so a fixed exit at 1.45 would cut the illumination
+        // mid-sentence. Exit starts after entry end + hold instead.
+        const readingEnterEnd = 1 + SCROLL_MOTION.readingWordStagger * Math.max(0, words.length - 1)
+        const readingHold = 1.4
+        const readingExitDur = 0.3
         const scene = gsap.timeline({
           defaults: { ease: 'none' },
           scrollTrigger: {
@@ -123,8 +139,8 @@ export function createScrollAnimations(scope, { compact, reduced, canPin }) {
         // Act 2 — the read block holds fully legible, then lifts and dims
         // only while sliding behind the fixed navbar.
         scene.to(target, {
-          opacity: 0, y: compact ? 0 : -14, duration: 0.3, ease: 'power2.in',
-        }, 1.45)
+          opacity: 0, y: compact ? 0 : -14, duration: readingExitDur, ease: 'power2.in',
+        }, readingEnterEnd + readingHold)
         requestScrollRefresh()
         return scene
       },
@@ -203,12 +219,15 @@ export function createScrollAnimations(scope, { compact, reduced, canPin }) {
 
   // Every editorial line earns the scroll choreography, not just hero titles:
   // headings rise and dissolve, copy illuminates word by word, both directions.
-  // Controls, heroes with their own intro, scrubbed artifacts (gallery,
+  // Controls, heroes with their own intro, scrubbed artifacts (gallery track,
   // notebook, code study, carousel frames) and Framer-owned regions
   // (accordions, tab panels) are deliberately left to their own motion.
+  // Note: the gallery *intro* (.ax-gallery-intro) stays animatable — only the
+  // scrubbed album (.ax-gallery-track / panel / bottom) is excluded.
   const ALL_TEXT_EXCLUDE = [
     'button', '[role="button"]', 'input', 'textarea', 'select', 'label',
-    '.ax-gallery', '.ax-hero', '.home-hero', '.page-hero',
+    '.ax-gallery-track', '.ax-gallery-panel', '.ax-gallery-bottom', '.ax-gallery-rail',
+    '.ax-hero', '.home-hero', '.page-hero',
     '.workshop-notes', '.ax-code-study', '.ax-scene',
     '.team-stage', '.team-frame', '.mobile-menu',
     'dialog', '[role="dialog"]', '[data-lenis-prevent]',
@@ -225,6 +244,11 @@ export function createScrollAnimations(scope, { compact, reduced, canPin }) {
       if (node.closest('[data-motion-text],[data-animated-text]')) return false
       if (node.closest(ALL_TEXT_EXCLUDE)) return false
       if (node.closest('[hidden]')) return false
+      // Never restructure a subtree that CONTAINS a control (e.g. an h3
+      // wrapping an accordion button): SplitText reparenting there detaches
+      // React's event wiring while native listeners keep firing. Animate the
+      // inner text span directly instead (see useAivexExperience).
+      if (node.querySelector('button, a[href], input, textarea, select, [role="button"]')) return false
       if (node.getClientRects().length === 0) return false
       return (node.textContent || '').trim().length >= 3
     }

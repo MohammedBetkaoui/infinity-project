@@ -135,6 +135,9 @@ html[data-page='aivex']::-webkit-scrollbar-corner { background: #111111; }
 .ax-process-node { display: block; flex-shrink: 0; width: 7px; height: 7px; border: 1px solid #867b78; transform: rotate(45deg); }
 .ax-process-tabs button[aria-selected='true'] .ax-process-node { background: var(--ax-pink); border-color: var(--ax-pink); }
 .ax-process-tabs button:hover { color: var(--ax-pink); }
+/* Keyboard users always get readable control text, even mid-scrub: the label
+   span itself is never focusable, so the guard lives on the control. */
+.aivex-page :is(a, button):focus-visible .motion-text-word { opacity: 1 !important; transform: none !important; }
 .ax-process-panel { display: grid; grid-template-columns: 1fr 1fr; gap: 54px; padding-top: 34px; }
 .ax-process-copy { display: flex; align-items: center; padding-block: 15px; min-height: 236px; }
 .ax-process-copy h4 { font-family: Rajdhani, sans-serif; font-size: 38px; font-weight: 600; letter-spacing: -.025em; margin-bottom: 16px; }

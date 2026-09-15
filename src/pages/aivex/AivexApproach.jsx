@@ -2,13 +2,27 @@ import { useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import AivexCodeStudy from './AivexCodeStudy'
 import useMotionPreference from '../../hooks/useMotionPreference'
+import useScrollAnimations from '../../hooks/useScrollAnimations'
 import { approach } from './aivexData'
 
 export default function AivexApproach() {
   const [selected, setSelected] = useState(0)
+  const [panelCycle, setPanelCycle] = useState(0)
   const tabsRef = useRef([])
+  const panelCopyRef = useRef(null)
   const reduced = useMotionPreference()
   const current = approach[selected]
+  // Tab content remounts on selection change: re-apply the same
+  // display/reading choreography so every tab reads like the rest of AIVEX.
+  // AnimatePresence mode="wait" swaps the nodes after the exit fade, so the
+  // configure re-runs again onExitComplete — otherwise it would split the
+  // exiting nodes and miss the incoming ones.
+  useScrollAnimations(panelCopyRef, ({ revealText }) => {
+    const node = panelCopyRef.current
+    if (!node) return
+    revealText(node.querySelector('h4'))
+    revealText(node.querySelector('p'), { type: 'lines' })
+  }, { rebuildKey: `${selected}:${panelCycle}` })
 
   const onKeyDown = (event, index) => {
     let next
@@ -39,13 +53,13 @@ export default function AivexApproach() {
               <button key={item.id} role="tab" id={`ax-tab-${item.id}`} aria-selected={selected === index}
                 aria-controls="ax-process-panel" tabIndex={selected === index ? 0 : -1}
                 ref={node => { tabsRef.current[index] = node }} onClick={() => setSelected(index)} onKeyDown={event => onKeyDown(event, index)}>
-                <span className="ax-process-node" aria-hidden="true" />{item.label}
+                <span className="ax-process-node" aria-hidden="true" /><span className="ax-process-tab-label">{item.label}</span>
               </button>
             ))}
           </div>
           <div className="ax-process-panel" role="tabpanel" id="ax-process-panel" aria-labelledby={`ax-tab-${current.id}`} tabIndex={0}>
-            <div className="ax-process-copy">
-              <AnimatePresence mode="wait" initial={false}>
+            <div className="ax-process-copy" ref={panelCopyRef}>
+              <AnimatePresence mode="wait" initial={false} onExitComplete={() => setPanelCycle((cycle) => cycle + 1)}>
                 <motion.div key={current.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduced ? .08 : .14 }}>
                   <h4>{current.title}</h4><p>{current.text}</p>
                 </motion.div>

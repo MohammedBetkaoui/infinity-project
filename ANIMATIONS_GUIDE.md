@@ -90,7 +90,7 @@ wrappers distincts, comme `team-frame-reveal` et `team-frame-depth`.
 
 | Helper | Options principales |
 | --- | --- |
-| `revealText(ref, options)` | `type`, `trigger`, `start`, `end`, `scrub`, `once`, `scroll: false`, `delay` |
+| `revealText(ref, options)` | `type`, `trigger`, `start`, `end`, `scrub`, `once`, `scroll: false`, `delay`, `drift: false` (mots seuls, la boîte du contrôle reste fixe) |
 | `revealAllText()` | sans options : balaye `h1-h4` + `p, blockquote, figcaption, dt, dd` du scope, ignore le déjà-animé, les contrôles (`button`), les héros avec intro, la galerie, le notebook, les frames du carrousel et les régions Framer (accordéons, onglets). À appeler en dernier dans chaque `configure`. |
 | `revealSection(ref, options)` | `mode`, `color`, `trigger`, `start`, `end`, `stagger`, `once` |
 | `parallaxElement(ref, speed, options)` | `axis: 'x' / 'y'`, `rotation`, `trigger`, `start`, `end` |
