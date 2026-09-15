@@ -43,6 +43,53 @@ const normalizeString = (value) => (typeof value === 'string' ? value.trim() : '
 
 const isFilled = (value) => typeof value === 'string' && value.trim().length > 0
 
+// Digits-only form of a phone number, used for duplicate comparison so
+// that '+213 555 01 02 03', '0555010203' and '00213555010203' are
+// recognised as the same number. Non-Algerian numbers compare on their
+// full digit string.
+const phoneKey = (value) => {
+  const digits = String(value || '').replace(/\D/g, '')
+  const withoutCountry = digits.startsWith('00213')
+    ? digits.slice(5)
+    : digits.startsWith('213') && digits.length > 9
+      ? digits.slice(3)
+      : digits
+  return withoutCountry.length === 9 ? `0${withoutCountry}` : withoutCountry
+}
+
+// Returns 'email' | 'phone' | null. A failed check query fails open (logs
+// only): the insert itself remains the source of truth and surfaces real
+// DB errors. No PII is ever logged.
+const findDuplicateField = async (supabase, email, phone) => {
+  const { data: emailHit, error: emailError } = await supabase
+    .from('membership_applications')
+    .select('id')
+    .eq('email', email)
+    .limit(1)
+    .maybeSingle()
+  if (emailError) {
+    console.error('[join] Duplicate email check failed', { code: emailError.code })
+  } else if (emailHit) {
+    return 'email'
+  }
+
+  if (phone) {
+    const wanted = phoneKey(phone)
+    const { data: phones, error: phoneError } = await supabase
+      .from('membership_applications')
+      .select('phone')
+      .not('phone', 'is', null)
+      .limit(10000)
+    if (phoneError) {
+      console.error('[join] Duplicate phone check failed', { code: phoneError.code })
+    } else if ((phones || []).some((existing) => existing.phone && phoneKey(existing.phone) === wanted)) {
+      return 'phone'
+    }
+  }
+
+  return null
+}
+
 const invalid = (res, message, field) => {
   send(res, 400, field
     ? { success: false, message, field }
@@ -205,6 +252,20 @@ export default async function handler(req, res) {
 
   try {
     const supabase = createClient(supabaseUrl, supabaseSecret)
+
+    const duplicateField = await findDuplicateField(supabase, row.email, row.phone)
+    if (duplicateField) {
+      console.warn('[join] Duplicate application blocked', { field: duplicateField })
+      send(res, 409, {
+        success: false,
+        message: duplicateField === 'email'
+          ? 'This email has already been used for an application. Please use another email or contact the club.'
+          : 'This phone number has already been used for an application. Please use another number or contact the club.',
+        field: duplicateField,
+      })
+      return
+    }
+
     const { data, error } = await supabase
       .from('membership_applications')
       .insert(row)
