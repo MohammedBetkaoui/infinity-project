@@ -5,15 +5,18 @@
   background: radial-gradient(ellipse at 50% 42%, #094a3666, transparent 63%), #002a1e;
   color: #f1ebdd;
 }
-.home-hero[data-hero-mode='pinned'] { overflow: visible; }
 .home-hero[data-hero-mode='pinned'] .home-hero-inner { min-height: 100svh; }
 .home-hero[data-hero-mode='pinned'] .home-hero-copy,
-.home-hero[data-hero-mode='pinned'] .home-hero-mark-depth { will-change: transform; }
+.home-hero[data-hero-mode='pinned'] .home-hero-mark-depth,
+.home-hero[data-hero-mode='pinned'] .home-hero-mark,
+.home-hero[data-hero-mode='flow'] .home-hero-mark-depth,
+.home-hero[data-hero-mode='flow'] .home-hero-mark { will-change: transform; }
 
 .home-hero-inner { display: flex; flex-direction: column; min-height: min(850px, 100svh); padding-top: 128px; }
-.home-hero-scene { position: relative; display: grid; place-items: center; flex: 1; padding-block: 70px 76px; }
+.home-hero-scene { position: relative; display: grid; place-items: center; flex: 1; padding-block: 70px 76px; perspective: 1200px; }
 .home-hero-copy { position: relative; z-index: 1; text-align: center; }
-.home-hero-copy:focus-within { opacity: 1 !important; }
+.home-hero-copy:focus-within,
+.home-hero-foot:focus-within { opacity: 1 !important; transform: none !important; }
 .home-hero-brand { margin-bottom: 23px; font-size: 13px; font-weight: 650; letter-spacing: .075em; color: #b9d3c8; }
 .home-hero h1 { font-family: Rajdhani, sans-serif; font-size: clamp(78px, 8.4vw, 124px); font-weight: 600; letter-spacing: -.045em; line-height: .93; }
 .home-hero-line { display: block; overflow: hidden; padding: .04em .08em .12em; margin: -.02em -.08em; }
@@ -26,8 +29,8 @@
 .home-hero-join:focus-visible { outline-color: #f1ebdd; outline-offset: 5px; }
 
 .home-hero-art { position: absolute; inset: 0 -3%; pointer-events: none; }
-.home-hero-mark-depth { position: absolute; width: min(82%, 750px); left: 50%; top: 43%; transform: translate(-50%, -50%); }
-.home-hero-mark { transform: rotate(-12deg); }
+.home-hero-mark-depth { position: absolute; width: min(82%, clamp(750px, 52vw, 1200px)); left: 50%; top: 43%; transform: translate(-50%, -50%); transform-style: preserve-3d; }
+.home-hero-mark { transform: rotate(-12deg); transform-origin: 50% 50%; transform-style: preserve-3d; backface-visibility: hidden; }
 .home-hero-mark .infinity-mark { overflow: visible; }
 .home-hero-mark .infinity-mark-shape { fill: #094a36; fill-opacity: .14; stroke: #80b49f; stroke-width: 1; stroke-linejoin: round; opacity: .31; vector-effect: non-scaling-stroke; }
 .home-hero-mark .infinity-mark-signal { stroke: #afd9c9; stroke-width: 1.2; stroke-dasharray: 1; stroke-dashoffset: 0; opacity: .55; }
