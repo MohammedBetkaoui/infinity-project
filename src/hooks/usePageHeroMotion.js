@@ -11,12 +11,12 @@ export default function usePageHeroMotion(heroRef) {
     gsap.fromTo(hero.querySelector('.page-hero-rule i'), { scaleX: 0 }, {
       scaleX: 1, duration: .92, ease: 'power3.inOut',
     })
-    // Exit only while sliding behind the fixed navbar: the layout stays
-    // fully legible until its top reaches just below the navbar, then
-    // fades quickly as it passes behind it.
+    // Locked colors: the layout only drifts while sliding behind the fixed
+    // navbar — its opacity (mint, sage, cream: every green) never reacts to
+    // scroll. The header masks the block naturally once it passes behind it.
     const layout = hero.querySelector('.page-hero-layout')
-    gsap.fromTo(layout, { y: 0, opacity: 1 }, {
-      y: -16, opacity: 0, ease: 'none',
+    gsap.fromTo(layout, { y: 0 }, {
+      y: -16, ease: 'none',
       scrollTrigger: {
         trigger: layout,
         start: 'top top+=140',

@@ -5,7 +5,11 @@
   padding-top: 126px;
   color: var(--hero-cream);
   background: radial-gradient(ellipse at 84% 100%, rgb(9 74 54 / .64), transparent 66%);
+  /* Narrow engines (iOS first paint) must never compose the hero sideways:
+     clip the section and forbid grid blowout from nowrap SplitText words. */
+  overflow: clip;
 }
+.page-hero-layout > * { min-width: 0; }
 .page-hero-rail {
   display: flex;
   justify-content: space-between;
@@ -67,8 +71,6 @@
 .page-hero .page-hero-jump:focus-visible { outline: 2px solid currentColor; outline-offset: 6px; box-shadow: none; }
 .page-hero-rule { height: 1px; background: rgb(182 206 197 / .24); }
 .page-hero-rule i { display: block; height: 100%; background: #8db7a9; transform-origin: left; }
-/* Keyboard users keep a readable target even if the exit scrub has faded the block behind the navbar. */
-.page-hero-layout:focus-within { opacity: 1 !important; }
 
 @media (max-width: 1023px) {
   .page-hero-layout { grid-template-columns: 1.1fr 1fr; gap: 30px; }
