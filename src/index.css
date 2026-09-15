@@ -242,6 +242,12 @@ footer .infinity-mark-signal { stroke: #9ed7c4; opacity: .88; }
 .pole-tab > svg { flex-shrink: 0; }
 .pole-tab:hover { color: #f1ebdd; background: #b6cec506; }
 .pole-tab.is-selected { color: #8cc7b3; background: #b6cec508; border-bottom-color: #8cc7b380; }
+/* Keyboard users always get a readable tab label, even mid-scrub. */
+.pole-tab:focus-visible .motion-text-word { opacity: 1 !important; transform: none !important; }
+/* Same guard for the FAQ accordion questions. */
+.home-faq-item button:focus-visible .motion-text-word { opacity: 1 !important; transform: none !important; }
+/* The featured-event card is one big link: keep every word readable on focus. */
+.home-event-feature-link:focus-visible .motion-text-word { opacity: 1 !important; transform: none !important; }
 .pole-detail { background: #e7dfcf; color: #00271b; }
 .pole-art { position: relative; height: 215px; overflow: hidden; background: #c4dbcd; }
 .pole-art-grid { position: absolute; inset: 0; background-image: linear-gradient(#00271b12 1px,transparent 1px),linear-gradient(90deg,#00271b12 1px,transparent 1px); background-size: 32px 32px; }

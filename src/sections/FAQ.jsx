@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import useMotionPreference from '../hooks/useMotionPreference'
+import useScrollAnimations from '../hooks/useScrollAnimations'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { Plus } from 'lucide-react'
 import SectionHeading from '../components/SectionHeading'
@@ -9,7 +10,20 @@ import { SPRINGS } from '../lib/motion'
 
 export default function FAQ() {
   const [openIndex, setOpenIndex] = useState(0)
+  const listRef = useRef(null)
   const reduced = useMotionPreference()
+
+  // Same story as AIVEX and the poles: question labels (inner spans, never
+  // the buttons) plus the open answer share one choreography, including the
+  // answers. Rebuilt on every toggle — mounts are synchronous here.
+  useScrollAnimations(listRef, ({ revealText }) => {
+    const list = listRef.current
+    if (!list) return
+    list.querySelectorAll('.home-faq-item button > span:first-child').forEach((question) => revealText(question, { drift: false }))
+    // Claim every unclaimed answer: during the Framer exit the old region
+    // coexists with the entering one, and the guard skips already-split text.
+    list.querySelectorAll('[role="region"] p').forEach((answer) => revealText(answer, { type: 'lines' }))
+  }, { rebuildKey: openIndex })
 
   return (
     <section id="faq" className="section-space border-t border-olive/15">
@@ -22,7 +36,7 @@ export default function FAQ() {
           <p className="mt-7 hidden max-w-[28ch] border-l border-olive pl-5 text-sm leading-6 text-sage lg:block">Something else on your mind? Send us a message on Instagram.</p>
         </div>
 
-        <div className="border-t border-sage/20">
+        <div className="border-t border-sage/20" ref={listRef}>
           {faqs.map((faq, index) => {
             const isOpen = openIndex === index
             return (

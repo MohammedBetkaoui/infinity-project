@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import useMotionPreference from '../hooks/useMotionPreference'
+import useScrollAnimations from '../hooks/useScrollAnimations'
 import { Plus, Minus, Braces } from 'lucide-react'
 import SectionHeading from '../components/SectionHeading'
 import useMobileLayout from '../hooks/useMobileLayout'
@@ -32,8 +33,27 @@ function PoleDetail({ pole, reduced }) {
 export default function Poles() {
   const [selected, setSelected] = useState(2)
   const tabsRef = useRef([])
+  const stageRef = useRef(null)
   const reduced = useMotionPreference()
   const mobile = useMobileLayout()
+
+  // Same story as AIVEX: tab labels (inner spans, never the buttons), the
+  // remounting detail card (depth + display/reading) and the empty state all
+  // share one choreography. Rebuilt on every selection — and on layout
+  // switch, since accordion and explorer are two different trees.
+  useScrollAnimations(stageRef, ({ revealText, revealSection }) => {
+    const stage = stageRef.current
+    if (!stage) return
+    stage.querySelectorAll('.pole-tab > span').forEach((label) => revealText(label, { drift: false }))
+    const copy = stage.querySelector('.pole-detail-copy')
+    if (copy) {
+      revealSection(copy, { mode: 'depth' })
+      copy.querySelectorAll('p').forEach((text) => revealText(text, { type: 'lines' }))
+      revealText(copy.querySelector('h3'))
+      revealText(copy.querySelector('a'), { drift: false })
+    }
+    revealText(stage.querySelector('.pole-empty'), { type: 'lines' })
+  }, { rebuildKey: `${selected}:${mobile}` })
 
   const handleKeyDown = (event, index) => {
     let next
@@ -59,7 +79,7 @@ export default function Poles() {
           <SectionHeading title="Find what sparks your curiosity." />
           <p>Seven fields. Seven ways to begin.<br />Follow a curiosity. Make it a skill.</p>
         </div>
-        <div className="poles-stage">
+        <div className="poles-stage" ref={stageRef}>
         {mobile ? (
           <div className="pole-accordion">
             {poles.map((pole, index) => (

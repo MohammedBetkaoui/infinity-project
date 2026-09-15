@@ -25,9 +25,18 @@ export function createScrollAnimations(scope, { reduced, canPin }) {
     ...(options.once ? { scrub: false, once: true } : {}),
   })
 
+  // Pinned companions: while stuck below the header their document position
+  // travels on, so a scrubbed exit would dissolve them mid-screen (seen on the
+  // gallery intro once the album scrolls). They enter once and hold; the
+  // header masks them naturally when they finally release — like cards.
+  const STICKY_TEXT_SCOPE = '.ax-gallery-intro, .ax-preparation-intro, .home-faq-intro'
+
   function revealText(ref, options = {}) {
     const target = element(ref)
     if (!target || reduced || target.dataset.motionText) return null
+    if (options.scroll !== false && !options.once && target.closest(STICKY_TEXT_SCOPE)) {
+      options = { ...options, once: true }
+    }
     // Display headings rise word by word inside line masks; body copy
     // illuminates word by word like an editorial reading state.
     const reading = (options.type || 'words') !== 'words'

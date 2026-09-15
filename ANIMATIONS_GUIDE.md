@@ -147,7 +147,9 @@ bas niveau, reserver soi-meme la largeur du conteneur de texte.
 ## Scenes integrees
 
 - Home : logo en profondeur, pin court, titres par mots, visuel AIVEX devoile,
-  mosaique a plusieurs vitesses, FAQ sobre et sortie de page.
+  mosaique a plusieurs vitesses, FAQ (questions, réponses et cartes en
+  chorégraphie AIVEX) et sortie de page. Pôles : onglets,
+  carte atelier et liens avec la chorégraphie AIVEX (display/reading, depth).
 - About : reveals editoriaux et signal qui parcourt les etapes du projet.
 - Community : entrees des cadres, parallax exterieur et carrousel 3D interieur
   independant, avec navigation clavier et lightbox conservees.

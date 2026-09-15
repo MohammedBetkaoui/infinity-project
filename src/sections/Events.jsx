@@ -18,16 +18,16 @@ export default function Events() {
 
     media.add({
       motion: '(prefers-reduced-motion: no-preference)',
-      desktop: '(min-width: 768px)',
     }, ({ conditions }) => {
       if (!conditions.motion) return
       const preview = sectionRef.current.querySelector('.home-event-preview')
 
-      // The preview settles onto the page as it enters the reading area; no pinned scroll.
+      // The preview settles onto the page as it enters the reading area; no
+      // pinned scroll. Same settle on every viewport, phones included.
       gsap.fromTo(preview, {
-        rotationX: conditions.desktop ? 5.4 : 0,
-        y: conditions.desktop ? 21 : 8,
-        scale: conditions.desktop ? .965 : .99,
+        rotationX: 5.4,
+        y: 21,
+        scale: .965,
       }, {
         rotationX: 0, y: 0, scale: 1, ease: 'none',
         scrollTrigger: {
