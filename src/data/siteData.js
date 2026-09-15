@@ -16,6 +16,8 @@ export const navigation = [
   { label: 'Contact', href: '/contact', to: '/contact' },
 ]
 
+export const joinCallToAction = { label: 'Join the club', href: '/join', to: '/join' }
+
 export const poles = [
   {
     title: 'Personal Branding',
@@ -127,7 +129,7 @@ export const faqs = [
   {
     question: 'How do I become a member?',
     answer:
-      'Watch for our announcements on Instagram. During recruitment, fill in the application form, then have a conversation with our team.',
+      'Complete the membership application on this site. During an active recruitment campaign, the team reviews it and continues with a short conversation.',
   },
   {
     question: 'Do I need to know how to code?',

@@ -5,7 +5,11 @@
   background: radial-gradient(ellipse at 50% 42%, #094a3666, transparent 63%), #002a1e;
   color: #f1ebdd;
 }
-.home-hero[data-hero-mode='pinned'] .home-hero-inner { min-height: 100svh; }
+.home-hero[data-hero-mode='pinned'],
+.home-hero[data-hero-mode='flow'] { overflow: visible; z-index: 2; }
+.home-hero[data-hero-mode='pinned'] .home-hero-inner { min-height: 100svh; pointer-events: none; }
+.home-hero[data-hero-mode='pinned'] .home-hero-copy a,
+.home-hero[data-hero-mode='pinned'] .home-hero-foot a { pointer-events: auto; }
 .home-hero[data-hero-mode='pinned'] .home-hero-copy,
 .home-hero[data-hero-mode='pinned'] .home-hero-mark-depth,
 .home-hero[data-hero-mode='pinned'] .home-hero-mark,
@@ -30,7 +34,7 @@
 
 .home-hero-art { position: absolute; inset: 0 -3%; pointer-events: none; }
 .home-hero-mark-depth { position: absolute; width: min(82%, clamp(750px, 52vw, 1200px)); left: 50%; top: 43%; transform: translate(-50%, -50%); transform-style: preserve-3d; }
-.home-hero-mark { transform: rotate(-12deg); transform-origin: 50% 50%; transform-style: preserve-3d; backface-visibility: hidden; }
+.home-hero-mark { transform: rotate(0deg); transform-origin: 50% 50%; transform-style: preserve-3d; backface-visibility: hidden; }
 .home-hero-mark .infinity-mark { overflow: visible; }
 .home-hero-mark .infinity-mark-shape { fill: #094a36; fill-opacity: .14; stroke: #80b49f; stroke-width: 1; stroke-linejoin: round; opacity: .31; vector-effect: non-scaling-stroke; }
 .home-hero-mark .infinity-mark-signal { stroke: #afd9c9; stroke-width: 1.2; stroke-dasharray: 1; stroke-dashoffset: 0; opacity: .55; }

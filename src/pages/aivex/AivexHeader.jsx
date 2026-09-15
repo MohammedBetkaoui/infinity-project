@@ -33,6 +33,7 @@ export default function AivexHeader() {
         <a href="#competition" aria-label="AIVEX, top of page" className="ax-brand"><AivexWordmark /><span>2nd edition</span></a>
         <nav className="ax-desktop-nav" aria-label="AIVEX navigation">
           {links.map(link => <a key={link.href} href={link.href}>{link.label}</a>)}
+          <Link to="/aivex/register" className="ax-nav-register">Register</Link>
         </nav>
         <Link to="/#evenements" className="ax-back"><ArrowLeft size={14} aria-hidden="true" /><span>Infinity Club</span></Link>
         <button className="ax-menu-toggle" ref={toggleRef} aria-expanded={open} aria-controls="ax-mobile-nav"
@@ -45,6 +46,7 @@ export default function AivexHeader() {
           initial={{ opacity: 0, y: reduced ? 0 : -6 }} animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0 }} transition={{ duration: reduced ? .1 : .19 }}>
           {links.map(link => <a key={link.href} href={link.href} onClick={() => setOpen(false)}>{link.label}</a>)}
+          <Link to="/aivex/register" className="ax-mobile-register" onClick={() => setOpen(false)}>Register for AIVEX</Link>
         </motion.nav>}
       </AnimatePresence>
       <div className="ax-scroll-progress" aria-hidden="true" />

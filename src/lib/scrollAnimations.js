@@ -251,7 +251,9 @@ export function createScrollAnimations(scope, { compact, reduced, canPin }) {
         trigger: target, pin: element(options.pin) || target,
         start: options.start || 'top top', end: () => `+=${Math.round(innerHeight * duration)}`,
         // Pin spacing is real narrative time. Keep duration below one viewport for the Home hero.
-        pinSpacing: true, scrub: options.scrub ?? SCROLL_MOTION.pinScrub, anticipatePin: 1,
+        pinSpacing: options.pinSpacing ?? true,
+        scrub: options.scrub ?? SCROLL_MOTION.pinScrub,
+        anticipatePin: 1,
         invalidateOnRefresh: true, refreshPriority: 2, id: options.id,
       },
     })

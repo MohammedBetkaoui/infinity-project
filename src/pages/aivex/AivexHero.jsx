@@ -1,4 +1,5 @@
 import { ArrowUpRight, MapPin } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import AivexWordmark from './AivexWordmark'
 import AivexScene from './AivexScene'
 import { INSTAGRAM_URL } from './aivexData'
@@ -20,7 +21,7 @@ export default function AivexHero() {
             </p>
             <p className="ax-hero-description ax-intro-detail">Ideas are everywhere.<br />What matters is what we do with them.</p>
             <div className="ax-hero-actions ax-intro-detail">
-              <a className="ax-button ax-button-amber" href="#participer">Explore the second edition</a>
+              <Link className="ax-button ax-button-amber" to="/aivex/register">Register for AIVEX</Link>
               <a className="ax-text-link" href={INSTAGRAM_URL} target="_blank" rel="noreferrer">Follow the announcements <ArrowUpRight size={16} aria-hidden="true" /></a>
             </div>
           </div>

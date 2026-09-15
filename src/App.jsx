@@ -18,6 +18,8 @@ import EventsPage from './pages/events/EventsPage'
 
 const CommunityPage = lazy(() => import('./pages/community/CommunityPage'))
 const ContactPage = lazy(() => import('./pages/contact/ContactPage'))
+const JoinPage = lazy(() => import('./pages/join/JoinPage'))
+const AivexRegisterPage = lazy(() => import('./pages/aivex/register/AivexRegisterPage'))
 
 function SitePage({ children, mainRef }) {
   return (
@@ -54,7 +56,9 @@ export default function App() {
     <AnimationProvider>
       <RouteScrollReset />
       <Routes>
+        <Route path="/aivex/register" element={<Suspense fallback={null}><AivexRegisterPage /></Suspense>} />
         <Route path="/aivex" element={<AivexRoute />} />
+        <Route path="/join" element={<SitePage><Suspense fallback={<p className="page-container py-40" role="status">Opening the application...</p>}><JoinPage /></Suspense></SitePage>} />
         <Route path="/about" element={<SitePage><AboutPage /></SitePage>} />
         <Route path="/events" element={<SitePage><EventsPage /></SitePage>} />
         <Route path="/community" element={<SitePage><Suspense fallback={<p className="page-container py-40" role="status">Opening the community...</p>}><CommunityPage /></Suspense></SitePage>} />

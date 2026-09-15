@@ -1,4 +1,5 @@
 import { ArrowUpRight, CalendarDays } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { INSTAGRAM_URL, practicalDetails } from './aivexData'
 
 export default function AivexDetails() {
@@ -8,8 +9,8 @@ export default function AivexDetails() {
         <div className="ax-details-intro">
           <h2 id="ax-details-title">Your next step<br />starts here.</h2>
           <p>Want to take part in AIVEX? Here is what we can share about the second edition so far.</p>
-          <div className="ax-announcement"><CalendarDays size={21} aria-hidden="true" /><div><strong>The details are taking shape.</strong><p>Dates, rules and registration: follow the club account for official announcements.</p></div></div>
-          <a href={INSTAGRAM_URL} target="_blank" rel="noreferrer" className="ax-text-link">See announcements on Instagram <ArrowUpRight size={16} aria-hidden="true" /></a>
+          <div className="ax-announcement"><CalendarDays size={21} aria-hidden="true" /><div><strong>The registration desk is ready.</strong><p>Submit your project details now. Dates, rules and final participation are confirmed by the organising team.</p></div></div>
+          <div className="ax-details-actions"><Link to="/aivex/register" className="ax-button ax-button-amber">Start registration</Link><a href={INSTAGRAM_URL} target="_blank" rel="noreferrer" className="ax-text-link">See announcements <ArrowUpRight size={16} aria-hidden="true" /></a></div>
         </div>
         <dl className="ax-facts">
           {practicalDetails.map(item => (

@@ -1,6 +1,6 @@
 import { motion, useIsPresent } from 'framer-motion'
 import { ArrowUpRight, X } from 'lucide-react'
-import { navigation } from '../data/siteData'
+import { joinCallToAction, navigation } from '../data/siteData'
 import { MOTION_EASE } from '../lib/motion'
 import Logo from './Logo'
 import NavigationLink from './NavigationLink'
@@ -34,7 +34,7 @@ export default function MobileMenu({ dialogRef, activeHref, reduced, onClose, on
           ))}
         </nav>
         <div className="mobile-menu-footer">
-          <NavigationLink item={navigation.at(-1)} className="button-primary menu-join" onClick={onNavigate}>Join the club</NavigationLink>
+          <NavigationLink item={joinCallToAction} className="button-primary menu-join" onClick={onNavigate}>Join the club</NavigationLink>
           <div className="menu-social-row">
             <p>No Limits For Infiniters</p>
             <a href="https://www.instagram.com/club_.infinity/" target="_blank" rel="noreferrer">@club_.infinity <ArrowUpRight size={14} /></a>

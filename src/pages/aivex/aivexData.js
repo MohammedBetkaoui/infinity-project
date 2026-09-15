@@ -26,7 +26,7 @@ export const practicalDetails = [
   { label: 'Format', value: 'National competition', detail: 'Artificial intelligence application programming' },
   { label: 'Edition', value: 'Second edition', detail: 'AIVEX, by Infinity Club' },
   { label: 'Dates and venue', value: 'To be confirmed', pending: true, detail: 'The club will announce the schedule and exact venue.' },
-  { label: 'Registration', value: 'Details to follow', pending: true, detail: 'The official registration link and participation requirements will be shared with the announcement.' },
+  { label: 'Registration', value: 'Application desk available', detail: 'Submit the registration form; the organisers will confirm eligibility and participation.' },
   { label: 'Programme and rules', value: 'To be announced', pending: true, detail: 'The organisers will publish the stages, technical constraints and official criteria.' },
 ]
 
@@ -74,7 +74,7 @@ export const aivexFaqs = [
   },
   {
     id: 'registration', question: 'How and when can I register?',
-    answer: 'Registration dates and details will be announced through the official Infinity Club channels. No registration form is open on this page. The preparation notebook is a personal tool, not an application.',
+    answer: 'Use the AIVEX registration desk linked from this page. The organising team will confirm dates, eligibility and final participation through the contact details you provide.',
   },
   {
     id: 'evaluation', question: 'What about judging criteria, the jury and prizes?',

@@ -21,7 +21,7 @@ export default function Hero() {
             </h1>
             <p className="home-hero-description">A place for curious minds.<br />To learn, build and go further together.</p>
             <div className="home-hero-actions">
-              <Link to="/contact" className="home-hero-join" data-ripple>Join the club</Link>
+              <Link to="/join" className="home-hero-join" data-ripple>Join the club</Link>
               <Link to="/about" className="text-link">Discover Infinity</Link>
             </div>
           </div>
