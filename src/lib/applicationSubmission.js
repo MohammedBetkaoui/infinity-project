@@ -1,6 +1,28 @@
+const pickEndpoint = (...names) => {
+  for (const name of names) {
+    const value = import.meta.env[name]?.trim()
+    if (value) return value
+  }
+  return ''
+}
+
 const ENDPOINTS = {
-  membership: import.meta.env.VITE_INFINITY_JOIN_ENDPOINT?.trim(),
-  aivex: import.meta.env.VITE_AIVEX_REGISTER_ENDPOINT?.trim(),
+  // Same-origin fallback: the backend lives on the same Vercel domain.
+  // A relative path contains no secret and keeps production working even
+  // if the env variable was forgotten at build time.
+  membership: pickEndpoint('VITE_INFINITY_JOIN_ENDPOINT', 'INFINITY_JOIN_ENDPOINT') || '/api/join',
+  aivex: pickEndpoint('VITE_AIVEX_REGISTER_ENDPOINT', 'AIVEX_REGISTER_ENDPOINT'),
+}
+
+const REQUEST_TIMEOUT_MS = 12000
+
+// Fallback UX messages when the backend gives no usable message.
+// Server-provided `message` always has priority when it is safe to display.
+const STATUS_FALLBACKS = {
+  400: 'Some answers look incomplete. Please review the highlighted fields and try again.',
+  403: 'This submission was refused. Please try again from the official site page.',
+  409: 'This application already seems to have been received. Please check your reference or contact the club.',
+  429: 'Too many attempts. Please wait a moment, then try again.',
 }
 
 const makeReference = (kind) => {
@@ -11,6 +33,17 @@ const makeReference = (kind) => {
 
 export const isApplicationDeliveryConfigured = (kind) => Boolean(ENDPOINTS[kind])
 
+// Keep only display-safe server messages: never surface stack traces,
+// SQL, Supabase internals, or anything that looks like a secret.
+const pickServerMessage = (payload) => {
+  const message = payload?.message
+  if (typeof message !== 'string') return ''
+  const trimmed = message.trim()
+  if (!trimmed) return ''
+  if (/(stack trace|supabase|sb_secret|service_role|postgres|password|secret|api[_-]?key|select\s+.*\s+from\s+)/i.test(trimmed)) return ''
+  return trimmed.slice(0, 300)
+}
+
 export async function submitApplication(kind, answers) {
   const endpoint = ENDPOINTS[kind]
   const reference = makeReference(kind)
@@ -20,26 +53,44 @@ export async function submitApplication(kind, answers) {
   if (!endpoint) return { delivered: false, reference }
 
   const controller = new AbortController()
-  const timeout = window.setTimeout(() => controller.abort(), 12000)
+  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
 
   try {
     const { website: _honeypot, ...safeAnswers } = answers
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({
-        form: kind,
-        version: 1,
-        reference,
-        submittedAt: new Date().toISOString(),
-        source: window.location.href,
-        answers: safeAnswers,
-      }),
-      signal: controller.signal,
-    })
+    let response
+    try {
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+          form: kind,
+          version: 1,
+          reference,
+          submittedAt: new Date().toISOString(),
+          source: window.location.href,
+          answers: safeAnswers,
+        }),
+        signal: controller.signal,
+      })
+    } catch (networkError) {
+      if (networkError?.name === 'AbortError') throw networkError
+      throw new Error('We could not reach the server. Please check your connection and try again.', { cause: networkError })
+    }
 
-    if (!response.ok) throw new Error(`The form endpoint returned ${response.status}.`)
     const payload = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      throw new Error(
+        pickServerMessage(payload)
+        || STATUS_FALLBACKS[response.status]
+        || `The form endpoint returned ${response.status}.`,
+      )
+    }
+
+    if (payload && payload.success === false) {
+      throw new Error(pickServerMessage(payload) || 'The server refused this application. Please try again.')
+    }
+
     return { delivered: true, reference: payload.reference || reference }
   } finally {
     window.clearTimeout(timeout)

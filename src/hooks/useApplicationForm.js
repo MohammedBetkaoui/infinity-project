@@ -1,7 +1,19 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { isApplicationDeliveryConfigured, submitApplication } from '../lib/applicationSubmission'
 
 const pause = (duration) => new Promise((resolve) => window.setTimeout(resolve, duration))
+
+// Never display stack traces, SQL, Supabase internals, or secrets.
+// submitApplication already sanitizes, this is a second line of defense
+// for unexpected errors (network, browser, JSON...).
+const toUserMessage = (error) => {
+  if (error?.name === 'AbortError') return 'The request timed out. Please try again.'
+  const raw = typeof error?.message === 'string' ? error.message.trim() : ''
+  if (raw && !/(stack trace|supabase|sb_secret|service_role|postgres|password|secret|api[_-]?key|select\s+.*\s+from\s+|at\s+https?:|node_modules)/i.test(raw)) {
+    return raw.slice(0, 300)
+  }
+  return 'We could not send the form. Your answers are still saved in this tab.'
+}
 
 const readDraft = (storageKey) => {
   try {
@@ -23,6 +35,7 @@ export default function useApplicationForm({ kind, storageKey, initialValues, st
   const [errors, setErrors] = useState({})
   const [status, setStatus] = useState('idle')
   const [result, setResult] = useState(null)
+  const submittingRef = useRef(false)
   const endpointConfigured = isApplicationDeliveryConfigured(kind)
   const hasDraft = containsAnswers(storedDraft?.values)
 
@@ -99,18 +112,24 @@ export default function useApplicationForm({ kind, storageKey, initialValues, st
     }
 
     const allFields = [...new Set(steps.flatMap(({ fields }) => fields))]
-    if (!validateFields(allFields) || status === 'submitting') return
+    if (!validateFields(allFields)) return
+    if (status === 'submitting' || submittingRef.current) return
 
+    submittingRef.current = true
     setStatus('submitting')
     setResult(null)
     try {
       const [submission] = await Promise.all([submitApplication(kind, values), pause(460)])
       setResult(submission)
       setStatus(submission.delivered ? 'success' : 'draft')
+      // Only a real server-confirmed delivery clears the draft.
       if (submission.delivered) window.sessionStorage.removeItem(storageKey)
     } catch (error) {
-      setResult({ message: error.name === 'AbortError' ? 'The request timed out. Please try again.' : 'We could not send the form. Your answers are still saved in this tab.' })
+      // Values and sessionStorage draft are intentionally preserved here.
+      setResult({ message: toUserMessage(error) })
       setStatus('error')
+    } finally {
+      submittingRef.current = false
     }
   }
 

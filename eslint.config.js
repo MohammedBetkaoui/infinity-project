@@ -20,4 +20,13 @@ export default [
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
     },
   },
+  {
+    // Vercel Serverless Functions and Node tooling (not browser code).
+    files: ['api/**/*.js', 'vite.config.js', 'scripts/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      globals: { ...globals.browser, ...globals.node },
+      sourceType: 'module',
+    },
+  },
 ]

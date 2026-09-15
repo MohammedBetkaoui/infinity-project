@@ -5,12 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:api": "node scripts/dev-api.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0"
   },
   "dependencies": {
     "@studio-freight/lenis": "^1.0.42",
+    "@supabase/supabase-js": "^2.116.0",
     "framer-motion": "13.2.0",
     "gsap": "3.15.0",
     "lucide-react": "1.41.0",

@@ -1,6 +1,9 @@
 node_modules/
 dist/
 .browser-motion-audit/
-.env*
-!.env.example
+.browser-about-profile/
 
+!.env.example
+.env
+.env.local
+.env.*.local
