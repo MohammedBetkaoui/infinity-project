@@ -11,10 +11,18 @@ export default function usePageHeroMotion(heroRef) {
     gsap.fromTo(hero.querySelector('.page-hero-rule i'), { scaleX: 0 }, {
       scaleX: 1, duration: .92, ease: 'power3.inOut',
     })
-    // A restrained exit gives the following section room without pinning every page.
-    gsap.fromTo(hero.querySelector('.page-hero-layout'), { y: 0, opacity: 1 }, {
-      y: motion.compact ? -8 : -24, opacity: .18, ease: 'none',
-      scrollTrigger: { trigger: hero, start: '55% top', end: 'bottom top', scrub: true },
+    // Exit only while sliding behind the fixed navbar: the layout stays
+    // fully legible until its top reaches just below the navbar, then
+    // fades quickly as it passes behind it.
+    const layout = hero.querySelector('.page-hero-layout')
+    gsap.fromTo(layout, { y: 0, opacity: 1 }, {
+      y: motion.compact ? -8 : -16, opacity: 0, ease: 'none',
+      scrollTrigger: {
+        trigger: layout,
+        start: 'top top+=140',
+        end: 'bottom top+=96',
+        scrub: true,
+      },
     })
   })
 }

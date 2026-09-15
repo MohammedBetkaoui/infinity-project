@@ -17,11 +17,13 @@ export default function useHeroMotion(sectionRef) {
     const scene = pinSection(section, .68, { pin: select('.home-hero-inner')[0], id: 'infinity-hero' })
     if (scene) {
       section.dataset.heroMode = 'pinned'
-      // The emblem travels first; the message holds before the composition recedes.
+      // The emblem travels first; the message stays legible through the pin
+      // and recedes only at the very end — the pin keeps it centered, never
+      // behind the navbar, so no early masking.
       scene.to(select('.home-hero-mark-depth'), { scale: 1.1, y: 42, rotation: 9, duration: .58 }, 0)
         .to(select('.home-hero-spark'), { y: (index) => index % 2 ? -38 : 25, duration: 1 }, 0)
         .to(select('.home-hero-mark-depth'), { scale: .92, opacity: .25, duration: .42 }, .58)
-        .to(copy, { y: -28, scale: .96, opacity: .56, duration: .32 }, .68)
+        .to(copy, { y: -12, scale: .985, opacity: .9, duration: .18 }, .82)
     } else {
       section.dataset.heroMode = 'flow'
       parallaxElement(select('.home-hero-mark-depth')[0], .5, { trigger: section, start: 'top top', end: 'bottom top', rotation: compact ? 0 : 3 })

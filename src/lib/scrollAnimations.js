@@ -89,13 +89,16 @@ export function createScrollAnimations(scope, { compact, reduced, canPin }) {
             ease: 'power4.out',
           }, 0)
           // The whole heading breathes upward while it is read.
+          // Hold at full legibility through most of the travel (1 → 1.6);
+          // the masked dissolve runs only in the final stretch, when the
+          // block slides behind the fixed navbar.
           scene.fromTo(target, { y: compact ? 0 : 16 }, { y: compact ? 0 : -16, duration: 2, ease: 'power1.inOut' }, 0)
           // Act 2 — masked dissolve toward the top, tilted the other way.
           scene.to(words, {
-            yPercent: compact ? 0 : -118, rotation: compact ? 0 : -4, opacity: 0, duration: 0.85,
+            yPercent: compact ? 0 : -118, rotation: compact ? 0 : -4, opacity: 0, duration: 0.4,
             stagger: compact ? 0.04 : SCROLL_MOTION.displayExitStagger,
             ease: 'power3.in',
-          }, 1.15)
+          }, 1.6)
           requestScrollRefresh()
           return scene
         }
@@ -117,10 +120,11 @@ export function createScrollAnimations(scope, { compact, reduced, canPin }) {
           stagger: SCROLL_MOTION.readingWordStagger,
           ease: 'power2.out',
         }, 0)
-        // Act 2 — the read block lifts and dims as it leaves.
+        // Act 2 — the read block holds fully legible, then lifts and dims
+        // only while sliding behind the fixed navbar.
         scene.to(target, {
-          opacity: 0, y: compact ? 0 : -14, duration: 0.6, ease: 'power2.in',
-        }, 1.15)
+          opacity: 0, y: compact ? 0 : -14, duration: 0.3, ease: 'power2.in',
+        }, 1.45)
         requestScrollRefresh()
         return scene
       },
