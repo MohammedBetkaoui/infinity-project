@@ -52,11 +52,11 @@ export const projectDirections = [
 ]
 
 export const preparationItems = [
-  { id: 'need', title: 'Define a specific need', detail: 'Who are you building for? What problem have you noticed? Describe a concrete use case in a few sentences.' },
-  { id: 'sources', title: 'Identify your data and its limits', detail: 'Note your sources, what you can use and what is missing. Prepare examples without sensitive personal information.' },
-  { id: 'demo', title: 'Sketch a simple demonstration', detail: 'An input, a process, a visible result. Start with a short flow that shows why your idea is useful.' },
-  { id: 'choices', title: 'Be ready to explain your choices', detail: 'Why this approach? What role does AI play? Keep a record of the attempts that did not work, too.' },
-  { id: 'limits', title: 'Take a critical look', detail: 'Test different cases, show the limits of your prototype and identify what you would improve next.' },
+  { id: 'problem', title: 'Lock a real problem', detail: 'Name who you are building for and the friction they actually feel. One concrete situation beats a broad ambition.' },
+  { id: 'data', title: 'Map your data', detail: 'List what you can realistically use, what is missing, and how you will fill the gap. Never with real personal data.' },
+  { id: 'prototype', title: 'Sketch the smallest working version', detail: 'One input, one process, one visible result. A rough flow that proves the idea beats a polished slide that does not.' },
+  { id: 'reasoning', title: 'Know why you built it this way', detail: 'Be ready to justify every choice, including the approaches you tried and dropped along the way.' },
+  { id: 'stress-test', title: 'Push it until it breaks', detail: "Find your prototype's edge cases yourself. Knowing its limits is worth more than pretending it has none." },
 ]
 
 export const aivexFaqs = [

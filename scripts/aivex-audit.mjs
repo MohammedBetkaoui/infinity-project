@@ -160,6 +160,11 @@ try {
   await send('Input.dispatchKeyEvent', { type: 'keyUp', key: ' ', code: 'Space', windowsVirtualKeyCode: 32 })
   assert.equal(await evaluate('document.querySelectorAll(".ax-preparation-input:checked").length'), 1)
   assert(await evaluate('getComputedStyle(document.querySelector(".ax-preparation-check")).outlineStyle === "solid"'))
+  // The checklist now persists to localStorage across reloads. Clear it here
+  // so the viewport-resize loop below (which navigates repeatedly) starts
+  // from a clean slate instead of inheriting this test's checked item.
+  await click('.ax-tracker-reset')
+  assert.equal(await evaluate('document.querySelectorAll(".ax-preparation-input:checked").length'), 0)
   await click('.ax-desktop-nav a[href="#questions"]')
   for (const id of ['format', 'eligibility', 'topics', 'registration', 'evaluation', 'contact']) {
     if (await evaluate(`document.querySelector('#ax-question-${id}').getAttribute('aria-expanded') === 'false'`)) await click(`#ax-question-${id}`)
@@ -236,6 +241,10 @@ try {
       }
       await click('.ax-preparation-item input')
       assert.equal(await evaluate('document.querySelectorAll(".ax-preparation-input:checked").length'), 1)
+      // Leave the (now persisted) checklist clean before the next viewport's
+      // navigate() reload, so this same assertion holds on every pass.
+      await click('.ax-tracker-reset')
+      assert.equal(await evaluate('document.querySelectorAll(".ax-preparation-input:checked").length'), 0)
       await click('#ax-question-registration')
       assert(await evaluate('!document.querySelector("#ax-answer-registration").hidden'))
       assert(await evaluate('document.documentElement.scrollWidth <= innerWidth'))

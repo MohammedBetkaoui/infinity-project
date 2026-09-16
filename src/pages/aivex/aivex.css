@@ -34,6 +34,7 @@ html[data-page='aivex']::-webkit-scrollbar-corner { background: #111111; }
 .ax-header { position: fixed; z-index: 100; inset: 0 0 auto; background: #111111f5; border-bottom: 1px solid var(--ax-rule); }
 .ax-header-inner { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 80px; }
 .ax-brand { display: flex; align-items: center; gap: 17px; flex-shrink: 0; }
+.ax-brand .ax-logo-mark svg { height: 30px; }
 .ax-brand > span:last-child { color: var(--ax-muted); font-size: 11px; border-left: 1px solid var(--ax-rule); padding-left: 17px; }
 .ax-desktop-nav { display: flex; align-items: center; gap: 30px; }
 .ax-desktop-nav a { position: relative; display: inline-flex; align-items: center; min-height: 44px; font-size: 12px; color: #cfcbc5; }
@@ -54,8 +55,7 @@ html[data-page='aivex']::-webkit-scrollbar-corner { background: #111111; }
 .ax-hero-topline > span { color: var(--ax-muted); font-size: 10px; }
 .ax-hero-layout { display: grid; grid-template-columns: 1.04fr 1fr; align-items: center; position: relative; gap: 30px; padding-block: 46px 48px; }
 .ax-hero-copy { position: relative; z-index: 2; padding-block: 25px; }
-.ax-wordmark-large { font-size: clamp(82px, 9.5vw, 140px); }
-.ax-wordmark-large .ax-letter-4 { border-width: 2px; }
+.ax-logo-mark-large svg { height: clamp(82px, 9.5vw, 140px); width: auto; }
 .aivex-page .ax-hero-statement { margin-top: 32px; font-family: Rajdhani, sans-serif; font-size: clamp(44px, 5.3vw, 80px); font-weight: 600; letter-spacing: -.035em; line-height: .98; }
 .ax-hero-statement > span { display: block; overflow: hidden; padding-block: .035em; }
 .ax-title-line { display: block; }
@@ -194,7 +194,7 @@ html[data-page='aivex']::-webkit-scrollbar-corner { background: #111111; }
 .ax-footer-club-brand strong { font-family: Rajdhani, sans-serif; font-size: 15px; font-weight: 700; line-height: 1; letter-spacing: .14em; white-space: nowrap; }
 .ax-footer-brand-rule { display: block; width: 1px; height: 31px; background: #efede838; }
 .ax-footer-event-brand { display: grid; gap: 5px; }
-.ax-footer-event-brand .ax-wordmark { font-size: 20px; }
+.ax-footer-event-brand .ax-logo-mark svg { height: 20px; }
 .ax-footer-event-brand small { font-size: 9px; line-height: 1; color: #dfb3c4; }
 .ax-footer-bottom > p { font-size: 10px; line-height: 1.8; color: #dfb3c4; }
 .ax-to-top { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid #efede84d; }
@@ -235,7 +235,7 @@ html[data-page='aivex']::-webkit-scrollbar-corner { background: #111111; }
   .ax-hero-topline > span { display: none; }
   .ax-hero-layout { grid-template-columns: 1fr; padding-block: 29px 27px; }
   .ax-hero-copy { padding: 0; }
-  .ax-wordmark-large { font-size: clamp(70px, 15vw, 115px); }
+  .ax-logo-mark-large svg { height: clamp(70px, 15vw, 115px); }
   .aivex-page .ax-hero-statement { font-size: clamp(46px, 8.5vw, 65px); margin-top: 24px; }
   .aivex-page .ax-hero-description { margin-top: 18px; font-size: 13px; }
   .ax-hero-actions { margin-top: 21px; gap: 12px 22px; }
@@ -282,7 +282,7 @@ html[data-page='aivex']::-webkit-scrollbar-corner { background: #111111; }
   .ax-footer-infinity-mark { width: 34px; }
   .ax-footer-club-brand { gap: 8px; }
   .ax-footer-club-brand strong { font-size: 13px; }
-  .ax-footer-event-brand .ax-wordmark { font-size: 18px; }
+  .ax-footer-event-brand .ax-logo-mark svg { height: 18px; }
   .ax-footer-event-brand small { font-size: 8px; }
   .ax-to-top { order: 1; }
   .ax-footer-bottom > p { order: 2; width: 100%; }
@@ -295,7 +295,7 @@ html[data-page='aivex']::-webkit-scrollbar-corner { background: #111111; }
   .ax-header-inner { gap: 10px; }
   .ax-brand > span:last-child { display: none; }
   .ax-back { gap: 6px; }
-  .ax-wordmark-large { font-size: 21.5vw; }
+  .ax-logo-mark-large svg { height: 21.5vw; }
   .ax-footer-club-brand strong { display: none; }
   .ax-footer-event-brand small { display: none; }
   .aivex-page .ax-hero-statement { font-size: 44px; }

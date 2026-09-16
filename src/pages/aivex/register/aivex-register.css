@@ -26,6 +26,7 @@ html[data-page='aivex']::-webkit-scrollbar-thumb { border: 2px solid #1a1114; bo
 .axr-header { position: relative; z-index: 20; border-bottom: 1px solid #efede826; background: #111111dc; backdrop-filter: blur(13px); }
 .axr-header-inner { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 80px; }
 .axr-brand { display: flex; align-items: center; gap: 17px; }
+.axr-brand .ax-logo-mark svg { height: 32px; }
 .axr-brand > span:last-child { padding-left: 17px; border-left: 1px solid #efede82b; color: var(--ax-muted); font-size: 10px; }
 .axr-back { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; color: var(--ax-muted); font-size: 11px; transition: color .2s; }
 .axr-back:hover { color: var(--ax-amber); }
@@ -81,8 +82,7 @@ html[data-page='aivex']::-webkit-scrollbar-thumb { border: 2px solid #1a1114; bo
 }
 .axr-form-paper::before { position: absolute; top: 0; left: 0; width: 108px; height: 5px; content: ''; background: var(--ax-pink); }
 .axr-paper-head { display: flex; justify-content: space-between; align-items: center; gap: 20px; margin-bottom: 40px; padding-bottom: 21px; border-bottom: 1px solid #4f001d2b; }
-.axr-paper-head .ax-wordmark { font-size: 25px; }
-.axr-paper-head .ax-letter-4 { border-color: var(--ax-black); background: var(--ax-black); color: var(--ax-paper); }
+.axr-paper-head .ax-logo-mark svg { height: 28px; }
 .axr-paper-head > span { color: #675f5c; font-size: 9px; letter-spacing: .07em; }
 .axr-form-step { min-height: 530px; }
 .axr-form-paper .af-step-heading h2 { font-size: clamp(39px, 4vw, 54px); }

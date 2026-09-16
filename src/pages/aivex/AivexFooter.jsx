@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { ArrowUpRight, MoveUp } from 'lucide-react'
 import InfinityMark from '../../components/InfinityMark'
-import AivexWordmark from './AivexWordmark'
+import AivexLogoMark from './AivexLogoMark'
 import { INSTAGRAM_URL } from './aivexData'
 
 export default function AivexFooter() {
@@ -21,7 +21,7 @@ export default function AivexFooter() {
             </span>
             <i className="ax-footer-brand-rule" aria-hidden="true" />
             <span className="ax-footer-event-brand">
-              <AivexWordmark />
+              <AivexLogoMark />
               <small>An Infinity Club event</small>
             </span>
           </Link>

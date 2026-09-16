@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import AivexWordmark from '../pages/aivex/AivexWordmark'
+import AivexLogoMark from '../pages/aivex/AivexLogoMark'
 import useAivexLogoHandoff from '../pages/aivex/useAivexLogoHandoff'
 import './aivex-loader.css'
 
@@ -10,7 +10,7 @@ export default function AivexLoader({ ready, onComplete }) {
     <div ref={loaderRef} className="aivex-loader" role="status" aria-live="polite" aria-label="Loading the AIVEX page">
       <div className="aivex-loader-backdrop" aria-hidden="true" />
       <div className="aivex-loader-content" aria-hidden="true">
-        <div className="aivex-loader-mark"><AivexWordmark /></div>
+        <div className="aivex-loader-mark"><AivexLogoMark /></div>
         <div className="aivex-loader-caption"><span>2nd edition</span><span>Loading...</span></div>
       </div>
     </div>

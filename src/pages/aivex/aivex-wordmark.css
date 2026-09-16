@@ -1,6 +1,0 @@
-.ax-wordmark { display: inline-flex; font-family: Manrope, sans-serif; font-size: 24px; font-weight: 700; line-height: 1; letter-spacing: -.07em; }
-.ax-letter-tile { display: inline-grid; place-items: center; width: .81em; height: .95em; overflow: hidden; }
-.ax-wordmark-letter { display: block; padding-right: .06em; }
-.ax-letter-0, .ax-letter-2 { color: var(--ax-paper, #efede8); background: var(--ax-pink, #db0051); }
-.ax-letter-1, .ax-letter-3 { color: var(--ax-black, #111111); background: var(--ax-paper, #efede8); }
-.ax-letter-4 { color: var(--ax-paper, #efede8); border: 1px solid currentColor; }

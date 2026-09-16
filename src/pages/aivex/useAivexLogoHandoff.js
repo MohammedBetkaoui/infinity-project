@@ -37,15 +37,14 @@ export default function useAivexLogoHandoff(loaderRef, ready, onComplete) {
 
       // Keep the moving logo intact; the Hero takes over at the exact same rectangle.
       gsap.set(destination, { visibility: 'hidden' })
-      const tiles = [...mark.querySelectorAll('.ax-letter-tile')]
-      const poses = tiles.map(tile => {
-        const style = getComputedStyle(tile)
-        return { transform: style.transform, opacity: style.opacity }
-      })
-      tiles.forEach((tile, index) => gsap.set(tile, { animation: 'none', ...poses[index] }))
+      const svg = mark.querySelector('svg')
+      if (svg) {
+        const style = getComputedStyle(svg)
+        gsap.set(svg, { animation: 'none', transform: style.transform, opacity: style.opacity })
+      }
       gsap.set(mark, { transformOrigin: '0 0', willChange: 'transform' })
       timeline = gsap.timeline({ onComplete: finish })
-        .to(tiles, { y: 0, rotationX: 0, opacity: 1, duration: .18, ease: 'power2.out' }, 0)
+        .to(svg || {}, { y: 0, opacity: 1, duration: .18, ease: 'power2.out' }, 0)
         .to('.aivex-loader-caption', { opacity: 0, duration: .16 }, 0)
         .to('.aivex-loader-backdrop', { opacity: 0, duration: .52, ease: 'power2.inOut' }, .14)
         .to(mark, {

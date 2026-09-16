@@ -9,7 +9,7 @@ import ApplicationProgress from '../../../components/forms/ApplicationProgress'
 import useApplicationForm from '../../../hooks/useApplicationForm'
 import useMotionPreference from '../../../hooks/useMotionPreference'
 import { MOTION_EASE } from '../../../lib/motion'
-import AivexWordmark from '../AivexWordmark'
+import AivexLogoMark from '../AivexLogoMark'
 import '../../../components/forms/application-form.css'
 import './aivex-register.css'
 
@@ -169,7 +169,7 @@ export default function AivexRegisterPage() {
       <a className="axr-skip" href="#aivex-registration-form">Skip to registration form</a>
       <header className="axr-header">
         <div className="axr-container axr-header-inner">
-          <Link to="/aivex" className="axr-brand" aria-label="Back to the AIVEX event page"><AivexWordmark /><span>Registration desk</span></Link>
+          <Link to="/aivex" className="axr-brand" aria-label="Back to the AIVEX event page"><AivexLogoMark /><span>Registration desk</span></Link>
           <Link to="/aivex" className="axr-back"><ArrowLeft size={14} aria-hidden="true" /> Event page</Link>
         </div>
       </header>
@@ -196,7 +196,7 @@ export default function AivexRegisterPage() {
           <motion.div id="aivex-registration-form" className="axr-form-paper"
             initial={reduced ? false : { opacity: 0, x: 28 }} animate={{ opacity: 1, x: 0 }}
             transition={{ duration: .7, delay: reduced ? 0 : .07, ease: MOTION_EASE.smooth }}>
-            <div className="axr-paper-head"><AivexWordmark /><span>{form.hasDraft ? 'Draft recovered' : 'Application form / 02'}</span></div>
+            <div className="axr-paper-head"><AivexLogoMark /><span>{form.hasDraft ? 'Draft recovered' : 'Application form / 02'}</span></div>
 
             {form.status === 'success' ? (
               <motion.div className="axr-success" role="status" initial={{ opacity: 0, scale: .985 }} animate={{ opacity: 1, scale: 1 }}>

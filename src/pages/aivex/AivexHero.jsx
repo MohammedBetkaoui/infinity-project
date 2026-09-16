@@ -1,6 +1,6 @@
 import { ArrowUpRight, MapPin } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import AivexWordmark from './AivexWordmark'
+import AivexLogoMark from './AivexLogoMark'
 import AivexScene from './AivexScene'
 import { INSTAGRAM_URL } from './aivexData'
 
@@ -14,7 +14,7 @@ export default function AivexHero() {
         </div>
         <div className="ax-hero-layout">
           <div className="ax-hero-copy">
-            <h1 id="ax-title"><span className="sr-only">AIVEX. Intelligence in action.</span><span aria-hidden="true"><AivexWordmark large data-aivex-logo-target /></span></h1>
+            <h1 id="ax-title"><span className="sr-only">AIVEX. Intelligence in action.</span><span aria-hidden="true"><AivexLogoMark large data-aivex-logo-target /></span></h1>
             <p className="ax-hero-statement" aria-hidden="true">
               <span><span className="ax-title-line">Intelligence.</span></span>
               <span><span className="ax-title-line">In action.</span></span>

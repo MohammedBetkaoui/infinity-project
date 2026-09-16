@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ArrowLeft, Menu, X } from 'lucide-react'
-import AivexWordmark from './AivexWordmark'
+import AivexLogoMark from './AivexLogoMark'
 import useMotionPreference from '../../hooks/useMotionPreference'
 
 const links = [
@@ -30,7 +30,7 @@ export default function AivexHeader() {
       if (event.key === 'Escape' && open) { setOpen(false); toggleRef.current?.focus() }
     }}>
       <div className="ax-container ax-header-inner">
-        <a href="#competition" aria-label="AIVEX, top of page" className="ax-brand"><AivexWordmark /><span>2nd edition</span></a>
+        <a href="#competition" aria-label="AIVEX, top of page" className="ax-brand"><AivexLogoMark /><span>2nd edition</span></a>
         <nav className="ax-desktop-nav" aria-label="AIVEX navigation">
           {links.map(link => <a key={link.href} href={link.href}>{link.label}</a>)}
           <Link to="/aivex/register" className="ax-nav-register">Register</Link>
