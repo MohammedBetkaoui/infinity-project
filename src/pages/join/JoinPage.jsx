@@ -37,13 +37,36 @@ const steps = [
   { label: 'Your place', fields: ['primaryField', 'experience', 'motivation', 'availability', 'consent'] },
 ]
 
+// Kept in sync with the server-side limits in api/join.js (MAX_LEN) so a
+// mismatch is always caught here first, with a clear message, instead of
+// round-tripping to the server for what is otherwise a valid-looking field.
 const required = (label) => (value) => String(value || '').trim() ? '' : `${label} is required.`
 const validators = {
-  fullName: (value) => String(value).trim().length >= 3 ? '' : 'Please enter your full name.',
-  email: (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? '' : 'Enter a valid email address.',
-  phone: (value) => !value || String(value).replace(/\D/g, '').length >= 8 ? '' : 'Enter a valid phone number or leave it empty.',
+  fullName: (value) => {
+    const trimmed = String(value || '').trim()
+    if (trimmed.length < 3) return 'Please enter your full name.'
+    if (trimmed.length > 120) return 'Please use a shorter name (120 characters max).'
+    return ''
+  },
+  email: (value) => {
+    const trimmed = String(value || '').trim()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return 'Enter a valid email address.'
+    if (trimmed.length > 254) return 'This email address is too long.'
+    return ''
+  },
+  phone: (value) => {
+    if (!value) return ''
+    const trimmed = String(value).trim()
+    if (trimmed.length > 40 || trimmed.replace(/\D/g, '').length < 8) return 'Enter a valid phone number or leave it empty.'
+    return ''
+  },
   studyYear: required('Your study level'),
-  department: required('Your department'),
+  department: (value) => {
+    const trimmed = String(value || '').trim()
+    if (!trimmed) return 'Your department is required.'
+    if (trimmed.length > 120) return 'Please use a shorter answer (120 characters max).'
+    return ''
+  },
   primaryField: required('A field'),
   experience: required('Your starting point'),
   motivation: (value) => String(value).trim().length >= 45 ? '' : 'Tell us a little more, using at least 45 characters.',

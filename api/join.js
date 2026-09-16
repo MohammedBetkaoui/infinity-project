@@ -1,20 +1,22 @@
 // POST /api/join — Vercel Serverless Function (Node, ESM).
 //
-// Browser -> POST /api/join -> server validation -> Supabase
-//   -> public.membership_applications -> 201 { success: true, reference }
+// Browser -> POST /api/join -> origin/rate-limit checks -> server validation
+//   -> Supabase -> public.membership_applications -> 201 { success: true, reference }
 //
 // Supabase is NEVER called from React. The secret key lives only here,
 // server-side, via process.env. No SQL is built by hand: all writes go
 // through the official @supabase/supabase-js client (parameterized).
 //
-// NOTE on rate limiting: a robust limiter needs shared state (e.g. Upstash
-// Redis). A local in-memory counter would NOT work reliably on Vercel
-// Serverless (each instance has its own memory), so none is added here.
-// This is the right place to plug a distributed limiter later.
+// NOTE on rate limiting: see api/_lib/security.js — the limiter there is
+// an in-memory, best-effort defense (not a global limit across a whole
+// deployment). This is the right place to plug a distributed limiter
+// (Upstash Redis, Vercel KV...) later if abuse ever outgrows it.
 
 import { createClient } from '@supabase/supabase-js'
+import { consumeRateLimit, getClientIp, isTrustedOrigin } from './_lib/security.js'
 
 const MAX_BODY_BYTES = 65536
+const RATE_LIMIT = { max: 8, windowMs: 10 * 60 * 1000 }
 
 const ALLOWED_STUDY_YEARS = new Set(['L1', 'L2', 'L3', 'M1', 'M2', 'other'])
 const ALLOWED_EXPERIENCE = new Set(['starting', 'learning', 'building'])
@@ -36,6 +38,11 @@ const MOTIVATION_MIN = 45
 const send = (res, status, payload) => {
   res.statusCode = status
   res.setHeader('Content-Type', 'application/json')
+  // This response only ever carries a submission outcome, never anything
+  // that should be cached or sniffed as a different content type.
+  res.setHeader('Cache-Control', 'no-store')
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
   res.end(JSON.stringify(payload))
 }
 
@@ -108,7 +115,8 @@ const readBody = (req) => {
 // { ok: false } after the 400 response has already been sent.
 const validateApplication = (res, body) => {
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
-    return invalid(res, 'Invalid application data.') ? null : null
+    invalid(res, 'Invalid application data.')
+    return null
   }
 
   if (body.form !== 'membership') {
@@ -217,6 +225,21 @@ export default async function handler(req, res) {
     return
   }
 
+  // Same-site check: only enforced on real Vercel deployments. Local dev
+  // deliberately serves the Vite app and the API on different origins
+  // (see vite.config.js), so Origin would never match Host there.
+  if (process.env.VERCEL && !isTrustedOrigin(req)) {
+    send(res, 403, { success: false, message: 'This submission was refused. Please try again from the official site page.' })
+    return
+  }
+
+  const rateLimit = consumeRateLimit(`join:${getClientIp(req)}`, RATE_LIMIT)
+  if (!rateLimit.allowed) {
+    res.setHeader('Retry-After', String(rateLimit.retryAfterSeconds))
+    send(res, 429, { success: false, message: 'Too many attempts. Please wait a moment, then try again.' })
+    return
+  }
+
   let body
   try {
     body = readBody(req)
@@ -251,7 +274,12 @@ export default async function handler(req, res) {
   }
 
   try {
-    const supabase = createClient(supabaseUrl, supabaseSecret)
+    // No browser storage exists in a serverless function, and each
+    // invocation is a single short-lived call: disable session persistence
+    // and the background auto-refresh timer so nothing outlives the request.
+    const supabase = createClient(supabaseUrl, supabaseSecret, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    })
 
     const duplicateField = await findDuplicateField(supabase, row.email, row.phone)
     if (duplicateField) {

@@ -50,7 +50,8 @@ createServer((req, res) => {
   }
   if (req.method !== 'POST') {
     // Let the function produce the canonical 405 + Allow header.
-    joinHandler({ ...req, body: undefined, method: req.method }, res)
+    req.body = undefined
+    joinHandler(req, res)
     return
   }
   let size = 0
@@ -73,7 +74,12 @@ createServer((req, res) => {
         body = {}
       }
     }
-    joinHandler({ ...req, body, method: req.method }, res)
+    // Mutate the real request instead of spreading it into a plain object:
+    // IncomingMessage exposes headers/url through prototype getters, which
+    // `{ ...req }` silently drops (spread only copies own enumerable
+    // properties) — the handler would then see req.headers as undefined.
+    req.body = body
+    joinHandler(req, res)
   })
 }).listen(PORT, () => {
   console.log(`[dev-api] serving api/*.js on http://localhost:${PORT}`)
