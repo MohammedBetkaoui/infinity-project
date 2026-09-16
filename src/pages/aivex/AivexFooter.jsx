@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { ArrowUpRight, MoveUp } from 'lucide-react'
 import InfinityMark from '../../components/InfinityMark'
+import MiFacultyMark from '../../components/MiFacultyMark'
 import AivexLogoMark from './AivexLogoMark'
 import { INSTAGRAM_URL } from './aivexData'
 
@@ -22,10 +23,13 @@ export default function AivexFooter() {
             <i className="ax-footer-brand-rule" aria-hidden="true" />
             <span className="ax-footer-event-brand">
               <AivexLogoMark />
-              <small>An Infinity Club event</small>
+            </span>
+            <i className="ax-footer-brand-rule" aria-hidden="true" />
+            <span className="ax-footer-mi-brand">
+              <MiFacultyMark lockup className="ax-footer-mi-mark" />
             </span>
           </Link>
-          <p>MI Faculty, University of BBA<br />No Limits For Infiniters</p>
+        
           <a className="ax-to-top" href="#competition" aria-label="Back to top"><MoveUp size={18} /></a>
         </div>
       </div>

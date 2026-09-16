@@ -196,7 +196,11 @@ html[data-page='aivex']::-webkit-scrollbar-corner { background: #111111; }
 .ax-footer-event-brand { display: grid; gap: 5px; }
 .ax-footer-event-brand .ax-logo-mark svg { height: 20px; }
 .ax-footer-event-brand small { font-size: 9px; line-height: 1; color: #dfb3c4; }
+.ax-footer-mi-brand { display: inline-flex; align-items: center; color: #d2d2d2; min-width: 0; }
+.ax-footer-mi-mark { display: block; height: 34px; width: auto; max-width: 220px; flex-shrink: 0; color: #d2d2d2; overflow: visible; }
+.ax-footer-mi-mark text { fill: #d2d2d2; }
 .ax-footer-bottom > p { font-size: 10px; line-height: 1.8; color: #dfb3c4; }
+.ax-footer-university { color: #d2d2d2; }
 .ax-to-top { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid #efede84d; }
 .ax-to-top:hover { background: var(--ax-pink); }
 
@@ -280,6 +284,7 @@ html[data-page='aivex']::-webkit-scrollbar-corner { background: #111111; }
   .ax-footer-bottom { flex-wrap: wrap; gap: 21px; padding-block: 24px; }
   .ax-footer-home { width: calc(100% - 65px); gap: 11px; }
   .ax-footer-infinity-mark { width: 34px; }
+  .ax-footer-mi-mark { height: 28px; max-width: 180px; }
   .ax-footer-club-brand { gap: 8px; }
   .ax-footer-club-brand strong { font-size: 13px; }
   .ax-footer-event-brand .ax-logo-mark svg { height: 18px; }
@@ -298,6 +303,7 @@ html[data-page='aivex']::-webkit-scrollbar-corner { background: #111111; }
   .ax-logo-mark-large svg { height: 21.5vw; }
   .ax-footer-club-brand strong { display: none; }
   .ax-footer-event-brand small { display: none; }
+  .ax-footer-mi-mark { height: 24px; max-width: 160px; }
   .aivex-page .ax-hero-statement { font-size: 44px; }
   .ax-hero-actions { gap: 9px; }
   .ax-process-tabs { grid-template-columns: .95fr .75fr 1.15fr; }
