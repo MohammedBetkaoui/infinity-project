@@ -20,6 +20,8 @@ const CommunityPage = lazy(() => import('./pages/community/CommunityPage'))
 const ContactPage = lazy(() => import('./pages/contact/ContactPage'))
 const JoinPage = lazy(() => import('./pages/join/JoinPage'))
 const AivexRegisterPage = lazy(() => import('./pages/aivex/register/AivexRegisterPage'))
+// Back-office: its own chunk, so none of it ships with the public site.
+const AdminApp = lazy(() => import('./admin/AdminApp'))
 
 function SitePage({ children, mainRef }) {
   return (
@@ -89,6 +91,19 @@ function DebugOverlay() {
 }
 
 export default function App() {
+  const { pathname } = useLocation()
+
+  // The dashboard is a separate application shell. Rendering it outside
+  // AnimationProvider keeps the site's smooth scroll and custom cursor
+  // away from the back-office, where they would fight dense tables.
+  if (pathname.startsWith('/admin')) {
+    return (
+      <Suspense fallback={null}>
+        <AdminApp />
+      </Suspense>
+    )
+  }
+
   return (
     <AnimationProvider>
       <RouteScrollReset />
