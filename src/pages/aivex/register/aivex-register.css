@@ -31,7 +31,7 @@ html[data-page='aivex']::-webkit-scrollbar-thumb { border: 2px solid #1a1114; bo
 .axr-back { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; color: var(--ax-muted); font-size: 11px; transition: color .2s; }
 .axr-back:hover { color: var(--ax-amber); }
 .axr-footer-mi { display: inline-flex; align-items: center; gap: 8px; color: #d2d2d2; }
-.axr-footer-mi-mark { width: 18px; height: auto; }
+.axr-footer-mi-mark { width: 26px; height: auto; display: block; flex-shrink: 0; }
 
 .axr-main { position: relative; padding-block: clamp(54px, 7vw, 94px) clamp(70px, 8vw, 110px); }
 .axr-main::before { position: absolute; inset: 0; content: ''; pointer-events: none; background-image: linear-gradient(#efede807 1px, transparent 1px), linear-gradient(90deg, #efede807 1px, transparent 1px); background-size: 58px 58px; mask-image: linear-gradient(to bottom, black, transparent 84%); }
@@ -106,8 +106,9 @@ html[data-page='aivex']::-webkit-scrollbar-thumb { border: 2px solid #1a1114; bo
 .axr-success p { max-width: 43ch; margin-top: 22px; color: #675f5c; font-size: 12px; line-height: 1.8; }
 .axr-success > strong { margin-top: 19px; padding: 9px 12px; background: #4f001d0d; font-family: ui-monospace, monospace; font-size: 11px; letter-spacing: .08em; }
 .axr-success .af-button { margin-top: 31px; }
-.axr-paper-credit { display: flex; align-items: center; gap: 9px; margin-top: 24px; padding-top: 18px; border-top: 1px solid #4f001d1f; color: #172f49; font-size: 9px; letter-spacing: .05em; }
-.axr-paper-credit-mark { width: 18px; height: auto; flex-shrink: 0; }
+.axr-paper-credit { display: flex; align-items: center; margin-top: 24px; padding-top: 18px; border-top: 1px solid #4f001d1f; color: #172f49; }
+.axr-paper-credit-mark { display: block; height: 48px; width: auto; max-width: 330px; flex-shrink: 0; color: #172f49; overflow: visible; }
+.axr-paper-credit-mark text { fill: #172f49; }
 .axr-footer { border-top: 1px solid #efede821; color: #918784; font-size: 9px; }
 .axr-footer > div { display: flex; justify-content: space-between; gap: 20px; padding-block: 24px 31px; }
 
@@ -135,6 +136,7 @@ html[data-page='aivex']::-webkit-scrollbar-thumb { border: 2px solid #1a1114; bo
   .axr-paper-head { margin-bottom: 31px; }
   .axr-form-step { min-height: 0; }
   .axr-review-item { grid-template-columns: 95px 1fr; }
+  .axr-paper-credit-mark { height: 36px; max-width: 260px; }
   .axr-footer > div { flex-direction: column; gap: 7px; }
 }
 @media (prefers-reduced-motion: reduce) {

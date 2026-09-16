@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { ArrowUpRight, MoveUp } from 'lucide-react'
-import InfinityMark from '../../components/InfinityMark'
+import InfinityClubMark from '../../components/InfinityClubMark'
 import MiFacultyMark from '../../components/MiFacultyMark'
 import AivexLogoMark from './AivexLogoMark'
 import { INSTAGRAM_URL } from './aivexData'
@@ -17,7 +17,7 @@ export default function AivexFooter() {
         <div className="ax-footer-bottom">
           <Link to="/" className="ax-footer-home" aria-label="Infinity Club home">
             <span className="ax-footer-club-brand">
-              <InfinityMark className="ax-footer-infinity-mark" />
+              <InfinityClubMark className="ax-footer-infinity-mark" />
               <strong>INFINITY CLUB</strong>
             </span>
             <i className="ax-footer-brand-rule" aria-hidden="true" />

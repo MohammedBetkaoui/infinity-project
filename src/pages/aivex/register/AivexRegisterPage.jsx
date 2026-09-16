@@ -10,6 +10,7 @@ import useApplicationForm from '../../../hooks/useApplicationForm'
 import useMotionPreference from '../../../hooks/useMotionPreference'
 import { MOTION_EASE } from '../../../lib/motion'
 import AivexLogoMark from '../AivexLogoMark'
+import InfinityClubMark from '../../../components/InfinityClubMark'
 import MiFacultyMark from '../../../components/MiFacultyMark'
 import '../../../components/forms/application-form.css'
 import './aivex-register.css'
@@ -332,12 +333,12 @@ export default function AivexRegisterPage() {
               </form>
             )}
 
-            <p className="axr-paper-credit"><MiFacultyMark className="axr-paper-credit-mark" />Faculty of Mathematics &amp; Computer Science</p>
+            <p className="axr-paper-credit"><MiFacultyMark lockup className="axr-paper-credit-mark" /></p>
           </motion.div>
         </div>
       </main>
 
-      <footer className="axr-footer"><div className="axr-container"><span>AIVEX / Second edition</span><span className="axr-footer-mi"><MiFacultyMark className="axr-footer-mi-mark" />Organised by Infinity Club, BBA</span></div></footer>
+      <footer className="axr-footer"><div className="axr-container"><span>AIVEX / Second edition</span><span className="axr-footer-mi"><InfinityClubMark className="axr-footer-mi-mark" />Organised by Infinity Club, BBA</span></div></footer>
     </div>
   )
 }

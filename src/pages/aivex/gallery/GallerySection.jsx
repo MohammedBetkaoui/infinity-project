@@ -1,6 +1,7 @@
 import { useId, useRef } from 'react'
 import { firstEditionPhotos } from '../aivexGalleryData'
 import useAivexGallery from '../useAivexGallery'
+import FmiLogo from '../../../components/FmiLogo'
 import GalleryMainImage from './GalleryMainImage'
 import GalleryThumbnailRail from './GalleryThumbnailRail'
 import GalleryControls from './GalleryControls'
@@ -49,6 +50,10 @@ export default function GallerySection({ ready = true }) {
               it is still pinned on screen. */}
           <h2 id={`${id}-title`}>The first edition,<br />up close.</h2>
           <p className="ax-gallery-description">The people behind the projects. A look back at the conversations, the code and the moments in between.</p>
+          <div className="ax-gallery-partner">
+            <span className="ax-gallery-partner-label">Under the auspices of</span>
+            <FmiLogo className="ax-gallery-partner-mark" />
+          </div>
           <div className="ax-gallery-edition flex flex-wrap items-center gap-x-5 gap-y-2">
             <span>AIVEX, first edition</span><span>{photos.length} photographs</span>
           </div>

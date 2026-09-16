@@ -12,6 +12,13 @@
 .ax-gallery-intro { position: sticky; top: calc(var(--gallery-top) + 82px); padding-block: 32px; }
 .ax-gallery-intro h2 { font-family: Rajdhani, sans-serif; font-size: clamp(40px, 4.1vw, 64px); font-weight: 600; line-height: 1.04; letter-spacing: -.04em; }
 .aivex-page .ax-gallery-description { margin-top: 24px; max-width: 37ch; font-size: 13px; line-height: 1.9; color: #b1b8b4; }
+/* Institutional stamp: secondary by design — off-white lockup at reduced
+   opacity, never competing with the title or the viewer. */
+.ax-gallery-partner { display: grid; gap: 9px; margin-top: 26px; }
+.ax-gallery-partner-label { font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: #8f9d95; }
+.ax-gallery-partner-mark { display: block; height: 30px; width: auto; max-width: 215px; color: #e9e4da; opacity: .8; overflow: visible; }
+.ax-gallery-partner-mark text { fill: currentColor; }
+.ax-gallery-partner + .ax-gallery-edition { margin-top: 18px; }
 .ax-gallery-edition { margin-top: 30px; font-size: 10px; color: #c7cfc9; }
 .ax-gallery-edition > span:first-child { padding-left: 12px; border-left: 2px solid var(--ax-pink); }
 .ax-gallery-edition > span:last-child { color: #95a39b; }
@@ -76,6 +83,8 @@
   .ax-gallery-intro { position: static; padding-block: 0 10px; }
   .ax-gallery-intro h2 { font-size: clamp(39px, 7vw, 54px); }
   .aivex-page .ax-gallery-description { margin-top: 17px; max-width: 46ch; font-size: 12px; }
+  .ax-gallery-partner { margin-top: 18px; gap: 7px; }
+  .ax-gallery-partner-mark { height: 26px; max-width: 185px; }
   .ax-gallery-edition { margin-top: 20px; }
   .ax-gallery-reading-note { display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; margin-top: 15px; font-size: 10px; }
   .ax-gallery-reading-note a { margin-top: 0; }

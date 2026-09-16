@@ -70,6 +70,10 @@ export default function useAivexExperience(pageRef, ready) {
     // The album panel enters like a card; its photographs keep their own
     // scroll-driven crossfades inside.
     motion.revealSection('.ax-gallery-panel', { mode: 'depth' })
+    // Institutional stamp: same fade-in language, entered once and held —
+    // it lives in the sticky intro, so a scrubbed exit would dissolve it
+    // mid-screen while pinned (see note above).
+    motion.revealSection('.ax-gallery-partner', { mode: 'fade', once: true })
     if (!motion.reduced) {
       const panel = root.querySelector('.ax-gallery-panel')
       const track = root.querySelector('.ax-gallery-track')
