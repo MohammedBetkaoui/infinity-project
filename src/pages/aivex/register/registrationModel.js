@@ -88,8 +88,8 @@ export function checkCardFile(file) {
 export const formatBytes = (bytes) => (bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`)
 
 // Backend-ready shape: answers are JSON, each student card travels as its own
-// multipart file referenced by field name.
-export function buildSubmission({ team, members }) {
+// multipart file referenced by field name. The server re-checks consent.
+export function buildSubmission({ team, members, consent }) {
   const files = []
   const roster = members.map((member, index) => {
     const field = `studentCard_${index + 1}`
@@ -114,6 +114,7 @@ export function buildSubmission({ team, members }) {
         size: members.length,
       },
       members: roster,
+      consent: consent === true,
     },
     files,
   }

@@ -4,6 +4,7 @@ import {
   LEADER_ID, MIN_MEMBERS, STEP, TEAM_FIELDS, MEMBER_FIELDS,
   buildSubmission, createMember, emptyTeam, isMemberComplete, memberIssues, rosterIssue, teamIssues,
 } from './registrationModel'
+import prepareCardUploads from './prepareCardUploads'
 
 const STORAGE_KEY = 'aivex-registration-draft-v2'
 const LEGACY_KEYS = ['aivex-registration-draft-v1']
@@ -228,9 +229,10 @@ export default function useCompetitionRegistration() {
     submitting.current = true
     dispatch({ type: 'status', status: 'submitting' })
     try {
-      const { answers, files } = buildSubmission({ team, members })
+      const { answers, files } = buildSubmission({ team, members, consent })
+      const uploads = await prepareCardUploads(files)
       const [result] = await Promise.all([
-        submitApplication('aivex', { ...answers, website: state.website }, { files, version: 2 }),
+        submitApplication('aivex', { ...answers, website: state.website }, { files: uploads, version: 2 }),
         new Promise((resolve) => window.setTimeout(resolve, 460)),
       ])
       dispatch({ type: 'status', status: result.delivered ? 'success' : 'draft', result })

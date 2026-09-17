@@ -4,7 +4,7 @@
 // unaffected: it serves api/ natively on the same domain.
 //
 // Usage (two terminals):
-//   npm run dev:api   -> http://localhost:3001
+//   npm run dev:api   -> http://localhost:3001  (/api/join, /api/aivex/register)
 //   npm run dev       -> http://localhost:5173 (proxies /api to the above)
 //
 // Only Node builtins are used. .env.local is loaded server-side and is
@@ -34,7 +34,13 @@ if (existsSync(join(root, '.env.local'))) {
   }
 }
 
-const { default: joinHandler } = await import(pathToFileURL(join(root, 'api', 'join.js')).href)
+const load = async (...segments) => (await import(pathToFileURL(join(root, 'api', ...segments)).href)).default
+const joinHandler = await load('join.js')
+// Multipart routes read the raw request stream themselves: the runner must
+// not consume the body before handing the request over.
+const streamingRoutes = {
+  '/api/aivex/register': await load('aivex', 'register.js'),
+}
 
 const json = (res, status, payload) => {
   res.statusCode = status
@@ -44,6 +50,13 @@ const json = (res, status, payload) => {
 
 createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost')
+  const streamingHandler = streamingRoutes[url.pathname]
+  if (streamingHandler) {
+    Promise.resolve(streamingHandler(req, res)).catch(() => {
+      if (!res.headersSent) json(res, 500, { success: false, message: 'Server error.' })
+    })
+    return
+  }
   if (url.pathname !== '/api/join') {
     json(res, 404, { success: false, message: 'Not found.' })
     return

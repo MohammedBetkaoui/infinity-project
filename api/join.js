@@ -13,6 +13,7 @@
 // (Upstash Redis, Vercel KV...) later if abuse ever outgrows it.
 
 import { createClient } from '@supabase/supabase-js'
+import { isFilled, normalizeString, sendJson as send } from './_lib/http.js'
 import { consumeRateLimit, getClientIp, isTrustedOrigin } from './_lib/security.js'
 
 const MAX_BODY_BYTES = 65536
@@ -38,21 +39,6 @@ const MAX_LEN = {
   memberInterest: 120,
   source: 500,
 }
-
-const send = (res, status, payload) => {
-  res.statusCode = status
-  res.setHeader('Content-Type', 'application/json')
-  // This response only ever carries a submission outcome, never anything
-  // that should be cached or sniffed as a different content type.
-  res.setHeader('Cache-Control', 'no-store')
-  res.setHeader('X-Content-Type-Options', 'nosniff')
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
-  res.end(JSON.stringify(payload))
-}
-
-const normalizeString = (value) => (typeof value === 'string' ? value.trim() : '')
-
-const isFilled = (value) => typeof value === 'string' && value.trim().length > 0
 
 // Digits-only form of a phone number, used for duplicate comparison so
 // that '+213 555 01 02 03', '0555010203' and '00213555010203' are

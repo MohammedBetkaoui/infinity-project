@@ -11,7 +11,7 @@ const ENDPOINTS = {
   // A relative path contains no secret and keeps production working even
   // if the env variable was forgotten at build time.
   membership: pickEndpoint('VITE_INFINITY_JOIN_ENDPOINT', 'INFINITY_JOIN_ENDPOINT') || '/api/join',
-  aivex: pickEndpoint('VITE_AIVEX_REGISTER_ENDPOINT', 'AIVEX_REGISTER_ENDPOINT'),
+  aivex: pickEndpoint('VITE_AIVEX_REGISTER_ENDPOINT', 'AIVEX_REGISTER_ENDPOINT') || '/api/aivex/register',
 }
 
 const REQUEST_TIMEOUT_MS = 12000
@@ -22,6 +22,8 @@ const STATUS_FALLBACKS = {
   400: 'Some answers look incomplete. Please review the highlighted fields and try again.',
   403: 'This submission was refused. Please try again from the official site page.',
   409: 'This application already seems to have been received. Please check your reference or contact the club.',
+  413: 'The attached files are too large to send. Please use smaller photos.',
+  415: 'One of the attached files is not a supported image (JPG, PNG or WEBP).',
   429: 'Too many attempts. Please wait a moment, then try again.',
 }
 
