@@ -5,6 +5,7 @@ import {
   FORM_VERSION, SECTIONS, SECTION_ISSUES, STEP, STUDENT_COUNT, STUDENT_FIELDS,
   buildSubmission, createStudents, emptyOfficial, emptyPerson, emptyTeam, studentIssues,
 } from './registrationModel'
+import { getRegistrationStrings } from './registrationI18n'
 import prepareCardUploads from './prepareCardUploads'
 
 const STORAGE_KEY = 'aivex-registration-draft-v3'
@@ -131,32 +132,33 @@ function reducer(state, action) {
   }
 }
 
-const toUserMessage = (error) => {
-  if (error?.name === 'AbortError') return 'The request timed out. Your answers are still here — please try again.'
+const toUserMessage = (error, L) => {
+  if (error?.name === 'AbortError') return L?.errTimeout || 'The request timed out. Your answers are still here — please try again.'
   const raw = typeof error?.message === 'string' ? error.message.trim() : ''
   if (raw && !/(stack trace|supabase|sb_secret|service_role|postgres|password|secret|api[_-]?key|node_modules)/i.test(raw)) return raw.slice(0, 300)
-  return 'We could not send the registration. Your answers are still saved in this tab.'
+  return L?.errSendFail || 'We could not send the registration. Your answers are still saved in this tab.'
 }
 
 const hasText = (record) => Object.values(record).some((value) => typeof value === 'string' && value.trim())
 
-export default function useCompetitionRegistration() {
+export default function useCompetitionRegistration(lang = 'en') {
   const [state, dispatch] = useReducer(reducer, undefined, restore)
   const submitting = useRef(false)
   const { step, team, activityOfficial, delegationHead, driver, students, touched, attempted, consent, status, focus } = state
+  const L = typeof lang === 'string' ? getRegistrationStrings(lang) : (lang || getRegistrationStrings('en'))
 
   const derived = useMemo(() => {
     const issues = {
-      team: SECTION_ISSUES.team(team),
-      activityOfficial: SECTION_ISSUES.activityOfficial(activityOfficial),
-      delegationHead: SECTION_ISSUES.delegationHead(delegationHead),
-      driver: SECTION_ISSUES.driver(driver),
+      team: SECTION_ISSUES.team(team, L),
+      activityOfficial: SECTION_ISSUES.activityOfficial(activityOfficial, L),
+      delegationHead: SECTION_ISSUES.delegationHead(delegationHead, L),
+      driver: SECTION_ISSUES.driver(driver, L),
     }
-    const studentErrors = Object.fromEntries(students.map((student) => [student.id, studentIssues(student, students)]))
+    const studentErrors = Object.fromEntries(students.map((student) => [student.id, studentIssues(student, students, L)]))
     const completeCount = students.filter((student) => !Object.keys(studentErrors[student.id]).length).length
     const sectionComplete = Object.fromEntries(SECTION_NAMES.map((name) => [name, !Object.keys(issues[name]).length]))
     return { issues, studentErrors, completeCount, sectionComplete }
-  }, [team, activityOfficial, delegationHead, driver, students])
+  }, [team, activityOfficial, delegationHead, driver, students, L])
 
   // Persist typed answers (never files); drop the draft once delivered.
   useEffect(() => {
@@ -260,7 +262,7 @@ export default function useCompetitionRegistration() {
       dispatch({ type: 'status', status: result.delivered ? 'success' : 'draft', result })
       if (result.delivered) dispatch({ type: 'go', step: STEP.review, focus: { id: 'axr-success-heading' } })
     } catch (error) {
-      dispatch({ type: 'status', status: 'error', result: { message: toUserMessage(error) } })
+      dispatch({ type: 'status', status: 'error', result: { message: toUserMessage(error, L) } })
     } finally {
       submitting.current = false
     }
@@ -272,6 +274,7 @@ export default function useCompetitionRegistration() {
   return {
     ...state,
     ...derived,
+    langStrings: L,
     endpointConfigured: isApplicationDeliveryConfigured('aivex'),
     fieldError: (section, field) => (
       shows(SECTIONS[section].step, `${section}.${field}`) ? derived.issues[section][field] || '' : ''
@@ -279,7 +282,7 @@ export default function useCompetitionRegistration() {
     studentError: (id, field) => (
       shows(STEP.students, `student.${id}.${field}`) ? derived.studentErrors[id]?.[field] || '' : ''
     ),
-    consentError: attempted[STEP.review] && !consent ? 'Confirm the statement above before submitting.' : '',
+    consentError: attempted[STEP.review] && !consent ? (L.errConsent || 'Confirm the statement above before submitting.') : '',
     setField: (section, field, value) => dispatch({ type: 'field', section, field, value }),
     setStudent: (id, field, value) => dispatch({ type: 'student', id, field, value }),
     touch: (key) => dispatch({ type: 'touch', key }),

@@ -1,51 +1,38 @@
 import { useState } from 'react'
 import { OTHER_INSTITUTION_ID } from '../../../data/algeriaHigherEducation'
-import { STEP, institutionLabel, roleLabel, wilayaLabel } from './registrationModel'
+import { STEP, institutionLabel, wilayaLabel } from './registrationModel'
+import { getRoleLabel, getStudyLabel } from './registrationI18n'
 import PrivacyNotice from './PrivacyNotice'
 import StepHeading from './StepHeading'
 import { fieldId, recordId } from './useCompetitionRegistration'
 import useObjectUrl from './useObjectUrl'
 
-function ReviewItem({ label, value }) {
+function ReviewItem({ label, value, t }) {
   return (
     <div className="axr-review-item">
       <dt>{label}</dt>
-      <dd>{value || <span className="axr-review-missing">Not provided</span>}</dd>
+      <dd>{value || <span className="axr-review-missing">{t.notProvided}</span>}</dd>
     </div>
   )
 }
 
-function ReviewBlock({ id, index, title, onEdit, editLabel, aside, children }) {
-  return (
-    <section className="axr-review-block" aria-labelledby={id}>
-      <header>
-        <h3 id={id}><span>{title}</span> / {index}</h3>
-        {onEdit
-          ? <button type="button" className="axr-review-edit" onClick={onEdit} aria-label={editLabel}>Edit</button>
-          : aside}
-      </header>
-      {children}
-    </section>
-  )
-}
-
-function ReviewPerson({ label, person, onEdit }) {
+function ReviewPerson({ label, person, onEdit, editText, t }) {
   return (
     <li className="axr-review-record">
       <div className="axr-review-record-head">
         <span className="axr-review-record-no">{label}</span>
-        <strong>{person.fullName.trim() || 'Not provided'}</strong>
-        <button type="button" className="axr-review-edit" onClick={onEdit} aria-label={`Edit ${label.toLowerCase()}`}>Edit</button>
+        <strong>{person.fullName.trim() || t.notProvided}</strong>
+        <button type="button" className="axr-review-edit" onClick={onEdit.onClick} aria-label={onEdit.aria}>{editText}</button>
       </div>
       <dl className="axr-review-record-grid axr-review-person-grid">
-        <ReviewItem label="Phone" value={person.phone.trim()} />
-        <ReviewItem label="National ID" value={person.nationalId.trim()} />
+        <ReviewItem label={t.revPhone} value={person.phone.trim()} t={t} />
+        <ReviewItem label={t.revNationalId} value={person.nationalId.trim()} t={t} />
       </dl>
     </li>
   )
 }
 
-function ReviewStudent({ student, onEdit }) {
+function ReviewStudent({ student, onEdit, editText, t }) {
   const [open, setOpen] = useState(false)
   const preview = useObjectUrl(student.studentCard)
   const number = String(student.position).padStart(2, '0')
@@ -56,29 +43,29 @@ function ReviewStudent({ student, onEdit }) {
     <li className="axr-review-record">
       <div className="axr-review-record-head">
         <span className="axr-review-record-no">{number}</span>
-        <strong>{name || `Student ${number}`}</strong>
-        <button type="button" className="axr-review-edit" onClick={onEdit} aria-label={`Edit student ${number}${name ? `, ${name}` : ''}`}>Edit</button>
+        <strong>{name || t.unnamedStudent({ number })}</strong>
+        <button type="button" className="axr-review-edit" onClick={onEdit.onClick} aria-label={onEdit.aria}>{editText}</button>
       </div>
       <dl className="axr-review-record-grid">
-        <ReviewItem label="Registration ID" value={student.registrationNumber.trim()} />
-        <ReviewItem label="Study level" value={student.studyLevel} />
-        <ReviewItem label="Phone" value={student.phone.trim()} />
+        <ReviewItem label={t.revRegId} value={student.registrationNumber.trim()} t={t} />
+        <ReviewItem label={t.revStudyLevel} value={getStudyLabel(student.studyLevel, t)} t={t} />
+        <ReviewItem label={t.revPhone} value={student.phone.trim()} t={t} />
         <div className="axr-review-item">
-          <dt>Student card</dt>
+          <dt>{t.revStudentCard}</dt>
           <dd>
             {student.studentCard ? (
               <button type="button" className="axr-review-card-toggle" aria-expanded={open} aria-controls={previewId} onClick={() => setOpen(!open)}>
                 {preview && <img src={preview} alt="" />}
-                <span>✓ Uploaded</span>
-                <small>{open ? 'Hide' : 'View'}</small>
+                <span>{t.uploadedCheck}</span>
+                <small>{open ? t.hide : t.view}</small>
               </button>
-            ) : <span className="axr-review-missing">Missing</span>}
+            ) : <span className="axr-review-missing">{t.missing}</span>}
           </dd>
         </div>
       </dl>
       {student.studentCard && open && (
         <figure id={previewId} className="axr-review-card">
-          <img src={preview} alt={`Front of ${name ? `${name}’s` : 'the'} student card`} />
+          <img src={preview} alt={t.cardAlt({ name })} />
           <figcaption>{student.studentCard.name}</figcaption>
         </figure>
       )}
@@ -86,57 +73,83 @@ function ReviewStudent({ student, onEdit }) {
   )
 }
 
-export default function ReviewStep({ registration }) {
+// ReviewBlock expects onEdit as a handler; wrap handler + label cleanly.
+function EditButton({ onClick, aria, children }) {
+  return (
+    <button type="button" className="axr-review-edit" onClick={onClick} aria-label={aria}>{children}</button>
+  )
+}
+
+export default function ReviewStep({ registration, t, lang }) {
   const { team, activityOfficial, delegationHead, driver, students, goTo, consent, consentError, setConsent } = registration
-  const institution = institutionLabel(team)
+  const institution = institutionLabel(team, lang)
+
+  const teamEdit = { onClick: () => goTo(STEP.institution, fieldId('team', 'name')), aria: t.editAria({ label: `${t.revTeam}` }) }
+  const contactEdit = { onClick: () => goTo(STEP.institution, fieldId('activityOfficial', 'role')), aria: t.editAria({ label: `${t.revContact}` }) }
 
   return (
     <>
-      <StepHeading kicker="Final check" title="Review your registration.">
-        Check the institution, delegation and student information before submitting your AIVEX registration.
+      <StepHeading kicker={t.revKicker} title={t.revTitle}>
+        {t.revDesc}
       </StepHeading>
 
       <div className="axr-review">
-        <ReviewBlock id="axr-review-team" index="01" title="Team / Institution"
-          onEdit={() => goTo(STEP.institution, fieldId('team', 'name'))} editLabel="Edit team and institution">
+        <section className="axr-review-block" aria-labelledby="axr-review-team">
+          <header>
+            <h3 id="axr-review-team"><span>{t.revTeam}</span> / 01</h3>
+            <EditButton onClick={teamEdit.onClick} aria={teamEdit.aria}>{t.edit}</EditButton>
+          </header>
           <dl className="axr-review-team">
-            <ReviewItem label="Team name" value={team.name.trim()} />
-            <ReviewItem label="Wilaya" value={wilayaLabel(team.wilaya)} />
-            <ReviewItem label="University / Institution"
-              value={institution && (team.institution === OTHER_INSTITUTION_ID ? `${institution} (not listed)` : institution)} />
+            <ReviewItem label={t.revTeamName} value={team.name.trim()} t={t} />
+            <ReviewItem label={t.revWilaya} value={wilayaLabel(team.wilaya, lang)} t={t} />
+            <ReviewItem label={t.revInstitution}
+              value={institution && (team.institution === OTHER_INSTITUTION_ID ? t.revNotListed({ name: institution }) : institution)} t={t} />
           </dl>
-        </ReviewBlock>
+        </section>
 
-        <ReviewBlock id="axr-review-contact" index="02" title="Activity administration contact"
-          onEdit={() => goTo(STEP.institution, fieldId('activityOfficial', 'role'))} editLabel="Edit activity administration contact">
+        <section className="axr-review-block" aria-labelledby="axr-review-contact">
+          <header>
+            <h3 id="axr-review-contact"><span>{t.revContact}</span> / 02</h3>
+            <EditButton onClick={contactEdit.onClick} aria={contactEdit.aria}>{t.edit}</EditButton>
+          </header>
           <dl className="axr-review-team">
-            <ReviewItem label="Role" value={roleLabel(activityOfficial.role)} />
-            <ReviewItem label="Full name" value={activityOfficial.fullName.trim()} />
-            <ReviewItem label="Email" value={activityOfficial.email.trim()} />
-            <ReviewItem label="Phone" value={activityOfficial.phone.trim()} />
+            <ReviewItem label={t.revRole} value={getRoleLabel(activityOfficial.role, t)} t={t} />
+            <ReviewItem label={t.revFullName} value={activityOfficial.fullName.trim()} t={t} />
+            <ReviewItem label={t.revEmail} value={activityOfficial.email.trim()} t={t} />
+            <ReviewItem label={t.revPhone} value={activityOfficial.phone.trim()} t={t} />
           </dl>
-        </ReviewBlock>
+        </section>
 
-        <ReviewBlock id="axr-review-delegation" index="03" title="Delegation"
-          aside={<span className="axr-review-count">2 records</span>}>
+        <section className="axr-review-block" aria-labelledby="axr-review-delegation">
+          <header>
+            <h3 id="axr-review-delegation"><span>{t.revDelegation}</span> / 03</h3>
+            <span className="axr-review-count">{t.recordsTwo}</span>
+          </header>
           <ol className="axr-review-roster">
-            <ReviewPerson label="Head of delegation" person={delegationHead}
-              onEdit={() => goTo(STEP.delegation, recordId('delegationHead'))} />
-            <ReviewPerson label="Driver" person={driver}
-              onEdit={() => goTo(STEP.delegation, recordId('driver'))} />
+            <ReviewPerson label={t.headRole} person={delegationHead} t={t} editText={t.edit}
+              onEdit={{ onClick: () => goTo(STEP.delegation, recordId('delegationHead')), aria: t.editAria({ label: t.headRole }) }} />
+            <ReviewPerson label={t.driverRole} person={driver} t={t} editText={t.edit}
+              onEdit={{ onClick: () => goTo(STEP.delegation, recordId('driver')), aria: t.editAria({ label: t.driverRole }) }} />
           </ol>
-        </ReviewBlock>
+        </section>
 
-        <ReviewBlock id="axr-review-students" index="04" title="Students"
-          aside={<span className="axr-review-count">{students.length} records</span>}>
+        <section className="axr-review-block" aria-labelledby="axr-review-students">
+          <header>
+            <h3 id="axr-review-students"><span>{t.revStudents}</span> / 04</h3>
+            <span className="axr-review-count">{t.recordsCount({ count: students.length })}</span>
+          </header>
           <ol className="axr-review-roster">
-            {students.map((student) => (
-              <ReviewStudent key={student.id} student={student} onEdit={() => goTo(STEP.students, recordId(student.id))} />
-            ))}
+            {students.map((student) => {
+              const number = String(student.position).padStart(2, '0')
+              return (
+                <ReviewStudent key={student.id} student={student} t={t} editText={t.edit}
+                  onEdit={{ onClick: () => goTo(STEP.students, recordId(student.id)), aria: t.editStudentAria({ number, name: student.fullName.trim() }) }} />
+              )
+            })}
           </ol>
-        </ReviewBlock>
+        </section>
 
-        <PrivacyNotice consent={consent} error={consentError} onConsent={setConsent} />
+        <PrivacyNotice consent={consent} error={consentError} onConsent={setConsent} t={t} />
       </div>
     </>
   )

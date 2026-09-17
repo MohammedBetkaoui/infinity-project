@@ -1,19 +1,19 @@
 import ApplicationConsent from '../../../components/forms/ApplicationConsent'
 
-export default function PrivacyNotice({ consent, error, onConsent }) {
+export default function PrivacyNotice({ consent, error, onConsent, t }) {
   return (
     <section className="axr-privacy" aria-labelledby="axr-privacy-title">
-      <h3 id="axr-privacy-title">Privacy / Registration data</h3>
+      <h3 id="axr-privacy-title">{t.privacyTitle}</h3>
       <div className="axr-privacy-body">
-        <p>Personal details, national ID numbers and student card photos are collected only to:</p>
+        <p>{t.privacyIntro}</p>
         <ul>
-          <li>verify the identity of each student and delegation member;</li>
-          <li>confirm the students’ status;</li>
-          <li>confirm the team’s registration;</li>
-          <li>handle AIVEX communications, access and logistics.</li>
+          <li>{t.privacyLi1}</li>
+          <li>{t.privacyLi2}</li>
+          <li>{t.privacyLi3}</li>
+          <li>{t.privacyLi4}</li>
         </ul>
         <ApplicationConsent formId="axr" name="consent" checked={consent} error={error} onChange={(_, value) => onConsent(value)}>
-          I confirm these details are accurate and agree to their use for the purposes above. Participation is confirmed by the organising committee under the official AIVEX rules.
+          {t.consentText}
         </ApplicationConsent>
       </div>
     </section>

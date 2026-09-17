@@ -1,10 +1,10 @@
 import { useRef, useState } from 'react'
-import { CARD_SPEC, CARD_TYPES, checkCardFile, formatBytes } from './registrationModel'
+import { CARD_TYPES, checkCardFile, formatBytes } from './registrationModel'
 import useObjectUrl from './useObjectUrl'
 
 const EXTENSIONS = { 'image/jpeg': 'JPG', 'image/png': 'PNG', 'image/webp': 'WEBP' }
 
-export default function StudentCardUpload({ inputId, file, droppedCard, error, ownerName, onChange }) {
+export default function StudentCardUpload({ inputId, file, droppedCard, error, ownerName, onChange, t }) {
   const inputRef = useRef(null)
   const [dragging, setDragging] = useState(false)
   const [fileError, setFileError] = useState('')
@@ -14,7 +14,7 @@ export default function StudentCardUpload({ inputId, file, droppedCard, error, o
   const hintId = `${inputId}-hint`
 
   const accept = (candidate) => {
-    const problem = checkCardFile(candidate)
+    const problem = checkCardFile(candidate, t)
     setFileError(problem)
     if (!problem) onChange(candidate)
   }
@@ -43,8 +43,8 @@ export default function StudentCardUpload({ inputId, file, droppedCard, error, o
   return (
     <div className="axr-upload" data-state={state}>
       <div className="axr-upload-head">
-        <label htmlFor={inputId}>Student card — Front side</label>
-        <span aria-hidden="true">{file ? 'Attached' : 'Required'}</span>
+        <label htmlFor={inputId}>{t.uploadTitle}</label>
+        <span aria-hidden="true">{file ? t.uploadAttached : t.uploadRequired}</span>
       </div>
 
       <input
@@ -62,15 +62,15 @@ export default function StudentCardUpload({ inputId, file, droppedCard, error, o
       {file ? (
         <div className="axr-upload-file">
           <figure className="axr-upload-preview">
-            {preview && <img src={preview} alt={`Front of ${ownerName ? `${ownerName}’s` : 'the'} student card`} />}
+            {preview && <img src={preview} alt={t.cardAlt({ name: ownerName })} />}
           </figure>
           <div className="axr-upload-info">
-            <span className="axr-upload-status">Uploaded ✓</span>
+            <span className="axr-upload-status">{t.uploadedOk}</span>
             <strong title={file.name}>{file.name}</strong>
             <small>{EXTENSIONS[file.type] || 'Image'} · {formatBytes(file.size)}</small>
             <div className="axr-upload-actions">
-              <button type="button" onClick={() => inputRef.current?.click()}>Replace</button>
-              <button type="button" onClick={remove}>Remove</button>
+              <button type="button" onClick={() => inputRef.current?.click()}>{t.replace}</button>
+              <button type="button" onClick={remove}>{t.remove}</button>
             </div>
           </div>
         </div>
@@ -83,12 +83,12 @@ export default function StudentCardUpload({ inputId, file, droppedCard, error, o
           onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setDragging(false) }}
           onDrop={handleDrop}
         >
-          <span className="axr-upload-tag">Student ID / Front</span>
+          <span className="axr-upload-tag">{t.uploadTag}</span>
           <span className="axr-upload-frame">
-            <strong>{dragging ? 'Release to attach' : 'Drop student card here'}</strong>
-            <span>or <u>select from device</u></span>
+            <strong>{dragging ? t.dropRelease : t.dropDefault}</strong>
+            <span>{t.orSelectPrefix} <u>{t.orSelectLink}</u></span>
           </span>
-          <small>{CARD_SPEC}</small>
+          <small>{t.cardSpec}</small>
         </div>
       )}
 
@@ -98,8 +98,8 @@ export default function StudentCardUpload({ inputId, file, droppedCard, error, o
           : (
             <span id={hintId} className="af-hint">
               {droppedCard && !file
-                ? `“${droppedCard}” was not kept after the page reloaded. Attach it again.`
-                : 'A clear photo of the front side, with the name and registration number readable.'}
+                ? t.droppedReload({ name: droppedCard })
+                : t.uploadHint}
             </span>
           )}
       </div>

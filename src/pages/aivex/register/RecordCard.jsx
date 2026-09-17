@@ -1,9 +1,12 @@
+// A numbered identity record: students and delegation members share it.
 import { motion } from 'framer-motion'
 
-// A numbered identity record: students and delegation members share it.
-export default function RecordCard({ id, index, role, name, placeholder, remaining, order = 0, reduced, children }) {
+export default function RecordCard({ id, index, role, name, placeholder, remaining, order = 0, reduced, children, t }) {
   const titleId = `${id}-title`
   const complete = remaining === 0
+  const stateLabel = complete
+    ? (t?.recordComplete || 'Complete ✓')
+    : (t?.recordRemaining ? t.recordRemaining({ count: remaining }) : `${remaining} ${remaining === 1 ? 'field' : 'fields'} remaining`)
   return (
     <motion.article
       id={id}
@@ -21,7 +24,7 @@ export default function RecordCard({ id, index, role, name, placeholder, remaini
           <h3 id={titleId} data-empty={name ? undefined : ''}>{name || placeholder}</h3>
         </div>
         <span className="axr-record-state" data-complete={complete ? '' : undefined}>
-          {complete ? 'Complete ✓' : `${remaining} ${remaining === 1 ? 'field' : 'fields'} remaining`}
+          {stateLabel}
         </span>
       </header>
       <div className="axr-record-body">{children}</div>

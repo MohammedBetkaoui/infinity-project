@@ -2,9 +2,11 @@ import { motion } from 'framer-motion'
 import { MOTION_EASE } from '../../../lib/motion'
 import MiFacultyMark from '../../../components/MiFacultyMark'
 import AivexLogoMark from '../AivexLogoMark'
+import { REGISTER_LANGS } from './registrationI18n'
 
-export default function RegistrationLayout({ phase, signals, paperLabel, reduced, children }) {
+export default function RegistrationLayout({ phase, signals, paperLabel, reduced, children, lang = 'en', onLang, t }) {
   const orbitMotion = reduced ? { duration: .01 } : { duration: .36, ease: MOTION_EASE.smooth }
+  const strings = t || { dir: 'ltr', languageLabel: 'Form language' }
 
   return (
     <div className="axr-container axr-layout">
@@ -30,12 +32,32 @@ export default function RegistrationLayout({ phase, signals, paperLabel, reduced
         <p className="axr-confirmation-note"><i aria-hidden="true" />Registration is reviewed by the organising team. Participation remains subject to the official rules and confirmation.</p>
       </motion.aside>
 
-      <motion.div id="aivex-registration-form" className="axr-form-paper"
+      <motion.div id="aivex-registration-form" className="axr-form-paper" dir={strings.dir || 'ltr'} lang={lang}
         initial={reduced ? false : { opacity: 0, x: 28 }} animate={{ opacity: 1, x: 0 }}
         transition={{ duration: .7, delay: reduced ? 0 : .07, ease: MOTION_EASE.smooth }}>
+        {onLang && (
+          <div className="axr-lang" role="group" aria-label={strings.languageLabel}>
+            <span className="axr-lang-label" aria-hidden="true">{strings.languageLabel}</span>
+            <div className="axr-lang-buttons">
+              {REGISTER_LANGS.map((entry) => (
+                <button
+                  key={entry.code}
+                  type="button"
+                  className="axr-lang-button"
+                  data-active={lang === entry.code ? '' : undefined}
+                  aria-pressed={lang === entry.code}
+                  title={entry.name}
+                  onClick={() => onLang(entry.code)}
+                >
+                  {entry.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="axr-paper-head"><AivexLogoMark /><span>{paperLabel}</span></div>
         {children}
-        <p className="axr-paper-credit"><MiFacultyMark lockup className="axr-paper-credit-mark" /></p>
+        <p className="axr-paper-credit" dir="ltr"><MiFacultyMark lockup className="axr-paper-credit-mark" /></p>
       </motion.div>
     </div>
   )

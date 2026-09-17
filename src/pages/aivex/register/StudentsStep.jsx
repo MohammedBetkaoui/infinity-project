@@ -1,15 +1,16 @@
 import ApplicationField from '../../../components/forms/ApplicationField'
 import { studentFieldProps } from './fieldProps'
 import RecordCard from './RecordCard'
-import { STUDENT_COUNT, studyLevels } from './registrationModel'
+import { STUDENT_COUNT } from './registrationModel'
+import { getStudyOptions } from './registrationI18n'
 import StepHeading from './StepHeading'
 import StudentCardUpload from './StudentCardUpload'
 import { recordId, studentFieldId } from './useCompetitionRegistration'
 
-function StudentsReadout({ complete }) {
+function StudentsReadout({ complete, t }) {
   const done = complete === STUDENT_COUNT
-  let label = `${STUDENT_COUNT} participants required`
-  if (complete > 0) label = done ? `${STUDENT_COUNT} / ${STUDENT_COUNT} students complete ✓` : `${complete} / ${STUDENT_COUNT} students complete`
+  let label = t.requiredLabel({ total: STUDENT_COUNT })
+  if (complete > 0) label = done ? t.progressDone({ total: STUDENT_COUNT }) : t.progressPartial({ complete, total: STUDENT_COUNT })
   return (
     <div className="axr-roster" data-reached={done ? '' : undefined}>
       <span className="axr-roster-label" aria-live="polite">{label}</span>
@@ -22,40 +23,42 @@ function StudentsReadout({ complete }) {
   )
 }
 
-export default function StudentsStep({ registration, reduced }) {
+export default function StudentsStep({ registration, reduced, t }) {
   const { students, completeCount, studentErrors, studentError, setStudent, touch } = registration
+  const studyLevels = getStudyOptions(t)
 
   return (
     <>
-      <StepHeading kicker="Participants" title="Who will compete?" aside={<StudentsReadout complete={completeCount} />}>
-        Every AIVEX team competes with exactly three students. Complete each record and attach each student card.
+      <StepHeading kicker={t.stuKicker} title={t.stuTitle} aside={<StudentsReadout complete={completeCount} t={t} />}>
+        {t.stuDesc}
       </StepHeading>
-      <p className="axr-roster-rule"><i aria-hidden="true" />{STUDENT_COUNT} participants required · Every field is mandatory</p>
+      <p className="axr-roster-rule"><i aria-hidden="true" />{t.rosterRule({ total: STUDENT_COUNT })}</p>
 
       <div className="axr-records">
         {students.map((student, order) => {
           const number = String(student.position).padStart(2, '0')
           const field = (name) => studentFieldProps(registration, student, name)
           return (
-            <RecordCard key={student.id} id={recordId(student.id)} index={number} role="Student" order={order} reduced={reduced}
-              name={student.fullName.trim()} placeholder={`Student ${number}`}
+            <RecordCard key={student.id} id={recordId(student.id)} index={number} role={t.studentRole} order={order} reduced={reduced}
+              name={student.fullName.trim()} placeholder={t.studentPlaceholder({ number })} t={t}
               remaining={Object.keys(studentErrors[student.id]).length}>
               <div className="af-grid-two">
-                <ApplicationField {...field('fullName')} label="Full name" autoComplete="off" placeholder="As written on the student card" />
-                <ApplicationField {...field('registrationNumber')} label="Student registration number" inputMode="numeric"
-                  autoComplete="off" placeholder="202133046094" hint="Use the registration number printed on the student card." />
+                <ApplicationField {...field('fullName')} label={t.fullNameLabel} autoComplete="off" placeholder={t.studentNamePlaceholder} />
+                <ApplicationField {...field('registrationNumber')} label={t.regNumberLabel} inputMode="numeric"
+                  autoComplete="off" placeholder={t.regNumberPlaceholder} hint={t.regNumberHint} />
               </div>
               <div className="af-grid-two">
-                <ApplicationField {...field('studyLevel')} label="Study level" as="select" options={studyLevels} />
-                <ApplicationField {...field('phone')} label="Phone number" type="tel" inputMode="tel"
-                  autoComplete="off" placeholder="+213 5XX XX XX XX" hint="Algerian or international format." />
+                <ApplicationField {...field('studyLevel')} label={t.studyLevelLabel} as="select" options={studyLevels} />
+                <ApplicationField {...field('phone')} label={t.phoneLabel} type="tel" inputMode="tel"
+                  autoComplete="off" placeholder={t.phonePlaceholder} hint={t.phoneHint} />
               </div>
               <StudentCardUpload
                 inputId={studentFieldId(student.id, 'studentCard')}
                 file={student.studentCard}
                 droppedCard={student.droppedCard}
-                ownerName={student.fullName.trim() || `student ${number}`}
+                ownerName={student.fullName.trim() || t.studentPlaceholder({ number })}
                 error={studentError(student.id, 'studentCard')}
+                t={t}
                 onChange={(file) => {
                   setStudent(student.id, 'studentCard', file)
                   touch(`student.${student.id}.studentCard`)

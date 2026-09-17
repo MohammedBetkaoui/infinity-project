@@ -1,5 +1,5 @@
 import {
-  OTHER_INSTITUTION_ID, findInstitution, findWilaya,
+  OTHER_INSTITUTION_ID, findInstitution, findWilaya, institutionDisplayName, wilayaDisplayName,
 } from '../../../data/algeriaHigherEducation.js'
 
 // Official rule: every team is exactly three students.
@@ -60,57 +60,61 @@ const text = (value) => String(value ?? '').trim()
 const digits = (value) => String(value ?? '').replace(/\D/g, '')
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
+// L is the translated strings object (registrationI18n). Falls back to English
+// so existing callers without a language still work.
+const msg = (L, key, fallback) => (L && typeof L[key] === 'string' ? L[key] : fallback)
+
 export const normalizePhone = (value) => text(value).replace(/[\s().-]/g, '')
 // Kept as a string: leading zeros are part of the number.
 export const normalizeNationalId = (value) => text(value).replace(/[\s-]/g, '')
 
-const phoneIssue = (value) => {
+const phoneIssue = (value, L) => {
   const phone = text(value)
-  if (!phone) return 'Phone number is required.'
-  if (!/^\+?[\d\s().-]+$/.test(phone) || digits(phone).length < 9 || digits(phone).length > 15) return 'Enter a valid phone number.'
+  if (!phone) return msg(L, 'errPhoneRequired', 'Phone number is required.')
+  if (!/^\+?[\d\s().-]+$/.test(phone) || digits(phone).length < 9 || digits(phone).length > 15) return msg(L, 'errPhoneInvalid', 'Enter a valid phone number.')
   return ''
 }
 
-const nameIssue = (value) => {
+const nameIssue = (value, L) => {
   const name = text(value)
-  if (!name) return 'Full name is required.'
-  if (name.length < 3 || name.length > 120) return 'Enter the full name (3 to 120 characters).'
+  if (!name) return msg(L, 'errNameRequired', 'Full name is required.')
+  if (name.length < 3 || name.length > 120) return msg(L, 'errNameLength', 'Enter the full name (3 to 120 characters).')
   return ''
 }
 
 const collect = (entries) => Object.fromEntries(entries.filter(([, message]) => message))
 
-export function teamIssues(team) {
+export function teamIssues(team, L) {
   const wilaya = findWilaya(team.wilaya)
   const institution = findInstitution(team.wilaya, team.institution)
   const custom = text(team.customInstitution)
   return collect([
-    ['name', text(team.name).length < 2 ? 'Team name is required.' : text(team.name).length > 120 ? 'Use at most 120 characters.' : ''],
-    ['wilaya', wilaya ? '' : 'Wilaya is required.'],
-    ['institution', !wilaya || institution ? '' : 'University or institution is required.'],
+    ['name', text(team.name).length < 2 ? msg(L, 'errTeamRequired', 'Team name is required.') : text(team.name).length > 120 ? msg(L, 'errTeamLength', 'Use at most 120 characters.') : ''],
+    ['wilaya', wilaya ? '' : msg(L, 'errWilayaRequired', 'Wilaya is required.')],
+    ['institution', !wilaya || institution ? '' : msg(L, 'errInstitutionRequired', 'University or institution is required.')],
     ['customInstitution', team.institution !== OTHER_INSTITUTION_ID ? ''
-      : !custom ? 'Institution name is required.'
-        : custom.length < 3 || custom.length > 180 ? 'Enter the institution name (3 to 180 characters).' : ''],
+      : !custom ? msg(L, 'errCustomRequired', 'Institution name is required.')
+        : custom.length < 3 || custom.length > 180 ? msg(L, 'errCustomLength', 'Enter the institution name (3 to 180 characters).') : ''],
   ])
 }
 
-export function officialIssues(official) {
+export function officialIssues(official, L) {
   const email = text(official.email)
   return collect([
-    ['role', activityRoles.some((role) => role.value && role.value === official.role) ? '' : 'Role is required.'],
-    ['fullName', nameIssue(official.fullName)],
-    ['email', !email ? 'Email is required.' : !EMAIL_RE.test(email) || email.length > 254 ? 'Enter a valid email address.' : ''],
-    ['phone', phoneIssue(official.phone)],
+    ['role', activityRoles.some((role) => role.value && role.value === official.role) ? '' : msg(L, 'errRoleRequired', 'Role is required.')],
+    ['fullName', nameIssue(official.fullName, L)],
+    ['email', !email ? msg(L, 'errEmailRequired', 'Email is required.') : !EMAIL_RE.test(email) || email.length > 254 ? msg(L, 'errEmailInvalid', 'Enter a valid email address.') : ''],
+    ['phone', phoneIssue(official.phone, L)],
   ])
 }
 
-export function personIssues(person) {
+export function personIssues(person, L) {
   const nationalId = normalizeNationalId(person.nationalId)
   return collect([
-    ['fullName', nameIssue(person.fullName)],
-    ['phone', phoneIssue(person.phone)],
-    ['nationalId', !nationalId ? 'National ID number is required.'
-      : /^[A-Za-z0-9]{6,20}$/.test(nationalId) ? '' : 'Use 6 to 20 letters or digits, as printed on the ID card.'],
+    ['fullName', nameIssue(person.fullName, L)],
+    ['phone', phoneIssue(person.phone, L)],
+    ['nationalId', !nationalId ? msg(L, 'errNationalRequired', 'National ID number is required.')
+      : /^[A-Za-z0-9]{6,20}$/.test(nationalId) ? '' : msg(L, 'errNationalInvalid', 'Use 6 to 20 letters or digits, as printed on the ID card.')],
   ])
 }
 
@@ -121,26 +125,31 @@ export const SECTION_ISSUES = {
   driver: personIssues,
 }
 
-export function studentIssues(student, students = []) {
+export function studentIssues(student, students = [], L) {
+  // Back-compat: studentIssues(student, L) — second arg may be the strings object.
+  if (students && !Array.isArray(students) && typeof students === 'object') {
+    L = students
+    students = []
+  }
   const registration = text(student.registrationNumber).replace(/\s/g, '')
   const shared = registration && students.some((other) => other.id !== student.id
     && text(other.registrationNumber).replace(/\s/g, '') === registration)
   return collect([
-    ['fullName', !text(student.fullName) ? 'Full name is required.'
-      : text(student.fullName).length < 3 ? 'Enter the full name as written on the student card.' : ''],
-    ['registrationNumber', !registration ? 'Student registration number is required.'
-      : !/^\d{6,20}$/.test(registration) ? 'Use digits only, as printed on the student card.'
-        : shared ? 'Each student needs their own registration number.' : ''],
-    ['studyLevel', student.studyLevel ? '' : 'Study level is required.'],
-    ['phone', phoneIssue(student.phone)],
-    ['studentCard', student.studentCard ? '' : 'Student card is required.'],
+    ['fullName', !text(student.fullName) ? msg(L, 'errStudentNameRequired', 'Full name is required.')
+      : text(student.fullName).length < 3 ? msg(L, 'errStudentNameShort', 'Enter the full name as written on the student card.') : ''],
+    ['registrationNumber', !registration ? msg(L, 'errRegRequired', 'Student registration number is required.')
+      : !/^\d{6,20}$/.test(registration) ? msg(L, 'errRegDigits', 'Use digits only, as printed on the student card.')
+        : shared ? msg(L, 'errRegShared', 'Each student needs their own registration number.') : ''],
+    ['studyLevel', student.studyLevel ? '' : msg(L, 'errLevelRequired', 'Study level is required.')],
+    ['phone', phoneIssue(student.phone, L)],
+    ['studentCard', student.studentCard ? '' : msg(L, 'errCardRequired', 'Student card is required.')],
   ])
 }
 
-export function checkCardFile(file) {
-  if (!file) return 'No file was selected.'
-  if (!CARD_TYPES.includes(file.type)) return 'Use a JPG, PNG or WEBP image of the card.'
-  if (file.size > CARD_MAX_BYTES) return 'This image is larger than 5 MB.'
+export function checkCardFile(file, L) {
+  if (!file) return msg(L, 'errFileNone', 'No file was selected.')
+  if (!CARD_TYPES.includes(file.type)) return msg(L, 'errFileType', 'Use a JPG, PNG or WEBP image of the card.')
+  if (file.size > CARD_MAX_BYTES) return msg(L, 'errFileSize', 'This image is larger than 5 MB.')
   return ''
 }
 
@@ -148,13 +157,13 @@ export const formatBytes = (bytes) => (bytes < 1024 * 1024 ? `${Math.max(1, Math
 
 export const roleLabel = (value) => activityRoles.find((role) => role.value && role.value === value)?.label || ''
 
-export const institutionLabel = (team) => (team.institution === OTHER_INSTITUTION_ID
+export const institutionLabel = (team, lang) => (team.institution === OTHER_INSTITUTION_ID
   ? text(team.customInstitution)
-  : findInstitution(team.wilaya, team.institution)?.name || '')
+  : institutionDisplayName(findInstitution(team.wilaya, team.institution), lang) || '')
 
-export const wilayaLabel = (code) => {
+export const wilayaLabel = (code, lang) => {
   const wilaya = findWilaya(code)
-  return wilaya ? `${wilaya.code} — ${wilaya.name}` : ''
+  return wilaya ? `${wilaya.code} — ${wilayaDisplayName(wilaya, lang)}` : ''
 }
 
 // Backend contract v3: answers are JSON, each student card travels as its own
