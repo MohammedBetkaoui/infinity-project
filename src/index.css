@@ -201,7 +201,6 @@ footer .infinity-mark-signal { stroke: #9ed7c4; opacity: .88; }
 .brand-descriptor { font-size: 10px; font-weight: 400; letter-spacing: .035em; color: #b6cec5; }
 .about-section { background: #e7dfcf; color: #00271b; background-image: radial-gradient(#00271b0b .7px, transparent .7px); background-size: 6px 6px; }
 .poles-section > .page-container { perspective: 1400px; }
-.poles-stage { transform-origin: center top; }
 .about-layout { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(40px, 6vw, 94px); align-items: center; }
 .workshop-notes { position: relative; padding: 22px 28px 0 0; }
 .notebook-sheet { position: relative; padding: 30px 30px 36px; background: #f3eee2; border: 1px solid #b7ad9660; transform: rotate(-2.1deg); transform-origin: 44% 58%; box-shadow: 9px 12px 0 #d5ccb9; }
@@ -235,6 +234,7 @@ footer .infinity-mark-signal { stroke: #9ed7c4; opacity: .88; }
 .section-intro h2 { max-width: 16ch; }
 .section-intro > p { max-width: 40ch; font-size: 13px; line-height: 1.9; color: #b6cec5; }
 .poles-section { background: #003828; }
+.poles-stage { transform-origin: center top; }
 .poles-explorer { display: grid; grid-template-columns: 1.05fr 1fr; gap: 64px; align-items: start; }
 .pole-tabs { border-top: 1px solid #638f8050; }
 .pole-tab { display: flex; align-items: center; width: 100%; gap: 20px; padding: 22px 12px; border-bottom: 1px solid #638f8035; text-align: left; color: #b6cec5; transition: color .2s, background .2s; }
@@ -242,12 +242,6 @@ footer .infinity-mark-signal { stroke: #9ed7c4; opacity: .88; }
 .pole-tab > svg { flex-shrink: 0; }
 .pole-tab:hover { color: #f1ebdd; background: #b6cec506; }
 .pole-tab.is-selected { color: #8cc7b3; background: #b6cec508; border-bottom-color: #8cc7b380; }
-/* Keyboard users always get a readable tab label, even mid-scrub. */
-.pole-tab:focus-visible .motion-text-word { opacity: 1 !important; transform: none !important; }
-/* Same guard for the FAQ accordion questions. */
-.home-faq-item button:focus-visible .motion-text-word { opacity: 1 !important; transform: none !important; }
-/* The featured-event card is one big link: keep every word readable on focus. */
-.home-event-feature-link:focus-visible .motion-text-word { opacity: 1 !important; transform: none !important; }
 .pole-detail { background: #e7dfcf; color: #00271b; }
 .pole-art { position: relative; height: 215px; overflow: hidden; background: #c4dbcd; }
 .pole-art-grid { position: absolute; inset: 0; background-image: linear-gradient(#00271b12 1px,transparent 1px),linear-gradient(90deg,#00271b12 1px,transparent 1px); background-size: 32px 32px; }
@@ -259,14 +253,18 @@ footer .infinity-mark-signal { stroke: #9ed7c4; opacity: .88; }
 .pole-focus { font-size: 11px; color: #376957; margin-bottom: 13px; }
 .pole-detail-copy h3 { font-family: Rajdhani, sans-serif; font-size: 36px; line-height: 1.1; font-weight: 600; letter-spacing: -.025em; }
 .pole-detail-copy h3 + p { max-width: 48ch; margin-block: 14px 22px; font-size: 13px; line-height: 1.8; color: #315f4f; }
-.poles-note { margin-top: 28px; font-size: 12px; color: #b6cec5; }
-.poles-note a { color: #8cc7b3; text-decoration: underline; text-underline-offset: 4px; }
 .pole-empty { padding: 28px; color: #b6cec5; border: 1px solid #638f8040; font-size: 14px; }
 .pole-accordion { border-top: 1px solid #638f8050; }
 .pole-accordion .pole-detail { margin-block: 14px 20px; }
 .pole-accordion .pole-art { height: 150px; }
 .pole-accordion .pole-icon-orbit { width: 124px; height: 124px; top: 13px; left: calc(50% - 62px); }
 .pole-accordion .pole-icon-orbit > svg { width: 60px; }
+.poles-note { margin-top: 28px; font-size: 12px; color: #b6cec5; }
+.poles-note a { color: #8cc7b3; text-decoration: underline; text-underline-offset: 4px; }
+/* Keyboard users always get a readable FAQ question, even mid-scrub. */
+.home-faq-item button:focus-visible .motion-text-word { opacity: 1 !important; transform: none !important; }
+/* The featured-event card is one big link: keep every word readable on focus. */
+.home-event-feature-link:focus-visible .motion-text-word { opacity: 1 !important; transform: none !important; }
 .community-section { background: #094a36; color: #f1ebdd; }
 .community-top { display: grid; grid-template-columns: 1.2fr 1fr; gap: 64px; align-items: end; }
 .community-top h2 { font-family: Rajdhani, sans-serif; font-weight: 500; font-size: clamp(38px,4.8vw,66px); line-height: 1; letter-spacing: -.03em; }
@@ -436,8 +434,7 @@ footer .infinity-mark-signal { stroke: #9ed7c4; opacity: .88; }
     transform: none !important;
   }
 
-  .interaction-ripple,
-  .pole-connection {
+  .interaction-ripple {
     display: none !important;
   }
 

@@ -1,10 +1,9 @@
 import {
   Bot,
-  Braces,
+  BrainCircuit,
   Clapperboard,
-  Fingerprint,
+  CodeXml,
   Palette,
-  PenTool,
   Smartphone,
 } from 'lucide-react'
 
@@ -20,53 +19,53 @@ export const joinCallToAction = { label: 'Join the club', href: '/join', to: '/j
 
 export const poles = [
   {
-    title: 'Personal Branding',
-    focus: 'Your voice, your network, your presence',
-    icon: PenTool,
-    description: 'Build a clear, credible presence and find your own voice in tech.',
-  },
-  {
-    title: 'Design & Business of Design',
-    focus: 'Visual identity and creative value',
-    icon: Palette,
-    description: 'Turn ideas into strong identities and experiences that make a difference.',
-  },
-  {
-    title: 'Intro to Coding',
-    focus: 'The basics and your first projects',
-    icon: Braces,
-    description: 'Learn the foundations of coding through hands-on workshops, one project at a time.',
+    title: 'Web & App Development',
+    focus: 'Websites, web apps and full-stack projects',
+    icon: CodeXml,
+    description: 'Build responsive websites and web applications, from the interface to the server, and put them online.',
+    topics: ['Front-end', 'Back-end & APIs', 'Deployment'],
   },
   {
     title: 'Mobile Development',
-    focus: 'Apps and prototypes',
+    focus: 'Native and cross-platform apps',
     icon: Smartphone,
-    description: 'Sketch, prototype and build mobile apps that are useful in everyday life.',
+    description: 'Sketch, prototype and build mobile apps that are useful in everyday life, from the first screen to release.',
+    topics: ['Cross-platform', 'Mobile UI', 'App release'],
+  },
+  {
+    title: 'AI Engineering',
+    focus: 'Models, data and intelligent products',
+    icon: BrainCircuit,
+    description: 'Train, evaluate and integrate machine learning models and LLMs into applications that solve real problems.',
+    topics: ['Machine learning', 'LLM apps', 'Model deployment'],
   },
   {
     title: 'AI & Automation',
     focus: 'n8n, agents and AI strategies',
     icon: Bot,
-    description: 'Explore AI strategies, agents and automated workflows with n8n.',
+    description: 'Design AI agents and automated workflows with n8n that take repetitive work off your hands.',
+    topics: ['n8n workflows', 'AI agents', 'Prompting'],
+  },
+  {
+    title: 'Graphic Design',
+    focus: 'Visual identity and communication',
+    icon: Palette,
+    description: 'Create logos, posters and visual identities that communicate clearly and leave a lasting impression.',
+    topics: ['Branding', 'Posters & social', 'Typography'],
   },
   {
     title: 'Video Editing',
     focus: 'Editing, rhythm and motion',
     icon: Clapperboard,
-    description: 'Tell stories through thoughtful editing, rhythm and motion design.',
-  },
-  {
-    title: 'Cybersecurity',
-    focus: 'Systems and digital security',
-    icon: Fingerprint,
-    description: 'Understand threats, secure systems and develop good security habits.',
+    description: 'Tell stories through thoughtful editing, rhythm and motion design, from raw footage to the final cut.',
+    topics: ['Editing', 'Motion design', 'Storytelling'],
   },
 ]
 
 export const stats = [
   { value: 3000, suffix: '+', label: 'Instagram followers' },
   { value: 130, suffix: '+', label: 'posts shared' },
-  { value: 7, suffix: '', label: 'fields to explore' },
+  { value: 6, suffix: '', label: 'fields to explore' },
   { value: 4, suffix: '', label: 'featured events' },
 ]
 
@@ -139,7 +138,7 @@ export const faqs = [
   {
     question: 'What kinds of events do you organise?',
     answer:
-      'Conferences, hands-on workshops, challenges and training sessions on development, AI, design, business and cybersecurity.',
+      'Conferences, hands-on workshops, challenges and training sessions on web and mobile development, AI, graphic design and video editing.',
   },
   {
     question: 'Are there opportunities to lead?',
