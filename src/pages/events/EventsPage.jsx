@@ -10,9 +10,17 @@ export default function EventsPage() {
   useEventsPageMotion(pageRef)
 
   useEffect(() => {
+    const html = document.documentElement
     const previousTitle = document.title
+    const previousPage = html.dataset.page
     document.title = 'Events | Infinity Club'
-    return () => { document.title = previousTitle }
+    // Scopes the compact sticky header (events.css) to this page only.
+    html.dataset.page = 'events'
+    return () => {
+      document.title = previousTitle
+      if (previousPage) html.dataset.page = previousPage
+      else delete html.dataset.page
+    }
   }, [])
 
   return (

@@ -4,13 +4,16 @@ import { events as clubEvents } from './siteData.js'
 // and sorts by year itself.
 //
 // Shape:
-//   id, title, year (number), category, edition?, description,
+//   id, title, year (number), category, edition?, description? (1-2 lines),
 //   href? (internal route or https URL; omit when there is no detail page),
 //   newTab?, status? ('upcoming' | 'past'), featured?,
 //   image? { src, srcSet, width, height, alt }  -> photo or screenshot
 //   artwork? EventArtwork variant                 -> existing typographic poster
-//   mock? true                                    -> placeholder content, see below
-// Without image or artwork, the card draws a branded placeholder.
+//   poster? { style, lines? }                     -> generated poster when there
+//     is no visual yet; style: 'register' | 'caption' | 'inverse' | 'rule'
+//   isMock? true                                  -> development metadata only,
+//     never rendered
+// Without image or artwork, the card draws a branded poster.
 
 const club = Object.fromEntries(clubEvents.map((event) => [event.name, event]))
 
@@ -51,9 +54,9 @@ const realEvents = [
 ]
 
 // ---------------------------------------------------------------------------
-// TEMPORARY MOCK EVENTS — placeholder content to evaluate the archive layout.
-// None of these happened. Replace or delete this block when real data lands;
-// cards built from it show a small "Sample" marker.
+// TEMPORARY MOCK EVENTS — development content to evaluate the archive layout.
+// None of these happened. Replace or delete this block when real data lands.
+// `isMock` is internal metadata and is never shown to visitors.
 // ---------------------------------------------------------------------------
 const mockEvents = [
   {
@@ -63,6 +66,7 @@ const mockEvents = [
     edition: 'First edition',
     category: 'Programming',
     description: 'An evening of coding challenges, collaboration and problem solving.',
+    poster: { style: 'caption', lines: ['Code.', 'Debug.', 'Repeat.'] },
   },
   {
     id: 'hackfinity-2025',
@@ -71,7 +75,7 @@ const mockEvents = [
     edition: '2025 edition',
     category: 'Hackathon',
     description: 'A collaborative hackathon focused on turning ideas into working prototypes.',
-    featured: true,
+    poster: { style: 'register' },
   },
   {
     id: 'web-week-2025',
@@ -79,7 +83,8 @@ const mockEvents = [
     year: 2025,
     edition: '2025 edition',
     category: 'Development',
-    description: 'A programme of sessions and workshops around modern web development.',
+    description: 'Sessions and workshops around modern web development.',
+    poster: { style: 'rule' },
   },
   {
     id: 'design-day-2025',
@@ -87,7 +92,8 @@ const mockEvents = [
     year: 2025,
     edition: '2025 edition',
     category: 'Design / UI UX',
-    description: 'A creative event exploring visual design, UI/UX and digital experiences.',
+    description: 'A creative day on visual design, UI/UX and digital experiences.',
+    poster: { style: 'inverse' },
   },
   {
     id: 'tech-talks-2025',
@@ -95,7 +101,8 @@ const mockEvents = [
     year: 2025,
     edition: '2025 edition',
     category: 'Technology',
-    description: 'A series of conversations and technical sessions led by students and guests.',
+    description: 'Conversations and technical sessions led by students and guests.',
+    poster: { style: 'caption', lines: ['Conversations.', 'Ideas.', 'People.'] },
   },
   {
     id: 'coding-challenge-2024',
@@ -103,7 +110,8 @@ const mockEvents = [
     year: 2024,
     edition: '2024 edition',
     category: 'Competitive Programming',
-    description: 'A student programming challenge focused on algorithms and problem solving.',
+    description: 'A student programming challenge on algorithms and problem solving.',
+    poster: { style: 'rule' },
   },
   {
     id: 'welcome-day-2024',
@@ -112,7 +120,8 @@ const mockEvents = [
     edition: '2024 edition',
     category: 'Community',
     description: 'An introduction to Infinity Club, its community and its activities.',
+    poster: { style: 'inverse' },
   },
-].map((event) => ({ ...event, status: 'past', mock: true }))
+].map((event) => ({ ...event, status: 'past', isMock: true }))
 
 export const eventArchive = [...realEvents, ...mockEvents]

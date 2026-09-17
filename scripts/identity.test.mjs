@@ -110,12 +110,14 @@ test('Events is a routed, year-grouped archive with scroll-linked motion', async
   assert.equal(years.flatMap(({ events }) => events).length, eventArchive.length)
   const aivex = eventArchive.find((event) => event.title === 'AIVEX')
   assert.equal(aivex.href, '/aivex')
-  // Rows never leave a lone card: every layout fills whole 12-column rows.
-  for (let count = 1; count <= 9; count += 1) {
-    const cells = layoutYear(Array.from({ length: count }, (_, index) => ({ id: String(index) })))
-    assert.equal(cells.reduce((sum, cell) => sum + cell.lg, 0) % 12, 0, `${count} events`)
-    assert.equal(cells.reduce((sum, cell) => sum + cell.md, 0) % 12, 0, `${count} events (tablet)`)
-  }
+  // Only featured events (or a year's single event) break the two-column rhythm.
+  assert.deepEqual(layoutYear([{ id: 'a' }]).map((cell) => cell.variant), ['featured'])
+  assert.deepEqual(layoutYear([{ id: 'a' }, { id: 'b' }, { id: 'c' }]).map((cell) => cell.variant), ['standard', 'standard', 'standard'])
+  assert.deepEqual(layoutYear([{ id: 'a', featured: true }, { id: 'b' }]).map((cell) => cell.variant), ['featured', 'standard'])
+  // Mock events are development metadata only.
+  assert.ok(eventArchive.every((event) => !('mock' in event)))
+  const card = await read('src/pages/events/EventCard.jsx')
+  assert.doesNotMatch(card, /isMock|Sample/)
 })
 
 test('no old French UI copy remains, including hidden controls and the loader', async () => {
