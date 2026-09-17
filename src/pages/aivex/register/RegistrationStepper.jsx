@@ -27,7 +27,7 @@ export default function RegistrationStepper({ current, done, onStep }) {
           )
         })}
         <li className="axr-stepper-end" data-active={done ? '' : undefined} aria-current={done ? 'step' : undefined}>
-          <span>04</span>
+          <span>{String(STEPS.length + 1).padStart(2, '0')}</span>
           <small>{done ? 'Confirmed' : 'Confirm'}</small>
         </li>
       </ol>

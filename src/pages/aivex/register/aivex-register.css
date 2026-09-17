@@ -59,7 +59,7 @@ html[data-page='aivex']::-webkit-scrollbar-thumb { border: 2px solid #1a1114; bo
 .axr-confirmation-note i { width: 5px; height: 5px; flex-shrink: 0; margin-top: 5px; background: var(--ax-pink); }
 
 .axr-form-paper {
-  --af-steps: 3;
+  --af-steps: 4;
   --af-ink: #111111;
   --af-muted: #675f5c;
   --af-line: #4f001d27;
@@ -102,7 +102,7 @@ html[data-page='aivex']::-webkit-scrollbar-thumb { border: 2px solid #1a1114; bo
 .axr-stepper-track > span { height: 2px; overflow: hidden; background: var(--af-line); }
 .axr-stepper-track > span + span { background: repeating-linear-gradient(90deg, var(--af-line-strong) 0 3px, transparent 3px 7px); }
 .axr-stepper-track i { display: block; height: 100%; background: var(--af-accent); transform-origin: left; }
-.axr-form-paper .axr-stepper ol { grid-template-columns: repeat(3, minmax(0, 1fr)) var(--axr-end); }
+.axr-form-paper .axr-stepper ol { grid-template-columns: repeat(4, minmax(0, 1fr)) var(--axr-end); }
 .axr-stepper li[data-active] button > span, .axr-stepper-end[data-active] > span { color: var(--af-accent); }
 .axr-stepper-end { display: flex; align-items: baseline; justify-content: flex-end; gap: 7px; min-height: 34px; color: var(--af-muted); }
 .axr-stepper-end > span { font-family: Rajdhani, sans-serif; font-size: 14px; font-weight: 650; }
@@ -112,20 +112,26 @@ html[data-page='aivex']::-webkit-scrollbar-thumb { border: 2px solid #1a1114; bo
 .axr-step-heading { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; }
 .axr-step-kicker { display: block; margin-bottom: 11px; color: var(--af-muted); font-size: 10px; letter-spacing: .08em; }
 
-/* Members: roster readout, rule, records. */
+/* Institution: titled groups of fields directly on the sheet. */
+.axr-sections { display: grid; gap: 30px; }
+.axr-form-section { min-width: 0; margin: 0; padding: 0; border: 0; }
+.axr-form-section > legend { display: flex; align-items: baseline; gap: 10px; width: 100%; margin-bottom: 16px; padding: 0 0 10px; border-bottom: 1px solid var(--af-line); color: var(--af-ink); font-family: Rajdhani, sans-serif; font-size: 13px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.axr-form-section > legend span { color: var(--af-accent); font-size: 13px; letter-spacing: .04em; }
+.axr-form-paper .axr-form-section-note { max-width: 60ch; margin: -6px 0 16px; color: var(--af-muted); font-size: 11px; line-height: 1.7; }
+.axr-reveal { overflow: hidden; }
+
+/* Students and delegation: readout, rule, records. */
 .axr-roster { display: grid; justify-items: end; gap: 9px; flex-shrink: 0; padding-bottom: 5px; }
 .axr-roster-label { color: var(--af-ink); font-family: Rajdhani, sans-serif; font-size: 14px; font-weight: 650; letter-spacing: .02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .axr-roster[data-reached] .axr-roster-label { color: var(--af-accent); }
 .axr-roster-slots { display: flex; gap: 4px; }
 .axr-roster-slots i { width: 22px; height: 5px; border: 1px solid var(--af-line-strong); transition: background-color .25s, border-color .25s; }
-.axr-roster-slots i[data-state='present'] { background: #4f001d24; }
 .axr-roster-slots i[data-state='complete'] { border-color: var(--af-accent); background: var(--af-accent); }
-.axr-roster-slots i[data-min] + i { margin-left: 7px; }
 .axr-form-paper .axr-roster-rule { display: flex; align-items: center; gap: 10px; margin: -12px 0 22px; padding-block: 10px; border-block: 1px solid var(--af-line); color: var(--af-muted); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; }
 .axr-roster-rule i { width: 5px; height: 5px; flex-shrink: 0; background: var(--af-accent); }
 
-.axr-members { display: grid; gap: 16px; }
-.axr-member {
+.axr-records { display: grid; gap: 16px; }
+.axr-record {
   --af-control: #fbfaf7;
   position: relative;
   border: 1px solid var(--af-line-strong);
@@ -133,32 +139,19 @@ html[data-page='aivex']::-webkit-scrollbar-thumb { border: 2px solid #1a1114; bo
   clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
   scroll-margin-block: 110px;
 }
-.axr-member::after { position: absolute; top: 0; right: 0; width: 14px; height: 14px; content: ''; pointer-events: none; background: linear-gradient(to top right, transparent calc(50% - .7px), var(--af-line-strong) calc(50% - .7px), var(--af-line-strong) calc(50% + .7px), transparent calc(50% + .7px)); }
-.axr-member[data-leader]::before { position: absolute; top: 0; left: 0; width: 46px; height: 3px; content: ''; background: var(--af-accent); }
-.axr-member-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; padding: 17px 22px 14px; border-bottom: 1px solid var(--af-line); }
-.axr-member-title { min-width: 0; }
-.axr-member-index { display: block; color: var(--af-muted); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; }
-.axr-member-index b { color: var(--af-accent); font-family: Rajdhani, sans-serif; font-size: 13px; font-weight: 700; letter-spacing: .04em; }
-.axr-form-paper .axr-member-title h3 { margin-top: 4px; font-family: Rajdhani, sans-serif; font-size: 25px; font-weight: 600; letter-spacing: -.02em; line-height: 1.05; overflow-wrap: anywhere; }
-.axr-member-title h3[data-empty] { color: #a0968f; }
-.axr-member-meta { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-.axr-member-badge { display: inline-block; padding: 4px 7px 3px; border: 1px solid var(--af-accent); color: var(--af-accent); font-size: 8px; font-weight: 700; letter-spacing: .12em; line-height: 1.2; text-transform: uppercase; }
-.axr-member-state { color: var(--af-muted); font-family: ui-monospace, monospace; font-size: 9px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.axr-member-state[data-complete] { color: var(--af-ink); font-weight: 700; }
-.axr-member-body { display: grid; gap: 4px; padding: 20px 22px 8px; }
-.axr-member-body .af-grid-two { gap: 18px; }
-.axr-member-foot { display: flex; justify-content: flex-end; padding: 9px 22px 11px; border-top: 1px dashed var(--af-line); }
-.axr-member-remove { min-height: 30px; border-bottom: 1px solid transparent; color: var(--af-muted); font-size: 10px; transition: color .2s, border-color .2s; }
-.axr-member-remove:hover { border-color: currentColor; color: var(--af-danger); }
-.axr-member-confirm { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px 16px; color: var(--af-ink); font-size: 10px; line-height: 1.5; }
-.axr-member-confirm button { min-height: 30px; border-bottom: 1px solid currentColor; font-size: 10px; font-weight: 700; }
-.axr-link-danger { color: var(--af-danger); }
+.axr-record::after { position: absolute; top: 0; right: 0; width: 14px; height: 14px; content: ''; pointer-events: none; background: linear-gradient(to top right, transparent calc(50% - .7px), var(--af-line-strong) calc(50% - .7px), var(--af-line-strong) calc(50% + .7px), transparent calc(50% + .7px)); }
+.axr-record-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; padding: 17px 22px 14px; border-bottom: 1px solid var(--af-line); }
+.axr-record-title { min-width: 0; }
+.axr-record-index { display: block; color: var(--af-muted); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; }
+.axr-record-index b { color: var(--af-accent); font-family: Rajdhani, sans-serif; font-size: 13px; font-weight: 700; letter-spacing: .04em; }
+.axr-form-paper .axr-record-title h3 { margin-top: 4px; font-family: Rajdhani, sans-serif; font-size: 25px; font-weight: 600; letter-spacing: -.02em; line-height: 1.05; overflow-wrap: anywhere; }
+.axr-record-title h3[data-empty] { color: #a0968f; }
+.axr-record-meta { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.axr-record-state { color: var(--af-muted); font-family: ui-monospace, monospace; font-size: 9px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.axr-record-state[data-complete] { color: var(--af-ink); font-weight: 700; }
+.axr-record-body { display: grid; gap: 4px; padding: 20px 22px 8px; }
+.axr-record-body .af-grid-two { gap: 18px; }
 
-.axr-roster-add { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 16px; padding: 13px 14px; border: 1px dashed var(--af-line-strong); }
-.axr-roster-add[data-invalid] { border-color: var(--af-danger); }
-.axr-add-member { min-height: 42px; }
-.axr-roster-next { color: var(--af-muted); font-family: ui-monospace, monospace; font-size: 9px; }
-.axr-form-paper .axr-roster-error { margin-top: 8px; }
 
 /* Student card capture. */
 .axr-upload { min-width: 0; padding-top: 2px; }
@@ -211,19 +204,20 @@ html[data-page='aivex']::-webkit-scrollbar-thumb { border: 2px solid #1a1114; bo
 .axr-review-edit { min-height: 30px; border-bottom: 1px solid #4f001d5c; color: var(--ax-wine); font-size: 10px; font-weight: 650; transition: color .2s; }
 .axr-review-edit:hover { color: var(--af-accent); }
 .axr-review-count { color: var(--af-muted); font-family: ui-monospace, monospace; font-size: 9px; }
-.axr-review-team, .axr-review-member-grid { margin: 0; }
+.axr-review-team, .axr-review-record-grid { margin: 0; }
 .axr-review-item { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 17px; padding-block: 10px; border-top: 1px solid #4f001d14; }
 .axr-review-item dt { color: #756c68; font-size: 10px; }
 .axr-review-item dd { margin: 0; font-size: 12px; font-weight: 650; line-height: 1.6; overflow-wrap: anywhere; }
 .axr-review-missing { color: var(--af-danger); font-weight: 600; }
 .axr-review-roster { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
-.axr-review-member { padding: 13px 16px 4px; border: 1px solid var(--af-line); background: #f4f2ed; }
-.axr-review-member-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 11px; padding-bottom: 9px; }
-.axr-review-member-no { color: var(--af-accent); font-family: Rajdhani, sans-serif; font-size: 14px; font-weight: 700; }
-.axr-review-member-head strong { min-width: 0; font-family: Rajdhani, sans-serif; font-size: 20px; font-weight: 600; line-height: 1.1; overflow-wrap: anywhere; }
-.axr-review-member-head .axr-review-edit { margin-left: auto; }
-.axr-review-member-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(150px, 1.15fr); column-gap: 16px; }
-.axr-review-member-grid .axr-review-item { grid-template-columns: 1fr; gap: 3px; }
+.axr-review-record { padding: 13px 16px 4px; border: 1px solid var(--af-line); background: #f4f2ed; }
+.axr-review-record-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 11px; padding-bottom: 9px; }
+.axr-review-record-no { color: var(--af-accent); font-family: Rajdhani, sans-serif; font-size: 14px; font-weight: 700; }
+.axr-review-record-head strong { min-width: 0; font-family: Rajdhani, sans-serif; font-size: 20px; font-weight: 600; line-height: 1.1; overflow-wrap: anywhere; }
+.axr-review-record-head .axr-review-edit { margin-left: auto; }
+.axr-review-record-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(150px, 1.15fr); column-gap: 16px; }
+.axr-review-record-grid .axr-review-item { grid-template-columns: 1fr; gap: 3px; }
+.axr-review-record-grid.axr-review-person-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .axr-review-card-toggle { display: inline-flex; align-items: center; gap: 8px; min-height: 28px; font-size: 12px; font-weight: 650; white-space: nowrap; }
 .axr-review-card-toggle img { width: 38px; aspect-ratio: 85.6 / 53.98; object-fit: cover; border: 1px solid var(--af-line); }
 .axr-review-card-toggle small { border-bottom: 1px solid currentColor; color: var(--ax-wine); font-size: 9px; }
@@ -262,7 +256,7 @@ html[data-page='aivex']::-webkit-scrollbar-thumb { border: 2px solid #1a1114; bo
   .axr-context h1 { font-size: clamp(44px, 4.9vw, 60px); }
   .axr-signal { height: 224px; }
   .axr-signal-orbit { width: 184px; height: 184px; left: calc(50% - 92px); top: 20px; }
-  .axr-review-member-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .axr-review-record-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 940px) {
   .axr-layout { grid-template-columns: 1fr; gap: 46px; }
@@ -292,17 +286,13 @@ html[data-page='aivex']::-webkit-scrollbar-thumb { border: 2px solid #1a1114; bo
   .axr-stepper { --axr-end: 60px; }
   .axr-step-heading { flex-direction: column; align-items: flex-start; gap: 16px; }
   .axr-roster { justify-items: start; }
-  .axr-member-head { flex-direction: column; align-items: flex-start; gap: 10px; padding: 15px 15px 12px; }
-  .axr-member-body { padding: 16px 15px 6px; }
-  .axr-member-foot { padding: 8px 15px 10px; }
-  .axr-member-confirm { justify-content: flex-start; }
+  .axr-record-head { flex-direction: column; align-items: flex-start; gap: 10px; padding: 15px 15px 12px; }
+  .axr-record-body { padding: 16px 15px 6px; }
   .axr-upload-file { grid-template-columns: 1fr; gap: 12px; }
   .axr-upload-preview { max-width: 300px; }
   .axr-upload-drop { min-height: 140px; }
-  .axr-roster-add { flex-direction: column; align-items: stretch; }
-  .axr-roster-next { text-align: center; }
   .axr-review-item, .axr-success-record > div { grid-template-columns: 95px minmax(0, 1fr); }
-  .axr-review-member { padding-inline: 13px; }
+  .axr-review-record { padding-inline: 13px; }
   .axr-privacy { grid-template-columns: 1fr; gap: 10px; }
   .axr-paper-credit-mark { height: 36px; max-width: 260px; }
   .axr-footer > div { flex-direction: column; gap: 7px; }

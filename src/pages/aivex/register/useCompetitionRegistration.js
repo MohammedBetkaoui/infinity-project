@@ -1,27 +1,30 @@
 import { useEffect, useMemo, useReducer, useRef } from 'react'
 import { isApplicationDeliveryConfigured, submitApplication } from '../../../lib/applicationSubmission'
+import { OTHER_INSTITUTION_ID, findInstitution, findWilaya } from '../../../data/algeriaHigherEducation'
 import {
-  LEADER_ID, MIN_MEMBERS, STEP, TEAM_FIELDS, MEMBER_FIELDS,
-  buildSubmission, createMember, emptyTeam, isMemberComplete, memberIssues, rosterIssue, teamIssues,
+  FORM_VERSION, SECTIONS, SECTION_ISSUES, STEP, STUDENT_COUNT, STUDENT_FIELDS,
+  buildSubmission, createStudents, emptyOfficial, emptyPerson, emptyTeam, studentIssues,
 } from './registrationModel'
 import prepareCardUploads from './prepareCardUploads'
 
-const STORAGE_KEY = 'aivex-registration-draft-v2'
-const LEGACY_KEYS = ['aivex-registration-draft-v1']
+const STORAGE_KEY = 'aivex-registration-draft-v3'
+const LEGACY_KEYS = ['aivex-registration-draft-v1', 'aivex-registration-draft-v2']
+const SECTION_NAMES = Object.keys(SECTIONS)
 
-export const teamFieldId = (field) => `axr-team-${field}`
-export const memberFieldId = (id, field) => `axr-m-${id}-${field}`
-export const memberCardId = (id) => `axr-member-${id}`
-export const ADD_MEMBER_ID = 'axr-add-member'
+export const fieldId = (section, field) => `axr-${section}-${field}`
+export const studentFieldId = (id, field) => `axr-${id}-${field}`
+export const recordId = (key) => `axr-record-${key}`
 export const CONSENT_ID = 'axr-consent'
 
 const initialState = () => ({
-  step: STEP.team,
-  team: { ...emptyTeam },
-  members: [createMember(true)],
+  step: STEP.institution,
+  team: emptyTeam(),
+  activityOfficial: emptyOfficial(),
+  delegationHead: emptyPerson(),
+  driver: emptyPerson(),
+  students: createStudents(),
   touched: {},
   attempted: {},
-  checkedMembers: {},
   consent: false,
   website: '',
   status: 'idle',
@@ -30,6 +33,10 @@ const initialState = () => ({
   hasDraft: false,
 })
 
+const pick = (source, template) => Object.fromEntries(
+  Object.keys(template).map((key) => [key, typeof source?.[key] === 'string' ? source[key] : template[key]]),
+)
+
 // Files cannot live in sessionStorage: the draft keeps every typed answer and
 // remembers which card was attached so the card can ask for it again.
 function restore() {
@@ -37,15 +44,28 @@ function restore() {
   try {
     LEGACY_KEYS.forEach((key) => window.sessionStorage.removeItem(key))
     const draft = JSON.parse(window.sessionStorage.getItem(STORAGE_KEY) || 'null')
-    if (!draft?.team || !Array.isArray(draft.members) || !draft.members.length) return base
-    const members = draft.members.map((member) => ({ ...createMember(member.isLeader), ...member, studentCard: null }))
-    if (!members[0]?.isLeader) return base
-    const lostCards = members.some((member) => member.droppedCard)
+    if (!draft || !Array.isArray(draft.students) || draft.students.length !== STUDENT_COUNT) return base
+
+    const team = pick(draft.team, emptyTeam())
+    // Never keep an institution that does not belong to the saved wilaya.
+    if (!findWilaya(team.wilaya)) Object.assign(team, { wilaya: '', institution: '', customInstitution: '' })
+    else if (!findInstitution(team.wilaya, team.institution)) Object.assign(team, { institution: '', customInstitution: '' })
+    if (team.institution !== OTHER_INSTITUTION_ID) team.customInstitution = ''
+
+    const students = base.students.map((student, index) => ({
+      ...student,
+      ...pick(draft.students[index], { fullName: '', registrationNumber: '', studyLevel: '', phone: '' }),
+      droppedCard: typeof draft.students[index]?.droppedCard === 'string' ? draft.students[index].droppedCard : null,
+    }))
+    const lostCards = students.some((student) => student.droppedCard)
     return {
       ...base,
-      team: { ...emptyTeam, ...draft.team },
-      members,
-      step: Math.min(draft.step || 0, lostCards ? STEP.members : STEP.review),
+      team,
+      activityOfficial: pick(draft.activityOfficial, emptyOfficial()),
+      delegationHead: pick(draft.delegationHead, emptyPerson()),
+      driver: pick(draft.driver, emptyPerson()),
+      students,
+      step: Math.min(Number(draft.step) || 0, lostCards ? STEP.students : STEP.review),
       hasDraft: true,
     }
   } catch {
@@ -53,52 +73,49 @@ function restore() {
   }
 }
 
-const clearIssue = (touched, key) => {
-  if (!(key in touched)) return touched
+const withoutKeys = (touched, keys) => {
+  if (!keys.some((key) => key in touched)) return touched
   const next = { ...touched }
-  delete next[key]
+  keys.forEach((key) => delete next[key])
   return next
 }
 
+const idle = (status) => (status === 'submitting' ? status : 'idle')
+
 function reducer(state, action) {
   switch (action.type) {
-    case 'team':
-      return { ...state, team: { ...state.team, [action.field]: action.value }, status: state.status === 'submitting' ? state.status : 'idle' }
-    case 'member':
+    case 'field': {
+      const { section, field, value } = action
+      const next = { ...state[section], [field]: value }
+      let { touched } = state
+      if (section === 'team' && field === 'wilaya' && value !== state.team.wilaya) {
+        // A new wilaya invalidates the institution chosen for the previous one.
+        next.institution = ''
+        next.customInstitution = ''
+        touched = withoutKeys(touched, ['team.institution', 'team.customInstitution'])
+      }
+      if (section === 'team' && field === 'institution' && value !== OTHER_INSTITUTION_ID) {
+        next.customInstitution = ''
+        touched = withoutKeys(touched, ['team.customInstitution'])
+      }
+      return { ...state, [section]: next, touched, status: idle(state.status) }
+    }
+    case 'student':
       return {
         ...state,
-        status: state.status === 'submitting' ? state.status : 'idle',
-        members: state.members.map((member) => (member.id !== action.id ? member : {
-          ...member,
+        status: idle(state.status),
+        students: state.students.map((student) => (student.id !== action.id ? student : {
+          ...student,
           [action.field]: action.value,
           ...(action.field === 'studentCard' ? { droppedCard: null } : {}),
         })),
       }
     case 'touch':
       return state.touched[action.key] ? state : { ...state, touched: { ...state.touched, [action.key]: true } }
-    case 'add': {
-      const member = createMember(false)
-      return { ...state, members: [...state.members, member], focus: { id: memberFieldId(member.id, 'fullName'), scroll: true } }
-    }
-    case 'remove': {
-      const index = state.members.findIndex((member) => member.id === action.id)
-      if (index < 1) return state
-      const members = state.members.filter((member) => member.id !== action.id)
-      const neighbour = members[Math.min(index, members.length - 1)]
-      let touched = state.touched
-      MEMBER_FIELDS.forEach((field) => { touched = clearIssue(touched, `member.${action.id}.${field}`) })
-      return { ...state, members, touched, focus: { id: index < members.length ? memberCardId(neighbour.id) : ADD_MEMBER_ID } }
-    }
     case 'go':
       return { ...state, step: action.step, focus: action.focus ?? { id: 'axr-step-heading' } }
-    case 'attempt': {
-      // A failed Continue reveals errors on the records that existed then;
-      // a record added afterwards starts clean.
-      const checkedMembers = action.step === STEP.members
-        ? { ...state.checkedMembers, ...Object.fromEntries(state.members.map((member) => [member.id, true])) }
-        : state.checkedMembers
-      return { ...state, attempted: { ...state.attempted, [action.step]: true }, checkedMembers, focus: action.focus ?? state.focus }
-    }
+    case 'attempt':
+      return { ...state, attempted: { ...state.attempted, [action.step]: true }, focus: action.focus ?? state.focus }
     case 'focused':
       return { ...state, focus: null }
     case 'consent':
@@ -106,7 +123,7 @@ function reducer(state, action) {
     case 'website':
       return { ...state, website: action.value }
     case 'status':
-      return { ...state, status: action.status, result: action.result ?? null, step: action.status === 'success' ? STEP.review : state.step }
+      return { ...state, status: action.status, result: action.result ?? null }
     case 'reset':
       return { ...initialState(), focus: { id: 'axr-step-heading' } }
     default:
@@ -121,26 +138,27 @@ const toUserMessage = (error) => {
   return 'We could not send the registration. Your answers are still saved in this tab.'
 }
 
+const hasText = (record) => Object.values(record).some((value) => typeof value === 'string' && value.trim())
+
 export default function useCompetitionRegistration() {
   const [state, dispatch] = useReducer(reducer, undefined, restore)
   const submitting = useRef(false)
-  const { step, team, members, touched, attempted, consent, status, focus } = state
+  const { step, team, activityOfficial, delegationHead, driver, students, touched, attempted, consent, status, focus } = state
 
   const derived = useMemo(() => {
-    const teamErrors = teamIssues(team)
-    const memberErrors = Object.fromEntries(members.map((member) => [member.id, memberIssues(member, team)]))
-    const completeCount = members.filter((member) => isMemberComplete(member, team)).length
-    return {
-      teamErrors,
-      memberErrors,
-      completeCount,
-      roster: rosterIssue(members),
-      teamValid: Object.keys(teamErrors).length === 0,
-      membersValid: members.length >= MIN_MEMBERS && completeCount === members.length,
+    const issues = {
+      team: SECTION_ISSUES.team(team),
+      activityOfficial: SECTION_ISSUES.activityOfficial(activityOfficial),
+      delegationHead: SECTION_ISSUES.delegationHead(delegationHead),
+      driver: SECTION_ISSUES.driver(driver),
     }
-  }, [team, members])
+    const studentErrors = Object.fromEntries(students.map((student) => [student.id, studentIssues(student, students)]))
+    const completeCount = students.filter((student) => !Object.keys(studentErrors[student.id]).length).length
+    const sectionComplete = Object.fromEntries(SECTION_NAMES.map((name) => [name, !Object.keys(issues[name]).length]))
+    return { issues, studentErrors, completeCount, sectionComplete }
+  }, [team, activityOfficial, delegationHead, driver, students])
 
-  // Persist typed answers; drop the draft once the registration is delivered.
+  // Persist typed answers (never files); drop the draft once delivered.
   useEffect(() => {
     if (status === 'success') {
       window.sessionStorage.removeItem(STORAGE_KEY)
@@ -151,11 +169,15 @@ export default function useCompetitionRegistration() {
         const snapshot = {
           step,
           team,
-          members: members.map(({ studentCard, ...member }) => ({ ...member, droppedCard: studentCard?.name || member.droppedCard || null })),
+          activityOfficial,
+          delegationHead,
+          driver,
+          students: students.map(({ studentCard, ...student }) => ({ ...student, droppedCard: studentCard?.name || student.droppedCard || null })),
         }
-        const hasAnswers = Object.values(team).some((value) => String(value).trim())
-          || members.length > 1
-          || members.some((member) => member.registrationNumber || member.studyLevel || member.phone || member.studentCard)
+        const hasAnswers = [team, activityOfficial, delegationHead, driver].some(hasText)
+          || students.some(({ fullName, registrationNumber, studyLevel, phone, studentCard }) => (
+            hasText({ fullName, registrationNumber, studyLevel, phone }) || studentCard
+          ))
         if (hasAnswers) window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot))
         else window.sessionStorage.removeItem(STORAGE_KEY)
       } catch {
@@ -163,7 +185,7 @@ export default function useCompetitionRegistration() {
       }
     }, 320)
     return () => window.clearTimeout(timer)
-  }, [status, step, team, members])
+  }, [status, step, team, activityOfficial, delegationHead, driver, students])
 
   // Steps swap inside AnimatePresence, so a target can mount a few frames late.
   useEffect(() => {
@@ -189,39 +211,39 @@ export default function useCompetitionRegistration() {
     return () => window.cancelAnimationFrame(frame)
   }, [focus])
 
-  const firstMemberIssue = () => {
-    for (const member of members) {
-      const issues = derived.memberErrors[member.id]
-      const field = MEMBER_FIELDS.find((name) => issues[name])
-      if (field) return memberFieldId(member.id, field)
+  // First invalid field of a step, in reading order, or null.
+  const firstIssue = (stepIndex) => {
+    if (stepIndex === STEP.students) {
+      for (const student of students) {
+        const field = STUDENT_FIELDS.find((name) => derived.studentErrors[student.id][name])
+        if (field) return studentFieldId(student.id, field)
+      }
+      return null
+    }
+    for (const section of SECTION_NAMES) {
+      if (SECTIONS[section].step !== stepIndex) continue
+      const field = SECTIONS[section].fields.find((name) => derived.issues[section][name])
+      if (field) return fieldId(section, field)
     }
     return null
   }
 
   const advance = () => {
-    if (step === STEP.team) {
-      const field = TEAM_FIELDS.find((name) => derived.teamErrors[name])
-      if (field) return dispatch({ type: 'attempt', step: STEP.team, focus: { id: teamFieldId(field) } })
-      return dispatch({ type: 'go', step: STEP.members })
-    }
-    if (step === STEP.members) {
-      const target = firstMemberIssue() || (derived.roster ? ADD_MEMBER_ID : null)
-      if (target) return dispatch({ type: 'attempt', step: STEP.members, focus: { id: target, scroll: true } })
-      return dispatch({ type: 'go', step: STEP.review })
-    }
-    return undefined
+    if (step >= STEP.review) return undefined
+    const target = firstIssue(step)
+    if (target) return dispatch({ type: 'attempt', step, focus: { id: target, scroll: true } })
+    return dispatch({ type: 'go', step: step + 1 })
   }
 
   const submit = async (event) => {
     event?.preventDefault()
     if (step !== STEP.review) return advance()
-    if (!derived.teamValid) {
-      dispatch({ type: 'attempt', step: STEP.team })
-      return dispatch({ type: 'go', step: STEP.team, focus: { id: teamFieldId(TEAM_FIELDS.find((name) => derived.teamErrors[name])) } })
-    }
-    if (!derived.membersValid) {
-      dispatch({ type: 'attempt', step: STEP.members })
-      return dispatch({ type: 'go', step: STEP.members, focus: { id: firstMemberIssue() || ADD_MEMBER_ID, scroll: true } })
+    for (const stepIndex of [STEP.institution, STEP.delegation, STEP.students]) {
+      const target = firstIssue(stepIndex)
+      if (target) {
+        dispatch({ type: 'attempt', step: stepIndex })
+        return dispatch({ type: 'go', step: stepIndex, focus: { id: target, scroll: true } })
+      }
     }
     if (!consent) return dispatch({ type: 'attempt', step: STEP.review, focus: { id: CONSENT_ID } })
     if (submitting.current) return undefined
@@ -229,10 +251,10 @@ export default function useCompetitionRegistration() {
     submitting.current = true
     dispatch({ type: 'status', status: 'submitting' })
     try {
-      const { answers, files } = buildSubmission({ team, members, consent })
+      const { answers, files } = buildSubmission({ team, activityOfficial, delegationHead, driver, students, consent })
       const uploads = await prepareCardUploads(files)
       const [result] = await Promise.all([
-        submitApplication('aivex', { ...answers, website: state.website }, { files: uploads, version: 2 }),
+        submitApplication('aivex', { ...answers, website: state.website }, { files: uploads, version: FORM_VERSION }),
         new Promise((resolve) => window.setTimeout(resolve, 460)),
       ])
       dispatch({ type: 'status', status: result.delivered ? 'success' : 'draft', result })
@@ -251,21 +273,16 @@ export default function useCompetitionRegistration() {
     ...state,
     ...derived,
     endpointConfigured: isApplicationDeliveryConfigured('aivex'),
-    teamError: (field) => (shows(STEP.team, `team.${field}`) ? derived.teamErrors[field] || '' : ''),
-    memberError: (id, field) => {
-      const key = `member.${id}.${field}`
-      // The leader's name is also the Team step's leader field.
-      const visible = Boolean(state.checkedMembers[id] || touched[key])
-        || (id === LEADER_ID && field === 'fullName' && shows(STEP.team, 'team.leaderName'))
-      return visible ? derived.memberErrors[id]?.[field] || '' : ''
-    },
-    rosterError: attempted[STEP.members] ? derived.roster : '',
+    fieldError: (section, field) => (
+      shows(SECTIONS[section].step, `${section}.${field}`) ? derived.issues[section][field] || '' : ''
+    ),
+    studentError: (id, field) => (
+      shows(STEP.students, `student.${id}.${field}`) ? derived.studentErrors[id]?.[field] || '' : ''
+    ),
     consentError: attempted[STEP.review] && !consent ? 'Confirm the statement above before submitting.' : '',
-    setTeam: (field, value) => dispatch({ type: 'team', field, value }),
-    setMember: (id, field, value) => dispatch({ type: 'member', id, field, value }),
+    setField: (section, field, value) => dispatch({ type: 'field', section, field, value }),
+    setStudent: (id, field, value) => dispatch({ type: 'student', id, field, value }),
     touch: (key) => dispatch({ type: 'touch', key }),
-    addMember: () => dispatch({ type: 'add' }),
-    removeMember: (id) => dispatch({ type: 'remove', id }),
     setConsent: (value) => dispatch({ type: 'consent', value }),
     setWebsite: (value) => dispatch({ type: 'website', value }),
     advance,
