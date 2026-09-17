@@ -44,7 +44,9 @@ const pickServerMessage = (payload) => {
   return trimmed.slice(0, 300)
 }
 
-export async function submitApplication(kind, answers) {
+// `files` ([{ field, file }]) switches the request to multipart/form-data:
+// the JSON envelope travels in a `payload` part, each file in its own part.
+export async function submitApplication(kind, answers, { files = [], version = 1 } = {}) {
   const endpoint = ENDPOINTS[kind]
   const reference = makeReference(kind)
 
@@ -53,23 +55,33 @@ export async function submitApplication(kind, answers) {
   if (!endpoint) return { delivered: false, reference }
 
   const controller = new AbortController()
-  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  const timeout = window.setTimeout(() => controller.abort(), files.length ? REQUEST_TIMEOUT_MS * 4 : REQUEST_TIMEOUT_MS)
 
   try {
     const { website: _honeypot, ...safeAnswers } = answers
+    const envelope = JSON.stringify({
+      form: kind,
+      version,
+      reference,
+      submittedAt: new Date().toISOString(),
+      source: window.location.href,
+      answers: safeAnswers,
+    })
+    let body = envelope
+    const headers = { Accept: 'application/json' }
+    if (files.length) {
+      body = new FormData()
+      body.append('payload', envelope)
+      files.forEach(({ field, file }) => body.append(field, file, file.name))
+    } else {
+      headers['Content-Type'] = 'application/json'
+    }
     let response
     try {
       response = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({
-          form: kind,
-          version: 1,
-          reference,
-          submittedAt: new Date().toISOString(),
-          source: window.location.href,
-          answers: safeAnswers,
-        }),
+        headers,
+        body,
         signal: controller.signal,
       })
     } catch (networkError) {
