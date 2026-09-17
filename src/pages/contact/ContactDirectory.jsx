@@ -1,5 +1,5 @@
-import { ArrowUpRight, MessageCircle } from 'lucide-react'
-import { contactInstagram, contactReasons } from './contactData'
+import { ArrowUpRight, Mail, MessageCircle } from 'lucide-react'
+import { contactEmail, contactInstagram, contactReasons } from './contactData'
 
 export default function ContactDirectory() {
   return (
@@ -14,6 +14,9 @@ export default function ContactDirectory() {
               <span>@club_.infinity</span><ArrowUpRight size={27} strokeWidth={1.25} />
             </a>
             <span className="contact-channel-note">Find the club on Instagram</span>
+            <a className="contact-secondary-channel" href={`mailto:${contactEmail}`}>
+              <Mail size={15} strokeWidth={1.5} aria-hidden="true" /><span>{contactEmail}</span>
+            </a>
           </div>
           <div className="contact-reasons" aria-label="What to contact the club about">
             {contactReasons.map(({ title, description, Icon }) => (

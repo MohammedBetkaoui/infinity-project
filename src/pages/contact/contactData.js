@@ -1,6 +1,7 @@
 import { CalendarDays, Handshake, Users } from 'lucide-react'
 
 export const contactInstagram = 'https://www.instagram.com/club_.infinity/'
+export const contactEmail = 'infinity.tech@univ-bba.dz'
 
 export const contactReasons = [
   {

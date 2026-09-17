@@ -24,6 +24,8 @@
 .contact-primary-channel:hover { color: #00271b; border-color: #00271b; }
 .contact-primary-channel:hover svg { transform: translate(3px, -3px); }
 .contact-channel-note { display: block; margin-top: 11px; font-size: 11px; color: #496859; }
+.contact-secondary-channel { display: inline-flex; align-items: center; gap: 9px; width: fit-content; margin-top: 19px; padding-bottom: 2px; border-bottom: 1px solid #094a3640; font-size: 13px; font-weight: 600; color: #094a36; transition: color .2s, border-color .2s; }
+.contact-secondary-channel:hover { color: #00271b; border-color: #00271b; }
 
 .contact-reason { display: grid; grid-template-columns: 22px 1fr; gap: 20px; padding: 24px 0; border-bottom: 1px solid #094a3629; }
 .contact-reason:first-child { padding-top: 6px; }
