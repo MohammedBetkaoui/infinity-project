@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
-import EventsClosing from './EventsClosing'
+import EventArchive from './EventArchive'
+import EventsCTA from './EventsCTA'
 import EventsHero from './EventsHero'
-import EventsProgramme from './EventsProgramme'
 import useEventsPageMotion from './useEventsPageMotion'
 import './events.css'
 
@@ -18,8 +18,8 @@ export default function EventsPage() {
   return (
     <div id="events-page" ref={pageRef} className="events-page">
       <EventsHero />
-      <EventsProgramme />
-      <EventsClosing />
+      <EventArchive />
+      <EventsCTA />
     </div>
   )
 }

@@ -90,19 +90,32 @@ test('About is a dedicated routed page with restrained, content-driven motion', 
   assert.match(await read('src/components/NavigationLink.jsx'), /motion\.create\(Link\)/)
 })
 
-test('Events is a dedicated routed page with one real programme and scroll-linked motion', async () => {
+test('Events is a routed, year-grouped archive with scroll-linked motion', async () => {
   const app = await read('src/App.jsx')
   const page = await read('src/pages/events/EventsPage.jsx')
-  const programme = await read('src/pages/events/EventsProgramme.jsx')
+  const archive = await read('src/pages/events/EventArchive.jsx')
   const motion = await read('src/pages/events/useEventsPageMotion.js')
   const styles = await read('src/pages/events/events.css')
   assert.match(app, /path="\/events" element={<SitePage><EventsPage \/><\/SitePage>}/)
   assert.match(page, /<EventsHero \/>/)
-  assert.match(page, /<EventsProgramme \/>/)
-  assert.match(programme, /events\.filter\(\(event\) => event\.href\)/)
-  assert.match(programme, /<EventFeatureCard/)
-  assert.match(motion, /scrub: true/)
+  assert.match(page, /<EventArchive \/>/)
+  assert.match(archive, /groupEventsByYear\(eventArchive\)/)
+  assert.match(motion, /revealSection/)
   assert.match(styles, /prefers-reduced-motion: reduce/)
+
+  const { eventArchive } = await import('../src/data/eventArchive.js')
+  const { groupEventsByYear, layoutYear } = await import('../src/pages/events/archiveLayout.js')
+  const years = groupEventsByYear(eventArchive)
+  assert.deepEqual(years.map(({ year }) => year), [...years.map(({ year }) => year)].sort((a, b) => b - a))
+  assert.equal(years.flatMap(({ events }) => events).length, eventArchive.length)
+  const aivex = eventArchive.find((event) => event.title === 'AIVEX')
+  assert.equal(aivex.href, '/aivex')
+  // Rows never leave a lone card: every layout fills whole 12-column rows.
+  for (let count = 1; count <= 9; count += 1) {
+    const cells = layoutYear(Array.from({ length: count }, (_, index) => ({ id: String(index) })))
+    assert.equal(cells.reduce((sum, cell) => sum + cell.lg, 0) % 12, 0, `${count} events`)
+    assert.equal(cells.reduce((sum, cell) => sum + cell.md, 0) % 12, 0, `${count} events (tablet)`)
+  }
 })
 
 test('no old French UI copy remains, including hidden controls and the loader', async () => {

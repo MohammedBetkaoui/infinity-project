@@ -1,57 +1,21 @@
-import { useLayoutEffect } from 'react'
-import gsap from 'gsap'
-import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import useScrollAnimations from '../../hooks/useScrollAnimations'
 
-gsap.registerPlugin(ScrollTrigger)
-
+// Same scrubbed, reversible choreography as the rest of the site: headings
+// rise, copy illuminates, and each year's cards fade in as that year arrives.
 export default function useEventsPageMotion(pageRef) {
-  useScrollAnimations(pageRef, (motion) => {
-    pageRef.current.querySelectorAll('h2').forEach((title) => motion.revealText(title))
-    pageRef.current.querySelectorAll('.events-feature-summary, .events-closing-layout p')
-      .forEach((copy) => motion.revealText(copy, { type: 'lines' }))
-    motion.revealAllText()
-  })
-  useLayoutEffect(() => {
+  useScrollAnimations(pageRef, ({ revealText, revealSection, revealAllText }) => {
     const page = pageRef.current
-    const media = gsap.matchMedia()
-
-    media.add({
-      all: 'all',
-      reduced: '(prefers-reduced-motion: reduce)',
-    }, ({ conditions }) => {
-      const { reduced } = conditions
-      page.dataset.motion = reduced ? 'reduced' : 'active'
-      const previews = [...page.querySelectorAll('.events-preview')]
-      if (!reduced) {
-        previews.forEach((preview) => {
-          const depth = preview.querySelector('.events-preview-depth')
-          const shadow = preview.querySelector('.events-preview-shadow')
-          const edge = preview.querySelector('.events-preview-edge')
-
-          // The whole screenshot settles into a flat reading plane before it reaches the top.
-          gsap.timeline({
-            defaults: { ease: 'none' },
-            scrollTrigger: {
-              trigger: preview, start: 'top 94%', end: 'top 27%',
-              scrub: true, invalidateOnRefresh: true,
-              onToggle: ({ isActive }) => { preview.dataset.scrollActive = String(isActive) },
-            },
-          })
-            .fromTo(depth, {
-              y: 24, scale: .967,
-              rotationX: 6.2, rotationY: -1.4,
-            }, { y: 0, scale: 1, rotationX: 0, rotationY: 0, duration: 1 }, 0)
-            .fromTo(shadow, { opacity: .16, scaleX: .93, y: 16 }, { opacity: .07, scaleX: 1, y: 0, duration: 1 }, 0)
-            .fromTo(edge, { scaleX: 0 }, { scaleX: 1, duration: 1 }, 0)
-        })
-      }
-
-      return () => {
-        previews.forEach((preview) => { delete preview.dataset.scrollActive })
-      }
-    }, page)
-
-    return () => { media.revert(); delete page.dataset.motion }
-  }, [pageRef])
+    page.querySelectorAll('.events-archive-intro h2, .events-year-title, .events-cta h2')
+      .forEach((title) => revealText(title))
+    page.querySelectorAll('.events-archive-intro p, .events-cta p')
+      .forEach((copy) => revealText(copy, { type: 'lines' }))
+    page.querySelectorAll('.events-year').forEach((year) => {
+      revealSection(year.querySelectorAll('.event-card'), {
+        mode: 'fade',
+        trigger: year.querySelector('.events-year-grid'),
+        stagger: .08,
+      })
+    })
+    revealAllText()
+  })
 }

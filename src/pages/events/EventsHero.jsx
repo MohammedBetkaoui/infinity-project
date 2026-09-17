@@ -7,9 +7,9 @@ export default function EventsHero() {
       title="Events"
       titleId="events-page-title"
       lead="Good things happen when we meet."
-      summary="Competitions and shared experiments, brought to life by the students of Infinity Club."
-      href="#current-programme"
-      linkLabel="Discover the programme"
+      summary="Competitions, workshops, challenges and experiences built by Infinity Club."
+      href="#event-archive"
+      linkLabel="Explore the programme ↓"
     />
   )
 }
