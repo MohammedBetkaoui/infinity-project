@@ -18,9 +18,16 @@ import { consumeRateLimit, getClientIp, isTrustedOrigin } from './_lib/security.
 const MAX_BODY_BYTES = 65536
 const RATE_LIMIT = { max: 8, windowMs: 10 * 60 * 1000 }
 
-const ALLOWED_STUDY_YEARS = new Set(['L1', 'L2', 'L3', 'M1', 'M2', 'other'])
+const ALLOWED_STUDY_YEARS = new Set(['L1', 'L2', 'L3', 'M1', 'M2', 'E1', 'E2', 'E3', 'E4', 'E5', 'other'])
 const ALLOWED_EXPERIENCE = new Set(['starting', 'learning', 'building'])
 const ALLOWED_AVAILABILITY = new Set(['weekly', 'events', 'flexible'])
+const ALLOWED_JOIN_TYPES = new Set(['member', 'staff'])
+// Stored as the slug; the label also fills primary_field for staff rows.
+const STAFF_DEPARTMENTS = {
+  'dev-tech': 'Dev / Tech',
+  'design-content': 'Design / Content Creation',
+  'management-logistics': 'Management / Logistics',
+}
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const MAX_LEN = {
@@ -28,12 +35,9 @@ const MAX_LEN = {
   email: 254,
   phone: 40,
   department: 120,
-  primaryField: 120,
-  motivation: 520,
+  memberInterest: 120,
   source: 500,
 }
-
-const MOTIVATION_MIN = 45
 
 const send = (res, status, payload) => {
   res.statusCode = status
@@ -168,21 +172,36 @@ const validateApplication = (res, body) => {
     return null
   }
 
-  const primaryField = normalizeString(answers.primaryField)
-  if (primaryField.length < 1 || primaryField.length > MAX_LEN.primaryField) {
-    invalid(res, 'Please choose a field.', 'primaryField')
+  const formVersion = Number.isFinite(body.version) ? Math.trunc(body.version) : 1
+
+  // v1 clients (a tab opened before the Member/Staff release) had no role
+  // choice: they were all member applications, with the interest in primaryField.
+  const legacy = formVersion < 2 && answers.joinType === undefined
+  const joinType = legacy ? 'member' : normalizeString(answers.joinType)
+  if (!ALLOWED_JOIN_TYPES.has(joinType)) {
+    invalid(res, 'Choose how you would like to join Infinity.', 'joinType')
     return null
+  }
+
+  let memberInterest = null
+  let staffDepartment = null
+  if (joinType === 'member') {
+    memberInterest = normalizeString(legacy ? answers.primaryField : answers.memberInterest)
+    if (memberInterest.length < 1 || memberInterest.length > MAX_LEN.memberInterest) {
+      invalid(res, 'Choose what you would like to explore.', 'memberInterest')
+      return null
+    }
+  } else {
+    staffDepartment = normalizeString(answers.staffDepartment)
+    if (!Object.hasOwn(STAFF_DEPARTMENTS, staffDepartment)) {
+      invalid(res, 'Choose the department you would like to join.', 'staffDepartment')
+      return null
+    }
   }
 
   const experience = normalizeString(answers.experience)
   if (!ALLOWED_EXPERIENCE.has(experience)) {
     invalid(res, 'Please tell us where you are starting from.', 'experience')
-    return null
-  }
-
-  const motivation = normalizeString(answers.motivation)
-  if (motivation.length < MOTIVATION_MIN || motivation.length > MAX_LEN.motivation) {
-    invalid(res, 'Tell us a little more, using at least 45 characters.', 'motivation')
     return null
   }
 
@@ -198,18 +217,20 @@ const validateApplication = (res, body) => {
   }
 
   const source = normalizeString(body.source).slice(0, MAX_LEN.source) || null
-  const formVersion = Number.isFinite(body.version) ? Math.trunc(body.version) : 1
 
   // Explicit allowlist: unknown client properties are ignored, never inserted.
+  // primary_field keeps one readable "area" per row: the member's interest,
+  // or the staff department's label.
   return {
     full_name: fullName,
     email,
     phone,
     study_year: studyYear,
     department,
-    primary_field: primaryField,
+    join_type: joinType,
+    staff_department: staffDepartment,
+    primary_field: memberInterest ?? STAFF_DEPARTMENTS[staffDepartment],
     experience,
-    motivation,
     availability,
     consent: true,
     source,

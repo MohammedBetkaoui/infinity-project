@@ -28,7 +28,9 @@ const containsAnswers = (values) => Object.entries(values || {}).some(([name, va
   !['website', 'consent'].includes(name) && String(value || '').trim().length > 0
 ))
 
-export default function useApplicationForm({ kind, storageKey, initialValues, steps, validators }) {
+const identity = (values) => values
+
+export default function useApplicationForm({ kind, storageKey, initialValues, steps, validators, serialize = identity, version = 1 }) {
   const [storedDraft] = useState(() => readDraft(storageKey))
   const [values, setValues] = useState(() => ({ ...initialValues, ...storedDraft?.values }))
   const [step, setStep] = useState(() => Math.min(storedDraft?.step || 0, steps.length - 1))
@@ -119,7 +121,7 @@ export default function useApplicationForm({ kind, storageKey, initialValues, st
     setStatus('submitting')
     setResult(null)
     try {
-      const [submission] = await Promise.all([submitApplication(kind, values), pause(460)])
+      const [submission] = await Promise.all([submitApplication(kind, serialize(values), { version }), pause(460)])
       setResult(submission)
       setStatus(submission.delivered ? 'success' : 'draft')
       // Only a real server-confirmed delivery clears the draft.

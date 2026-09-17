@@ -29,11 +29,14 @@ export default function ApplicationField({
 
   let control
   if (as === 'select') {
+    const renderOption = ({ value: optionValue, label: optionLabel }) => (
+      <option key={optionValue} value={optionValue}>{optionLabel}</option>
+    )
     control = (
       <select {...sharedProps}>
-        {options.map(({ value: optionValue, label: optionLabel }) => (
-          <option key={optionValue} value={optionValue}>{optionLabel}</option>
-        ))}
+        {options.map((option) => (option.options
+          ? <optgroup key={option.label} label={option.label}>{option.options.map(renderOption)}</optgroup>
+          : renderOption(option)))}
       </select>
     )
   } else if (as === 'textarea') {

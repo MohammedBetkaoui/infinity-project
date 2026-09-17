@@ -10,119 +10,40 @@ import InfinityMark from '../../components/InfinityMark'
 import useApplicationForm from '../../hooks/useApplicationForm'
 import useMotionPreference from '../../hooks/useMotionPreference'
 import { MOTION_EASE } from '../../lib/motion'
-import { poles } from '../../data/siteData'
+import JoinPanelChoice from './JoinPanelChoice'
+import {
+  JOIN_TYPES, STAFF_DEPARTMENTS, availabilityOptions, buildSummary, experienceOptions, initialValues,
+  interestOptions, joinTypeLabel, serialize, steps, studyLevels, validators,
+} from './joinModel'
 import '../../components/forms/application-form.css'
 import './join.css'
 
 const FORM_ID = 'membership-application'
-const STORAGE_KEY = 'infinity-membership-draft-v1'
+// v2: the essay field is gone and the role fields are new; v1 drafts are ignored.
+const STORAGE_KEY = 'infinity-membership-draft-v2'
 const INSTAGRAM_URL = 'https://www.instagram.com/club_.infinity/'
 
-const initialValues = {
-  fullName: '',
-  email: '',
-  phone: '',
-  studyYear: '',
-  department: '',
-  primaryField: '',
-  experience: '',
-  motivation: '',
-  availability: '',
-  consent: false,
-  website: '',
+function RoleNote({ label, children }) {
+  return <p className="join-role-note"><strong>{label}</strong><span>{children}</span></p>
 }
-
-const steps = [
-  { label: 'About you', fields: ['fullName', 'email', 'phone', 'studyYear', 'department'] },
-  { label: 'Your place', fields: ['primaryField', 'experience', 'motivation', 'availability', 'consent'] },
-]
-
-// Kept in sync with the server-side limits in api/join.js (MAX_LEN) so a
-// mismatch is always caught here first, with a clear message, instead of
-// round-tripping to the server for what is otherwise a valid-looking field.
-const required = (label) => (value) => String(value || '').trim() ? '' : `${label} is required.`
-const validators = {
-  fullName: (value) => {
-    const trimmed = String(value || '').trim()
-    if (trimmed.length < 3) return 'Please enter your full name.'
-    if (trimmed.length > 120) return 'Please use a shorter name (120 characters max).'
-    return ''
-  },
-  email: (value) => {
-    const trimmed = String(value || '').trim()
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return 'Enter a valid email address.'
-    if (trimmed.length > 254) return 'This email address is too long.'
-    return ''
-  },
-  phone: (value) => {
-    if (!value) return ''
-    const trimmed = String(value).trim()
-    if (trimmed.length > 40 || trimmed.replace(/\D/g, '').length < 8) return 'Enter a valid phone number or leave it empty.'
-    return ''
-  },
-  studyYear: required('Your study level'),
-  department: (value) => {
-    const trimmed = String(value || '').trim()
-    if (!trimmed) return 'Your department is required.'
-    if (trimmed.length > 120) return 'Please use a shorter answer (120 characters max).'
-    return ''
-  },
-  primaryField: required('A field'),
-  experience: required('Your starting point'),
-  motivation: (value) => String(value).trim().length >= 45 ? '' : 'Tell us a little more, using at least 45 characters.',
-  availability: required('Your availability'),
-  consent: (value) => value ? '' : 'Please confirm that the club may contact you about this application.',
-}
-
-const studyLevels = [
-  { value: '', label: 'Select your level' },
-  { value: 'L1', label: 'Licence 1' },
-  { value: 'L2', label: 'Licence 2' },
-  { value: 'L3', label: 'Licence 3' },
-  { value: 'M1', label: 'Master 1' },
-  { value: 'M2', label: 'Master 2' },
-  { value: 'other', label: 'Another level' },
-]
-
-const availabilityOptions = [
-  { value: '', label: 'Choose a realistic rhythm' },
-  { value: 'weekly', label: 'A few hours each week' },
-  { value: 'events', label: 'Mostly around events and projects' },
-  { value: 'flexible', label: 'It changes during the semester' },
-]
-
-const experienceOptions = [
-  { value: 'starting', label: 'Starting out', description: 'Curious, with little or no prior experience.' },
-  { value: 'learning', label: 'Already learning', description: 'Following courses or building first exercises.' },
-  { value: 'building', label: 'Building things', description: 'Ready to contribute and share practical skills.' },
-]
-
-const fieldOptions = [
-  { value: '', label: 'Choose the field that attracts you most' },
-  ...poles.map(({ title }) => ({ value: title, label: title })),
-  { value: 'Not sure yet', label: 'I would like help choosing' },
-]
-
-const buildSummary = (values) => [
-  'INFINITY CLUB - MEMBERSHIP APPLICATION',
-  `Name: ${values.fullName}`,
-  `Email: ${values.email}`,
-  `Phone: ${values.phone || 'Not provided'}`,
-  `Study level: ${values.studyYear}`,
-  `Department: ${values.department}`,
-  `Preferred field: ${values.primaryField}`,
-  `Starting point: ${values.experience}`,
-  `Availability: ${values.availability}`,
-  '',
-  'Motivation:',
-  values.motivation,
-].join('\n')
 
 export default function JoinPage() {
   const reduced = useMotionPreference()
   const [copied, setCopied] = useState(false)
   const copyTimer = useRef(null)
-  const form = useApplicationForm({ kind: 'membership', storageKey: STORAGE_KEY, initialValues, steps, validators })
+  const form = useApplicationForm({ kind: 'membership', storageKey: STORAGE_KEY, initialValues, steps, validators, serialize, version: 2 })
+  const { joinType } = form.values
+
+  // Switching path drops the answer that belongs only to the other path.
+  const chooseJoinType = (name, value) => {
+    form.setField(name, value)
+    if (value === 'member') form.setField('staffDepartment', '')
+    if (value === 'staff') form.setField('memberInterest', '')
+  }
+
+  useEffect(() => {
+    try { window.sessionStorage.removeItem('infinity-membership-draft-v1') } catch { /* storage may be unavailable */ }
+  }, [])
 
   useEffect(() => {
     const previousTitle = document.title
@@ -153,15 +74,18 @@ export default function JoinPage() {
           <motion.aside className="join-context"
             initial={reduced ? false : { opacity: 0, x: -24 }} animate={{ opacity: 1, x: 0 }}
             transition={{ duration: .62, ease: MOTION_EASE.smooth }}>
-            <div className="join-context-line"><span>Membership application</span><span>MI Faculty / BBA</span></div>
+            <div className="join-context-line"><span>Member &amp; staff application</span><span>MI Faculty / BBA</span></div>
             <div className="join-mark" aria-hidden="true"><InfinityMark /></div>
             <p className="join-intro">No perfect portfolio required.</p>
             <h1 id="join-title">Start curious.<br /><span>Grow together.</span></h1>
-            <p className="join-lead">Tell us where you are now and what you would like to explore. We are looking for commitment, kindness and the willingness to learn.</p>
+            <p className="join-lead">
+              Whether you want to learn with the community or help build the club, there is a place for you at Infinity.
+              Choose how you want to participate and tell us a little about yourself.
+            </p>
             <ul className="join-notes">
-              <li><i aria-hidden="true" /><span><strong>For BBA students</strong>Across mathematics, computer science and related paths.</span></li>
-              <li><i aria-hidden="true" /><span><strong>Beginner-friendly</strong>Your starting level does not define your potential.</span></li>
-              <li><i aria-hidden="true" /><span><strong>A real conversation</strong>The form helps the team prepare a useful follow-up.</span></li>
+              <li><i aria-hidden="true" /><span><strong>Open to students</strong>Different levels and backgrounds can find a place in the club.</span></li>
+              <li><i aria-hidden="true" /><span><strong>Beginner-friendly</strong>You do not need to already be an expert to join the community.</span></li>
+              <li><i aria-hidden="true" /><span><strong>Two ways to contribute</strong>Join as a Member, or take a more active role as Staff.</span></li>
             </ul>
           </motion.aside>
 
@@ -178,7 +102,7 @@ export default function JoinPage() {
                 <CheckCircle2 size={34} strokeWidth={1.35} aria-hidden="true" />
                 <span>Application received</span>
                 <h2>Welcome to the first step.</h2>
-                <p>Your application has reached Infinity Club. Keep this reference if you need to follow up.</p>
+                <p>Your {joinTypeLabel(joinType).toLowerCase()} application has reached Infinity Club. Keep this reference if you need to follow up.</p>
                 <strong>{form.result?.reference}</strong>
                 <button type="button" className="af-button af-button-secondary" onClick={form.reset}><RotateCcw size={14} /> Start another application</button>
               </motion.div>
@@ -222,22 +146,59 @@ export default function JoinPage() {
                     ) : (
                       <>
                         <div className="af-step-heading" tabIndex={-1} data-form-step-heading>
-                          <span>There is more than one way to contribute</span>
-                          <h2>What would you like to grow?</h2>
-                          <p>Choose a direction, not a permanent label. Members often discover new fields after joining.</p>
+                          <span>Find your place in Infinity</span>
+                          <h2>How would you like to join?</h2>
+                          <p>There are two ways to be part of Infinity. Choose the one that best matches how involved you want to be this season.</p>
                         </div>
                         <div className="af-fields">
-                          <ApplicationField formId={FORM_ID} name="primaryField" label="Field you want to explore first" as="select" options={fieldOptions}
-                            value={form.values.primaryField} onChange={form.setField} error={form.errors.primaryField} />
-                          <ApplicationChoice formId={FORM_ID} name="experience" legend="Where are you starting from?" options={experienceOptions}
-                            value={form.values.experience} onChange={form.setField} error={form.errors.experience} />
-                          <ApplicationField formId={FORM_ID} name="motivation" label="Why Infinity, and why now?" as="textarea" maxLength={520}
-                            value={form.values.motivation} onChange={form.setField} error={form.errors.motivation}
-                            hint="A few honest sentences are more useful than a formal cover letter." placeholder="I would like to learn, contribute or build..." />
-                          <ApplicationField formId={FORM_ID} name="availability" label="Availability during the semester" as="select" options={availabilityOptions}
-                            value={form.values.availability} onChange={form.setField} error={form.errors.availability} />
+                          <JoinPanelChoice formId={FORM_ID} name="joinType" legend="How would you like to join?" legendHidden variant="role"
+                            options={JOIN_TYPES} value={joinType} onChange={chooseJoinType} error={form.errors.joinType} />
+
+                          <AnimatePresence mode="wait" initial={false}>
+                            <motion.div key={joinType || 'none'} className="join-path"
+                              initial={reduced ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                              exit={reduced ? { opacity: 0, transition: { duration: 0 } } : { opacity: 0, y: -4, transition: { duration: .14 } }}
+                              transition={{ duration: .28, ease: MOTION_EASE.smooth }}>
+                              {!joinType && (
+                                <p className="join-path-empty">Choose Member or Staff to see the questions that apply to you.</p>
+                              )}
+
+                              {joinType === 'member' && (
+                                <>
+                                  <RoleNote label="Member">
+                                    Come to workshops and events at your own pace. There is no team to join and no fixed schedule.
+                                  </RoleNote>
+                                  <ApplicationChoice formId={FORM_ID} name="experience" legend="Where are you starting from?" options={experienceOptions}
+                                    value={form.values.experience} onChange={form.setField} error={form.errors.experience} />
+                                  <ApplicationField formId={FORM_ID} name="memberInterest" label="What would you like to explore with Infinity?" as="select"
+                                    options={interestOptions} value={form.values.memberInterest} onChange={form.setField} error={form.errors.memberInterest}
+                                    hint="An interest, not a commitment: you can explore other fields at any time." />
+                                  <ApplicationField formId={FORM_ID} name="availability" label="Availability during the semester" as="select"
+                                    options={availabilityOptions} value={form.values.availability} onChange={form.setField} error={form.errors.availability}
+                                    hint="Helps us plan activities. Members take part whenever they can." />
+                                </>
+                              )}
+
+                              {joinType === 'staff' && (
+                                <>
+                                  <RoleNote label="Staff note">
+                                    Staff members contribute regularly to club activities and collaborate with their department throughout the season.
+                                  </RoleNote>
+                                  <ApplicationChoice formId={FORM_ID} name="experience" legend="Where are you starting from?" options={experienceOptions}
+                                    value={form.values.experience} onChange={form.setField} error={form.errors.experience} />
+                                  <JoinPanelChoice formId={FORM_ID} name="staffDepartment" legend="Choose your department" variant="department"
+                                    description="Staff members actively collaborate with one of Infinity’s core teams. Choose the area where you would like to contribute."
+                                    options={STAFF_DEPARTMENTS} value={form.values.staffDepartment} onChange={form.setField} error={form.errors.staffDepartment} />
+                                  <ApplicationField formId={FORM_ID} name="availability" label="Availability during the semester" as="select"
+                                    options={availabilityOptions} value={form.values.availability} onChange={form.setField} error={form.errors.availability}
+                                    hint="Staff roles involve regular collaboration during the semester." />
+                                </>
+                              )}
+                            </motion.div>
+                          </AnimatePresence>
+
                           <ApplicationConsent formId={FORM_ID} name="consent" checked={form.values.consent} onChange={form.setField} error={form.errors.consent}>
-                            Infinity Club may use these details only to review this application and contact me about recruitment.
+                            Infinity Club may use these details only to review this application, contact me about membership or recruitment, and organise club activities.
                           </ApplicationConsent>
                         </div>
                       </>
