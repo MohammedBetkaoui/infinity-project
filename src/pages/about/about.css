@@ -75,6 +75,8 @@
 .about-field-focus { padding-left: 39px; color: #376957; font-size: 12px; line-height: 1.6; }
 .about-field-detail { overflow: hidden; }
 .about-field-detail p { padding: 15px 28px 0 39px; font-size: 14px; color: #315f4f; line-height: 1.8; }
+.about-field-topics { display: flex; flex-wrap: wrap; gap: 7px; padding: 14px 28px 4px 39px; }
+.about-field-topics li { padding: 5px 11px; border-radius: 99px; background: #d2ded0; color: #094a36; font-size: 10px; font-weight: 600; letter-spacing: .02em; }
 .about-fields-link { display: flex; justify-content: space-between; align-items: center; gap: 25px; min-height: 58px; padding-block: 16px; margin-top: 19px; border-block: 1px solid #094a3655; color: #094a36; font-size: 13px; font-weight: 600; transition: border-color .24s; }
 .about-fields-link:hover { border-color: #094a36; }
 .about-fields-link span { color: #376957; font-size: 11px; font-weight: 400; }

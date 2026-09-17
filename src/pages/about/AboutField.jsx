@@ -25,7 +25,10 @@ export default function AboutField({ pole }) {
       <motion.div id={`${id}-detail`} aria-labelledby={`${id}-button`} aria-hidden={!open} initial={false}
         animate={{ height: open ? 'auto' : 0, opacity: open ? 1 : 0 }}
         transition={reduced ? { duration: 0 } : SPRINGS.accordion} className="about-field-detail">
-        <p>{pole.description}</p>
+        <p>{pole.detail}</p>
+        <ul className="about-field-topics">
+          {pole.topics.map((topic) => <li key={topic}>{topic}</li>)}
+        </ul>
       </motion.div>
     </li>
   )
