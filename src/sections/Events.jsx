@@ -47,7 +47,7 @@ export default function Events() {
     <section id="evenements" ref={sectionRef} className="home-featured-events section-space" aria-labelledby="home-events-title">
       <div className="page-container">
         <header className="home-events-heading">
-          <h2 id="home-events-title">Featured event.</h2>
+          <h2 id="home-events-title">Futured event.</h2>
           <p>From the MI Faculty to the national stage.<br />An invitation to put your ideas into practice.</p>
         </header>
 

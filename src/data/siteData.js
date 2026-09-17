@@ -123,17 +123,17 @@ export const faqs = [
   {
     question: 'Who can join Infinity Club?',
     answer:
-      'Any motivated student at the University of Bordj Bou Arreridj can follow our activities. Each annual recruitment campaign sets out the requirements for active membership.',
+      'Everyone is welcome, whichever university you attend. Registration opens at the start of each academic year, so follow our announcements to be ready when it does.',
+  },
+  {
+    question: 'What is the difference between a member and staff?',
+    answer:
+      'Members take part in our workshops, events and projects to learn and build. Staff help run the club: they plan activities, coordinate teams and host sessions. Even new students can join the staff, after a short interview with the team.',
   },
   {
     question: 'How do I become a member?',
     answer:
       'Complete the membership application on this site. During an active recruitment campaign, the team reviews it and continues with a short conversation.',
-  },
-  {
-    question: 'Do I need to know how to code?',
-    answer:
-      'No. Curiosity, a willingness to learn and commitment matter more than your starting level. Several of our fields are designed to welcome beginners.',
   },
   {
     question: 'What kinds of events do you organise?',

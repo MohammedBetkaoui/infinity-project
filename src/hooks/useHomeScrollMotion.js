@@ -2,7 +2,7 @@ import useScrollAnimations from './useScrollAnimations'
 
 export default function useHomeScrollMotion(mainRef) {
   useScrollAnimations(mainRef, ({ revealText, revealAllText, revealSection, select, reduced, gsap }) => {
-    select('.section-intro > p, .home-events-heading > p, .club-life-copy > p').forEach((node) => revealText(node, { type: 'lines' }))
+    select('.section-intro > p, .poles-note > span, .home-events-heading > p, .club-life-copy > p').forEach((node) => revealText(node, { type: 'lines' }))
     select('.section-intro h2, .home-events-heading h2, .club-life-copy h2, #contact h2').forEach((node) => revealText(node))
     // Same display choreography as the AIVEX links; the box stays put.
     select('.poles-note a').forEach((node) => revealText(node, { drift: false }))
@@ -12,6 +12,9 @@ export default function useHomeScrollMotion(mainRef) {
     // their own clock, exactly like the AIVEX album layers.
     revealSection('.club-moments-frame', { mode: 'depth', trigger: '.club-moments', stagger: .08 })
     revealSection('.pole-tab', { mode: 'depth', trigger: '.poles-stage', end: 'top 56%', stagger: .07 })
+    // The desktop detail card enters like an editorial card; its tab-driven
+    // copy keeps its own text choreography inside (see Poles).
+    revealSection('.pole-detail-host', { mode: 'fade' })
     revealSection('.home-event-editorial', { mode: 'fade' })
     revealSection('.club-life-values li', { mode: 'fade', trigger: '.club-life-values', stagger: .1 })
     revealSection('.home-faq-item', { mode: 'depth', trigger: '#faq', end: 'top 38%', stagger: .07 })

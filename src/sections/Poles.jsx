@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import useMotionPreference from '../hooks/useMotionPreference'
+import useScrollAnimations from '../hooks/useScrollAnimations'
 import { Plus, Minus, Braces } from 'lucide-react'
 import SectionHeading from '../components/SectionHeading'
 import useMobileLayout from '../hooks/useMobileLayout'
@@ -31,9 +32,22 @@ function PoleDetail({ pole, reduced }) {
 
 export default function Poles() {
   const [selected, setSelected] = useState(2)
+  const stageRef = useRef(null)
   const tabsRef = useRef([])
   const reduced = useMotionPreference()
   const mobile = useMobileLayout()
+
+  // Same story as the FAQ: tab labels (inner spans, never the buttons) plus
+  // the open panel copy share one choreography. Rebuilt on every toggle —
+  // mounts are synchronous here.
+  useScrollAnimations(stageRef, ({ revealText }) => {
+    const stage = stageRef.current
+    if (!stage) return
+    stage.querySelectorAll('.pole-tab > span').forEach((label) => revealText(label, { drift: false }))
+    stage.querySelectorAll('[role="tabpanel"] h3, [role="tabpanel"] p, [role="region"] h3, [role="region"] p')
+      .forEach((copy) => revealText(copy, { type: copy.tagName === 'H3' ? 'words' : 'lines' }))
+    stage.querySelectorAll('.pole-detail-copy a').forEach((link) => revealText(link, { drift: false }))
+  }, { rebuildKey: selected })
 
   const handleKeyDown = (event, index) => {
     let next
@@ -59,7 +73,7 @@ export default function Poles() {
           <SectionHeading title="Find what sparks your curiosity." />
           <p>Six fields. Six ways to begin.<br />Follow a curiosity. Make it a skill.</p>
         </div>
-        <div className="poles-stage">
+        <div className="poles-stage" ref={stageRef}>
         {mobile ? (
           <div className="pole-accordion">
             {poles.map((pole, index) => (
@@ -101,7 +115,7 @@ export default function Poles() {
           </div>
         )}
         </div>
-        <p className="poles-note">Torn between a few fields? <Link to="/contact">Come and talk it through with us.</Link></p>
+        <p className="poles-note"><span>Torn between a few fields? </span><Link to="/contact">Come and talk it through with us.</Link></p>
       </div>
     </section>
   )
