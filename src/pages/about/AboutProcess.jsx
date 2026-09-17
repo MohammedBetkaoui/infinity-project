@@ -2,7 +2,7 @@ import AboutProcessScene from './AboutProcessScene'
 
 const stages = [
   { title: 'Question', text: 'Start with what you want to understand, improve or make possible.', note: 'A conversation, a sketch, a problem worth solving.' },
-  { title: 'Prototype', text: 'Work beside other students, test an approach and learn from what breaks.', note: 'A first version gives everyone something to work with.' },
+  { title: 'Prototype', text: 'Work beside other students, test an approach and learn from what doesn’t work.', note: 'A first version gives everyone something to work with.' },
   { title: 'Shared project', text: 'Document the result, pass the knowledge on and give the idea a useful next life.', note: 'A demonstration, a workshop or a starting point for someone else.' },
 ]
 

@@ -16,7 +16,11 @@ export default function AboutProcessScene() {
         <g className="about-scene-prototype">
           <rect x="106" y="109" width="268" height="163" rx="5" />
           <path d="M106 138H374M120 123H124M135 123H139M150 123H154" />
-          <path className="about-scene-code" d="M168 173L151 190L168 207M201 169L184 211M217 173L234 190L217 207M151 239H229" />
+          <g className="about-scene-code">
+            <circle cx="172" cy="190" r="19" />
+            <path d="M205 172L234 190L205 208Z" />
+            <path d="M151 239H229" />
+          </g>
           <rect x="271" y="161" width="76" height="84" rx="2" />
           <path d="M282 177H331M282 190H314M282 223H321" />
         </g>
@@ -30,7 +34,7 @@ export default function AboutProcessScene() {
         <circle className="about-process-head" r="4" />
       </svg>
       <figcaption>
-        <span>A working idea, in three forms.</span>
+        <span>A working idea, in any discipline.</span>
         <span className="about-scene-indicators" aria-hidden="true"><i /><i /><i /></span>
       </figcaption>
     </figure>
