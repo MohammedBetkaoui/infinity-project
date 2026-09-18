@@ -14,7 +14,9 @@ export class MultipartError extends Error {
   }
 }
 
-// Resolves { fields: { name: string }, files: Map<name, { buffer, size, mimeType }> }.
+// Resolves { fields: { name: string }, files: Map<name, { buffer, size, mimeType, filename }> }.
+// `filename` is the client-declared name: untrusted, only compared with the
+// detected type (form v4), never used as a storage path.
 // Rejects with MultipartError (status + public message) on any violation.
 export function parseMultipart(req, limits) {
   const {
@@ -101,7 +103,7 @@ export function parseMultipart(req, limits) {
       })
       stream.on('close', () => {
         if (settled || truncated) return
-        files.set(name, { buffer: Buffer.concat(chunks), size, mimeType: info.mimeType })
+        files.set(name, { buffer: Buffer.concat(chunks), size, mimeType: info.mimeType, filename: info.filename })
       })
     })
 

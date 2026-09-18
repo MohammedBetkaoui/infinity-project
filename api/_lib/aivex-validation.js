@@ -1,7 +1,12 @@
-// Server-side validation for AIVEX registrations (form v3). Nothing here
-// trusts the browser: the wilaya and institution labels are re-derived from
-// the shared dataset, the team is exactly three students, and each card's
-// real image type is read from its bytes.
+// Server-side validation for AIVEX registrations — form v3 (LEGACY).
+//
+// Still the contract served in production. The canonical v4 contract lives
+// in shared/aivex/contract-v4.js (validateRegistrationV4) and
+// api/_lib/aivex-validation-v4.js; a v3 payload is never converted to v4.
+//
+// Nothing here trusts the browser: the wilaya and institution labels are
+// re-derived from the shared dataset, the team is exactly three students,
+// and each card's real image type is read from its bytes.
 //
 // National ID numbers are personal data: they are validated and returned,
 // never logged and never echoed back in an error message.
@@ -151,7 +156,7 @@ function readStudents(rawStudents) {
 // Validates the JSON envelope, section by section in form order. Returns
 // { ok: true, value } with a clean, explicitly built structure, or
 // { ok: false, status, message }.
-export function validateRegistration(body) {
+export function validateRegistrationV3(body) {
   if (!isObject(body) || body.form !== 'aivex') return invalid('Invalid registration data.')
   if (!SUPPORTED_FORM_VERSIONS.has(body.version)) return invalid('This form version is no longer supported. Please reload the page.')
 

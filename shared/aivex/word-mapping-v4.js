@@ -1,0 +1,88 @@
+// AIVEX — official Word template mapping, form v4 (OFFICIAL DATA only).
+//
+//   {{WORD VARIABLE}} -> DATABASE FIELD -> PAYLOAD FIELD -> FRONTEND STATE
+//
+// This file only says where each variable of the official template comes
+// from. It does not load, fill or convert any document: generation is a
+// later phase, and the template itself is not part of this repository.
+//
+// The student card photos are INTERNAL VERIFICATION DATA: they have no
+// variable here and must never get one (see STUDENT_CARD_POLICY.printable).
+
+import { STUDENT_POSITIONS } from './contract-v4.js'
+
+const TABLES = Object.freeze({
+  settings: 'aivex_settings',
+  registration: 'aivex_registrations',
+  student: 'aivex_students',
+})
+
+const variable = (name, source, column, payload = null, frontend = null, position = null) => Object.freeze({
+  variable: name,
+  source,
+  column,
+  position,
+  db: source === 'student' ? `${TABLES.student}[position=${position}].${column}` : `${TABLES[source]}.${column}`,
+  // null: set by the organisers in aivex_settings, not by the form.
+  payload,
+  frontend,
+})
+
+const studentVariables = (position) => {
+  const index = position - 1
+  return [
+    ['name', 'full_name', 'fullName'],
+    ['phone', 'phone', 'phone'],
+    ['bac_year', 'bac_year', 'bacYear'],
+    ['rfid', 'rfid_number', 'rfid'],
+  ].map(([suffix, column, key]) => variable(
+    `student_${position}_${suffix}`, 'student', column,
+    `answers.students[${index}].${key}`, `students[${index}].${key}`, position,
+  ))
+}
+
+const registrationVariable = (name, payload, frontend) => variable(name, 'registration', name, payload, frontend)
+
+export const WORD_VARIABLES_V4 = Object.freeze([
+  variable('edition_name', 'settings', 'edition_name'),
+  variable('event_start_date', 'settings', 'event_start_date'),
+  variable('event_end_date', 'settings', 'event_end_date'),
+  registrationVariable('institution_name', 'answers.team.institution.name', 'team.institution | team.customInstitution'),
+  registrationVariable('wilaya_name', 'answers.team.wilaya.name', 'team.wilaya'),
+  registrationVariable('team_name', 'answers.team.name', 'team.name'),
+  registrationVariable('activity_official_phone', 'answers.activityOfficial.phone', 'activityOfficial.phone'),
+  registrationVariable('activity_official_email', 'answers.activityOfficial.email', 'activityOfficial.email'),
+  ...STUDENT_POSITIONS.flatMap(studentVariables),
+  registrationVariable('delegation_head_name', 'answers.delegationHead.fullName', 'delegationHead.fullName'),
+  registrationVariable('delegation_head_phone', 'answers.delegationHead.phone', 'delegationHead.phone'),
+  registrationVariable('delegation_head_rfid', 'answers.delegationHead.rfid', 'delegationHead.rfid'),
+  registrationVariable('driver_name', 'answers.driver.fullName', 'driver.fullName'),
+  registrationVariable('driver_phone', 'answers.driver.phone', 'driver.phone'),
+  registrationVariable('driver_rfid', 'answers.driver.rfid', 'driver.rfid'),
+  variable('submission_deadline', 'settings', 'submission_deadline'),
+  variable('submission_email', 'settings', 'submission_email'),
+])
+
+// Never printed, never mapped: internal verification data.
+export const WORD_EXCLUDED_FIELDS_V4 = Object.freeze([
+  'studentCard',
+  'student_card_path',
+  'student_card_mime',
+  'student_card_size_bytes',
+])
+
+// Resolves the variables from database rows (aivex_settings row,
+// aivex_registrations row, the three aivex_students rows). Values are raw
+// strings: date and phone presentation is decided with the template.
+export function resolveWordDataV4({ settings, registration, students }) {
+  const byPosition = new Map((students || []).map((student) => [student.position, student]))
+  if (byPosition.size !== STUDENT_POSITIONS.length || !STUDENT_POSITIONS.every((position) => byPosition.has(position))) {
+    throw new Error(`The official document needs exactly the students ${STUDENT_POSITIONS.join(', ')}.`)
+  }
+  const rows = { settings, registration }
+  return Object.fromEntries(WORD_VARIABLES_V4.map((entry) => {
+    const row = entry.source === 'student' ? byPosition.get(entry.position) : rows[entry.source]
+    const value = row?.[entry.column]
+    return [entry.variable, value === null || value === undefined ? '' : String(value)]
+  }))
+}

@@ -1,5 +1,9 @@
 // POST /api/aivex/register — Vercel Serverless Function (Node, ESM).
 //
+// Serves form v3 (LEGACY, still in production). The v4 contract is defined
+// in shared/aivex/contract-v4.js and needs the v4 migration before this
+// handler can write it (Phase 2).
+//
 // Browser (multipart: payload JSON v3 + studentCard_1..3)
 //   -> origin / rate-limit checks -> streaming multipart parse
 //   -> full validation (institution, activity contact, delegation,
@@ -21,7 +25,7 @@
 import { randomUUID } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import {
-  CARD_FIELD_PATTERN, MAX_CARD_BYTES, STUDENT_COUNT, validateCards, validateRegistration,
+  CARD_FIELD_PATTERN, MAX_CARD_BYTES, STUDENT_COUNT, validateCards, validateRegistrationV3,
 } from '../_lib/aivex-validation.js'
 import { isFilled, normalizeString, sendJson as send } from '../_lib/http.js'
 import { MultipartError, parseMultipart } from '../_lib/multipart.js'
@@ -233,7 +237,8 @@ export default async function handler(req, res) {
     return
   }
 
-  const registration = validateRegistration(body)
+  // Form v3 only for now: a v4 payload is refused here, never converted.
+  const registration = validateRegistrationV3(body)
   if (!registration.ok) {
     send(res, registration.status, { success: false, message: registration.message })
     return

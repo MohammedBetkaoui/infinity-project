@@ -2,6 +2,10 @@ import {
   OTHER_INSTITUTION_ID, findInstitution, findWilaya, institutionDisplayName, wilayaDisplayName,
 } from '../../../data/algeriaHigherEducation.js'
 
+// Form v3 model (LEGACY, still the one in production). The canonical v4
+// state, payload builder and validator live in shared/aivex/contract-v4.js;
+// the UI moves to them once the v4 write path is deployed (Phase 2).
+
 // Official rule: every team is exactly three students.
 export const STUDENT_COUNT = 3
 export const FORM_VERSION = 3

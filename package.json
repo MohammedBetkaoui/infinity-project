@@ -11,7 +11,8 @@
     "dev:api": "node scripts/dev-api.mjs",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0"
+    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
+    "test:contract": "node --test tests/aivex-contract-v4.test.mjs"
   },
   "dependencies": {
     "@studio-freight/lenis": "^1.0.42",
