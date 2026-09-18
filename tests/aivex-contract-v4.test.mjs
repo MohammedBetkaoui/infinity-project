@@ -151,9 +151,12 @@ const pngCards = (overrides = {}) => [1, 2, 3].map((position) => ({
   field: `studentCard_${position}`, buffer: IMAGES.png, type: 'image/png', filename: `studentCard_${position}.png`, ...overrides[position],
 }))
 
-async function post(handler, payload, cards = pngCards()) {
+// Builds the real multipart request and hands it to the real handler.
+// `fields` is [{ name, value }] for the non-file parts (normally just
+// `payload`); a raw variant so a test can omit or malform that part.
+async function postForm(handler, fields, cards = pngCards()) {
   const form = new FormData()
-  form.append('payload', JSON.stringify(payload))
+  for (const { name, value } of fields) form.append(name, value)
   for (const { field, buffer, type, filename } of cards) form.append(field, new Blob([buffer], { type }), filename)
   const response = new Response(form)
   const req = Readable.from([Buffer.from(await response.arrayBuffer())])
@@ -176,6 +179,8 @@ async function post(handler, payload, cards = pngCards()) {
     handler(req, res)
   })
 }
+
+const post = (handler, payload, cards = pngCards()) => postForm(handler, [{ name: 'payload', value: JSON.stringify(payload) }], cards)
 
 const makeApi = () => {
   const store = createMemoryStore()
@@ -214,6 +219,24 @@ test('1. a valid v4 submission is stored and answered 201 with a server referenc
   assert.doesNotMatch(JSON.stringify(body), /edition-2\/|student-1\.png/, 'no Storage path in the response')
 })
 
+test('1b. a request with no payload part is refused, nothing written', async () => {
+  const { store, handler } = makeApi()
+  const { status, body } = await postForm(handler, [])
+  assert.equal(status, 400)
+  assert.equal(body.success, false)
+  assert.doesNotMatch(body.message, /json|parse|syntax/i, 'no parser internals in the message')
+  assert.equal(store.registrations.length, 0)
+})
+
+test('1c. a payload part that is not valid JSON is refused, nothing written', async () => {
+  const { store, handler } = makeApi()
+  const { status, body } = await postForm(handler, [{ name: 'payload', value: '{not valid json' }])
+  assert.equal(status, 400)
+  assert.equal(body.success, false)
+  assert.doesNotMatch(body.message, /json|parse|syntax/i, 'no parser internals in the message')
+  assert.equal(store.registrations.length, 0)
+})
+
 for (const position of [1, 2, 3]) {
   test(`${1 + position}. a missing studentCard_${position} is refused before anything is written`, async () => {
     const { store, handler } = makeApi()
@@ -247,14 +270,26 @@ test('6. a file larger than 5 MB is refused', async () => {
   assert.equal(direct.field, 'studentCard_1')
 })
 
-test('7. a team that is not exactly three students is refused', async () => {
-  const { handler } = makeApi()
+test('7. a team that is not exactly three students is refused (fewer or more)', async () => {
+  const { store, handler } = makeApi()
   const two = validPayload()
   two.students.pop()
-  assert.equal((await post(handler, two, pngCards().slice(0, 2))).body.field, 'students')
+  const fewer = await post(handler, two, pngCards().slice(0, 2))
+  assert.equal(fewer.status, 400)
+  assert.equal(fewer.body.field, 'students')
+
+  // Four students in the payload, still three files: the JSON shape fails first.
   const four = validPayload()
-  four.students.push({ ...four.students[0], position: 4 })
-  rejects(validate(four), 'students')
+  four.students.push({ ...four.students[0], position: 4, studentCard: 'studentCard_4' })
+  const more = await post(handler, four)
+  assert.equal(more.status, 400)
+  assert.equal(more.body.field, 'students')
+
+  // A fourth file is refused by the multipart layer itself (maxFiles = 3),
+  // before the JSON is even parsed.
+  const extraFile = await post(handler, validPayload(), [...pngCards(), { field: 'studentCard_4', buffer: IMAGES.png, type: 'image/png', filename: 'studentCard_4.png' }])
+  assert.equal(extraFile.status, 413)
+  assert.equal(store.registrations.length, 0)
 })
 
 test('8. a missing BAC year is refused', async () => {
@@ -467,7 +502,7 @@ test('contract: versions and the student count are defined once, in the shared c
 test('contract: frontend field checks agree with the API validator', () => {
   const samples = {
     phone: ['0555 12 34 56', '+213 555 12 34 56', '12345', '05a5 12 34 56', '+213+555123456', '', `0555${' '.repeat(40)}123456`],
-    rfid: ['00471236', ' 0047 ', '', '   ', 'x'.repeat(64), 'x'.repeat(65), 'AB CD'],
+    rfid: ['00471236', ' 0047 ', '', '   ', 'x'.repeat(64), 'x'.repeat(65), 'AB\\u0000CD'],
     fullName: ['Karim Haddad', 'Al', '   ', 'K'.repeat(120), 'K'.repeat(121)],
   }
   for (const [field, values] of Object.entries(samples)) {
