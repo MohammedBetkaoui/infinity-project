@@ -23,6 +23,12 @@
 // registerV4() only talks to a small `store` interface, implemented over
 // Supabase by createSupabaseRegistrationStore(). Logs carry a stage and an
 // error code, never personal data, payloads or Storage paths.
+//
+// The two success outcomes (created, replayed-with-matching-fingerprint)
+// also carry a `registrationId` sibling field next to `status`/`body` — the
+// internal uuid, for the caller to kick off document generation with
+// (api/_lib/aivex-document-generation.js). It is never part of `body`, so it
+// never reaches the HTTP response.
 
 import { createHash } from 'node:crypto'
 import {
@@ -145,7 +151,7 @@ async function discardRegistration(store, registrationId, paths) {
 async function settleExisting(store, existing, { fingerprint, edition, now }) {
   if (existing.studentCount === AIVEX_STUDENT_COUNT) {
     return existing.fingerprint === fingerprint
-      ? registrationResponsesV4.replayed(existing.reference)
+      ? { ...registrationResponsesV4.replayed(existing.reference), registrationId: existing.id }
       : failed(409, MESSAGES.conflict(existing.reference))
   }
   const age = now.getTime() - new Date(existing.createdAt).getTime()
@@ -168,7 +174,7 @@ async function completeRegistration(store, { id, reference }, registration, card
     await discardRegistration(store, id, stored.map((entry) => entry.path))
     return failed(500, MESSAGES.saveFailed)
   }
-  return registrationResponsesV4.created(reference)
+  return { ...registrationResponsesV4.created(reference), registrationId: id }
 }
 
 // `registration` is the value returned by validateRegistrationV4, `cards`

@@ -10,6 +10,8 @@
 //   -> validateStudentCardsV4 (presence, type, size, real image bytes)
 //   -> registerV4: idempotent on submissionId, aivex_registrations,
 //      private Storage, aivex_students (api/_lib/aivex-registration-v4.js)
+//   -> generateOfficialDocuments: best-effort DOCX/PDF generation
+//      (api/_lib/aivex-document-generation.js) — never changes the response
 //   -> 201 { success: true, reference } | 200 replay { ..., alreadyProcessed }
 //
 // A v3 payload is refused with a 400 ("reload the page"), never converted.
@@ -21,6 +23,8 @@ import { createClient } from '@supabase/supabase-js'
 import {
   AIVEX_EDITION, AIVEX_STUDENT_COUNT, LIMITS, STUDENT_CARD_FIELD_PATTERN, STUDENT_CARD_POLICY, registrationResponsesV4, validateRegistrationV4,
 } from '../../shared/aivex/contract-v4.js'
+import { generateOfficialDocuments } from '../_lib/aivex-document-generation.js'
+import { createSupabaseDocumentStore } from '../_lib/aivex-document-store.js'
 import { generateRegistrationReference } from '../_lib/aivex-reference.js'
 import { createSupabaseRegistrationStore, registerV4 } from '../_lib/aivex-registration-v4.js'
 import { validateStudentCardsV4 } from '../_lib/aivex-validation-v4.js'
@@ -56,18 +60,25 @@ function requestSource(req) {
 }
 
 // Secret key from the server environment only: never VITE_/INFINITY_/AIVEX_.
-function createDefaultStore() {
+function createDefaultSupabaseClient() {
   const supabaseUrl = process.env.SUPABASE_URL
   const supabaseSecret = process.env.SUPABASE_SECRET_KEY
   if (!supabaseUrl || !supabaseSecret) return null
-  return createSupabaseRegistrationStore(createClient(supabaseUrl, supabaseSecret, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  }))
+  return createClient(supabaseUrl, supabaseSecret, { auth: { persistSession: false, autoRefreshToken: false } })
+}
+const createDefaultStore = () => {
+  const supabase = createDefaultSupabaseClient()
+  return supabase ? createSupabaseRegistrationStore(supabase) : null
+}
+const createDefaultDocumentStore = () => {
+  const supabase = createDefaultSupabaseClient()
+  return supabase ? createSupabaseDocumentStore(supabase) : null
 }
 
 // Factory so tests can inject an in-memory store and a fixed clock.
 export function createRegisterHandler({
-  createStore = createDefaultStore, now = () => new Date(), generateReference = generateRegistrationReference,
+  createStore = createDefaultStore, createDocumentStore = createDefaultDocumentStore,
+  now = () => new Date(), generateReference = generateRegistrationReference,
 } = {}) {
   return async function handler(req, res) {
     if (req.method !== 'POST') {
@@ -141,6 +152,19 @@ export function createRegisterHandler({
       now: clock,
       generateReference,
     })
+
+    // Best-effort, never awaited into the response's success/failure: a
+    // document-generation problem must not turn a valid registration into
+    // an error for the applicant (document_status carries the real outcome).
+    if (outcome.registrationId) {
+      try {
+        const documentStore = createDocumentStore()
+        if (documentStore) await generateOfficialDocuments({ store: documentStore, registrationId: outcome.registrationId, now: clock })
+      } catch (error) {
+        console.error('[aivex] Document generation step crashed', { code: error?.code })
+      }
+    }
+
     reply(res, outcome)
   }
 }

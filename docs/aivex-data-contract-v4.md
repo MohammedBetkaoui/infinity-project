@@ -1,8 +1,8 @@
 # AIVEX — Data Contract V4
 
-> **Statut : Phase 2 — formulaire migré en V4 (2026-09-19).**
-> Frontend, API et schéma de base parlent uniquement le contrat V4. Le formulaire V3 et son validateur ont été retirés du code ; aucune colonne ni donnée ancienne n'est supprimée.
-> **Déploiement : appliquer les deux migrations V4 AVANT de déployer ce code** (§14).
+> **Statut : Phase 4 — document officiel généré en DOCX (PDF isolé, non implémenté) — 2026-09-19.**
+> Frontend, API et schéma de base parlent uniquement le contrat V4 (Phase 2, en production depuis la Phase 3). Chaque inscription produit désormais son document officiel Word dans un bucket privé (§9.1).
+> **Déploiement : appliquer `20260920120000_aivex_v4_generated_documents.sql`** (§14).
 
 | Élément | Fichier |
 |---|---|
@@ -14,8 +14,8 @@
 | Modèle du formulaire (étapes, messages traduits) | [`src/pages/aivex/register/registrationModel.js`](../src/pages/aivex/register/registrationModel.js) |
 | État, brouillon, envoi | [`src/pages/aivex/register/useCompetitionRegistration.js`](../src/pages/aivex/register/useCompetitionRegistration.js) |
 | Mapping Word (données officielles uniquement) | [`shared/aivex/word-mapping-v4.js`](../shared/aivex/word-mapping-v4.js) |
-| Migrations | [`20260918120000_aivex_v4_contract.sql`](../supabase/migrations/20260918120000_aivex_v4_contract.sql), [`20260919120000_aivex_v4_write_path.sql`](../supabase/migrations/20260919120000_aivex_v4_write_path.sql) |
-| Tests | [`tests/aivex-contract-v4.test.mjs`](../tests/aivex-contract-v4.test.mjs) — `npm test` / `npm run test:contract` |
+| Migrations | [`20260918120000_aivex_v4_contract.sql`](../supabase/migrations/20260918120000_aivex_v4_contract.sql), [`20260919120000_aivex_v4_write_path.sql`](../supabase/migrations/20260919120000_aivex_v4_write_path.sql), [`20260920120000_aivex_v4_generated_documents.sql`](../supabase/migrations/20260920120000_aivex_v4_generated_documents.sql) |
+| Tests | [`tests/aivex-contract-v4.test.mjs`](../tests/aivex-contract-v4.test.mjs), [`tests/aivex-document-generation.test.mjs`](../tests/aivex-document-generation.test.mjs) — `npm test` / `npm run test:contract` |
 
 ---
 
@@ -176,7 +176,44 @@ Obligatoires (3 par inscription), données **internes de vérification** : jamai
 
 ## 9. Mapping Word
 
-29 variables, données officielles uniquement : édition et dates (`aivex_settings`), `registration_reference`, wilaya, établissement, équipe, téléphone et e-mail du responsable, chef de délégation et chauffeur (nom, téléphone, RFID), 3 étudiants (nom, téléphone, année du BAC, RFID), date limite et e-mail de dépôt. **Aucune** variable de carte, de n° d'identité, de matricule ou de niveau. Le template Word n'est pas dans le dépôt ; aucune génération n'est implémentée.
+29 variables, données officielles uniquement : édition et dates (`aivex_settings`), `registration_reference`, wilaya, établissement, équipe, téléphone et e-mail du responsable, chef de délégation et chauffeur (nom, téléphone, RFID), 3 étudiants (nom, téléphone, année du BAC, RFID), date limite et e-mail de dépôt. **Aucune** variable de carte, de n° d'identité, de matricule ou de niveau.
+
+### 9.1 Génération du document officiel (Phase 4)
+
+| Élément | Fichier |
+|---|---|
+| Template officiel (version `aivex-participation-template-01`) | [`public/word-form/aivex-participation-template-01.docx`](../public/word-form/aivex-participation-template-01.docx) |
+| Rendu DOCX, couche PDF isolée | [`api/_lib/aivex-document-template.js`](../api/_lib/aivex-document-template.js) |
+| Orchestration, statuts, présentation des dates | [`api/_lib/aivex-document-generation.js`](../api/_lib/aivex-document-generation.js) |
+| Accès Supabase (claim atomique, Storage, métadonnées) | [`api/_lib/aivex-document-store.js`](../api/_lib/aivex-document-store.js) |
+| Relance administrative | [`scripts/aivex-retry-documents.mjs`](../scripts/aivex-retry-documents.mjs) |
+| Migration | [`20260920120000_aivex_v4_generated_documents.sql`](../supabase/migrations/20260920120000_aivex_v4_generated_documents.sql) |
+| Tests | [`tests/aivex-document-generation.test.mjs`](../tests/aivex-document-generation.test.mjs) |
+
+**Template.** Corrigé une fois, trois interventions ciblées (tout le reste du .docx est identique octet pour octet) :
+1. `{{edition_name}}`, `{{event_start_date}}`, `{{event_end_date}}` étaient absents (texte figé « الطبعة الثانية » et « من 10 ديسمبر إلى 03 ديسمبر 2025 », ce dernier réparti sur 5 runs Word, « 10 » coupé en « 1 » + « 0 ») ; les 29 placeholders sont désormais chacun d'un seul tenant ;
+2. le tableau des étudiants était **flottant** (`w:tblpPr`) : l'intitulé « تأطير الوفد » s'enroulait lettre par lettre à côté ; tableau rendu *inline* comme celui de la délégation ;
+3. les cellules « سنة البكالوريا » étaient en 9 pt (réduites pour loger le long placeholder), contre 14 pt pour le reste de la ligne : remises à 14 pt.
+
+**Rendu DOCX.** Substitution littérale `{{clé}}` → valeur (échappée XML) dans chaque partie XML du .docx, avec `jszip` (MIT) comme seule nouvelle dépendance. Un placeholder sans donnée, ou une donnée sans placeholder, fait échouer la génération : un document officiel n'affiche jamais « {{…}} ». `docxtemplater` n'est pas utilisé : inutile une fois le template propre, et sa version libre est sous AGPL-3.0.
+
+**PDF.** Non implémenté, et jamais simulé. Une conversion fidèle (arabe RTL, tableaux bilingues, bloc signature/cachet) demande un moteur Word (LibreOffice ou une API externe) : ni l'un ni l'autre n'est disponible sur une fonction Vercel Node standard, et une API payante n'est pas une dépendance à ajouter sans décision. `convertDocxToPdf()` renvoie `{ available: false }` ; la ligne `pdf` est enregistrée `failed` avec `error_code = pdf_conversion_not_configured`. Brancher un vrai convertisseur = implémenter cette seule fonction.
+
+**Dates.** `event_*_date` (`date`) sont imprimées telles quelles (`YYYY-MM-DD`) ; `submission_deadline` (`timestamptz`) est imprimée comme sa date calendaire à Alger (`Africa/Algiers`), au même format — jamais comme un horodatage machine. Le format d'affichage reste une décision ouverte (§15).
+
+**Workflow.** Après une inscription valide (`registration_status = submitted`) :
+
+```
+not_generated ──claim──▶ generating ──docx OK──▶ awaiting_signature
+                              └──────docx KO──▶ generation_failed ──(rejeu du même submissionId / script)──▶ generating
+```
+
+- Le claim est un `UPDATE … WHERE … RETURNING` atomique : un seul appelant génère ; `not_generated`, `generation_failed`, ou `generating` inchangé depuis plus de 3 min (tentative morte) sont repris ; `awaiting_signature` et au-delà ne sont jamais régénérés.
+- Un échec de génération **ne touche jamais l'inscription** (ni suppression, ni rollback, cartes conservées) et **ne change pas la réponse** de l'API : `201 { success, reference }` reste le contrat.
+- Relance : automatiquement au rejeu du même `submissionId` ; administrativement avec `node scripts/aivex-retry-documents.mjs` (liste seule) puis `--apply`.
+- `document_status` suit le DOCX (le document imprimable, signé et tamponné) ; le PDF a sa propre ligne et ne bloque rien.
+
+**Stockage.** Bucket **privé** `aivex-generated-forms`, `edition-{edition}/{registration_id}/{reference}.{docx|pdf}` ; table `aivex_generated_documents` (une ligne par inscription et par type ; une relance met la ligne à jour). Aucune URL publique ; rien de tout cela n'atteint le navigateur. Les cartes étudiantes n'entrent jamais dans le document.
 
 ## 10. Statuts
 
@@ -231,6 +268,8 @@ Les inscriptions V3 existantes ne sont **pas** converties : l'année du BAC et l
 3. Tester une inscription réelle en production puis la supprimer si nécessaire.
 
 Tant que les migrations ne sont pas appliquées, l'API V4 répond 500 à toute inscription (colonnes absentes). Les anciennes pages V3 encore ouvertes reçoivent un 400 « reload the page ».
+
+**Phase 4 (documents).** Appliquer `20260920120000_aivex_v4_generated_documents.sql`, puis déployer. L'ordre n'est pas bloquant : sans cette migration, les inscriptions continuent de réussir et leurs documents passent en `generation_failed`, relançables ensuite avec `scripts/aivex-retry-documents.mjs --apply`. Renseigner aussi la ligne `aivex_settings` de l'édition 2 (nom, dates, date limite, e-mail) : sans elle, ces champs sortent vides dans le document.
 
 ## 15. Décisions métier ouvertes
 
