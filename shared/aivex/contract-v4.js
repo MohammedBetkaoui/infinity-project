@@ -208,6 +208,14 @@ export function isValidBacYear(year, now = new Date()) {
   return Number.isInteger(year) && year >= min && year <= max
 }
 
+// Years offered by the form's select, most recent first. It stops at the
+// current year: a university student already holds the BAC. The validator
+// keeps the wider bacYearRange() tolerance.
+export function bacYearChoices(now = new Date()) {
+  const latest = now.getUTCFullYear()
+  return Array.from({ length: latest - LIMITS.bacYearMin + 1 }, (_, index) => latest - index)
+}
+
 // --- Validator (pure: no database, no Storage, no network) ---------------
 
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -432,7 +440,21 @@ export const registrationResponsesV4 = Object.freeze({
 
 // --- Frontend contract ----------------------------------------------------
 
+// UUID v4. crypto.randomUUID() only exists in secure contexts (HTTPS,
+// localhost); getRandomValues() also covers plain-HTTP previews on a LAN.
+export function createSubmissionId(cryptoSource = globalThis.crypto) {
+  if (typeof cryptoSource?.randomUUID === 'function') return cryptoSource.randomUUID()
+  const bytes = cryptoSource.getRandomValues(new Uint8Array(16))
+  bytes[6] = (bytes[6] & 0x0f) | 0x40
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
+
+// Three fixed records (student-1..3): the ids never change, nothing is
+// added or removed.
 export const createStudentStateV4 = (position) => ({
+  id: `student-${position}`,
   position,
   fullName: '',
   phone: '',
@@ -444,7 +466,7 @@ export const createStudentStateV4 = (position) => ({
 // Initial form state: always three student records, no add/remove. The
 // submissionId is created once and must survive retries and reloads of the
 // same attempt; it is renewed only after a confirmed success or a reset.
-export function createRegistrationStateV4({ submissionId = globalThis.crypto.randomUUID() } = {}) {
+export function createRegistrationStateV4({ submissionId = createSubmissionId() } = {}) {
   return {
     submissionId,
     team: { name: '', wilaya: '', institution: '', customInstitution: '' },

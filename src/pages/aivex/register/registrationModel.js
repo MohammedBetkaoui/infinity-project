@@ -1,14 +1,22 @@
 import {
   OTHER_INSTITUTION_ID, findInstitution, findWilaya, institutionDisplayName, wilayaDisplayName,
 } from '../../../data/algeriaHigherEducation.js'
+import {
+  STUDENT_POSITIONS, bacYearChoices, buildRegistrationPayloadV4, createStudentStateV4, isValidBacYear,
+  isValidRfid, normalizeBacYear, normalizeRfid, normalizeText, studentCardField,
+} from '../../../../shared/aivex/contract-v4.js'
 
-// Form v3 model (LEGACY, still the one in production). The canonical v4
-// state, payload builder and validator live in shared/aivex/contract-v4.js;
-// the UI moves to them once the v4 write path is deployed (Phase 2).
+// Two models share this file while v4 is behind the feature flag
+// (formVersion.js):
+//   v3 — LEGACY, the one in production: national ID for the delegation,
+//        registration number + study level for the students.
+//   v4 — canonical contract (shared/aivex/contract-v4.js): RFID for
+//        everyone, BAC year for the students, submissionId.
+// Both keep exactly three fixed students and the mandatory student cards.
+// getRegistrationModel(version) picks one.
 
 // Official rule: every team is exactly three students.
 export const STUDENT_COUNT = 3
-export const FORM_VERSION = 3
 export const CARD_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 export const CARD_MAX_BYTES = 5 * 1024 * 1024
 export const CARD_SPEC = 'JPG / PNG / WEBP · Max 5 MB'
@@ -238,3 +246,138 @@ export function buildSummary({ team, activityOfficial, delegationHead, driver, s
     ].join('\n')),
   ].join('\n')
 }
+
+// ---------------------------------------------------------------------------
+// Form v4. Team and activity contact are unchanged; the head of delegation
+// and the driver carry an RFID instead of a national ID; each student a BAC
+// year and an RFID instead of registration number and study level.
+// ---------------------------------------------------------------------------
+
+export const SECTIONS_V4 = {
+  team: SECTIONS.team,
+  activityOfficial: SECTIONS.activityOfficial,
+  delegationHead: { step: STEP.delegation, fields: ['fullName', 'phone', 'rfid'] },
+  driver: { step: STEP.delegation, fields: ['fullName', 'phone', 'rfid'] },
+}
+// Same order as the student record renders them.
+export const STUDENT_FIELDS_V4 = ['fullName', 'phone', 'bacYear', 'rfid', 'studentCard']
+
+export const emptyPersonV4 = () => ({ fullName: '', phone: '', rfid: '' })
+// student-1, student-2, student-3: fixed records, never added or removed.
+export const createStudentsV4 = () => STUDENT_POSITIONS.map(createStudentStateV4)
+
+export { bacYearChoices }
+
+// RFID: text as typed (leading zeros kept), only trimmed.
+const rfidIssue = (value, L) => {
+  const rfid = normalizeRfid(value)
+  if (!rfid) return msg(L, 'errRfidRequired', 'RFID number is required.')
+  return isValidRfid(rfid) ? '' : msg(L, 'errRfidInvalid', 'Use at most 64 characters, as written.')
+}
+
+export function personIssuesV4(person, L) {
+  return collect([
+    ['fullName', nameIssue(person.fullName, L)],
+    ['phone', phoneIssue(person.phone, L)],
+    ['rfid', rfidIssue(person.rfid, L)],
+  ])
+}
+
+export const SECTION_ISSUES_V4 = {
+  team: teamIssues,
+  activityOfficial: officialIssues,
+  delegationHead: personIssuesV4,
+  driver: personIssuesV4,
+}
+
+export function studentIssuesV4(student, students = [], L, now = new Date()) {
+  const name = normalizeText(student.fullName)
+  const rfid = normalizeRfid(student.rfid)
+  const shared = rfid && students.some((other) => other.id !== student.id && normalizeRfid(other.rfid) === rfid)
+  return collect([
+    ['fullName', !name ? msg(L, 'errStudentNameRequired', 'Full name is required.')
+      : name.length < 3 ? msg(L, 'errStudentNameShort', 'Enter the full name as written on the student card.')
+        : name.length > 120 ? msg(L, 'errNameLength', 'Enter the full name (3 to 120 characters).') : ''],
+    ['phone', phoneIssue(student.phone, L)],
+    ['bacYear', !text(student.bacYear) ? msg(L, 'errBacYearRequired', 'BAC year is required.')
+      : isValidBacYear(normalizeBacYear(student.bacYear), now) ? '' : msg(L, 'errBacYearInvalid', 'Choose the BAC year from the list.')],
+    ['rfid', rfidIssue(student.rfid, L) || (shared ? msg(L, 'errRfidShared', 'Each student needs their own RFID.') : '')],
+    ['studentCard', student.studentCard ? '' : msg(L, 'errCardRequired', 'Student card is required.')],
+  ])
+}
+
+// Canonical v4 payload (shared contract) + one file part per student card.
+// `source` is the page URL; the server stamps reference, edition and statuses.
+export function buildSubmissionV4(state, { now, source } = {}) {
+  return {
+    payload: buildRegistrationPayloadV4(state, { now, source }),
+    files: state.students
+      .filter((student) => student.studentCard)
+      .map((student) => ({ field: studentCardField(student.position), position: student.position, file: student.studentCard })),
+  }
+}
+
+// Fallback text the applicant can send to the organisers. RFID numbers are
+// left out, like national ID numbers in v3.
+export function buildSummaryV4({ team, activityOfficial, delegationHead, driver, students }) {
+  return [
+    'AIVEX - SECOND EDITION TEAM REGISTRATION',
+    `Team: ${text(team.name)}`,
+    `Wilaya: ${wilayaLabel(team.wilaya) || '-'}`,
+    `Institution: ${institutionLabel(team) || '-'}`,
+    '',
+    `Activity administration contact: ${text(activityOfficial.fullName) || '-'} (${roleLabel(activityOfficial.role) || '-'})`,
+    `   ${text(activityOfficial.email) || '-'} · ${text(activityOfficial.phone) || '-'}`,
+    `Head of delegation: ${text(delegationHead.fullName) || '-'} · ${text(delegationHead.phone) || '-'}`,
+    `Driver: ${text(driver.fullName) || '-'} · ${text(driver.phone) || '-'}`,
+    '(RFID numbers are provided in the form only.)',
+    '',
+    ...students.map((student) => [
+      `Student ${String(student.position).padStart(2, '0')}: ${text(student.fullName) || 'Unnamed'}`,
+      `   BAC: ${text(student.bacYear) || '-'} · ${text(student.phone) || '-'}`,
+      `   Student card: ${student.studentCard ? 'attached' : 'missing'}`,
+    ].join('\n')),
+  ].join('\n')
+}
+
+// ---------------------------------------------------------------------------
+// One entry per contract version. `studentTextFields` are the typed student
+// answers kept in the tab's draft (files never are).
+// ---------------------------------------------------------------------------
+
+export const REGISTRATION_MODELS = {
+  3: {
+    version: 3,
+    draftKey: 'aivex-registration-draft-v3',
+    SECTIONS,
+    STUDENT_FIELDS,
+    studentTextFields: ['fullName', 'registrationNumber', 'studyLevel', 'phone'],
+    emptyPerson,
+    createStudents,
+    SECTION_ISSUES,
+    studentIssues,
+    buildSummary,
+  },
+  4: {
+    version: 4,
+    draftKey: 'aivex-registration-draft-v4',
+    SECTIONS: SECTIONS_V4,
+    STUDENT_FIELDS: STUDENT_FIELDS_V4,
+    studentTextFields: ['fullName', 'phone', 'bacYear', 'rfid'],
+    emptyPerson: emptyPersonV4,
+    createStudents: createStudentsV4,
+    SECTION_ISSUES: SECTION_ISSUES_V4,
+    studentIssues: studentIssuesV4,
+    buildSummary: buildSummaryV4,
+  },
+}
+
+export const getRegistrationModel = (version) => REGISTRATION_MODELS[version] || REGISTRATION_MODELS[3]
+
+// Every draft key this form ever used: all but the active one are dropped,
+// so a v3 draft is never read into a v4 form (or the reverse).
+export const DRAFT_KEYS = [
+  'aivex-registration-draft-v1',
+  'aivex-registration-draft-v2',
+  ...Object.values(REGISTRATION_MODELS).map((model) => model.draftKey),
+]

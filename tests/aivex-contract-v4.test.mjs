@@ -11,10 +11,16 @@ import {
   isRegistrationReference, normalizeBacYear, normalizeEmail, normalizePhone, normalizeRfid, normalizeText,
   registrationResponsesV4, studentCardStoragePath, studentCardUploadName, validateRegistrationV4,
 } from '../shared/aivex/contract-v4.js'
+import { bacYearChoices, createSubmissionId, isUuidV4, isValidBacYear } from '../shared/aivex/contract-v4.js'
 import { WORD_EXCLUDED_FIELDS_V4, WORD_VARIABLES_V4, resolveWordDataV4 } from '../shared/aivex/word-mapping-v4.js'
 import { validateStudentCardsV4 } from '../api/_lib/aivex-validation-v4.js'
 import { validateRegistrationV3 } from '../api/_lib/aivex-validation.js'
 import { parseMultipart } from '../api/_lib/multipart.js'
+import registerHandler from '../api/aivex/register.js'
+import {
+  DRAFT_KEYS, buildSubmissionV4, getRegistrationModel, personIssuesV4, studentIssuesV4,
+} from '../src/pages/aivex/register/registrationModel.js'
+import { getBacYearOptions, getRegistrationStrings, registrationStrings } from '../src/pages/aivex/register/registrationI18n.js'
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8')
 
@@ -395,24 +401,32 @@ test('the Word mapping covers every official variable, three students each', () 
   const names = WORD_VARIABLES_V4.map((entry) => entry.variable)
   assert.equal(new Set(names).size, names.length)
   for (const expected of [
-    'edition_name', 'event_start_date', 'event_end_date', 'institution_name', 'wilaya_name', 'team_name',
+    'edition_name', 'event_start_date', 'event_end_date', 'registration_reference',
+    'institution_name', 'wilaya_name', 'team_name',
     'activity_official_phone', 'activity_official_email',
     'delegation_head_name', 'delegation_head_phone', 'delegation_head_rfid',
     'driver_name', 'driver_phone', 'driver_rfid', 'submission_deadline', 'submission_email',
     ...[1, 2, 3].flatMap((n) => [`student_${n}_name`, `student_${n}_phone`, `student_${n}_bac_year`, `student_${n}_rfid`]),
   ]) assert.ok(names.includes(expected), expected)
 
+  assert.equal(names.length, 29)
+
   const student2Rfid = WORD_VARIABLES_V4.find((entry) => entry.variable === 'student_2_rfid')
   assert.equal(student2Rfid.db, 'aivex_students[position=2].rfid_number')
   assert.equal(student2Rfid.payload, 'answers.students[1].rfid')
   assert.equal(student2Rfid.frontend, 'students[1].rfid')
 
+  // The reference is server-generated: no payload or frontend source.
+  const reference = WORD_VARIABLES_V4.find((entry) => entry.variable === 'registration_reference')
+  assert.deepEqual([reference.db, reference.payload, reference.frontend], ['aivex_registrations.reference', null, null])
+
   const students = [3, 1, 2].map((position) => ({ position, full_name: `S${position}`, phone: '0550000001', bac_year: 2020 + position, rfid_number: `0${position}` }))
   const data = resolveWordDataV4({
     settings: { edition_name: 'AIVEX 2', submission_email: 'aivex@univ-bba.dz', event_start_date: null },
-    registration: { team_name: 'Infinity AI', driver_rfid: '0007' },
+    registration: { team_name: 'Infinity AI', driver_rfid: '0007', reference: 'AX2-26-A83F19C2' },
     students,
   })
+  assert.equal(data.registration_reference, 'AX2-26-A83F19C2')
   assert.equal(data.student_1_name, 'S1')
   assert.equal(data.student_3_bac_year, '2023')
   assert.equal(data.driver_rfid, '0007')
@@ -502,7 +516,8 @@ const filledState = () => {
 test('the frontend state has three fixed students and builds a valid canonical payload', () => {
   const empty = createRegistrationStateV4()
   assert.deepEqual(empty.students.map((s) => s.position), [1, 2, 3])
-  assert.deepEqual(Object.keys(empty.students[0]), ['position', 'fullName', 'phone', 'bacYear', 'rfid', 'studentCard'])
+  assert.deepEqual(empty.students.map((s) => s.id), ['student-1', 'student-2', 'student-3'])
+  assert.deepEqual(empty.students[0], { id: 'student-1', position: 1, fullName: '', phone: '', bacYear: '', rfid: '', studentCard: null })
   assert.equal('nationalId' in empty.delegationHead, false)
 
   const payload = buildRegistrationPayloadV4(filledState(), { now: NOW })
@@ -612,4 +627,177 @@ test('the v4 migration is additive and keeps the card bucket private', async () 
   assert.match(sql, /check \(position between 1 and 3\)/)
   assert.match(sql, /enable row level security/)
   assert.match(sql, /delegation_head_national_id is null/)
+})
+
+// Frontend v4 model (behind VITE_AIVEX_FORM_VERSION=4) ------------------------
+test('frontend v4 model: three fixed students, RFID and BAC year, no legacy field', () => {
+  const model = getRegistrationModel(4)
+  assert.equal(model.version, 4)
+  assert.equal(model.draftKey, 'aivex-registration-draft-v4')
+  assert.deepEqual(model.createStudents(), [1, 2, 3].map((position) => ({
+    id: `student-${position}`, position, fullName: '', phone: '', bacYear: '', rfid: '', studentCard: null,
+  })))
+  assert.deepEqual(model.emptyPerson(), { fullName: '', phone: '', rfid: '' })
+  assert.deepEqual(model.STUDENT_FIELDS, ['fullName', 'phone', 'bacYear', 'rfid', 'studentCard'])
+  assert.deepEqual(model.SECTIONS.delegationHead.fields, ['fullName', 'phone', 'rfid'])
+  assert.deepEqual(model.SECTIONS.driver.fields, ['fullName', 'phone', 'rfid'])
+  // Drafts keep typed text only: never the card files.
+  assert.deepEqual(model.studentTextFields, ['fullName', 'phone', 'bacYear', 'rfid'])
+  assert.doesNotMatch(
+    JSON.stringify([model.createStudents(), model.emptyPerson(), model.STUDENT_FIELDS, model.SECTIONS, model.studentTextFields]),
+    /nationalId|registrationNumber|studyLevel|leader/i,
+  )
+
+  // Production (v3) model untouched; unknown versions fall back to it.
+  const legacy = getRegistrationModel(3)
+  assert.equal(legacy.draftKey, 'aivex-registration-draft-v3')
+  assert.ok(legacy.STUDENT_FIELDS.includes('registrationNumber'))
+  assert.equal(getRegistrationModel(undefined), legacy)
+  // A v3 draft is never read into the v4 form: every other key is dropped.
+  assert.deepEqual(DRAFT_KEYS, [
+    'aivex-registration-draft-v1', 'aivex-registration-draft-v2', 'aivex-registration-draft-v3', 'aivex-registration-draft-v4',
+  ])
+})
+
+test('frontend v4 checks mirror the contract, and the form payload passes the API validator', () => {
+  const state = filledState()
+  for (const student of state.students) assert.deepEqual(studentIssuesV4(student, state.students, undefined, NOW), {})
+
+  const sameRfid = state.students.map((student) => ({ ...student, rfid: ' 0047 ' }))
+  assert.ok(studentIssuesV4(sameRfid[1], sameRfid, undefined, NOW).rfid)
+  const empty = { ...state.students[0], bacYear: '', rfid: ' ', studentCard: null }
+  assert.deepEqual(Object.keys(studentIssuesV4(empty, state.students, undefined, NOW)), ['bacYear', 'rfid', 'studentCard'])
+  assert.ok(studentIssuesV4({ ...state.students[0], bacYear: '1985' }, state.students, undefined, NOW).bacYear)
+
+  assert.deepEqual(personIssuesV4({ fullName: 'Karim Haddad', phone: '0661 23 45 67', rfid: '00471236' }), {})
+  assert.deepEqual(Object.keys(personIssuesV4({ fullName: 'Karim Haddad', phone: '0661234567', rfid: '' })), ['rfid'])
+
+  const { payload, files } = buildSubmissionV4(state, { now: NOW, source: 'https://example.test/aivex/register' })
+  const result = validate(payload)
+  assert.equal(result.ok, true, result.message)
+  assert.equal(payload.submissionId, SUBMISSION_ID)
+  assert.deepEqual(files.map(({ field, position }) => ({ field, position })), [
+    { field: 'studentCard_1', position: 1 }, { field: 'studentCard_2', position: 2 }, { field: 'studentCard_3', position: 3 },
+  ])
+})
+
+test('v4 wording: RFID and BAC year in every language, v3 strings untouched', () => {
+  for (const lang of ['en', 'fr', 'ar']) {
+    const t = getRegistrationStrings(lang, 4)
+    for (const key of ['rfidLabel', 'rfidHint', 'bacYearLabel', 'selectBacYear', 'bacYearHint', 'revRfid', 'revBacYear',
+      'errRfidRequired', 'errRfidInvalid', 'errRfidShared', 'errBacYearRequired', 'errBacYearInvalid']) {
+      assert.equal(typeof t[key], 'string', `${lang}.${key}`)
+    }
+    assert.match(t.privacyIntro, /RFID/)
+    assert.equal(getRegistrationStrings(lang), registrationStrings[lang])
+    assert.equal(getRegistrationStrings(lang, 4), t, 'stable object per language')
+  }
+  for (const key of ['rfidLabel', 'bacYearLabel', 'errRfidRequired', 'errBacYearRequired']) {
+    assert.notEqual(registrationStrings.fr[key], registrationStrings.en[key], `fr.${key} is translated`)
+    assert.notEqual(registrationStrings.ar[key], registrationStrings.en[key], `ar.${key} is translated`)
+  }
+
+  const options = getBacYearOptions(getRegistrationStrings('en', 4), bacYearChoices(NOW))
+  assert.deepEqual(options[0], { value: '', label: 'Select year' })
+  assert.deepEqual(options[1], { value: '2026', label: '2026' })
+  assert.deepEqual(options.at(-1), { value: '1990', label: '1990' })
+  for (const { value } of options.slice(1)) assert.equal(isValidBacYear(Number(value), NOW), true)
+})
+
+test('submissionId is a UUID v4 even without crypto.randomUUID (plain-HTTP previews)', () => {
+  const insecure = { getRandomValues: (array) => globalThis.crypto.getRandomValues(array) }
+  const ids = new Set(Array.from({ length: 50 }, () => createSubmissionId(insecure)))
+  assert.equal(ids.size, 50)
+  for (const id of ids) assert.equal(isUuidV4(id), true, id)
+})
+
+test('the shared contract is pure: no React, window, document, Supabase or process.env', async () => {
+  for (const file of ['shared/aivex/contract-v4.js', 'shared/aivex/word-mapping-v4.js']) {
+    const code = (await read(file)).split('\n').filter((line) => !line.trim().startsWith('//')).join('\n')
+    for (const forbidden of [/\bwindow\./, /\bdocument\./, /process\.env/, /from ['"]react['"]/, /@supabase/]) {
+      assert.doesNotMatch(code, forbidden, `${file}: ${forbidden}`)
+    }
+  }
+})
+
+// API dispatch ----------------------------------------------------------------
+const v3Payload = () => {
+  const payload = validPayload()
+  payload.version = 3
+  payload.answers.delegationHead = { fullName: 'Karim Haddad', phone: '0661234567', nationalId: '123456789' }
+  payload.answers.driver = { fullName: 'Nabil Saidi', phone: '0770112233', nationalId: '987654321' }
+  payload.answers.students = [1, 2, 3].map((position) => ({
+    position,
+    fullName: `Student Number ${position}`,
+    registrationNumber: `20213304609${position}`,
+    studyLevel: 'Licence 3',
+    phone: `055000000${position}`,
+    studentCard: `studentCard_${position}`,
+  }))
+  return payload
+}
+
+const pngCards = (overrides = {}) => [1, 2, 3].map((position) => ({
+  field: `studentCard_${position}`,
+  buffer: IMAGES.png,
+  type: 'image/png',
+  filename: `studentCard_${position}.png`,
+  ...overrides[position],
+}))
+
+async function post(payload, cards, ip) {
+  const form = new FormData()
+  form.append('payload', JSON.stringify(payload))
+  for (const { field, buffer, type, filename } of cards) form.append(field, new Blob([buffer], { type }), filename)
+  const response = new Response(form)
+  const req = Readable.from([Buffer.from(await response.arrayBuffer())])
+  Object.assign(req, {
+    method: 'POST',
+    headers: { 'content-type': response.headers.get('content-type'), 'x-forwarded-for': ip },
+    socket: {},
+  })
+  return new Promise((resolve) => {
+    const res = {
+      headers: {},
+      setHeader(name, value) { this.headers[name] = value },
+      end(body) { resolve({ status: this.statusCode, body: JSON.parse(body) }) },
+    }
+    registerHandler(req, res)
+  })
+}
+
+test('API: v4 is fully validated but never written (503); v3 keeps its production path', async () => {
+  // No database here: a request that reaches the write step fails on configuration.
+  delete process.env.SUPABASE_URL
+  delete process.env.SUPABASE_SECRET_KEY
+  delete process.env.VERCEL
+  const logged = console.error
+  console.error = () => {}
+  try {
+    const accepted = await post(validPayload(), pngCards(), '203.0.113.1')
+    assert.deepEqual(accepted, {
+      status: 503,
+      body: { success: false, message: 'AIVEX form v4 registrations are not open yet. Nothing was saved.' },
+    })
+
+    const invalid = validPayload()
+    invalid.answers.students[1].rfid = invalid.answers.students[0].rfid
+    const refused = await post(invalid, pngCards(), '203.0.113.2')
+    assert.equal(refused.status, 400)
+    assert.equal(refused.body.field, 'answers.students[1].rfid')
+
+    const lyingCard = await post(validPayload(), pngCards({ 2: { type: 'image/jpeg', filename: 'studentCard_2.jpg' } }), '203.0.113.3')
+    assert.equal(lyingCard.status, 415)
+    assert.equal(lyingCard.body.field, 'studentCard_2')
+
+    const missingCard = await post(validPayload(), pngCards().slice(0, 2), '203.0.113.4')
+    assert.equal(missingCard.status, 400)
+    assert.equal(missingCard.body.field, 'studentCard_3')
+
+    // v3 passes its own validation and reaches the (unconfigured) write step.
+    const legacy = await post(v3Payload(), pngCards(), '203.0.113.5')
+    assert.deepEqual(legacy, { status: 500, body: { success: false, message: 'Server configuration error.' } })
+  } finally {
+    console.error = logged
+  }
 })

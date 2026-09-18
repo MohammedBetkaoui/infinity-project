@@ -25,8 +25,13 @@ export default function DelegationStep({ registration, reduced, t }) {
             <div className="af-grid-two">
               <ApplicationField {...field(section, 'phone')} label={t.phoneLabel} type="tel" inputMode="tel"
                 autoComplete="off" placeholder={t.phonePlaceholder} hint={t.phoneHint} />
-              <ApplicationField {...field(section, 'nationalId')} label={t.nationalIdLabel} autoComplete="off"
-                spellCheck={false} placeholder={t.nationalIdPlaceholder} hint={t.nationalIdHint} />
+              {registration.formVersion === 4 ? (
+                <ApplicationField {...field(section, 'rfid')} label={t.rfidLabel} autoComplete="off"
+                  spellCheck={false} hint={t.rfidHint} />
+              ) : (
+                <ApplicationField {...field(section, 'nationalId')} label={t.nationalIdLabel} autoComplete="off"
+                  spellCheck={false} placeholder={t.nationalIdPlaceholder} hint={t.nationalIdHint} />
+              )}
             </div>
           </RecordCard>
         ))}

@@ -41,15 +41,17 @@ async function shrink(file, budget) {
   }
 }
 
+// Each entry keeps its other properties (field, position...); only `file`
+// may be replaced.
 export default async function prepareCardUploads(files) {
   const budget = Math.min(MAX_FILE_BUDGET, Math.floor(REQUEST_FILE_BUDGET / Math.max(1, files.length)))
-  return Promise.all(files.map(async ({ field, file }) => {
-    if (file.size <= budget) return { field, file }
+  return Promise.all(files.map(async (entry) => {
+    if (entry.file.size <= budget) return entry
     try {
-      return { field, file: await shrink(file, budget) }
+      return { ...entry, file: await shrink(entry.file, budget) }
     } catch {
       // Undecodable in this browser: send as is and let the server decide.
-      return { field, file }
+      return entry
     }
   }))
 }

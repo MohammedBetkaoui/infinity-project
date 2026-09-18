@@ -1,8 +1,12 @@
 // POST /api/aivex/register — Vercel Serverless Function (Node, ESM).
 //
-// Serves form v3 (LEGACY, still in production). The v4 contract is defined
-// in shared/aivex/contract-v4.js and needs the v4 migration before this
-// handler can write it (Phase 2).
+// Dispatch on the payload version, never converting one into the other:
+//   v3 (LEGACY, production) -> validated and written as described below.
+//   v4 (canonical contract, shared/aivex/contract-v4.js) -> validated end to
+//      end (payload + the real bytes of the three cards), then answered 503
+//      without any write: storing v4 needs the v4 migration and the v4 write
+//      path (idempotent submission_id, aivex_students, server reference),
+//      which belong to Phase 2.
 //
 // Browser (multipart: payload JSON v3 + studentCard_1..3)
 //   -> origin / rate-limit checks -> streaming multipart parse
@@ -24,9 +28,11 @@
 
 import { randomUUID } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
+import { AIVEX_FORM_VERSION, registrationResponsesV4, validateRegistrationV4 } from '../../shared/aivex/contract-v4.js'
 import {
   CARD_FIELD_PATTERN, MAX_CARD_BYTES, STUDENT_COUNT, validateCards, validateRegistrationV3,
 } from '../_lib/aivex-validation.js'
+import { validateStudentCardsV4 } from '../_lib/aivex-validation-v4.js'
 import { isFilled, normalizeString, sendJson as send } from '../_lib/http.js'
 import { MultipartError, parseMultipart } from '../_lib/multipart.js'
 import { consumeRateLimit, getClientIp, isTrustedOrigin } from '../_lib/security.js'
@@ -49,6 +55,17 @@ const MESSAGES = {
   duplicateStudent: 'One of these students is already registered for this AIVEX edition.',
   duplicateRegistration: 'This registration already seems to have been received. Please contact the organisers.',
   saveFailed: 'We could not save your registration. Please try again.',
+  v4NotOpen: 'AIVEX form v4 registrations are not open yet. Nothing was saved.',
+}
+
+// Form v4: every check runs, nothing is written or uploaded (Phase 1).
+async function answerV4(res, body, files) {
+  const registration = validateRegistrationV4(body)
+  const cards = registration.ok ? await validateStudentCardsV4(registration.value.students, files) : registration
+  const outcome = cards.ok
+    ? registrationResponsesV4.failed(503, MESSAGES.v4NotOpen)
+    : registrationResponsesV4.failed(cards.status, cards.message, cards.field)
+  send(res, outcome.status, outcome.body)
 }
 
 class StageError extends Error {
@@ -237,7 +254,12 @@ export default async function handler(req, res) {
     return
   }
 
-  // Form v3 only for now: a v4 payload is refused here, never converted.
+  if (body?.version === AIVEX_FORM_VERSION) {
+    await answerV4(res, body, parsed.files)
+    return
+  }
+
+  // Legacy path, unchanged: anything that is not v4 is validated as v3.
   const registration = validateRegistrationV3(body)
   if (!registration.ok) {
     send(res, registration.status, { success: false, message: registration.message })

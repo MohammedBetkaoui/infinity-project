@@ -1,14 +1,20 @@
 # AIVEX — Data Contract V4
 
 > **Statut : Phase 1 (fondation) — 2026-09-18.**
-> Le contrat V4 est défini, codé et testé. **Il n'est pas encore branché en production** :
-> le formulaire en ligne et `POST /api/aivex/register` restent en **V3 (legacy)**.
+> Le contrat V4 est défini, codé et testé, **frontend compris, derrière un feature flag de build**
+> (`VITE_AIVEX_FORM_VERSION`, défaut `3`). La production reste en **V3 (legacy)** :
+> sans le flag, le formulaire `/aivex/register` est identique à l'actuel.
+> Côté API, une requête V4 est **entièrement validée puis refusée en 503, sans aucune écriture** : l'écriture V4 est la Phase 2.
 > La migration SQL V4 est **préparée mais non exécutée**.
 
 | Élément | Fichier |
 |---|---|
 | Contrat canonique (constantes, enums, normalisation, validateur, builders frontend, chemin Storage, réponses) | [`shared/aivex/contract-v4.js`](../shared/aivex/contract-v4.js) |
 | Validation serveur des cartes (signature binaire, MIME, extension, taille) | [`api/_lib/aivex-validation-v4.js`](../api/_lib/aivex-validation-v4.js) |
+| Dispatch par version (V3 écrit, V4 valide puis 503) | [`api/aivex/register.js`](../api/aivex/register.js) |
+| Feature flag du formulaire | [`src/pages/aivex/register/formVersion.js`](../src/pages/aivex/register/formVersion.js) |
+| Modèles frontend V3 + V4 | [`src/pages/aivex/register/registrationModel.js`](../src/pages/aivex/register/registrationModel.js) |
+| Envoi V4 (sans référence client) | [`src/lib/applicationSubmission.js`](../src/lib/applicationSubmission.js) — `submitAivexRegistrationV4` |
 | Mapping Word (données officielles uniquement) | [`shared/aivex/word-mapping-v4.js`](../shared/aivex/word-mapping-v4.js) |
 | Migration SQL préparatoire | [`supabase/migrations/20260918120000_aivex_v4_contract.sql`](../supabase/migrations/20260918120000_aivex_v4_contract.sql) |
 | Tests du contrat | [`tests/aivex-contract-v4.test.mjs`](../tests/aivex-contract-v4.test.mjs) — `npm run test:contract` |
@@ -56,7 +62,7 @@ Deux classes de données :
 
 - `validateRegistrationV4()` n'accepte que `version === 4` (nombre, pas `"4"`).
 - `validateRegistrationV3()` (ex-`validateRegistration`, renommé sans changement de logique) n'accepte que `version === 3`.
-- **Aucune conversion silencieuse** : un payload V3 envoyé au validateur V4 est refusé (`field: "version"`), et inversement. Testé (tests 1a, 1b) et vérifié sur le handler de production (un payload V4 y reçoit un 400).
+- **Aucune conversion silencieuse** : un payload V3 envoyé au validateur V4 est refusé (`field: "version"`), et inversement. Le handler aiguille sur `version` : `4` → chemin V4 (validation puis 503 en Phase 1), tout le reste → chemin V3 inchangé. Testé (tests 1a, 1b et « API: v4 is fully validated… »).
 
 ## 3. Architecture
 
@@ -74,6 +80,7 @@ Deux classes de données :
 │ honeypot                                   │
 │ validateRegistrationV4()   (pur)           │
 │ validateStudentCardsV4()   (octets réels)  │
+│ Phase 1 : s'arrête ici → 503, rien écrit   │
 │ ── Phase 2 ──────────────────────────────  │
 │ idempotence (submission_id)                │
 │ INSERT aivex_registrations (reference,     │
@@ -129,32 +136,55 @@ Envoyé dans la partie multipart `payload` (JSON) :
 
 ## 5. Contrat frontend
 
-État cible (`createRegistrationStateV4()`) :
+### 5.1 Feature flag
+
+| `VITE_AIVEX_FORM_VERSION` (au build) | Formulaire servi | Envoi |
+|---|---|---|
+| absent ou `3` (**production**) | V3 inchangé : identité nationale, matricule, niveau d'études | `submitApplication` → payload v3 |
+| `4` | V4 : RFID, année du BAC, `submissionId` | `submitAivexRegistrationV4` → payload v4 |
+
+Le flag est lu **statiquement** dans [`formVersion.js`](../src/pages/aivex/register/formVersion.js) (Vite n'embarque que cette variable). Il ne doit passer à `4` en production qu'après le déploiement de l'écriture V4 (Phase 2) : d'ici là, l'API répond 503 à toute inscription V4.
+
+### 5.2 Modèle V4
+
+État (`createRegistrationStateV4()` dans le contrat ; même forme dans le hook, qui y ajoute l'état d'UI) :
 
 ```js
 {
-  submissionId,                       // UUID v4, créé une fois
+  submissionId,                       // UUID v4, créé une fois par tentative
   team: { name, wilaya, institution, customInstitution },
   activityOfficial: { role, fullName, email, phone },
   delegationHead: { fullName, phone, rfid },
   driver: { fullName, phone, rfid },
-  students: [                         // toujours 3, positions 1..3
-    { position: 1, fullName, phone, bacYear, rfid, studentCard },  // studentCard = File | null
-    { position: 2, … },
-    { position: 3, … },
+  students: [                         // toujours 3 objets fixes
+    { id: 'student-1', position: 1, fullName: '', phone: '', bacYear: '', rfid: '', studentCard: null },
+    { id: 'student-2', position: 2, … },
+    { id: 'student-3', position: 3, … },
   ],
   consent,
 }
 ```
 
-- `team.wilaya` = code (`'34'`), `team.institution` = id du dataset ; `customInstitution` porte le nom saisi quand `institution === 'other'` (nécessaire à l'UI, converti en `{ id: 'other', name, custom: true }` dans le payload).
-- `bacYear` est une chaîne dans l'état (valeur d'input) et un **entier** dans le payload.
-- **Pas d'ajout / suppression d'étudiant** : les trois cartes « Student 1 / 2 / 3 » sont affichées directement (déjà le cas en V3).
-- `buildRegistrationPayloadV4(state)` produit le payload canonique (sans `reference`).
-- `buildStudentCardPartsV4(state)` produit `[{ field: 'studentCard_1', file, filename: 'studentCard_1.jpg' }, …]`. Le nom de fichier envoyé est **dérivé** (position + type) : le nom d'origine (souvent `IMG_…` ou le nom de l'étudiant) ne quitte jamais l'appareil.
-- La compression existante (`prepareCardUploads.js`) reste nécessaire (voir §19 — limite Vercel 4,5 Mo).
+- `team.wilaya` = code (`'34'`), `team.institution` = id du dataset ; `customInstitution` porte le nom saisi quand `institution === 'other'` (converti en `{ id: 'other', name, custom: true }` dans le payload).
+- **Pas d'ajout / suppression d'étudiant** : « Student 01 / 02 / 03 » sont affichés directement ; tous les champs sont obligatoires (nom complet, téléphone, année du BAC, RFID, carte étudiant).
+- **Année du BAC** : `<select>` dynamique de l'année courante à 1990 (`bacYearChoices()`), valeur chaîne dans l'état, **entier** dans le payload.
+- **RFID** : champ texte libre (aucun format imposé), conservé tel quel à l'exception du trim ; les 3 RFID étudiants doivent différer (contrôle client identique au serveur).
+- Chef de délégation et chauffeur : `rfid` remplace `nationalId`.
+- `buildSubmissionV4(state)` → `{ payload, files }` ; `payload` = `buildRegistrationPayloadV4` du contrat (sans `reference`).
+- Parties fichier : `studentCard_1..3`, nom **dérivé** après compression (`studentCard_2.jpg`…) — le nom d'origine (souvent `IMG_…` ou le nom de l'étudiant) ne quitte jamais l'appareil. La compression existante (`prepareCardUploads.js`) reste active (limite Vercel 4,5 Mo, §19).
+- Résultat : la référence affichée vient **uniquement** du serveur (pas de repli `makeReference` en V4) ; un rejeu 200 `alreadyProcessed` compte comme un succès.
 
-L'UI n'est **pas** migrée dans cette phase (voir §18).
+### 5.3 Brouillon (`sessionStorage`)
+
+| | V3 | V4 |
+|---|---|---|
+| Clé | `aivex-registration-draft-v3` | `aivex-registration-draft-v4` |
+| Contenu | étape, équipe, contact, délégation, textes étudiants | idem + `submissionId` |
+| Fichiers | jamais persistés | jamais persistés |
+
+- Toutes les autres clés (`v1`, `v2`, et `v3` quand V4 est actif) sont supprimées au chargement : un brouillon V3 n'est **jamais** relu dans le formulaire V4.
+- Après rechargement, chaque carte précédemment jointe est signalée comme perdue (`droppedCard` : « … n'a pas été conservé, joignez-le à nouveau ») et le formulaire revient à l'étape Étudiants.
+- Le `submissionId` du brouillon est conservé : un rechargement après une réponse perdue renvoie la **même** tentative (§14).
 
 ## 6. Contrat backend
 
@@ -171,7 +201,16 @@ L'UI n'est **pas** migrée dans cette phase (voir §18).
 
 Toute autre partie → 400. `parseMultipart` expose désormais aussi `filename` (nom déclaré, non fiable, uniquement comparé au type détecté).
 
-### 6.2 Pipeline (Phase 2)
+### 6.2 État actuel du handler (Phase 1)
+
+`api/aivex/register.js` aiguille sur `body.version`, sans jamais convertir :
+
+| Version | Traitement |
+|---|---|
+| `4` | `validateRegistrationV4` + `validateStudentCardsV4` ; erreur → 400/413/415 avec `field` ; payload et cartes valides → **503** `« AIVEX form v4 registrations are not open yet. Nothing was saved. »`. Aucun client Supabase n'est créé, rien n'est écrit ni uploadé. |
+| autre | chemin V3 de production **inchangé** (`validateRegistrationV3` → écriture). |
+
+### 6.3 Pipeline d'écriture V4 (Phase 2)
 
 1. Origine + rate limit.
 2. `parseMultipart` (5 Mo max par fichier, 3 fichiers max).
@@ -186,13 +225,13 @@ Toute autre partie → 400. `parseMultipart` expose désormais aussi `filename` 
 
 En cas d'échec après l'étape 7 : **cleanup compensatoire** obligatoire (suppression des objets Storage déjà envoyés, puis de l'inscription — les étudiants suivent par `ON DELETE CASCADE`), comme le fait déjà `cleanupFailedRegistration()` en V3. Storage et PostgreSQL ne partagent pas de transaction : la Phase 2 devra aussi prévoir un balayage des inscriptions V4 restées à 0 étudiant au-delà de quelques minutes (crash entre deux étapes). Alternative à étudier : upload d'abord, puis une RPC SQL qui insère inscription + étudiants dans une seule transaction.
 
-### 6.3 Autorité serveur
+### 6.4 Autorité serveur
 
 | Le frontend fournit | Le serveur décide |
 |---|---|
 | `team`, `wilaya`, `institution`, `activityOfficial`, `delegationHead`, `driver`, `students`, `consent`, `submissionId` | `id`, `reference`, `edition`, `form_version`, `registration_status`, `document_status`, `submitted_at`, `created_at`, `updated_at`, `template_version`, libellés wilaya/établissement (re-dérivés du dataset) |
 
-### 6.4 Réponses (`registrationResponsesV4`)
+### 6.5 Réponses (`registrationResponsesV4`)
 
 | Cas | HTTP | Corps |
 |---|---|---|
@@ -322,7 +361,7 @@ Rien dans cette phase ne retire l'input carte, l'aperçu, la validation, l'uploa
 
 ## 10. Mapping Word
 
-Le template Word officiel **n'est pas dans le dépôt** et n'a pas été modifié. Le mapping suit la liste de variables du brief ; il est à confronter au vrai template en Phase 3. `resolveWordDataV4({ settings, registration, students })` résout les variables à partir des lignes de base (valeurs brutes en texte ; le formatage des dates et téléphones sera décidé avec le template). Aucune librairie docx/PDF n'est ajoutée.
+Le template Word officiel **n'est pas dans le dépôt** et n'a pas été modifié. Le mapping reprend les **29 variables** du brief ; il est à confronter au vrai template en Phase 3. `resolveWordDataV4({ settings, registration, students })` résout les variables à partir des lignes de base (valeurs brutes en texte ; le formatage des dates et téléphones sera décidé avec le template). Aucune librairie docx/PDF n'est ajoutée.
 
 ### 10.1 FRONTEND → API → DATABASE → WORD
 
@@ -331,6 +370,7 @@ Le template Word officiel **n'est pas dans le dépôt** et n'a pas été modifi�
 | — | — | `aivex_settings.edition_name` | `{{edition_name}}` |
 | — | — | `aivex_settings.event_start_date` | `{{event_start_date}}` |
 | — | — | `aivex_settings.event_end_date` | `{{event_end_date}}` |
+| — (affichée après succès) | — (générée par le serveur) | `aivex_registrations.reference` | `{{registration_reference}}` |
 | `team.institution` \| `team.customInstitution` | `answers.team.institution.name` | `aivex_registrations.institution_name` | `{{institution_name}}` |
 | `team.wilaya` | `answers.team.wilaya.name` | `aivex_registrations.wilaya_name` | `{{wilaya_name}}` |
 | `team.name` | `answers.team.name` | `aivex_registrations.team_name` | `{{team_name}}` |
@@ -456,7 +496,7 @@ POST (submissionId = X) → trouvée par submission_id → 200 { reference, alre
 ## 15. Sécurité
 
 - `SUPABASE_SECRET_KEY` (service role) **uniquement côté serveur**, jamais préfixée `VITE_` / `INFINITY_` / `AIVEX_`.
-- ⚠️ `vite.config.js` expose les préfixes `VITE_`, `INFINITY_`, `AIVEX_`, et `src/lib/applicationSubmission.js` lit `import.meta.env[name]` **dynamiquement** : Vite embarque alors **tout** l'objet d'environnement préfixé dans le bundle. Toute future variable serveur V4 (édition, secrets, e-mails) doit donc utiliser un autre préfixe.
+- `vite.config.js` expose les préfixes `VITE_`, `INFINITY_`, `AIVEX_` au navigateur. `src/lib/applicationSubmission.js` lisait `import.meta.env[name]` **dynamiquement**, ce qui faisait embarquer tout l'objet d'environnement préfixé ; il lit désormais chaque variable **statiquement** (vérifié : le bundle ne contient plus de table de variables). Une variable serveur V4 (édition, e-mails, secrets) ne doit tout de même **jamais** porter ces préfixes. `VITE_AIVEX_FORM_VERSION` est publique par nature (simple flag).
 - `VITE_SUPABASE_PUBLISHABLE_KEY` n'est pas utilisée aujourd'hui ; elle ne pourra l'être que si des policies RLS explicites existent. Le modèle V4 n'en prévoit aucune : **tout passe par l'API**.
 - RLS activée sur `aivex_registrations`, `aivex_members`, `aivex_students`, `aivex_settings`, **sans policy** ; `REVOKE ALL` pour `anon` et `authenticated` sur les nouvelles tables.
 - Bucket des cartes privé, sans policy ; lecture admin future par URL signée courte.
@@ -484,6 +524,8 @@ POST (submissionId = X) → trouvée par submission_id → 200 { reference, alre
 | `aivex_registrations.status` | **legacy** (lue par l'API V3) | `registration_status` |
 | index `aivex_registrations_edition_contact_uidx` | **remplacé** (e-mail non unique en V4) | `aivex_registrations_edition_contact_v3_uidx` (`where form_version < 4`) |
 | payload `reference` généré par le navigateur (`makeReference`) | **legacy** (ignoré par l'API V3 sauf honeypot) | aucun — **refusé** en V4, référence serveur uniquement |
+| brouillon `aivex-registration-draft-v3` | **legacy** (formulaire V3) | `aivex-registration-draft-v4` (+ `submissionId`) ; jamais relu par V4 |
+| UI : champs `nationalId`, `registrationNumber`, `studyLevel` | **legacy** (servis tant que le flag vaut 3) | `rfid`, `bacYear` (flag = 4) |
 | `leader_name`, `university`, `team_email`, `member_count`, `aivex_members.role` | déjà supprimés par la migration v3 « contract » | — |
 
 Rien n'est supprimé dans cette phase (aucun `DROP TABLE` / `DROP COLUMN`, vérifié par test).
@@ -492,24 +534,24 @@ Rien n'est supprimé dans cette phase (aucun `DROP TABLE` / `DROP COLUMN`, véri
 
 | Étape | Contenu | Production |
 |---|---|---|
-| **Phase 1 (cette phase)** | Contrat, validateurs, mapping, migration préparée, tests, doc. `validateRegistration` → `validateRegistrationV3`. `parseMultipart` expose `filename`. | inchangée (V3) |
+| **Phase 1 (cette phase)** | Contrat, validateurs, mapping, migration préparée, tests, doc. Handler : dispatch par version (V4 validé puis 503). Frontend V4 complet **derrière le flag** (RFID, BAC, `submissionId`, brouillon v4, envoi sans référence client). `validateRegistration` → `validateRegistrationV3`. `parseMultipart` expose `filename`. | inchangée (V3, flag absent) |
 | Phase 2a — base | Revue de la migration → staging → production. Après application, **V3 continue de fonctionner** : chaque nouvelle règle est limitée à `form_version >= 4` ou aux nouvelles tables. | V3 |
-| Phase 2b — backend | `register.js` : dispatch par `version` (3 → chemin legacy, 4 → chemin V4 §6.2), idempotence, référence serveur. Déployé **avant** le frontend. | V3 + V4 acceptés |
-| Phase 2c — frontend | État/payload V4 (`createRegistrationStateV4`, `buildRegistrationPayloadV4`) ; RFID à la place de `nationalId` ; BAC + RFID à la place de matricule + niveau ; nouvelle clé de brouillon avec `submissionId` ; plus de référence client ; libellés i18n et texte de confidentialité. Carte étudiant inchangée. | V4 |
-| Phase 2d — fin de V3 | Après une fenêtre de transition (anciens bundles en cache), l'API refuse V3 avec un 400 explicite ; le code V3 passe en REMOVE LATER. | V4 |
+| Phase 2b — backend | Remplacer le 503 V4 par l'écriture §6.3 : idempotence `submission_id`, référence serveur, `aivex_students`, cleanup. Déployé **avant** le basculement du flag. | V3 (V4 accepté côté API) |
+| Phase 2c — frontend | Build avec `VITE_AIVEX_FORM_VERSION=4` (d'abord en Preview Vercel, puis en Production). Aucun code UI supplémentaire requis. | V4 |
+| Phase 2d — fin de V3 | Après une fenêtre de transition (anciens bundles en cache), l'API refuse V3 avec un 400 explicite ; le modèle V3, les branches `v4 ? … : …` de l'UI, les libellés V3 et `validateRegistrationV3` passent en REMOVE LATER. | V4 |
 
-Ordre impératif : **migration → backend → frontend**.
+Ordre impératif : **migration → backend → flag frontend**. Retour arrière : repasser le flag à `3` (le code V3 est intact).
 Données V3 existantes : conservées telles quelles (`aivex_members`, `*_national_id`). Aucune conversion automatique vers `aivex_students` : BAC et RFID n'existent pas pour ces lignes et ne peuvent pas être déduits.
 
 ## 19. Décisions métier ouvertes
 
 1. **RFID** — que désigne-t-il exactement (UID de puce, numéro imprimé) ? Format, jeu de caractères, longueur ? Sensible à la casse ? (Aujourd'hui : chaîne 1–64, trim seul, comparaison exacte.)
 2. **Unicité RFID** — faut-il `UNIQUE (edition, rfid_number)` entre équipes ? Un RFID peut-il être partagé entre un étudiant, le chef de délégation et le chauffeur ? (Aujourd'hui : unique seulement entre les 3 étudiants d'une inscription.)
-3. **Année du BAC** — borne haute « année courante + 1 » (brief) ou « année courante » (un étudiant a déjà son BAC) ? Borne basse 1990 ?
+3. **Année du BAC** — le validateur accepte jusqu'à « année courante + 1 » (brief) mais le sélecteur ne propose que jusqu'à l'année courante (un étudiant a déjà son BAC). Aligner les deux ? Borne basse 1990 ?
 4. **Carte étudiant** — PDF accepté ? Recto seul ou recto + verso ? Durée de conservation et suppression après l'événement ?
 5. **Téléphone** — garder le format saisi (`0555…` / `+213…`) ou canoniser en E.164 ? Impact sur l'impression Word.
 6. **Référence** — conserver le générateur actuel de la base (défini hors dépôt, format à vérifier avec les requêtes en fin de migration) ou générer `AX{edition}-{yy}-{8 hex}` dans l'API (avec retry sur collision) ?
-7. **Template Word** — `activity_official_name`, `activity_official_role` (libellé arabe ?), `reference` ne figurent pas dans la liste de variables : à confirmer sur le vrai template. Format des dates.
+7. **Template Word** — `activity_official_name` et `activity_official_role` (libellé arabe ?) ne figurent pas dans la liste de variables : à confirmer sur le vrai template. Format des dates et de la référence imprimée.
 8. **`aivex_settings` édition 2** — nom officiel imprimé, dates, e-mail de dépôt, version du template.
 9. **Rejeu avec contenu différent** (même `submissionId`, réponses modifiées après une erreur ambiguë) : recommandé d'ajouter une empreinte du payload normalisé et de répondre 409.
 10. **Rejeu pendant le traitement** : 409 + `Retry-After`, ou attente côté serveur ?
@@ -521,56 +563,64 @@ Données V3 existantes : conservées telles quelles (`aivex_members`, `*_nationa
 
 ## Annexe A — Audit du code existant
 
-Recherche sur le code suivi (`src/`, `api/`, `scripts/`, `supabase/`) avant modification.
-Résultat global : `rfid`, `bacYear`, `submissionId` : **0 occurrence** (introduits par V4) ; `leader` / `isLeader` : **0 occurrence dans le code** (seulement dans les migrations v3 historiques) ; le formulaire V3 a déjà exactement 3 étudiants fixes sans leader.
+Recherche globale sur le code suivi (`src/`, `api/`, `scripts/`, `supabase/`, `shared/`, `tests/`), refaite après les modifications de la Phase 1. Les références sont données par symbole (plus stables que les numéros de ligne).
 
-Catégories : KEEP · REFACTOR · LEGACY · REMOVE LATER · MIGRATE PHASE 2 · MIGRATE PHASE 3.
+Constat de départ : le formulaire V3 avait déjà exactement 3 étudiants fixes, sans leader ni ajout/suppression ; `rfid`, `bacYear`, `submissionId` n'existaient nulle part.
 
-| Fichier | Lignes | Rôle actuel | Action V4 |
+Catégories : **V3 legacy** (servi en production tant que le flag vaut 3) · **V4** (nouveau contrat) · **KEEP** · **REMOVE LATER** (fin de V3, Phase 2d) · **PHASE 2 / PHASE 3**.
+
+### A.1 `registrationNumber` / `studyLevel` / `nationalId`
+
+| Fichier | Rôle | V3 / V4 | Action |
 |---|---|---|---|
-| `api/aivex/register.js` | 1–24 | En-tête : pipeline V3 | LEGACY (annoté V3) |
-| `api/aivex/register.js` | 88–109 | `findDuplicate` : unicité e-mail + `aivex_members.registration_number` | LEGACY — ne pas porter en V4 (e-mail non unique, pas de matricule) |
-| `api/aivex/register.js` | 111–150 | `INSERT aivex_registrations` avec `delegation_head_national_id`, `driver_national_id` ; `select status` | MIGRATE PHASE 2 (chemin V4 : `*_rfid`, `submission_id`, statuts) |
-| `api/aivex/register.js` | 153–190 | Upload cartes (`{registrationId}/{uuid}.{ext}`) + `INSERT aivex_members` (`registration_number`, `study_level`, `student_card_*`) | MIGRATE PHASE 2 → `aivex_students` + `studentCardStoragePath` ; `student_card_*` **KEEP** |
-| `api/aivex/register.js` | 68–84 | `cleanupFailedRegistration` | KEEP (même stratégie en V4) |
-| `api/aivex/register.js` | 233–237 | Honeypot : renvoie `body.reference` fourni par le client | REFACTOR PHASE 2 (V4 : pas de référence client) |
-| `api/aivex/register.js` | 240–241 | Appel `validateRegistrationV3` | KEEP (dispatch par version en Phase 2) |
-| `api/_lib/aivex-validation.js` | 1–17, 159 | Validateur V3 (`validateRegistrationV3`, renommé) | LEGACY → REMOVE LATER (fin de V3) |
-| `api/_lib/aivex-validation.js` | 22, 49, 149 | `CARD_FIELD_PATTERN`, `cardField`, contrôle `studentCard` | KEEP (V3) ; équivalents V4 dans le contrat |
-| `api/_lib/aivex-validation.js` | 107–121 | `readPerson` : `nationalId` | LEGACY → REMOVE LATER |
-| `api/_lib/aivex-validation.js` | 138–151 | `registrationNumber`, `studyLevel` | LEGACY → REMOVE LATER |
-| `api/_lib/aivex-validation.js` | 197–223 | `validateCards` (signature binaire V3) | KEEP (V3) ; V4 : `validateStudentCardsV4` |
-| `api/_lib/multipart.js` | 17–19, 106 | Parser multipart | KEEP (+ `filename`, additif) |
-| `src/lib/applicationSubmission.js` | 30–34, 53, 67, 108 | `makeReference` : référence générée par le navigateur, envoyée et utilisée en repli | REFACTOR PHASE 2 (V4 : référence serveur uniquement) |
-| `src/lib/applicationSubmission.js` | 3 | `import.meta.env[name]` dynamique | REFACTOR PHASE 2 (accès statique, cf. §15) |
-| `src/pages/aivex/register/registrationModel.js` | 1–11 | Constantes V3 (`FORM_VERSION = 3`) | LEGACY (annoté) |
-| `src/pages/aivex/register/registrationModel.js` | 23–24, 48, 73, 115–123, 182 | `nationalId` (sections, état, normalisation, validation, payload) | MIGRATE PHASE 2 → `rfid` |
-| `src/pages/aivex/register/registrationModel.js` | 26, 34–44, 55–56, 138–147, 205–206, 236 | `registrationNumber`, `studyLevel` | MIGRATE PHASE 2 → `bacYear` + `rfid` |
-| `src/pages/aivex/register/registrationModel.js` | 58, 149, 153–158, 208, 213–214, 237 | `studentCard` (état, validation, contrôle fichier, multipart, résumé) | KEEP |
-| `src/pages/aivex/register/registrationModel.js` | 221–240 | `buildSummary` (texte copiable, sans n° d'identité) | MIGRATE PHASE 2 (sans RFID non plus) |
-| `src/pages/aivex/register/useCompetitionRegistration.js` | 11–12, 58, 180–181 | Brouillon V3 (`aivex-registration-draft-v3`) avec matricule/niveau | MIGRATE PHASE 2 (clé v4 + `submissionId`) |
-| `src/pages/aivex/register/useCompetitionRegistration.js` | 111, 177 | Carte : `droppedCard`, fichiers non persistés | KEEP |
-| `src/pages/aivex/register/useCompetitionRegistration.js` | 259 | Envoi `version: FORM_VERSION` (3) | MIGRATE PHASE 2 |
-| `src/pages/aivex/register/DelegationStep.jsx` | 28–29 | Champ `nationalId` | MIGRATE PHASE 2 → champ RFID |
-| `src/pages/aivex/register/StudentsStep.jsx` | 28, 47–51 | Champs matricule + niveau | MIGRATE PHASE 2 → BAC + RFID |
-| `src/pages/aivex/register/StudentsStep.jsx` | 55–65 | `StudentCardUpload` | KEEP |
-| `src/pages/aivex/register/StudentCardUpload.jsx` | tout | Input, glisser-déposer, aperçu, contrôle type/taille | KEEP |
-| `src/pages/aivex/register/prepareCardUploads.js` | tout | Compression sous la limite Vercel | KEEP |
-| `src/pages/aivex/register/useObjectUrl.js` | tout | Aperçus locaux (object URL, jamais uploadés ailleurs) | KEEP |
-| `src/pages/aivex/register/ReviewStep.jsx` | 29 | Relecture `nationalId` | MIGRATE PHASE 2 → RFID |
-| `src/pages/aivex/register/ReviewStep.jsx` | 50–51 | Relecture matricule + niveau | MIGRATE PHASE 2 → BAC + RFID |
-| `src/pages/aivex/register/ReviewStep.jsx` | 37, 56–70 | Aperçu de la carte | KEEP |
-| `src/pages/aivex/register/registrationI18n.js` | 78–81, 264–267, 444–447 | Libellés `nationalId` (en/fr/ar) | MIGRATE PHASE 2 → libellés RFID |
-| `src/pages/aivex/register/registrationI18n.js` | 93–98, 278–283, 458–463, 573–588 | Libellés matricule / niveau, `getStudyOptions`, `getStudyLabel` | MIGRATE PHASE 2 (BAC/RFID) puis REMOVE LATER |
-| `src/pages/aivex/register/registrationI18n.js` | 134–136, 316–318, 496–498 | Relecture : n° d'identité, matricule, niveau | MIGRATE PHASE 2 |
-| `src/pages/aivex/register/registrationI18n.js` | 112, 296, 476 | `uploadHint` : « matricule lisible » | MIGRATE PHASE 2 (texte) — l'upload reste |
-| `src/pages/aivex/register/registrationI18n.js` | 151, 332, 512 | `privacyIntro` : mentionne les n° d'identité | MIGRATE PHASE 2 (texte de confidentialité V4) |
-| `src/pages/aivex/register/registrationI18n.js` | 183–190, 362–369, 542–549 | Erreurs `errNational*`, `errReg*`, `errLevel*` | MIGRATE PHASE 2 puis REMOVE LATER |
-| `src/pages/aivex/register/RegistrationSuccess.jsx` | 18 | Affiche la référence | KEEP (V4 : référence serveur) |
-| `src/pages/aivex/register/RecordCard.jsx` | 1 | Commentaire « delegation members » | KEEP (pas un rôle étudiant) |
-| `supabase/migrations/20260917200000…`, `…200050…`, `…200100…` | — | Historique V3 (`aivex_members`, `national_id`, `leader_name`, `role`) | KEEP — migrations appliquées, jamais réécrites |
-| `src/pages/join/*`, `api/join.js`, `src/pages/community/*`, `src/admin/*` | — | « member » / `studyLevel` de l'**adhésion au club** et de la page communauté | Hors périmètre AIVEX — KEEP |
-| — | — | Génération Word/PDF, upload du document signé, workflow admin (`document_status`) | MIGRATE PHASE 3 |
+| `api/_lib/aivex-validation.js` — `readPerson`, `readStudents`, `STUDY_LEVELS`, `NATIONAL_ID_RE` | Validation serveur V3 | V3 legacy | KEEP tant que V3 est servi → REMOVE LATER |
+| `api/aivex/register.js` — `findDuplicate`, `storeRegistration` (`registration_number`, `study_level`, `*_national_id`) | Écriture V3 | V3 legacy | KEEP → REMOVE LATER ; le chemin V4 (Phase 2) écrit `aivex_students` / `*_rfid` |
+| `src/pages/aivex/register/registrationModel.js` — `SECTIONS`, `STUDENT_FIELDS`, `studyLevels`, `emptyPerson`, `createStudent`, `normalizeNationalId`, `personIssues`, `studentIssues`, `buildSubmission`, `buildSummary` | Modèle V3 | V3 legacy | KEEP (modèle `REGISTRATION_MODELS[3]`) → REMOVE LATER |
+| `src/pages/aivex/register/registrationModel.js` — `SECTIONS_V4`, `STUDENT_FIELDS_V4`, `emptyPersonV4`, `createStudentsV4`, `personIssuesV4`, `studentIssuesV4`, `buildSubmissionV4`, `buildSummaryV4` | Modèle V4 (RFID, BAC) | **V4** | fait (Phase 1) |
+| `src/pages/aivex/register/DelegationStep.jsx` | Champ `nationalId` (V3) / `rfid` (V4) | les deux | fait : branche V4 ; branche V3 → REMOVE LATER |
+| `src/pages/aivex/register/StudentsStep.jsx` | Matricule + niveau (V3) / BAC + RFID (V4) | les deux | fait : branche V4 ; branche V3 → REMOVE LATER |
+| `src/pages/aivex/register/ReviewStep.jsx` | Relecture des mêmes champs | les deux | fait : branche V4 ; branche V3 → REMOVE LATER |
+| `src/pages/aivex/register/registrationI18n.js` — `nationalId*`, `regNumber*`, `studyLevels`, `revNationalId`, `revRegId`, `revStudyLevel`, `errNational*`, `errReg*`, `errLevelRequired`, `getStudyOptions`, `getStudyLabel` (en/fr/ar) | Libellés V3 | V3 legacy | KEEP → REMOVE LATER |
+| `src/pages/aivex/register/registrationI18n.js` — `rfid*`, `bacYear*`, `revRfid`, `revBacYear`, `errRfid*`, `errBacYear*`, `v4Wording` (`uploadHint`, `privacyIntro` sans n° d'identité), `getBacYearOptions` | Libellés V4 (en/fr/ar) | **V4** | fait (Phase 1) |
+| `shared/aivex/contract-v4.js` (commentaire) | Cite ces champs comme **refusés** en V4 | V4 | KEEP |
+| `tests/aivex-contract-v4.test.mjs` | Vérifie leur **refus** en V4 et le maintien de V3 | V4 | KEEP |
+| `supabase/migrations/20260917200000_aivex_registration_v3_expand.sql` | Historique V3 (colonnes, checks) | V3 legacy | KEEP — migration appliquée, jamais réécrite |
+| `src/pages/join/JoinPage.jsx`, `src/pages/join/joinModel.js` (`studyLevel`) | Formulaire d'**adhésion au club** | hors AIVEX | KEEP (sans rapport) |
+
+### A.2 `leader` / `isLeader`
+
+| Fichier | Rôle | V3 / V4 | Action |
+|---|---|---|---|
+| `supabase/migrations/20260917200000…expand.sql`, `…200100…contract.sql` | Suppression historique de `leader_name` (V2) | historique | KEEP |
+| `tests/aivex-contract-v4.test.mjs` | Vérifie qu'aucun leader n'existe en V4 | V4 | KEEP |
+| code applicatif (`src/`, `api/`, `shared/`) | — | — | **0 occurrence** : aucun système leader/member étudiant |
+
+### A.3 `aivex_members`
+
+| Fichier | Rôle | V3 / V4 | Action |
+|---|---|---|---|
+| `api/aivex/register.js` — `findDuplicate`, `storeRegistration` | Étudiants V3 | V3 legacy | KEEP → REMOVE LATER ; V4 écrira `aivex_students` (Phase 2) |
+| `supabase/migrations/20260917200000…`, `…200050…trigger.sql`, `…200100…` | Historique V3 | historique | KEEP |
+| `supabase/migrations/20260918120000_aivex_v4_contract.sql` | Commentaire « LEGACY », RLS confirmée, **aucune** modification de structure | V4 (prép.) | KEEP |
+
+### A.4 `studentCard` (conservé partout)
+
+| Fichier | Rôle | Action |
+|---|---|---|
+| `StudentCardUpload.jsx`, `useObjectUrl.js`, `prepareCardUploads.js` | Input, glisser-déposer, aperçu local, compression | KEEP (communs V3/V4 ; `prepareCardUploads` conserve désormais `position`) |
+| `StudentsStep.jsx`, `ReviewStep.jsx` | Carte obligatoire + aperçu en relecture | KEEP (V3 et V4) |
+| `registrationModel.js` — `checkCardFile`, `studentIssues*` (`studentCard` requis), `buildSubmission*` (parties `studentCard_1..3`) | Validation et transport | KEEP |
+| `api/_lib/aivex-validation.js` — `validateCards` ; `api/_lib/aivex-validation-v4.js` — `validateStudentCardsV4` | Signature binaire serveur | KEEP (V3) / V4 |
+| `api/aivex/register.js` — upload bucket privé, `student_card_*` | Stockage V3 | KEEP (la politique reste identique en V4) |
+
+### A.5 Autres points
+
+| Fichier | Rôle | Action |
+|---|---|---|
+| `src/lib/applicationSubmission.js` — `makeReference` | Référence client V3 (repli) | V3 legacy → REMOVE LATER ; V4 (`submitAivexRegistrationV4`) n'en a pas |
+| `src/lib/applicationSubmission.js` — lecture de l'environnement | Était dynamique (`import.meta.env[name]`) | **corrigé** : lecture statique |
+| `api/aivex/register.js` — honeypot (`body.reference`) | Écho d'une référence client | V3 legacy → REMOVE LATER |
+| Génération Word/PDF, upload du document signé, workflow `document_status` | — | PHASE 3 (non implémenté) |
 
 ## Annexe B — Commandes
 

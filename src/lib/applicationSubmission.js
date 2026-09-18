@@ -1,17 +1,14 @@
-const pickEndpoint = (...names) => {
-  for (const name of names) {
-    const value = import.meta.env[name]?.trim()
-    if (value) return value
-  }
-  return ''
-}
+// Static reads only: Vite then inlines these variables and nothing else.
+// A dynamic import.meta.env[name] would ship every VITE_/INFINITY_/AIVEX_
+// variable of the build to the browser.
+const pickEndpoint = (...values) => values.map((value) => value?.trim()).find(Boolean) || ''
 
 const ENDPOINTS = {
   // Same-origin fallback: the backend lives on the same Vercel domain.
   // A relative path contains no secret and keeps production working even
   // if the env variable was forgotten at build time.
-  membership: pickEndpoint('VITE_INFINITY_JOIN_ENDPOINT', 'INFINITY_JOIN_ENDPOINT') || '/api/join',
-  aivex: pickEndpoint('VITE_AIVEX_REGISTER_ENDPOINT', 'AIVEX_REGISTER_ENDPOINT') || '/api/aivex/register',
+  membership: pickEndpoint(import.meta.env.VITE_INFINITY_JOIN_ENDPOINT, import.meta.env.INFINITY_JOIN_ENDPOINT) || '/api/join',
+  aivex: pickEndpoint(import.meta.env.VITE_AIVEX_REGISTER_ENDPOINT, import.meta.env.AIVEX_REGISTER_ENDPOINT) || '/api/aivex/register',
 }
 
 const REQUEST_TIMEOUT_MS = 12000
@@ -46,38 +43,12 @@ const pickServerMessage = (payload) => {
   return trimmed.slice(0, 300)
 }
 
-// `files` ([{ field, file }]) switches the request to multipart/form-data:
-// the JSON envelope travels in a `payload` part, each file in its own part.
-export async function submitApplication(kind, answers, { files = [], version = 1 } = {}) {
-  const endpoint = ENDPOINTS[kind]
-  const reference = makeReference(kind)
-
-  // A filled honeypot is acknowledged without sending data to the endpoint.
-  if (answers.website) return { delivered: true, reference }
-  if (!endpoint) return { delivered: false, reference }
-
+// POST with a timeout. Resolves the parsed JSON body of a successful
+// response; throws an Error carrying a display-safe message otherwise.
+async function postToEndpoint(endpoint, { body, headers, timeoutMs }) {
   const controller = new AbortController()
-  const timeout = window.setTimeout(() => controller.abort(), files.length ? REQUEST_TIMEOUT_MS * 4 : REQUEST_TIMEOUT_MS)
-
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const { website: _honeypot, ...safeAnswers } = answers
-    const envelope = JSON.stringify({
-      form: kind,
-      version,
-      reference,
-      submittedAt: new Date().toISOString(),
-      source: window.location.href,
-      answers: safeAnswers,
-    })
-    let body = envelope
-    const headers = { Accept: 'application/json' }
-    if (files.length) {
-      body = new FormData()
-      body.append('payload', envelope)
-      files.forEach(({ field, file }) => body.append(field, file, file.name))
-    } else {
-      headers['Content-Type'] = 'application/json'
-    }
     let response
     try {
       response = await fetch(endpoint, {
@@ -105,8 +76,72 @@ export async function submitApplication(kind, answers, { files = [], version = 1
       throw new Error(pickServerMessage(payload) || 'The server refused this application. Please try again.')
     }
 
-    return { delivered: true, reference: payload.reference || reference }
+    return payload
   } finally {
     window.clearTimeout(timeout)
+  }
+}
+
+// `files` ([{ field, file }]) switches the request to multipart/form-data:
+// the JSON envelope travels in a `payload` part, each file in its own part.
+// Used by the membership form and AIVEX form v3 (legacy).
+export async function submitApplication(kind, answers, { files = [], version = 1 } = {}) {
+  const endpoint = ENDPOINTS[kind]
+  const reference = makeReference(kind)
+
+  // A filled honeypot is acknowledged without sending data to the endpoint.
+  if (answers.website) return { delivered: true, reference }
+  if (!endpoint) return { delivered: false, reference }
+
+  const { website: _honeypot, ...safeAnswers } = answers
+  const envelope = JSON.stringify({
+    form: kind,
+    version,
+    reference,
+    submittedAt: new Date().toISOString(),
+    source: window.location.href,
+    answers: safeAnswers,
+  })
+  let body = envelope
+  const headers = { Accept: 'application/json' }
+  if (files.length) {
+    body = new FormData()
+    body.append('payload', envelope)
+    files.forEach(({ field, file }) => body.append(field, file, file.name))
+  } else {
+    headers['Content-Type'] = 'application/json'
+  }
+
+  const payload = await postToEndpoint(endpoint, {
+    body,
+    headers,
+    timeoutMs: files.length ? REQUEST_TIMEOUT_MS * 4 : REQUEST_TIMEOUT_MS,
+  })
+  return { delivered: true, reference: payload.reference || reference }
+}
+
+// AIVEX form v4 (behind VITE_AIVEX_FORM_VERSION=4). A separate path on
+// purpose: `payload` is the canonical v4 envelope (shared contract), the
+// three cards travel as studentCard_1..3 with derived file names, and the
+// reference only ever comes from the server — there is no client fallback.
+// A replay of the same submissionId answers 200 { alreadyProcessed: true }.
+export async function submitAivexRegistrationV4({ payload, files, website }) {
+  if (website) return { delivered: true, reference: null }
+  const endpoint = ENDPOINTS.aivex
+  if (!endpoint) return { delivered: false, reference: null }
+
+  const body = new FormData()
+  body.append('payload', JSON.stringify(payload))
+  files.forEach(({ field, file, filename }) => body.append(field, file, filename))
+
+  const result = await postToEndpoint(endpoint, {
+    body,
+    headers: { Accept: 'application/json' },
+    timeoutMs: REQUEST_TIMEOUT_MS * 4,
+  })
+  return {
+    delivered: true,
+    reference: typeof result.reference === 'string' ? result.reference : null,
+    alreadyProcessed: result.alreadyProcessed === true,
   }
 }

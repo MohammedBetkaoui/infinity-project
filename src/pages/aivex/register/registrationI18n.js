@@ -79,6 +79,9 @@ const en = {
   nationalIdLabel: 'National ID number',
   nationalIdPlaceholder: 'As printed on the ID card',
   nationalIdHint: 'Kept exactly as written, leading zeros included.',
+  // Form v4: RFID replaces the national ID number
+  rfidLabel: 'RFID number',
+  rfidHint: 'Kept exactly as written, leading zeros included.',
   // Students step
   stuKicker: 'Participants',
   stuTitle: 'Who will compete?',
@@ -96,6 +99,10 @@ const en = {
   studyLevelLabel: 'Study level',
   selectLevel: 'Select level',
   studyLevels: ['Licence 1', 'Licence 2', 'Licence 3', 'Master 1', 'Master 2', 'Engineering cycle', 'Doctorate', 'Other'],
+  // Form v4: BAC year replaces registration number and study level
+  bacYearLabel: 'BAC year',
+  selectBacYear: 'Select year',
+  bacYearHint: 'Year the baccalaureate was obtained.',
   // Upload
   uploadTitle: 'Student card — Front side',
   uploadAttached: 'Attached',
@@ -134,6 +141,8 @@ const en = {
   revNationalId: 'National ID',
   revRegId: 'Registration ID',
   revStudyLevel: 'Study level',
+  revRfid: 'RFID',
+  revBacYear: 'BAC year',
   revStudentCard: 'Student card',
   edit: 'Edit',
   editAria: ({ label }) => `Edit ${label.toLowerCase()}`,
@@ -188,6 +197,11 @@ const en = {
   errRegDigits: 'Use digits only, as printed on the student card.',
   errRegShared: 'Each student needs their own registration number.',
   errLevelRequired: 'Study level is required.',
+  errRfidRequired: 'RFID number is required.',
+  errRfidInvalid: 'Use at most 64 characters, as written.',
+  errRfidShared: 'Each student needs their own RFID.',
+  errBacYearRequired: 'BAC year is required.',
+  errBacYearInvalid: 'Choose the BAC year from the list.',
   errCardRequired: 'Student card is required.',
   errConsent: 'Confirm the statement above before submitting.',
   errTimeout: 'The request timed out. Your answers are still here — please try again.',
@@ -265,6 +279,8 @@ const fr = {
   nationalIdLabel: 'Numéro de carte d’identité nationale',
   nationalIdPlaceholder: 'Tel qu’imprimé sur la carte',
   nationalIdHint: 'Conservé tel quel, zéros initiaux inclus.',
+  rfidLabel: 'Numéro RFID',
+  rfidHint: 'Conservé tel quel, zéros initiaux inclus.',
   stuKicker: 'Participants',
   stuTitle: 'Qui va concourir ?',
   stuDesc: 'Chaque équipe AIVEX concourt avec exactement trois étudiants. Complétez chaque fiche et joignez chaque carte d’étudiant.',
@@ -281,6 +297,9 @@ const fr = {
   studyLevelLabel: 'Niveau d’études',
   selectLevel: 'Sélectionner le niveau',
   studyLevels: ['Licence 1', 'Licence 2', 'Licence 3', 'Master 1', 'Master 2', 'Cycle ingénieur', 'Doctorat', 'Autre'],
+  bacYearLabel: 'Année du BAC',
+  selectBacYear: 'Sélectionner l’année',
+  bacYearHint: 'Année d’obtention du baccalauréat.',
   uploadTitle: 'Carte d’étudiant — Recto',
   uploadAttached: 'Jointe',
   uploadRequired: 'Requise',
@@ -316,6 +335,8 @@ const fr = {
   revNationalId: 'Carte d’identité',
   revRegId: 'Matricule',
   revStudyLevel: 'Niveau d’études',
+  revRfid: 'RFID',
+  revBacYear: 'Année du BAC',
   revStudentCard: 'Carte d’étudiant',
   edit: 'Modifier',
   editAria: ({ label }) => `Modifier ${label.toLowerCase()}`,
@@ -367,6 +388,11 @@ const fr = {
   errRegDigits: 'Chiffres uniquement, comme sur la carte d’étudiant.',
   errRegShared: 'Chaque étudiant doit avoir son propre matricule.',
   errLevelRequired: 'Le niveau d’études est requis.',
+  errRfidRequired: 'Le numéro RFID est requis.',
+  errRfidInvalid: 'Au plus 64 caractères, tel qu’écrit.',
+  errRfidShared: 'Chaque étudiant doit avoir son propre RFID.',
+  errBacYearRequired: 'L’année du BAC est requise.',
+  errBacYearInvalid: 'Choisissez l’année du BAC dans la liste.',
   errCardRequired: 'La carte d’étudiant est requise.',
   errConsent: 'Confirmez la déclaration ci-dessus avant d’envoyer.',
   errTimeout: 'La requête a expiré. Vos réponses sont conservées — réessayez.',
@@ -445,6 +471,8 @@ const ar = {
   nationalIdLabel: 'رقم بطاقة التعريف الوطنية',
   nationalIdPlaceholder: 'كما هو مطبوع على البطاقة',
   nationalIdHint: 'يُحفظ كما هو تماماً بما فيه الأصفار الأولى.',
+  rfidLabel: 'رقم RFID',
+  rfidHint: 'يُحفظ كما هو تماماً بما فيه الأصفار الأولى.',
   stuKicker: 'المشاركون',
   stuTitle: 'من سيتنافس؟',
   stuDesc: 'كل فريق في AIVEX يتنافس بثلاثة طلبة بالضبط. أكمل كل بطاقة وأرفق كل بطاقة طالب.',
@@ -461,6 +489,9 @@ const ar = {
   studyLevelLabel: 'المستوى الدراسي',
   selectLevel: 'اختر المستوى',
   studyLevels: ['ليسانس 1', 'ليسانس 2', 'ليسانس 3', 'ماستر 1', 'ماستر 2', 'طور مهندس', 'دكتوراه', 'أخرى'],
+  bacYearLabel: 'سنة البكالوريا',
+  selectBacYear: 'اختر السنة',
+  bacYearHint: 'سنة الحصول على شهادة البكالوريا.',
   uploadTitle: 'بطاقة الطالب — الوجه الأمامي',
   uploadAttached: 'مرفقة',
   uploadRequired: 'مطلوبة',
@@ -496,6 +527,8 @@ const ar = {
   revNationalId: 'بطاقة التعريف',
   revRegId: 'رقم التسجيل',
   revStudyLevel: 'المستوى الدراسي',
+  revRfid: 'RFID',
+  revBacYear: 'سنة البكالوريا',
   revStudentCard: 'بطاقة الطالب',
   edit: 'تعديل',
   editAria: ({ label }) => `تعديل ${label}`,
@@ -547,6 +580,11 @@ const ar = {
   errRegDigits: 'أرقام فقط كما على بطاقة الطالب.',
   errRegShared: 'كل طالب يحتاج رقم تسجيل خاصاً به.',
   errLevelRequired: 'المستوى الدراسي مطلوب.',
+  errRfidRequired: 'رقم RFID مطلوب.',
+  errRfidInvalid: '64 حرفاً على الأكثر، كما هو مكتوب.',
+  errRfidShared: 'كل طالب يحتاج رقم RFID خاصاً به.',
+  errBacYearRequired: 'سنة البكالوريا مطلوبة.',
+  errBacYearInvalid: 'اختر سنة البكالوريا من القائمة.',
   errCardRequired: 'بطاقة الطالب مطلوبة.',
   errConsent: 'أكّد التصريح أعلاه قبل الإرسال.',
   errTimeout: 'انتهت مهلة الطلب. إجاباتك محفوظة — حاول مجدداً.',
@@ -558,8 +596,38 @@ const ar = {
 
 export const registrationStrings = { en, fr, ar }
 
-export function getRegistrationStrings(lang) {
-  return registrationStrings[lang] || en
+// Form v4 wording where the v3 text names data v4 no longer collects
+// (national ID numbers, registration number on the card).
+const v4Wording = {
+  en: {
+    uploadHint: 'A clear photo of the front side, with the name readable.',
+    privacyIntro: 'Personal details, RFID numbers and student card photos are collected only to:',
+  },
+  fr: {
+    uploadHint: 'Une photo nette du recto, avec le nom lisible.',
+    privacyIntro: 'Les données personnelles, numéros RFID et photos des cartes d’étudiant sont collectés uniquement pour :',
+  },
+  ar: {
+    uploadHint: 'صورة واضحة للوجه الأمامي، مع اسم مقروء.',
+    privacyIntro: 'تُجمع البيانات الشخصية وأرقام RFID وصور بطاقات الطالب فقط من أجل:',
+  },
+}
+
+// Built once so each language keeps a stable object identity per version.
+const registrationStringsV4 = Object.fromEntries(
+  Object.entries(registrationStrings).map(([lang, strings]) => [lang, { ...strings, ...v4Wording[lang] }]),
+)
+
+export function getRegistrationStrings(lang, version = 3) {
+  const table = version === 4 ? registrationStringsV4 : registrationStrings
+  return table[lang] || table.en
+}
+
+export function getBacYearOptions(t, years) {
+  return [
+    { value: '', label: t.selectBacYear },
+    ...years.map((year) => ({ value: String(year), label: String(year) })),
+  ]
 }
 
 export function getRoleOptions(t) {
