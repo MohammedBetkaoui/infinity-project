@@ -42,7 +42,10 @@ export function parseMultipart(req, limits) {
           files: maxFiles,
           fields: allowedFields.size,
           fieldSize: maxFieldBytes,
-          parts: maxFiles + allowedFields.size,
+          // busboy emits 'partsLimit' when the count REACHES this value, while
+          // 'filesLimit' / 'fieldsLimit' only fire once exceeded: +1 keeps an
+          // exact, valid request (every field + every file) below it.
+          parts: maxFiles + allowedFields.size + 1,
           headerPairs: 64,
         },
       })

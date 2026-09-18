@@ -1,21 +1,27 @@
 // POST /api/aivex/register — Vercel Serverless Function (Node, ESM).
 //
-// Browser (multipart: payload JSON + studentCard_1..N)
+// Browser (multipart: payload JSON v3 + studentCard_1..3)
 //   -> origin / rate-limit checks -> streaming multipart parse
-//   -> full validation (team, members, consent, real image signatures)
+//   -> full validation (institution, activity contact, delegation,
+//      exactly three students, consent, real image signatures)
 //   -> aivex_registrations -> Storage (private bucket) -> aivex_members
 //   -> 201 { success: true, reference }
+//
+// aivex_registrations holds the team, its institution, the activity
+// administration contact, the head of delegation and the driver;
+// aivex_members holds the three students (one card each).
 //
 // Nothing is written until everything has been validated. Storage and
 // PostgreSQL do not share a transaction, so any failure after the
 // registration row exists is compensated by cleanupFailedRegistration().
 // Same conventions as api/join.js: secrets from process.env only, JSON
-// responses without internals, logs carry error codes and never personal data.
+// responses without internals, logs carry error codes and never personal data
+// (national ID numbers above all).
 
 import { randomUUID } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import {
-  CARD_FIELD_PATTERN, MAX_CARD_BYTES, MAX_MULTIPART_FILES, validateCards, validateRegistration,
+  CARD_FIELD_PATTERN, MAX_CARD_BYTES, STUDENT_COUNT, validateCards, validateRegistration,
 } from '../_lib/aivex-validation.js'
 import { isFilled, normalizeString, sendJson as send } from '../_lib/http.js'
 import { MultipartError, parseMultipart } from '../_lib/multipart.js'
@@ -27,7 +33,7 @@ const STORAGE_BUCKET = 'aivex-student-cards'
 const RATE_LIMIT = { max: 5, windowMs: 15 * 60 * 1000 }
 const MULTIPART_LIMITS = {
   maxFileBytes: MAX_CARD_BYTES,
-  maxFiles: MAX_MULTIPART_FILES,
+  maxFiles: STUDENT_COUNT,
   // Memory guard for one request. Vercel itself rejects bodies above 4.5 MB.
   maxRequestBytes: 30 * 1024 * 1024,
   allowedFields: new Set(['payload']),
@@ -35,7 +41,7 @@ const MULTIPART_LIMITS = {
 }
 
 const MESSAGES = {
-  duplicateEmail: 'A registration using this team email already exists.',
+  duplicateEmail: 'A team has already been registered with this activity contact email for this edition.',
   duplicateStudent: 'One of these students is already registered for this AIVEX edition.',
   duplicateRegistration: 'This registration already seems to have been received. Please contact the organisers.',
   saveFailed: 'We could not save your registration. Please try again.',
@@ -65,7 +71,7 @@ async function cleanupFailedRegistration({ supabase, registrationId, uploadedPat
     }
   }
   try {
-    // aivex_members rows go with it (ON DELETE CASCADE).
+    // The student rows go with it (ON DELETE CASCADE).
     const { error } = await supabase.from('aivex_registrations').delete().eq('id', registrationId)
     if (error) console.error('[aivex] Cleanup failed', { stage: 'registration', code: error.code })
   } catch (error) {
@@ -75,12 +81,12 @@ async function cleanupFailedRegistration({ supabase, registrationId, uploadedPat
 
 // UX pre-checks only: the unique constraints stay the source of truth.
 // A failed lookup fails open and lets the insert decide.
-async function findDuplicate(supabase, team, members) {
+async function findDuplicate(supabase, activityOfficial, students) {
   const { data: emailHit, error: emailError } = await supabase
     .from('aivex_registrations')
     .select('id')
     .eq('edition', EDITION)
-    .eq('team_email', team.email)
+    .eq('activity_official_email', activityOfficial.email)
     .limit(1)
     .maybeSingle()
   if (emailError) console.error('[aivex] Duplicate email check failed', { code: emailError.code })
@@ -90,7 +96,7 @@ async function findDuplicate(supabase, team, members) {
     .from('aivex_members')
     .select('id')
     .eq('edition', EDITION)
-    .in('registration_number', members.map((member) => member.registrationNumber))
+    .in('registration_number', students.map((student) => student.registrationNumber))
     .limit(1)
   if (studentError) console.error('[aivex] Duplicate student check failed', { code: studentError.code })
   else if (studentHits?.length) return MESSAGES.duplicateStudent
@@ -98,16 +104,29 @@ async function findDuplicate(supabase, team, members) {
   return null
 }
 
-async function storeRegistration(supabase, { team, members, formVersion, source }, cards) {
+async function storeRegistration(supabase, registrationInput, cards) {
+  const { team, activityOfficial, delegationHead, driver, students, formVersion, source } = registrationInput
   const { data: registration, error: registrationError } = await supabase
     .from('aivex_registrations')
     .insert({
       edition: EDITION,
       team_name: team.name,
-      university: team.university,
-      leader_name: team.leaderName,
-      team_email: team.email,
-      member_count: members.length,
+      wilaya_code: team.wilaya.code,
+      wilaya_name: team.wilaya.name,
+      institution_id: team.institution.id,
+      institution_name: team.institution.name,
+      institution_custom: team.institution.custom,
+      activity_official_role: activityOfficial.role,
+      activity_official_name: activityOfficial.fullName,
+      activity_official_email: activityOfficial.email,
+      activity_official_phone: activityOfficial.phone,
+      delegation_head_name: delegationHead.fullName,
+      delegation_head_phone: delegationHead.phone,
+      delegation_head_national_id: delegationHead.nationalId,
+      driver_name: driver.fullName,
+      driver_phone: driver.phone,
+      driver_national_id: driver.nationalId,
+      student_count: students.length,
       consent: true,
       source,
       form_version: formVersion,
@@ -118,8 +137,8 @@ async function storeRegistration(supabase, { team, members, formVersion, source 
 
   if (registrationError || !registration?.id || !registration.reference) {
     if (isUniqueViolation(registrationError)) {
-      // Unique index: aivex_registrations_edition_email_uidx.
-      return { status: 409, message: mentions(registrationError, 'email') ? MESSAGES.duplicateEmail : MESSAGES.duplicateRegistration }
+      // Unique index: aivex_registrations_edition_contact_uidx.
+      return { status: 409, message: mentions(registrationError, 'contact') ? MESSAGES.duplicateEmail : MESSAGES.duplicateRegistration }
     }
     console.error('[aivex] Registration insert failed', { code: registrationError?.code || 'NO_REFERENCE' })
     // A row without a reference must not stay behind either.
@@ -130,39 +149,39 @@ async function storeRegistration(supabase, { team, members, formVersion, source 
   const registrationId = registration.id
   const uploadedPaths = []
   try {
-    const memberRows = []
-    for (const [index, member] of members.entries()) {
+    const studentRows = []
+    for (const [index, student] of students.entries()) {
       const card = cards[index]
-      const memberId = randomUUID()
-      const path = `${registrationId}/${memberId}.${card.extension}`
+      const studentId = randomUUID()
+      // Random ids only: no name, number or other personal data in paths.
+      const path = `${registrationId}/${studentId}.${card.extension}`
       const { error } = await supabase.storage
         .from(STORAGE_BUCKET)
         .upload(path, card.buffer, { contentType: card.mime, upsert: false })
       if (error) throw new StageError('upload', error)
       uploadedPaths.push(path)
 
-      memberRows.push({
-        id: memberId,
+      studentRows.push({
+        id: studentId,
         registration_id: registrationId,
-        position: member.position,
-        role: member.role,
-        full_name: member.fullName,
-        registration_number: member.registrationNumber,
-        study_level: member.studyLevel,
-        phone: member.phone,
+        position: student.position,
+        full_name: student.fullName,
+        registration_number: student.registrationNumber,
+        study_level: student.studyLevel,
+        phone: student.phone,
         student_card_path: path,
         student_card_mime: card.mime,
         student_card_size_bytes: card.size,
       })
     }
 
-    const { error: membersError } = await supabase.from('aivex_members').insert(memberRows)
-    if (membersError) throw new StageError('members', membersError)
+    const { error: studentsError } = await supabase.from('aivex_members').insert(studentRows)
+    if (studentsError) throw new StageError('students', studentsError)
   } catch (error) {
     const stage = error instanceof StageError ? error.stage : 'unexpected'
     console.error('[aivex] Registration failed', { stage, code: error?.code })
     await cleanupFailedRegistration({ supabase, registrationId, uploadedPaths })
-    if (stage === 'members' && isUniqueViolation(error.cause)) return { status: 409, message: MESSAGES.duplicateStudent }
+    if (stage === 'students' && isUniqueViolation(error.cause)) return { status: 409, message: MESSAGES.duplicateStudent }
     return { status: 500, message: MESSAGES.saveFailed }
   }
 
@@ -220,7 +239,7 @@ export default async function handler(req, res) {
     return
   }
 
-  const cardCheck = await validateCards(registration.value.members, parsed.files)
+  const cardCheck = await validateCards(registration.value.students, parsed.files)
   if (!cardCheck.ok) {
     send(res, cardCheck.status, { success: false, message: cardCheck.message })
     return
@@ -239,7 +258,8 @@ export default async function handler(req, res) {
       auth: { persistSession: false, autoRefreshToken: false },
     })
 
-    const duplicate = await findDuplicate(supabase, registration.value.team, registration.value.members)
+    const { activityOfficial, students } = registration.value
+    const duplicate = await findDuplicate(supabase, activityOfficial, students)
     if (duplicate) {
       send(res, 409, { success: false, message: duplicate })
       return

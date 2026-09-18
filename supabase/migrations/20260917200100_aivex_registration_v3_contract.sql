@@ -30,7 +30,9 @@ begin
      and (p.prosrc ilike '%member_count%'
        or p.prosrc ilike '%team_email%'
        or p.prosrc ilike '%leader_name%'
-       or p.prosrc ilike '%university%');
+       or p.prosrc ilike '%university%'
+       -- NEW.role / OLD.role only, so 'service_role' is not a false positive.
+       or p.prosrc ~* '\m(new|old)\.role\M');
   if offenders is not null then
     raise exception 'Trigger function(s) % still reference the v2 columns. Update them first.', offenders;
   end if;
