@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { OTHER_INSTITUTION_ID } from '../../../data/algeriaHigherEducation'
 import { STEP, institutionLabel, wilayaLabel } from './registrationModel'
-import { getRoleLabel, getStudyLabel } from './registrationI18n'
+import { getRoleLabel } from './registrationI18n'
 import PrivacyNotice from './PrivacyNotice'
 import StepHeading from './StepHeading'
 import { fieldId, recordId } from './useCompetitionRegistration'
@@ -16,7 +16,7 @@ function ReviewItem({ label, value, t }) {
   )
 }
 
-function ReviewPerson({ label, person, onEdit, editText, v4, t }) {
+function ReviewPerson({ label, person, onEdit, editText, t }) {
   return (
     <li className="axr-review-record">
       <div className="axr-review-record-head">
@@ -26,15 +26,13 @@ function ReviewPerson({ label, person, onEdit, editText, v4, t }) {
       </div>
       <dl className="axr-review-record-grid axr-review-person-grid">
         <ReviewItem label={t.revPhone} value={person.phone.trim()} t={t} />
-        {v4
-          ? <ReviewItem label={t.revRfid} value={person.rfid.trim()} t={t} />
-          : <ReviewItem label={t.revNationalId} value={person.nationalId.trim()} t={t} />}
+        <ReviewItem label={t.revRfid} value={person.rfid.trim()} t={t} />
       </dl>
     </li>
   )
 }
 
-function ReviewStudent({ student, onEdit, editText, v4, t }) {
+function ReviewStudent({ student, onEdit, editText, t }) {
   const [open, setOpen] = useState(false)
   const preview = useObjectUrl(student.studentCard)
   const number = String(student.position).padStart(2, '0')
@@ -49,18 +47,9 @@ function ReviewStudent({ student, onEdit, editText, v4, t }) {
         <button type="button" className="axr-review-edit" onClick={onEdit.onClick} aria-label={onEdit.aria}>{editText}</button>
       </div>
       <dl className="axr-review-record-grid">
-        {v4 ? (
-          <>
-            <ReviewItem label={t.revBacYear} value={student.bacYear} t={t} />
-            <ReviewItem label={t.revRfid} value={student.rfid.trim()} t={t} />
-          </>
-        ) : (
-          <>
-            <ReviewItem label={t.revRegId} value={student.registrationNumber.trim()} t={t} />
-            <ReviewItem label={t.revStudyLevel} value={getStudyLabel(student.studyLevel, t)} t={t} />
-          </>
-        )}
         <ReviewItem label={t.revPhone} value={student.phone.trim()} t={t} />
+        <ReviewItem label={t.revBacYear} value={student.bacYear} t={t} />
+        <ReviewItem label={t.revRfid} value={student.rfid.trim()} t={t} />
         <div className="axr-review-item">
           <dt>{t.revStudentCard}</dt>
           <dd>
@@ -93,7 +82,6 @@ function EditButton({ onClick, aria, children }) {
 
 export default function ReviewStep({ registration, t, lang }) {
   const { team, activityOfficial, delegationHead, driver, students, goTo, consent, consentError, setConsent } = registration
-  const v4 = registration.formVersion === 4
   const institution = institutionLabel(team, lang)
 
   const teamEdit = { onClick: () => goTo(STEP.institution, fieldId('team', 'name')), aria: t.editAria({ label: `${t.revTeam}` }) }
@@ -138,9 +126,9 @@ export default function ReviewStep({ registration, t, lang }) {
             <span className="axr-review-count">{t.recordsTwo}</span>
           </header>
           <ol className="axr-review-roster">
-            <ReviewPerson label={t.headRole} person={delegationHead} v4={v4} t={t} editText={t.edit}
+            <ReviewPerson label={t.headRole} person={delegationHead} t={t} editText={t.edit}
               onEdit={{ onClick: () => goTo(STEP.delegation, recordId('delegationHead')), aria: t.editAria({ label: t.headRole }) }} />
-            <ReviewPerson label={t.driverRole} person={driver} v4={v4} t={t} editText={t.edit}
+            <ReviewPerson label={t.driverRole} person={driver} t={t} editText={t.edit}
               onEdit={{ onClick: () => goTo(STEP.delegation, recordId('driver')), aria: t.editAria({ label: t.driverRole }) }} />
           </ol>
         </section>
@@ -154,7 +142,7 @@ export default function ReviewStep({ registration, t, lang }) {
             {students.map((student) => {
               const number = String(student.position).padStart(2, '0')
               return (
-                <ReviewStudent key={student.id} student={student} v4={v4} t={t} editText={t.edit}
+                <ReviewStudent key={student.id} student={student} t={t} editText={t.edit}
                   onEdit={{ onClick: () => goTo(STEP.students, recordId(student.id)), aria: t.editStudentAria({ number, name: student.fullName.trim() }) }} />
               )
             })}

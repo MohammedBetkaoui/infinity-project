@@ -1,24 +1,27 @@
-// AIVEX Data Contract V4 — contract tests (node --test, no network, no database).
+// AIVEX form v4 — contract, API and form tests (node --test, no network, no database).
 import assert from 'node:assert/strict'
 import { readFile, readdir } from 'node:fs/promises'
 import { Readable } from 'node:stream'
 import { test } from 'node:test'
 import {
-  ACTIVITY_OFFICIAL_ROLES, AIVEX_EDITION, AIVEX_FORM_VERSION, AIVEX_STUDENT_COUNT, DATA_CLASSES,
-  DEFAULT_DOCUMENT_STATUS, DEFAULT_REGISTRATION_STATUS, DOCUMENT_STATUSES, REGISTRATION_STATUSES,
-  STUDENT_CARD_FIELDS, STUDENT_CARD_FIELD_PATTERN, STUDENT_CARD_POLICY, V4_FIELDS,
-  buildRegistrationPayloadV4, buildStudentCardPartsV4, createRegistrationStateV4, formatRegistrationReference,
-  isRegistrationReference, normalizeBacYear, normalizeEmail, normalizePhone, normalizeRfid, normalizeText,
-  registrationResponsesV4, studentCardStoragePath, studentCardUploadName, validateRegistrationV4,
+  ACTIVITY_OFFICIAL_ROLES, AIVEX_EDITION, AIVEX_FORM_VERSION, AIVEX_STUDENT_COUNT, DATA_CLASSES, DEFAULT_DOCUMENT_STATUS,
+  DEFAULT_REGISTRATION_STATUS, DOCUMENT_STATUSES, LEGACY_V3_FIELDS, REGISTRATION_STATUSES, STUDENT_CARD_FIELDS,
+  STUDENT_CARD_FIELD_PATTERN, STUDENT_CARD_POLICY, V4_FIELDS, bacYearChoices, buildRegistrationPayloadV4,
+  createRegistrationStateV4, createSubmissionId, isUuidV4, isValidBacYear, normalizeBacYear, normalizeEmail, normalizePhone,
+  normalizeRfid, normalizeText, registrationResponsesV4, studentCardFileIssue, studentCardStoragePath, studentCardUploadName,
+  validateRegistrationV4,
 } from '../shared/aivex/contract-v4.js'
-import { bacYearChoices, createSubmissionId, isUuidV4, isValidBacYear } from '../shared/aivex/contract-v4.js'
 import { WORD_EXCLUDED_FIELDS_V4, WORD_VARIABLES_V4, resolveWordDataV4 } from '../shared/aivex/word-mapping-v4.js'
-import { validateStudentCardsV4 } from '../api/_lib/aivex-validation-v4.js'
-import { validateRegistrationV3 } from '../api/_lib/aivex-validation.js'
-import { parseMultipart } from '../api/_lib/multipart.js'
-import registerHandler from '../api/aivex/register.js'
+import { REGISTRATION_REFERENCE_PATTERN, generateRegistrationReference } from '../api/_lib/aivex-reference.js'
 import {
-  DRAFT_KEYS, buildSubmissionV4, getRegistrationModel, personIssuesV4, studentIssuesV4,
+  STALE_AFTER_MS, registerV4, registrationFingerprint, toRegistrationRow, toStudentRows,
+} from '../api/_lib/aivex-registration-v4.js'
+import { validateStudentCardsV4 } from '../api/_lib/aivex-validation-v4.js'
+import { parseMultipart } from '../api/_lib/multipart.js'
+import { createRegisterHandler } from '../api/aivex/register.js'
+import {
+  CARD_TYPES, DRAFT_KEY, FORM_VERSION, LEGACY_DRAFT_KEYS, SECTIONS, STUDENT_COUNT, STUDENT_FIELDS, STUDENT_TEXT_FIELDS,
+  buildSubmission, checkCardFile, personIssues, studentIssues,
 } from '../src/pages/aivex/register/registrationModel.js'
 import { getBacYearOptions, getRegistrationStrings, registrationStrings } from '../src/pages/aivex/register/registrationI18n.js'
 
@@ -26,9 +29,10 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8')
 
 const NOW = new Date('2026-09-18T10:00:00Z')
 const SUBMISSION_ID = '3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b'
+const OTHER_SUBMISSION_ID = '9b1d2c3e-4f5a-4b6c-8d7e-0f1a2b3c4d5e'
 const REGISTRATION_ID = '6c1f0e2a-7b3d-4c5e-9f8a-0b1c2d3e4f5a'
 
-// Tiny but real files: the checks read their magic bytes.
+// Tiny but real files: the API reads their magic bytes.
 const IMAGES = {
   jpeg: Buffer.from('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=', 'base64'),
   png: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64'),
@@ -36,28 +40,44 @@ const IMAGES = {
   pdf: Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\n'),
 }
 
-const validPayload = () => ({
-  form: 'aivex',
-  version: 4,
+// The canonical v4 payload (the `payload` multipart part).
+const validPayload = (overrides = {}) => ({
   submissionId: SUBMISSION_ID,
-  submittedAt: NOW.toISOString(),
-  source: 'https://infinity-project-zeta.vercel.app/aivex/register',
+  edition: 2,
+  formVersion: 4,
+  team: {
+    name: 'Infinity AI',
+    wilaya: { code: '34', name: 'Bordj Bou Arréridj' },
+    institution: { id: 'univ-bba', name: 'Université Mohamed El Bachir El Ibrahimi', custom: false },
+  },
+  activityOfficial: { role: 'activities_officer', fullName: 'Amina Benali', email: 'activities@univ-bba.dz', phone: '0555 12 34 56' },
+  delegationHead: { fullName: 'Karim Haddad', phone: '+213 661 23 45 67', rfid: '00471236' },
+  driver: { fullName: 'Nabil Saidi', phone: '0770 11 22 33', rfid: 'A1B2C3D4' },
+  students: [1, 2, 3].map((position) => ({
+    position,
+    fullName: `Student Number ${position}`,
+    phone: `0550 00 00 0${position}`,
+    bacYear: 2021 + position,
+    rfid: `00${position}9876`,
+    studentCard: `studentCard_${position}`,
+  })),
+  consent: true,
+  ...overrides,
+})
+
+// A production v3 payload, as the previous form sent it.
+const v3Payload = () => ({
+  form: 'aivex',
+  version: 3,
+  reference: 'AX-MFX3K2-AB12',
   answers: {
-    team: {
-      name: 'Infinity AI',
-      wilaya: { code: '34', name: 'Bordj Bou Arréridj' },
-      institution: { id: 'univ-bba', name: 'Université Mohamed El Bachir El Ibrahimi', custom: false },
-    },
-    activityOfficial: { role: 'activities_officer', fullName: 'Amina Benali', email: 'activities@univ-bba.dz', phone: '0555 12 34 56' },
-    delegationHead: { fullName: 'Karim Haddad', phone: '+213 661 23 45 67', rfid: '00471236' },
-    driver: { fullName: 'Nabil Saidi', phone: '0770 11 22 33', rfid: 'A1B2C3D4' },
+    team: validPayload().team,
+    activityOfficial: validPayload().activityOfficial,
+    delegationHead: { fullName: 'Karim Haddad', phone: '0661234567', nationalId: '123456789' },
+    driver: { fullName: 'Nabil Saidi', phone: '0770112233', nationalId: '987654321' },
     students: [1, 2, 3].map((position) => ({
-      position,
-      fullName: `Student Number ${position}`,
-      phone: `0550 00 00 0${position}`,
-      bacYear: 2021 + position,
-      rfid: `00${position}9876`,
-      studentCard: `studentCard_${position}`,
+      position, fullName: `Student Number ${position}`, registrationNumber: `20213304609${position}`,
+      studyLevel: 'Licence 3', phone: `055000000${position}`, studentCard: `studentCard_${position}`,
     })),
     consent: true,
   },
@@ -69,433 +89,301 @@ const withChange = (change) => {
   change(payload)
   return validate(payload)
 }
-const rejects = (result, field) => {
+const rejects = (result, field, status = 400) => {
   assert.equal(result.ok, false, `expected a rejection on ${field}`)
-  assert.equal(result.status, 400)
+  assert.equal(result.status, status)
   assert.equal(result.field, field)
   assert.equal(typeof result.message, 'string')
 }
-
-const cardFiles = (overrides = {}) => new Map(STUDENT_CARD_FIELDS.map((field) => [field, {
-  buffer: IMAGES.jpeg,
-  mimeType: 'image/jpeg',
-  filename: `${field}.jpg`,
-  ...overrides[field],
-}]))
 const validStudents = () => validate(validPayload()).value.students
+const cardFiles = (overrides = {}) => new Map(STUDENT_CARD_FIELDS.map((field) => [field, {
+  buffer: IMAGES.jpeg, mimeType: 'image/jpeg', filename: `${field}.jpg`, ...overrides[field],
+}]))
 
-// 1 -------------------------------------------------------------------------
-test('1. the contract is version 4 and only accepts version 4', () => {
-  assert.equal(AIVEX_FORM_VERSION, 4)
-  assert.equal(AIVEX_EDITION, 2)
-  assert.equal(AIVEX_STUDENT_COUNT, 3)
-
-  const result = validate(validPayload())
-  assert.equal(result.ok, true, result.message)
-  assert.equal(result.value.formVersion, 4)
-
-  rejects(withChange((p) => { p.version = 3 }), 'version')
-  rejects(withChange((p) => { p.version = '4' }), 'version')
-  rejects(withChange((p) => { delete p.version }), 'version')
-  rejects(withChange((p) => { p.form = 'membership' }), 'form')
-})
-
-test('1a. the legacy v3 validator still accepts a production v3 payload', () => {
-  const v3 = validPayload()
-  v3.version = 3
-  v3.answers.delegationHead = { fullName: 'Karim Haddad', phone: '0661234567', nationalId: '123456789' }
-  v3.answers.driver = { fullName: 'Nabil Saidi', phone: '0770112233', nationalId: '987654321' }
-  v3.answers.students = [1, 2, 3].map((position) => ({
-    position,
-    fullName: `Student Number ${position}`,
-    registrationNumber: `20213304609${position}`,
-    studyLevel: 'Licence 3',
-    phone: `055000000${position}`,
-    studentCard: `studentCard_${position}`,
-  }))
-  const result = validateRegistrationV3(v3)
-  assert.equal(result.ok, true, result.message)
-  assert.equal(result.value.formVersion, 3)
-})
-
-test('1b. v3 and v4 are never converted into each other', () => {
-  const v4 = validPayload()
-  const v3Result = validateRegistrationV3(v4)
-  assert.equal(v3Result.ok, false)
-
-  const v3Shaped = validPayload()
-  v3Shaped.version = 3
-  v3Shaped.answers.delegationHead = { fullName: 'Karim Haddad', phone: '0661234567', nationalId: '123456789' }
-  rejects(validate(v3Shaped), 'version')
-})
-
-// 2 -------------------------------------------------------------------------
-test('2. a team is exactly three students', () => {
-  rejects(withChange((p) => { p.answers.students.pop() }), 'answers.students')
-  rejects(withChange((p) => { p.answers.students.push({ ...p.answers.students[0], position: 4 }) }), 'answers.students')
-  rejects(withChange((p) => { p.answers.students = [] }), 'answers.students')
-  rejects(withChange((p) => { p.answers.students = {} }), 'answers.students')
-  assert.equal(validate(validPayload()).value.students.length, 3)
-})
-
-// 3 -------------------------------------------------------------------------
-test('3. positions are exactly 1, 2, 3 in order', () => {
-  rejects(withChange((p) => {
-    const [first, second] = p.answers.students
-    first.position = 2
-    second.position = 1
-  }), 'answers.students[0].position')
-  rejects(withChange((p) => { p.answers.students[2].position = '3' }), 'answers.students[2].position')
-  rejects(withChange((p) => { delete p.answers.students[1].position }), 'answers.students[1].position')
-  assert.deepEqual(validate(validPayload()).value.students.map((s) => s.position), [1, 2, 3])
-})
-
-// 4 -------------------------------------------------------------------------
-test('4. bacYear is an integer inside a dynamic range', () => {
-  const at = 'answers.students[0].bacYear'
-  for (const bad of ['2023', 'BAC 2023', '2023/2024', 2023.5, null, 1989, 2028]) {
-    rejects(withChange((p) => { p.answers.students[0].bacYear = bad }), at)
+// --- In-memory store: the constraints of the database that matter here ----------
+function createMemoryStore() {
+  const registrations = []
+  const students = []
+  const objects = new Map()
+  let nextId = 0
+  const store = {
+    registrations, students, objects,
+    async findBySubmissionId(submissionId) {
+      const row = registrations.find((entry) => entry.submission_id === submissionId)
+      if (!row) return null
+      return {
+        id: row.id,
+        reference: row.reference,
+        fingerprint: row.submission_fingerprint,
+        createdAt: row.created_at,
+        studentCount: students.filter((entry) => entry.registration_id === row.id).length,
+      }
+    },
+    async insertRegistration(row) {
+      // UNIQUE(submission_id), UNIQUE(reference) — and NOT unique on the e-mail.
+      if (registrations.some((entry) => entry.submission_id === row.submission_id || entry.reference === row.reference)) {
+        return { ok: false, duplicate: true, code: '23505' }
+      }
+      const id = `00000000-0000-4000-8000-${String(++nextId).padStart(12, '0')}`
+      registrations.push({ ...row, id, created_at: row.submitted_at })
+      return { ok: true, id, reference: row.reference }
+    },
+    async uploadCard(path, buffer, mime) {
+      if (objects.has(path)) throw Object.assign(new Error('exists'), { code: 'Duplicate' })
+      objects.set(path, { size: buffer.length, mime })
+    },
+    async insertStudents(rows) {
+      if (rows.length !== AIVEX_STUDENT_COUNT) throw Object.assign(new Error('team size'), { code: '23514' })
+      students.push(...rows)
+    },
+    async removeCards(paths) { paths.forEach((path) => objects.delete(path)) },
+    async deleteRegistration(id) {
+      registrations.splice(registrations.findIndex((entry) => entry.id === id), 1)
+      for (let index = students.length - 1; index >= 0; index -= 1) if (students[index].registration_id === id) students.splice(index, 1)
+    },
   }
-  for (const good of [1990, 2026, 2027]) {
-    assert.equal(withChange((p) => { p.answers.students[0].bacYear = good }).ok, true, `bacYear ${good}`)
-  }
-  // The range follows the clock: 2028 becomes valid in 2027.
-  const later = validPayload()
-  later.answers.students[0].bacYear = 2028
-  assert.equal(validateRegistrationV4(later, { now: new Date('2027-03-01T00:00:00Z') }).ok, true)
+  return store
+}
 
-  assert.equal(normalizeBacYear('2023'), 2023)
-  assert.equal(normalizeBacYear(' 2023 '), 2023)
-  assert.equal(normalizeBacYear(2023), 2023)
-  assert.equal(normalizeBacYear('BAC 2023'), null)
-  assert.equal(normalizeBacYear('2023/2024'), null)
-  assert.equal(normalizeBacYear(2023.5), null)
-})
+// --- HTTP helper: a real multipart request through the real handler ------------
+let ipCounter = 0
+const pngCards = (overrides = {}) => [1, 2, 3].map((position) => ({
+  field: `studentCard_${position}`, buffer: IMAGES.png, type: 'image/png', filename: `studentCard_${position}.png`, ...overrides[position],
+}))
 
-// 5 -------------------------------------------------------------------------
-test('5. RFID is always a string', () => {
-  rejects(withChange((p) => { p.answers.students[0].rfid = 1239876 }), 'answers.students[0].rfid')
-  rejects(withChange((p) => { p.answers.delegationHead.rfid = 471236 }), 'answers.delegationHead.rfid')
-  rejects(withChange((p) => { p.answers.driver.rfid = '' }), 'answers.driver.rfid')
-  rejects(withChange((p) => { p.answers.driver.rfid = 'x'.repeat(65) }), 'answers.driver.rfid')
-  rejects(withChange((p) => { p.answers.driver.rfid = 'AB CD' }), 'answers.driver.rfid')
-
-  const { value } = validate(validPayload())
-  for (const rfid of [value.delegationHead.rfid, value.driver.rfid, ...value.students.map((s) => s.rfid)]) {
-    assert.equal(typeof rfid, 'string')
-  }
-})
-
-// 6 -------------------------------------------------------------------------
-test('6. RFID keeps its leading zeros and is only trimmed', () => {
-  assert.equal(normalizeRfid('  00471236 '), '00471236')
-  assert.equal(normalizeRfid('0a:1B'), '0a:1B')
-  assert.equal(normalizeRfid(471236), '')
-
-  const result = withChange((p) => { p.answers.delegationHead.rfid = '  000123  ' })
-  assert.equal(result.value.delegationHead.rfid, '000123')
-  assert.equal(result.value.students[0].rfid, '0019876')
-})
-
-// 7 -------------------------------------------------------------------------
-test('7. two students cannot share an RFID', () => {
-  rejects(withChange((p) => { p.answers.students[1].rfid = p.answers.students[0].rfid }), 'answers.students[1].rfid')
-  rejects(withChange((p) => { p.answers.students[2].rfid = ` ${p.answers.students[0].rfid} ` }), 'answers.students[2].rfid')
-  // Only students are compared: this cross-person rule is an open decision.
-  assert.equal(withChange((p) => { p.answers.driver.rfid = p.answers.students[0].rfid }).ok, true)
-})
-
-// 8, 9, 10 ---------------------------------------------------------------
-for (const position of [1, 2, 3]) {
-  test(`${7 + position}. studentCard_${position} is mandatory`, async () => {
-    const field = `studentCard_${position}`
-    const index = position - 1
-    rejects(withChange((p) => { delete p.answers.students[index].studentCard }), `answers.students[${index}].studentCard`)
-    rejects(withChange((p) => { p.answers.students[index].studentCard = `studentCard_${(position % 3) + 1}` }), `answers.students[${index}].studentCard`)
-
-    const files = cardFiles()
-    files.delete(field)
-    const missing = await validateStudentCardsV4(validStudents(), files)
-    assert.equal(missing.ok, false)
-    assert.equal(missing.field, field)
-    assert.equal(missing.status, 400)
+async function post(handler, payload, cards = pngCards()) {
+  const form = new FormData()
+  form.append('payload', JSON.stringify(payload))
+  for (const { field, buffer, type, filename } of cards) form.append(field, new Blob([buffer], { type }), filename)
+  const response = new Response(form)
+  const req = Readable.from([Buffer.from(await response.arrayBuffer())])
+  ipCounter += 1
+  Object.assign(req, {
+    method: 'POST',
+    headers: {
+      'content-type': response.headers.get('content-type'),
+      'x-forwarded-for': `203.0.113.${ipCounter}`,
+      referer: 'https://infinity-project-zeta.vercel.app/aivex/register?utm=x',
+    },
+    socket: {},
+  })
+  return new Promise((resolve) => {
+    const res = {
+      headers: {},
+      setHeader(name, value) { this.headers[name] = value },
+      end(body) { resolve({ status: this.statusCode, body: JSON.parse(body), headers: this.headers }) },
+    }
+    handler(req, res)
   })
 }
 
-// 11 ------------------------------------------------------------------------
-test('11. consent must be exactly true', () => {
-  for (const value of [false, 'true', 1, undefined]) {
-    rejects(withChange((p) => { p.answers.consent = value }), 'answers.consent')
-  }
+const makeApi = () => {
+  const store = createMemoryStore()
+  delete process.env.VERCEL
+  return { store, handler: createRegisterHandler({ createStore: () => store, now: () => NOW }) }
+}
+
+// =================================================================================
+// Required scenarios (API, real multipart through the real handler)
+// =================================================================================
+
+test('1. a valid v4 submission is stored and answered 201 with a server reference', async () => {
+  const { store, handler } = makeApi()
+  const { status, body } = await post(handler, validPayload())
+  assert.equal(status, 201)
+  assert.equal(body.success, true)
+  assert.match(body.reference, REGISTRATION_REFERENCE_PATTERN)
+
+  assert.equal(store.registrations.length, 1)
+  const [row] = store.registrations
+  assert.equal(row.reference, body.reference)
+  assert.equal(row.submission_id, SUBMISSION_ID)
+  assert.equal(row.edition, 2)
+  assert.equal(row.form_version, 4)
+  assert.equal(row.registration_status, 'submitted')
+  assert.equal(row.document_status, 'not_generated')
+  assert.equal(row.delegation_head_rfid, '00471236')
+  assert.equal(row.source, 'https://infinity-project-zeta.vercel.app/aivex/register')
+  assert.match(row.submission_fingerprint, /^[0-9a-f]{64}$/)
+
+  assert.equal(store.students.length, 3)
+  assert.deepEqual(store.students.map((student) => student.student_card_path),
+    [1, 2, 3].map((position) => `edition-2/${row.id}/student-${position}.png`))
+  assert.deepEqual([...store.objects.keys()], store.students.map((student) => student.student_card_path))
+  assert.deepEqual(store.students.map((student) => [student.bac_year, student.rfid_number]), [[2022, '0019876'], [2023, '0029876'], [2024, '0039876']])
+  assert.doesNotMatch(JSON.stringify(body), /edition-2\/|student-1\.png/, 'no Storage path in the response')
 })
 
-// 12 ------------------------------------------------------------------------
-test('12. submissionId is a UUID v4', () => {
+for (const position of [1, 2, 3]) {
+  test(`${1 + position}. a missing studentCard_${position} is refused before anything is written`, async () => {
+    const { store, handler } = makeApi()
+    const { status, body } = await post(handler, validPayload(), pngCards().filter((card) => card.field !== `studentCard_${position}`))
+    assert.equal(status, 400)
+    assert.equal(body.field, `studentCard_${position}`)
+    assert.equal(store.registrations.length + store.objects.size, 0)
+  })
+}
+
+test('5. an invalid MIME type is refused (declared type and real bytes)', async () => {
+  const { handler } = makeApi()
+  const pdf = await post(handler, validPayload(), pngCards({ 2: { buffer: IMAGES.pdf, type: 'application/pdf', filename: 'studentCard_2.pdf' } }))
+  assert.equal(pdf.status, 415)
+  assert.equal(pdf.body.field, 'studentCard_2')
+
+  const lying = await post(handler, validPayload(), pngCards({ 3: { type: 'image/jpeg', filename: 'studentCard_3.jpg' } }))
+  assert.equal(lying.status, 415)
+  assert.equal(lying.body.field, 'studentCard_3')
+})
+
+test('6. a file larger than 5 MB is refused', async () => {
+  const { store, handler } = makeApi()
+  const big = Buffer.concat([IMAGES.png, Buffer.alloc(STUDENT_CARD_POLICY.maxBytes)])
+  const { status } = await post(handler, validPayload(), pngCards({ 1: { buffer: big } }))
+  assert.equal(status, 413)
+  assert.equal(store.registrations.length, 0)
+  // Same rule applied to a received part by the card validator.
+  const direct = await validateStudentCardsV4(validStudents(), cardFiles({ studentCard_1: { buffer: Buffer.concat([IMAGES.jpeg, Buffer.alloc(STUDENT_CARD_POLICY.maxBytes)]) } }))
+  assert.equal(direct.status, 413)
+  assert.equal(direct.field, 'studentCard_1')
+})
+
+test('7. a team that is not exactly three students is refused', async () => {
+  const { handler } = makeApi()
+  const two = validPayload()
+  two.students.pop()
+  assert.equal((await post(handler, two, pngCards().slice(0, 2))).body.field, 'students')
+  const four = validPayload()
+  four.students.push({ ...four.students[0], position: 4 })
+  rejects(validate(four), 'students')
+})
+
+test('8. a missing BAC year is refused', async () => {
+  const { handler } = makeApi()
+  const payload = validPayload()
+  delete payload.students[1].bacYear
+  const { status, body } = await post(handler, payload)
+  assert.equal(status, 400)
+  assert.equal(body.field, 'students[1].bacYear')
+  assert.match(body.message, /required/)
+})
+
+test('9. an invalid BAC year is refused (integers in 1990..current year + 1 only)', () => {
+  for (const bad of ['2023', 'BAC 2023', '2023/2024', 2023.5, 1989, 2028, null]) {
+    rejects(withChange((p) => { p.students[0].bacYear = bad }), 'students[0].bacYear')
+  }
+  for (const good of [1990, 2026, 2027]) assert.equal(withChange((p) => { p.students[0].bacYear = good }).ok, true, `bacYear ${good}`)
+})
+
+test('10. a missing RFID is refused (students, head of delegation, driver)', () => {
+  rejects(withChange((p) => { delete p.students[2].rfid }), 'students[2].rfid')
+  rejects(withChange((p) => { delete p.delegationHead.rfid }), 'delegationHead.rfid')
+  rejects(withChange((p) => { delete p.driver.rfid }), 'driver.rfid')
+})
+
+test('11. an empty RFID is refused, and an RFID is always text', () => {
+  rejects(withChange((p) => { p.students[0].rfid = '' }), 'students[0].rfid')
+  rejects(withChange((p) => { p.driver.rfid = '   ' }), 'driver.rfid')
+  const numeric = withChange((p) => { p.students[0].rfid = 1239876 })
+  rejects(numeric, 'students[0].rfid')
+  assert.match(numeric.message, /text/)
+  rejects(withChange((p) => { p.driver.rfid = 'x'.repeat(65) }), 'driver.rfid')
+})
+
+test('12. an activity role outside the two internal values is refused', () => {
+  for (const role of ['Activities Officer', 'مسؤول النشاطات', 'president', '', undefined]) {
+    rejects(withChange((p) => { p.activityOfficial.role = role }), 'activityOfficial.role')
+  }
+  for (const role of ACTIVITY_OFFICIAL_ROLES) assert.equal(withChange((p) => { p.activityOfficial.role = role }).ok, true)
+})
+
+test('13. consent must be exactly true', () => {
+  for (const value of [false, 'true', 1, undefined]) rejects(withChange((p) => { p.consent = value }), 'consent')
+})
+
+test('14. an invalid submissionId is refused', () => {
   for (const bad of ['abc', '', 42, undefined, '3f2b8c1e-9a4d-1e6f-8b2a-1c3d5e7f9a0b', '3f2b8c1e9a4d4e6f8b2a1c3d5e7f9a0b']) {
     rejects(withChange((p) => { p.submissionId = bad }), 'submissionId')
   }
-  const upper = withChange((p) => { p.submissionId = SUBMISSION_ID.toUpperCase() })
-  assert.equal(upper.value.submissionId, SUBMISSION_ID)
-
-  const first = createRegistrationStateV4()
-  const second = createRegistrationStateV4()
-  assert.match(first.submissionId, /^[0-9a-f-]{36}$/)
-  assert.notEqual(first.submissionId, second.submissionId)
+  assert.equal(withChange((p) => { p.submissionId = SUBMISSION_ID.toUpperCase() }).value.submissionId, SUBMISSION_ID)
 })
 
-// 13 ------------------------------------------------------------------------
-test('13. the wilaya is checked and snapshotted from the dataset', () => {
-  for (const code of ['99', '00', '1', 34, '']) {
-    rejects(withChange((p) => { p.answers.team.wilaya.code = code }), 'answers.team.wilaya.code')
+test('15. formVersion other than 4 is refused', () => {
+  for (const bad of [3, '4', 5, undefined]) rejects(withChange((p) => { p.formVersion = bad }), 'formVersion')
+})
+
+test('16. edition other than 2 is refused', () => {
+  assert.equal(AIVEX_EDITION, 2)
+  for (const bad of [1, 3, '2', undefined]) rejects(withChange((p) => { p.edition = bad }), 'edition')
+})
+
+test('17. a duplicate submissionId returns the same reference and creates nothing new', async () => {
+  const { store, handler } = makeApi()
+  const first = await post(handler, validPayload())
+  const again = await post(handler, validPayload())
+  assert.equal(first.status, 201)
+  assert.deepEqual(again, { status: 200, body: { success: true, reference: first.body.reference, alreadyProcessed: true }, headers: again.headers })
+  assert.equal(store.registrations.length, 1)
+  assert.equal(store.students.length, 3)
+  assert.equal(store.objects.size, 3)
+
+  // Same submissionId, different answers: refused, existing reference given back.
+  const edited = await post(handler, validPayload({ team: { ...validPayload().team, name: 'Other Team' } }))
+  assert.equal(edited.status, 409)
+  assert.ok(edited.body.message.includes(first.body.reference))
+  assert.equal(store.registrations.length, 1)
+})
+
+test('18. the same activity e-mail with another submissionId is accepted', async () => {
+  const { store, handler } = makeApi()
+  const first = await post(handler, validPayload())
+  const second = await post(handler, validPayload({ submissionId: OTHER_SUBMISSION_ID }))
+  assert.equal(first.status, 201)
+  assert.equal(second.status, 201)
+  assert.notEqual(first.body.reference, second.body.reference)
+  assert.equal(store.registrations.length, 2)
+  assert.equal(new Set(store.registrations.map((row) => row.activity_official_email)).size, 1)
+})
+
+test('19. an old v3 payload is never accepted as v4', async () => {
+  const { store, handler } = makeApi()
+  const { status, body } = await post(handler, v3Payload())
+  assert.equal(status, 400)
+  assert.equal(body.field, 'formVersion')
+  assert.equal(store.registrations.length, 0)
+  // Even relabelled as v4, the v3 envelope does not pass.
+  rejects(validate({ ...v3Payload(), formVersion: 4, edition: 2 }), 'form')
+})
+
+test('20. forbidden v3 fields are refused and never reach the database mapping', async () => {
+  for (const [path, change] of [
+    ['delegationHead.nationalId', (p) => { p.delegationHead.nationalId = '123456789' }],
+    ['driver.nationalId', (p) => { p.driver.nationalId = '123456789' }],
+    ['students[0].registrationNumber', (p) => { p.students[0].registrationNumber = '202133046094' }],
+    ['students[1].studyLevel', (p) => { p.students[1].studyLevel = 'Licence 3' }],
+    ['students[2].isLeader', (p) => { p.students[2].isLeader = true }],
+    ['answers', (p) => { p.answers = {} }],
+  ]) {
+    const result = withChange(change)
+    rejects(result, path)
+    assert.match(result.message, /old registration form/)
   }
-  const renamed = withChange((p) => { p.answers.team.wilaya.name = 'Somewhere else' })
-  assert.deepEqual(renamed.value.team.wilaya, { code: '34', name: 'Bordj Bou Arréridj' })
+  const { store, handler } = makeApi()
+  const payload = validPayload()
+  payload.delegationHead.nationalId = '123456789'
+  assert.equal((await post(handler, payload)).status, 400)
+  assert.equal(store.registrations.length, 0)
+
+  // The canonical mapper only emits v4 columns.
+  const value = validate(validPayload()).value
+  const row = toRegistrationRow(value, { reference: 'AIVEX2-TEST0000', fingerprint: 'f'.repeat(64), source: null, now: NOW })
+  const studentRows = toStudentRows(REGISTRATION_ID, value, [1, 2, 3].map((position) => ({ position, path: 'p', mime: 'image/png', size: 1 })))
+  assert.doesNotMatch(JSON.stringify([row, studentRows]), /national|registration_number|study_level|leader/i)
 })
 
-// 14 ------------------------------------------------------------------------
-test('14. a listed institution must belong to the chosen wilaya', () => {
-  rejects(withChange((p) => { p.answers.team.institution.id = 'univ-setif-1' }), 'answers.team.institution.id')
-  rejects(withChange((p) => { p.answers.team.institution.id = 'not-an-institution' }), 'answers.team.institution.id')
-  rejects(withChange((p) => { p.answers.team.institution.custom = 'false' }), 'answers.team.institution.custom')
+// =================================================================================
+// Contract: frontend buildSubmission() -> backend validator, one source of truth
+// =================================================================================
 
-  const renamed = withChange((p) => { p.answers.team.institution.name = 'Fake label' })
-  assert.deepEqual(renamed.value.team.institution, {
-    id: 'univ-bba',
-    name: 'Université Mohamed El Bachir El Ibrahimi de Bordj Bou Arréridj',
-    custom: false,
-  })
-})
-
-// 15 ------------------------------------------------------------------------
-test('15. a custom institution is "other" + custom: true + a typed name', () => {
-  const custom = withChange((p) => { p.answers.team.institution = { id: 'other', name: '  École   Supérieure X ', custom: true } })
-  assert.equal(custom.ok, true, custom.message)
-  assert.deepEqual(custom.value.team.institution, { id: 'other', name: 'École Supérieure X', custom: true })
-
-  rejects(withChange((p) => { p.answers.team.institution = { id: 'univ-bba', name: 'X school', custom: true } }), 'answers.team.institution.id')
-  rejects(withChange((p) => { p.answers.team.institution = { id: 'other', name: 'X school', custom: false } }), 'answers.team.institution.id')
-  rejects(withChange((p) => { p.answers.team.institution = { id: 'other', name: 'X', custom: true } }), 'answers.team.institution.name')
-  // Wilayas without a listed institution only accept the custom form.
-  const unlisted = withChange((p) => {
-    p.answers.team.wilaya = { code: '55', name: 'Touggourt' }
-    p.answers.team.institution = { id: 'other', name: 'Centre de formation de Touggourt', custom: true }
-  })
-  assert.equal(unlisted.ok, true, unlisted.message)
-})
-
-// 16 ------------------------------------------------------------------------
-test('16. the activity role is an internal value, never a UI label', () => {
-  assert.deepEqual([...ACTIVITY_OFFICIAL_ROLES], ['sub_director_activities', 'activities_officer'])
-  for (const role of ACTIVITY_OFFICIAL_ROLES) {
-    assert.equal(withChange((p) => { p.answers.activityOfficial.role = role }).ok, true)
-  }
-  for (const label of ['Activities Officer', 'مسؤول النشاطات', '', undefined]) {
-    rejects(withChange((p) => { p.answers.activityOfficial.role = label }), 'answers.activityOfficial.role')
-  }
-})
-
-// 17 ------------------------------------------------------------------------
-test('17. phones are strings normalised to 9-15 digits', () => {
-  assert.equal(normalizePhone('0555 12 34 56'), '0555123456')
-  assert.equal(normalizePhone('+213 555 12 34 56'), '+213555123456')
-  assert.equal(normalizePhone('(0555) 12-34.56'), '0555123456')
-  assert.equal(normalizePhone(555123456), '')
-
-  const { value } = validate(validPayload())
-  assert.equal(value.activityOfficial.phone, '0555123456')
-  assert.equal(value.delegationHead.phone, '+213661234567')
-
-  for (const bad of ['12345', '05a5 12 34 56', '+213+555123456', 555123456, '1'.repeat(16), `0555${' '.repeat(40)}123456`]) {
-    rejects(withChange((p) => { p.answers.students[1].phone = bad }), 'answers.students[1].phone')
-  }
-})
-
-// 18 ------------------------------------------------------------------------
-test('18. the activity e-mail is trimmed, lowercased and validated', () => {
-  assert.equal(normalizeEmail('  Activities@Univ-BBA.DZ '), 'activities@univ-bba.dz')
-  const result = withChange((p) => { p.answers.activityOfficial.email = '  Activities@Univ-BBA.DZ ' })
-  assert.equal(result.value.activityOfficial.email, 'activities@univ-bba.dz')
-
-  for (const bad of ['not-an-email', 'a@b', '', `${'a'.repeat(250)}@x.dz`]) {
-    rejects(withChange((p) => { p.answers.activityOfficial.email = bad }), 'answers.activityOfficial.email')
-  }
-})
-
-test('18b. the e-mail is not unique for v4 (idempotency is the submissionId)', async () => {
-  const sql = await read('supabase/migrations/20260918120000_aivex_v4_contract.sql')
-  assert.match(sql, /drop index if exists public\.aivex_registrations_edition_contact_uidx;/)
-  assert.match(sql, /aivex_registrations_edition_contact_v3_uidx\s+on public\.aivex_registrations \(edition, lower\(activity_official_email\)\)\s+where form_version < 4;/)
-  assert.match(sql, /create unique index if not exists aivex_registrations_submission_id_uidx\s+on public\.aivex_registrations \(submission_id\);/)
-})
-
-// 19 ------------------------------------------------------------------------
-test('19. v4 does not use nationalId, registrationNumber, studyLevel or a leader', () => {
-  const everyField = Object.values(V4_FIELDS).flat()
-  for (const legacy of ['nationalId', 'registrationNumber', 'studyLevel', 'leader', 'isLeader']) {
-    assert.equal(everyField.includes(legacy), false, legacy)
-  }
-  // activityOfficial.role is the official's function; students have no role.
-  assert.equal(V4_FIELDS.student.includes('role'), false)
-
-  rejects(withChange((p) => { p.answers.delegationHead.nationalId = '123456789' }), 'answers.delegationHead.nationalId')
-  rejects(withChange((p) => { p.answers.driver.nationalId = '123456789' }), 'answers.driver.nationalId')
-  rejects(withChange((p) => { p.answers.students[0].registrationNumber = '202133046094' }), 'answers.students[0].registrationNumber')
-  rejects(withChange((p) => { p.answers.students[0].studyLevel = 'Licence 3' }), 'answers.students[0].studyLevel')
-  rejects(withChange((p) => { p.answers.students[0].isLeader = true }), 'answers.students[0].isLeader')
-
-  assert.doesNotMatch(JSON.stringify(validate(validPayload()).value), /nationalId|registrationNumber|studyLevel|leader/i)
-})
-
-test('19b. server-owned fields cannot come from the browser', () => {
-  for (const key of ['reference', 'edition', 'status', 'registrationStatus', 'documentStatus']) {
-    const result = withChange((p) => { p[key] = 'x' })
-    rejects(result, key)
-    assert.match(result.message, /assigned by the server/)
-  }
-  rejects(withChange((p) => { p.answers.reference = 'AX2-26-A83F19C2' }), 'answers.reference')
-  // The honeypot key is tolerated (the handler filters a filled one first).
-  assert.equal(withChange((p) => { p.website = '' }).ok, true)
-})
-
-// 20 ------------------------------------------------------------------------
-test('20. the student card stays in the contract as internal verification data', async () => {
-  assert.equal(V4_FIELDS.student.includes('studentCard'), true)
-  assert.deepEqual([...DATA_CLASSES.internalVerification], ['answers.students[].studentCard'])
-  assert.equal(STUDENT_CARD_POLICY.required, true)
-  assert.equal(STUDENT_CARD_POLICY.printable, false)
-  assert.equal(STUDENT_CARD_POLICY.publicBucket, false)
-  assert.equal(STUDENT_CARD_POLICY.bucket, 'aivex-student-cards')
-  assert.equal(STUDENT_CARD_POLICY.maxBytes, 5 * 1024 * 1024)
-  assert.deepEqual(Object.keys(STUDENT_CARD_POLICY.types), ['image/jpeg', 'image/png', 'image/webp'])
-  assert.deepEqual([...STUDENT_CARD_FIELDS], ['studentCard_1', 'studentCard_2', 'studentCard_3'])
-  assert.deepEqual(validStudents().map((s) => s.studentCard), [...STUDENT_CARD_FIELDS])
-
-  const sql = await read('supabase/migrations/20260918120000_aivex_v4_contract.sql')
-  for (const column of ['student_card_path text not null', 'student_card_mime text not null', 'student_card_size_bytes bigint not null']) {
-    assert.match(sql, new RegExp(column))
-  }
-})
-
-// 21 ------------------------------------------------------------------------
-test('21. the student card has no Word variable and is never resolved into the document', () => {
-  const described = JSON.stringify(WORD_VARIABLES_V4)
-  assert.doesNotMatch(described, /card/i)
-  for (const excluded of WORD_EXCLUDED_FIELDS_V4) assert.equal(described.includes(excluded), false, excluded)
-
-  const students = [1, 2, 3].map((position) => ({
-    position,
-    full_name: `Student Number ${position}`,
-    phone: '0550000001',
-    bac_year: 2023,
-    rfid_number: `00${position}`,
-    student_card_path: `${REGISTRATION_ID}/student-${position}.jpg`,
-    student_card_mime: 'image/jpeg',
-    student_card_size_bytes: 1234,
-  }))
-  const data = resolveWordDataV4({ settings: { edition_name: 'AIVEX' }, registration: { team_name: 'Infinity AI' }, students })
-  assert.doesNotMatch(JSON.stringify(data), /student-\d\.jpg|image\/jpeg|card/i)
-})
-
-// Word mapping --------------------------------------------------------------
-test('the Word mapping covers every official variable, three students each', () => {
-  const names = WORD_VARIABLES_V4.map((entry) => entry.variable)
-  assert.equal(new Set(names).size, names.length)
-  for (const expected of [
-    'edition_name', 'event_start_date', 'event_end_date', 'registration_reference',
-    'institution_name', 'wilaya_name', 'team_name',
-    'activity_official_phone', 'activity_official_email',
-    'delegation_head_name', 'delegation_head_phone', 'delegation_head_rfid',
-    'driver_name', 'driver_phone', 'driver_rfid', 'submission_deadline', 'submission_email',
-    ...[1, 2, 3].flatMap((n) => [`student_${n}_name`, `student_${n}_phone`, `student_${n}_bac_year`, `student_${n}_rfid`]),
-  ]) assert.ok(names.includes(expected), expected)
-
-  assert.equal(names.length, 29)
-
-  const student2Rfid = WORD_VARIABLES_V4.find((entry) => entry.variable === 'student_2_rfid')
-  assert.equal(student2Rfid.db, 'aivex_students[position=2].rfid_number')
-  assert.equal(student2Rfid.payload, 'answers.students[1].rfid')
-  assert.equal(student2Rfid.frontend, 'students[1].rfid')
-
-  // The reference is server-generated: no payload or frontend source.
-  const reference = WORD_VARIABLES_V4.find((entry) => entry.variable === 'registration_reference')
-  assert.deepEqual([reference.db, reference.payload, reference.frontend], ['aivex_registrations.reference', null, null])
-
-  const students = [3, 1, 2].map((position) => ({ position, full_name: `S${position}`, phone: '0550000001', bac_year: 2020 + position, rfid_number: `0${position}` }))
-  const data = resolveWordDataV4({
-    settings: { edition_name: 'AIVEX 2', submission_email: 'aivex@univ-bba.dz', event_start_date: null },
-    registration: { team_name: 'Infinity AI', driver_rfid: '0007', reference: 'AX2-26-A83F19C2' },
-    students,
-  })
-  assert.equal(data.registration_reference, 'AX2-26-A83F19C2')
-  assert.equal(data.student_1_name, 'S1')
-  assert.equal(data.student_3_bac_year, '2023')
-  assert.equal(data.driver_rfid, '0007')
-  assert.equal(data.event_start_date, '')
-  assert.throws(() => resolveWordDataV4({ settings: {}, registration: {}, students: students.slice(0, 2) }))
-})
-
-// Student card files --------------------------------------------------------
-test('student card files: real JPEG, PNG and WEBP pass with a canonical extension', async () => {
-  const files = cardFiles({
-    studentCard_2: { buffer: IMAGES.png, mimeType: 'image/png', filename: 'studentCard_2.png' },
-    studentCard_3: { buffer: IMAGES.webp, mimeType: 'image/webp', filename: 'studentCard_3.webp' },
-  })
-  files.set('studentCard_1', { buffer: IMAGES.jpeg, mimeType: 'image/jpg', filename: 'studentCard_1.jpeg' })
-  const result = await validateStudentCardsV4(validStudents(), files)
-  assert.equal(result.ok, true, result.message)
-  assert.deepEqual(result.cards.map(({ position, field, mime, extension }) => ({ position, field, mime, extension })), [
-    { position: 1, field: 'studentCard_1', mime: 'image/jpeg', extension: 'jpg' },
-    { position: 2, field: 'studentCard_2', mime: 'image/png', extension: 'png' },
-    { position: 3, field: 'studentCard_3', mime: 'image/webp', extension: 'webp' },
-  ])
-})
-
-test('student card files: suspicious or invalid files are refused', async () => {
-  const cases = [
-    [{ buffer: IMAGES.png, mimeType: 'image/jpeg', filename: 'studentCard_2.jpg' }, 415], // declared type lies
-    [{ buffer: IMAGES.jpeg, mimeType: 'image/jpeg', filename: 'studentCard_2.png' }, 415], // extension lies
-    [{ buffer: IMAGES.jpeg, mimeType: 'image/jpeg', filename: 'studentCard_2' }, 415], // no extension
-    [{ buffer: IMAGES.pdf, mimeType: 'application/pdf', filename: 'studentCard_2.pdf' }, 415], // PDF: not accepted
-    [{ buffer: Buffer.from('<?php echo 1; ?>'), mimeType: 'image/jpeg', filename: 'studentCard_2.jpg' }, 415],
-    [{ buffer: Buffer.alloc(0), mimeType: 'image/jpeg', filename: 'studentCard_2.jpg' }, 400],
-    [{ buffer: Buffer.concat([IMAGES.jpeg, Buffer.alloc(STUDENT_CARD_POLICY.maxBytes)]), mimeType: 'image/jpeg', filename: 'studentCard_2.jpg' }, 413],
-  ]
-  for (const [file, status] of cases) {
-    const result = await validateStudentCardsV4(validStudents(), cardFiles({ studentCard_2: file }))
-    assert.equal(result.ok, false, file.filename)
-    assert.equal(result.status, status, file.filename)
-    assert.equal(result.field, 'studentCard_2')
-  }
-
-  const extra = cardFiles()
-  extra.set('studentCard_4', { buffer: IMAGES.jpeg, mimeType: 'image/jpeg', filename: 'studentCard_4.jpg' })
-  const unexpected = await validateStudentCardsV4(validStudents(), extra)
-  assert.equal(unexpected.ok, false)
-  assert.equal(unexpected.field, 'studentCard_4')
-  assert.equal(STUDENT_CARD_FIELD_PATTERN.test('studentCard_4'), false)
-})
-
-// Storage -------------------------------------------------------------------
-test('student cards get a deterministic private path per student', () => {
-  assert.equal(studentCardStoragePath(REGISTRATION_ID, 1, 'image/jpeg'), `${REGISTRATION_ID}/student-1.jpg`)
-  assert.equal(studentCardStoragePath(REGISTRATION_ID.toUpperCase(), 2, 'image/png'), `${REGISTRATION_ID}/student-2.png`)
-  assert.equal(studentCardStoragePath(REGISTRATION_ID, 3, 'image/webp'), `${REGISTRATION_ID}/student-3.webp`)
-  assert.throws(() => studentCardStoragePath(REGISTRATION_ID, 4, 'image/jpeg'))
-  assert.throws(() => studentCardStoragePath('../other', 1, 'image/jpeg'))
-  assert.throws(() => studentCardStoragePath(REGISTRATION_ID, 1, 'application/pdf'))
-})
-
-test('no public URL is ever built for student cards', async () => {
-  const sources = []
-  for (const dir of ['api', 'api/_lib', 'api/aivex', 'shared/aivex']) {
-    for (const name of await readdir(new URL(`../${dir}/`, import.meta.url))) {
-      if (name.endsWith('.js')) sources.push(await read(`${dir}/${name}`))
-    }
-  }
-  for (const source of sources) assert.doesNotMatch(source, /getPublicUrl/)
-})
-
-// Frontend contract + transport --------------------------------------------
 const filledState = () => {
   const state = createRegistrationStateV4({ submissionId: SUBMISSION_ID })
   Object.assign(state.team, { name: ' Infinity  AI ', wilaya: '34', institution: 'univ-bba' })
@@ -513,43 +401,38 @@ const filledState = () => {
   return state
 }
 
-test('the frontend state has three fixed students and builds a valid canonical payload', () => {
-  const empty = createRegistrationStateV4()
-  assert.deepEqual(empty.students.map((s) => s.position), [1, 2, 3])
-  assert.deepEqual(empty.students.map((s) => s.id), ['student-1', 'student-2', 'student-3'])
-  assert.deepEqual(empty.students[0], { id: 'student-1', position: 1, fullName: '', phone: '', bacYear: '', rfid: '', studentCard: null })
-  assert.equal('nationalId' in empty.delegationHead, false)
-
-  const payload = buildRegistrationPayloadV4(filledState(), { now: NOW })
-  assert.deepEqual(Object.keys(payload), ['form', 'version', 'submissionId', 'submittedAt', 'answers'])
-  assert.equal(payload.answers.students[1].bacYear, 2023)
-  assert.equal(payload.answers.delegationHead.rfid, '00471236')
-  assert.equal(payload.answers.team.institution.name, 'Université Mohamed El Bachir El Ibrahimi de Bordj Bou Arréridj')
+test('contract: the form builds exactly the payload the API validates', () => {
+  const { payload, files } = buildSubmission(filledState())
+  assert.deepEqual(Object.keys(payload), [...V4_FIELDS.registration])
+  assert.equal(payload.formVersion, AIVEX_FORM_VERSION)
+  assert.equal(payload.edition, AIVEX_EDITION)
+  assert.equal(payload.submissionId, SUBMISSION_ID)
+  assert.equal(payload.students[1].bacYear, 2023)
+  assert.equal(payload.delegationHead.rfid, '00471236')
   assert.equal('reference' in payload, false)
+  assert.doesNotMatch(JSON.stringify(payload), /nationalId|registrationNumber|studyLevel|base64|data:image/)
+  for (const key of V4_FIELDS.student) assert.ok(key in payload.students[0], key)
 
   const result = validate(payload)
   assert.equal(result.ok, true, result.message)
   assert.equal(result.value.team.name, 'Infinity AI')
+  assert.equal(result.value.activityOfficial.email, 'amina@univ-bba.dz')
 
-  const parts = buildStudentCardPartsV4(filledState())
-  assert.deepEqual(parts.map(({ field, filename }) => ({ field, filename })), [
-    { field: 'studentCard_1', filename: 'studentCard_1.png' },
-    { field: 'studentCard_2', filename: 'studentCard_2.png' },
-    { field: 'studentCard_3', filename: 'studentCard_3.png' },
-  ])
-  assert.equal(studentCardUploadName(2, 'image/jpg'), 'studentCard_2.jpg')
+  // Files travel as their own parts, never inside the JSON.
+  assert.deepEqual(files.map(({ field, position }) => ({ field, position })), [1, 2, 3].map((position) => ({ field: `studentCard_${position}`, position })))
+  assert.ok(files.every(({ file }) => file instanceof File))
 })
 
-test('multipart transport: payload + studentCard_1..3 survive the real parser', async () => {
+test('contract: multipart payload + studentCard_1..3 survive the real parser, with derived file names', async () => {
   const state = filledState()
+  const { payload, files } = buildSubmission(state)
   const form = new FormData()
-  form.append('payload', JSON.stringify(buildRegistrationPayloadV4(state, { now: NOW })))
-  for (const { field, file, filename } of buildStudentCardPartsV4(state)) form.append(field, file, filename)
+  form.append('payload', JSON.stringify(payload))
+  for (const { field, position, file } of files) form.append(field, file, studentCardUploadName(position, file.type))
 
   const response = new Response(form)
   const req = Readable.from([Buffer.from(await response.arrayBuffer())])
   req.headers = { 'content-type': response.headers.get('content-type') }
-
   const parsed = await parseMultipart(req, {
     maxFileBytes: STUDENT_CARD_POLICY.maxBytes,
     maxFiles: AIVEX_STUDENT_COUNT,
@@ -557,247 +440,345 @@ test('multipart transport: payload + studentCard_1..3 survive the real parser', 
     allowedFields: new Set(['payload']),
     fileFieldPattern: STUDENT_CARD_FIELD_PATTERN,
   })
+  assert.deepEqual([...parsed.files.values()].map((file) => file.filename), ['studentCard_1.png', 'studentCard_2.png', 'studentCard_3.png'])
   const registration = validate(JSON.parse(parsed.fields.payload))
   assert.equal(registration.ok, true, registration.message)
   const cards = await validateStudentCardsV4(registration.value.students, parsed.files)
   assert.equal(cards.ok, true, cards.message)
-  assert.deepEqual(cards.cards.map((card) => studentCardStoragePath(REGISTRATION_ID, card.position, card.mime)), [
-    `${REGISTRATION_ID}/student-1.png`, `${REGISTRATION_ID}/student-2.png`, `${REGISTRATION_ID}/student-3.png`,
-  ])
 })
 
-// Statuses, reference, responses -------------------------------------------
-test('registration and document statuses match the migration', async () => {
-  assert.deepEqual([...REGISTRATION_STATUSES], ['submitted', 'under_review', 'approved', 'rejected', 'cancelled'])
-  assert.equal(DEFAULT_REGISTRATION_STATUS, 'submitted')
-  assert.deepEqual([...DOCUMENT_STATUSES], [
-    'not_generated', 'generating', 'awaiting_signature', 'signed_document_uploaded', 'under_review',
-    'changes_required', 'validated', 'generation_failed', 'expired',
-  ])
-  assert.equal(DEFAULT_DOCUMENT_STATUS, 'not_generated')
+test('contract: versions and the student count are defined once, in the shared contract', async () => {
+  assert.equal(FORM_VERSION, AIVEX_FORM_VERSION)
+  assert.equal(STUDENT_COUNT, AIVEX_STUDENT_COUNT)
+  const files = [
+    ...(await readdir(new URL('../src/pages/aivex/register/', import.meta.url))).map((name) => `src/pages/aivex/register/${name}`),
+    'api/aivex/register.js', 'api/_lib/aivex-validation-v4.js', 'api/_lib/aivex-registration-v4.js', 'api/_lib/aivex-reference.js',
+    'src/lib/applicationSubmission.js',
+  ].filter((file) => /\.(js|jsx)$/.test(file))
+  for (const file of files) {
+    const source = await read(file)
+    assert.doesNotMatch(source, /(FORM_VERSION|EDITION|STUDENT_COUNT)\s*=\s*\d/, `${file} redefines a contract constant`)
+    assert.doesNotMatch(source, /\b(nationalId|registrationNumber|studyLevel|isLeader)\b/, `${file} still uses a v3 field`)
+  }
+  await assert.rejects(readFile(new URL('../api/_lib/aivex-validation.js', import.meta.url)), 'the v3 validator is gone')
+  await assert.rejects(readFile(new URL('../src/pages/aivex/register/formVersion.js', import.meta.url)), 'no v3/v4 switch anymore')
+})
 
+test('contract: frontend field checks agree with the API validator', () => {
+  const samples = {
+    phone: ['0555 12 34 56', '+213 555 12 34 56', '12345', '05a5 12 34 56', '+213+555123456', '', `0555${' '.repeat(40)}123456`],
+    rfid: ['00471236', ' 0047 ', '', '   ', 'x'.repeat(64), 'x'.repeat(65), 'AB CD'],
+    fullName: ['Karim Haddad', 'Al', '   ', 'K'.repeat(120), 'K'.repeat(121)],
+  }
+  for (const [field, values] of Object.entries(samples)) {
+    for (const value of values) {
+      const frontendOk = !personIssues({ fullName: 'Karim Haddad', phone: '0661234567', rfid: '00471236', [field]: value })[field]
+      const backendOk = withChange((p) => { p.delegationHead[field] = value }).ok
+      assert.equal(frontendOk, backendOk, `delegationHead.${field} = ${JSON.stringify(value)}`)
+    }
+  }
+  const students = filledState().students
+  for (const bacYear of ['1989', '1990', '2026', '2027', '2028', 'BAC 2023', '']) {
+    const frontendOk = !studentIssues({ ...students[0], bacYear }, students, undefined, NOW).bacYear
+    const backendOk = withChange((p) => { p.students[0].bacYear = normalizeBacYear(bacYear) ?? bacYear }).ok
+    assert.equal(frontendOk, backendOk, `bacYear ${bacYear}`)
+  }
+})
+
+test('contract: the card check is the same in the form and in the API', async () => {
+  const cases = [
+    [{ type: 'image/png', size: 10 }, ''],
+    [{ type: 'image/jpg', size: 10 }, ''],
+    [{ type: 'application/pdf', size: 10 }, 'type'],
+    [{ type: 'image/heic', size: 10 }, 'type'],
+    [{ type: 'image/webp', size: 0 }, 'empty'],
+    [{ type: 'image/jpeg', size: STUDENT_CARD_POLICY.maxBytes + 1 }, 'size'],
+    [null, 'missing'],
+  ]
+  for (const [file, issue] of cases) {
+    assert.equal(studentCardFileIssue(file), issue, JSON.stringify(file))
+    assert.equal(Boolean(checkCardFile(file)), Boolean(issue), 'form message')
+  }
+  assert.deepEqual(CARD_TYPES, ['image/jpeg', 'image/png', 'image/webp'])
+  assert.equal(STUDENT_CARD_POLICY.maxBytes, 5 * 1024 * 1024)
+
+  const status = { type: 415, empty: 400, size: 413 }
+  for (const [issue, file] of [
+    ['type', { buffer: IMAGES.pdf, mimeType: 'application/pdf', filename: 'studentCard_2.pdf' }],
+    ['empty', { buffer: Buffer.alloc(0), mimeType: 'image/jpeg', filename: 'studentCard_2.jpg' }],
+    ['type', { buffer: Buffer.from('<?php echo 1; ?>'), mimeType: 'image/jpeg', filename: 'studentCard_2.jpg' }],
+    ['type', { buffer: IMAGES.jpeg, mimeType: 'image/jpeg', filename: 'studentCard_2.png' }],
+    ['type', { buffer: IMAGES.jpeg, mimeType: 'image/jpeg', filename: 'studentCard_2' }],
+  ]) {
+    const result = await validateStudentCardsV4(validStudents(), cardFiles({ studentCard_2: file }))
+    assert.equal(result.status, status[issue], file.filename)
+    assert.equal(result.field, 'studentCard_2')
+  }
+  const extra = cardFiles()
+  extra.set('studentCard_4', { buffer: IMAGES.jpeg, mimeType: 'image/jpeg', filename: 'studentCard_4.jpg' })
+  assert.equal((await validateStudentCardsV4(validStudents(), extra)).field, 'studentCard_4')
+
+  const mixed = await validateStudentCardsV4(validStudents(), cardFiles({
+    studentCard_2: { buffer: IMAGES.png, mimeType: 'image/png', filename: 'studentCard_2.png' },
+    studentCard_3: { buffer: IMAGES.webp, mimeType: 'image/webp', filename: 'studentCard_3.webp' },
+  }))
+  assert.deepEqual(mixed.cards.map((card) => card.extension), ['jpg', 'png', 'webp'])
+})
+
+// =================================================================================
+// Form model, draft and wording
+// =================================================================================
+
+test('form: three fixed students, RFID + BAC year, text-only draft under the v4 key', () => {
+  const state = createRegistrationStateV4()
+  assert.deepEqual(state.students, [1, 2, 3].map((position) => ({
+    id: `student-${position}`, position, fullName: '', phone: '', bacYear: '', rfid: '', studentCard: null,
+  })))
+  assert.deepEqual(state.delegationHead, { fullName: '', phone: '', rfid: '' })
+  assert.deepEqual(state.driver, { fullName: '', phone: '', rfid: '' })
+  assert.deepEqual(SECTIONS.delegationHead.fields, ['fullName', 'phone', 'rfid'])
+  assert.deepEqual(STUDENT_FIELDS, ['fullName', 'phone', 'bacYear', 'rfid', 'studentCard'])
+  assert.deepEqual(STUDENT_TEXT_FIELDS, ['fullName', 'phone', 'bacYear', 'rfid'])
+  assert.equal(DRAFT_KEY, 'aivex-registration-draft-v4')
+  assert.deepEqual(LEGACY_DRAFT_KEYS, ['aivex-registration-draft-v1', 'aivex-registration-draft-v2', 'aivex-registration-draft-v3'])
+
+  const filled = filledState()
+  for (const student of filled.students) assert.deepEqual(studentIssues(student, filled.students, undefined, NOW), {})
+  const missingCard = { ...filled.students[0], studentCard: null }
+  assert.ok(studentIssues(missingCard, filled.students, undefined, NOW).studentCard, 'a missing card blocks the submission')
+  const sameRfid = filled.students.map((student) => ({ ...student, rfid: ' 0047 ' }))
+  assert.ok(studentIssues(sameRfid[1], sameRfid, undefined, NOW).rfid)
+})
+
+test('form: every language has the v4 wording and no v3 field label', () => {
+  const removed = ['nationalIdLabel', 'regNumberLabel', 'studyLevelLabel', 'studyLevels', 'revNationalId', 'revRegId', 'revStudyLevel', 'errNationalRequired', 'errRegRequired', 'errLevelRequired']
+  for (const lang of ['en', 'fr', 'ar']) {
+    const t = getRegistrationStrings(lang)
+    for (const key of ['rfidLabel', 'rfidHint', 'bacYearLabel', 'selectBacYear', 'revRfid', 'revBacYear', 'errRfidRequired', 'errRfidShared',
+      'errBacYearRequired', 'errBacYearInvalid', 'errCardRequired', 'errFileEmpty', 'successTitle', 'successReference']) {
+      assert.ok(t[key], `${lang}.${key}`)
+    }
+    assert.equal(typeof t.fileRejected({ name: 'a.heic', details: 'image/heic · 2.0 MB' }), 'string')
+    for (const key of removed) assert.equal(key in t, false, `${lang}.${key} removed`)
+    assert.match(t.privacyIntro, /RFID/)
+  }
+  assert.equal(registrationStrings.fr.successTitle, 'Inscription enregistrée avec succès.')
+  for (const key of ['rfidLabel', 'bacYearLabel', 'errRfidRequired', 'errBacYearRequired', 'errFileEmpty']) {
+    assert.notEqual(registrationStrings.fr[key], registrationStrings.en[key], `fr.${key} translated`)
+    assert.notEqual(registrationStrings.ar[key], registrationStrings.en[key], `ar.${key} translated`)
+  }
+  const options = getBacYearOptions(getRegistrationStrings('en'), bacYearChoices(NOW))
+  assert.deepEqual([options[0], options[1], options.at(-1)], [
+    { value: '', label: 'Select year' }, { value: '2026', label: '2026' }, { value: '1990', label: '1990' },
+  ])
+  for (const { value } of options.slice(1)) assert.equal(isValidBacYear(Number(value), NOW), true)
+})
+
+// =================================================================================
+// Write path: idempotency and failures (store-level)
+// =================================================================================
+
+const registration = () => validate(validPayload()).value
+const cards = () => [1, 2, 3].map((position) => ({ position, field: `studentCard_${position}`, buffer: Buffer.alloc(10), mime: 'image/png', extension: 'png', size: 10 }))
+
+test('write path: an incomplete registration answers 409 while recent, and is redone once stale', async () => {
+  const store = createMemoryStore()
+  const value = registration()
+  await store.insertRegistration(toRegistrationRow(value, {
+    reference: 'AIVEX2-DEAD0000', fingerprint: registrationFingerprint(value), source: null, now: NOW,
+  }))
+  const busy = await registerV4({ store, registration: value, cards: cards(), now: NOW })
+  assert.equal(busy.status, 409)
+  assert.equal(busy.retryAfterSeconds, 15)
+
+  const later = await registerV4({ store, registration: value, cards: cards(), now: new Date(NOW.getTime() + STALE_AFTER_MS + 1) })
+  assert.equal(later.status, 201)
+  assert.notEqual(later.body.reference, 'AIVEX2-DEAD0000')
+  assert.equal(store.registrations.length, 1)
+  assert.equal(store.students.length, 3)
+})
+
+test('write path: a failed upload removes what was written; a reference collision draws a new one', async () => {
+  const store = createMemoryStore()
+  let uploads = 0
+  store.uploadCard = async (path, buffer, mime) => {
+    uploads += 1
+    if (uploads === 3) throw Object.assign(new Error('storage down'), { statusCode: 500 })
+    store.objects.set(path, { size: buffer.length, mime })
+  }
+  const logged = console.error
+  console.error = () => {}
+  try {
+    const failed = await registerV4({ store, registration: registration(), cards: cards(), now: NOW })
+    assert.equal(failed.status, 500)
+    assert.doesNotMatch(failed.body.message, /storage|supabase|edition-/i)
+  } finally {
+    console.error = logged
+  }
+  assert.equal(store.registrations.length + store.students.length + store.objects.size, 0)
+
+  const clean = createMemoryStore()
+  await clean.insertRegistration({ submission_id: OTHER_SUBMISSION_ID, reference: 'AIVEX2-TAKEN000', submitted_at: NOW.toISOString() })
+  const references = ['AIVEX2-TAKEN000', 'AIVEX2-FRESH000']
+  const outcome = await registerV4({ store: clean, registration: registration(), cards: cards(), now: NOW, generateReference: () => references.shift() })
+  assert.deepEqual(outcome, { status: 201, body: { success: true, reference: 'AIVEX2-FRESH000' } })
+})
+
+test('write path: the reference is generated by the server, in one format', () => {
+  const references = new Set(Array.from({ length: 200 }, () => generateRegistrationReference(2)))
+  assert.equal(references.size, 200)
+  for (const reference of references) assert.match(reference, REGISTRATION_REFERENCE_PATTERN)
+  assert.equal(generateRegistrationReference(2, () => Buffer.alloc(8)), 'AIVEX2-00000000')
+  assert.throws(() => generateRegistrationReference(0))
+  // A client-proposed reference is refused outright.
+  rejects(withChange((p) => { p.reference = 'AIVEX2-CHOSEN00' }), 'reference')
+})
+
+test('API: POST only, honeypot, rate limit, and no internals in errors', async () => {
+  const { store, handler } = makeApi()
+  const get = await new Promise((resolve) => {
+    const res = { headers: {}, setHeader(name, value) { this.headers[name] = value }, end(body) { resolve({ status: this.statusCode, body: JSON.parse(body), allow: this.headers.Allow }) } }
+    handler({ method: 'GET', headers: {} }, res)
+  })
+  assert.deepEqual([get.status, get.allow], [405, 'POST'])
+
+  const bot = await post(handler, validPayload({ website: 'http://spam.example' }))
+  assert.equal(bot.status, 201)
+  assert.match(bot.body.reference, REGISTRATION_REFERENCE_PATTERN)
+  assert.equal(store.registrations.length, 0, 'honeypot: nothing written')
+
+  const unconfigured = createRegisterHandler({ createStore: () => null, now: () => NOW })
+  const logged = console.error
+  console.error = () => {}
+  try {
+    assert.deepEqual((await post(unconfigured, validPayload())).body, { success: false, message: 'Server configuration error.' })
+  } finally {
+    console.error = logged
+  }
+})
+
+// =================================================================================
+// Contract details kept from Phase 1
+// =================================================================================
+
+test('normalisers: text, e-mail, phone, RFID (leading zeros kept), BAC year', () => {
+  assert.equal(normalizeText('  Amina \t\n Benali  '), 'Amina Benali')
+  assert.equal(normalizeText('Arréridj'), 'Arréridj')
+  assert.equal(normalizeEmail('  Activities@Univ-BBA.DZ '), 'activities@univ-bba.dz')
+  assert.equal(normalizePhone('0555 12 34 56'), '0555123456')
+  assert.equal(normalizePhone('+213 555 12 34 56'), '+213555123456')
+  assert.equal(normalizeRfid('  00471236 '), '00471236')
+  assert.equal(normalizeRfid(471236), '')
+  assert.equal(normalizeBacYear('2023'), 2023)
+  assert.equal(normalizeBacYear('BAC 2023'), null)
+  assert.equal(validate(validPayload()).value.students[0].rfid, '0019876')
+})
+
+test('validation: wilaya and institution come from the dataset (snapshot), custom institutions allowed', () => {
+  for (const code of ['99', '00', '1', 34, '']) rejects(withChange((p) => { p.team.wilaya.code = code }), 'team.wilaya.code')
+  rejects(withChange((p) => { p.team.institution.id = 'univ-setif-1' }), 'team.institution.id')
+  const renamed = withChange((p) => { p.team.wilaya.name = 'x'; p.team.institution.name = 'Fake' })
+  assert.deepEqual(renamed.value.team, {
+    name: 'Infinity AI',
+    wilaya: { code: '34', name: 'Bordj Bou Arréridj' },
+    institution: { id: 'univ-bba', name: 'Université Mohamed El Bachir El Ibrahimi de Bordj Bou Arréridj', custom: false },
+  })
+  const custom = withChange((p) => { p.team.institution = { id: 'other', name: '  École   Supérieure X ', custom: true } })
+  assert.deepEqual(custom.value.team.institution, { id: 'other', name: 'École Supérieure X', custom: true })
+  rejects(withChange((p) => { p.team.institution = { id: 'univ-bba', name: 'X school', custom: true } }), 'team.institution.id')
+  rejects(withChange((p) => { p.activityOfficial.email = 'not-an-email' }), 'activityOfficial.email')
+  rejects(withChange((p) => { p.students[1].rfid = p.students[0].rfid }), 'students[1].rfid')
+  rejects(withChange((p) => { const [a, b] = p.students; a.position = 2; b.position = 1 }), 'students[0].position')
+})
+
+test('statuses: v4 values, shared by the contract and the migration', async () => {
+  assert.deepEqual([...REGISTRATION_STATUSES], ['submitted', 'under_review', 'approved', 'rejected', 'cancelled'])
+  assert.deepEqual([...DOCUMENT_STATUSES], ['not_generated', 'generating', 'awaiting_signature', 'signed_document_uploaded',
+    'under_review', 'changes_required', 'validated', 'generation_failed', 'expired'])
+  assert.deepEqual([DEFAULT_REGISTRATION_STATUS, DEFAULT_DOCUMENT_STATUS], ['submitted', 'not_generated'])
   const sql = await read('supabase/migrations/20260918120000_aivex_v4_contract.sql')
   const listed = (column) => sql.match(new RegExp(`check \\(${column} in \\(([^)]+)\\)\\)`))[1].match(/'([a-z_]+)'/g).map((v) => v.slice(1, -1))
   assert.deepEqual(listed('registration_status'), [...REGISTRATION_STATUSES])
   assert.deepEqual(listed('document_status'), [...DOCUMENT_STATUSES])
+  assert.deepEqual(registrationResponsesV4.replayed('R'), { status: 200, body: { success: true, reference: 'R', alreadyProcessed: true } })
 })
 
-test('the public reference is server-shaped: AX{edition}-{yy}-{8 hex}', () => {
-  assert.equal(formatRegistrationReference({ edition: 2, year: 2026, token: 'a83f19c2' }), 'AX2-26-A83F19C2')
-  assert.equal(isRegistrationReference('AX2-26-A83F19C2'), true)
-  for (const bad of ['AX-MFX3K2-AB12', 'AX2-26-A83F19C', 'ax2-26-a83f19c2', 42]) assert.equal(isRegistrationReference(bad), false)
-  assert.throws(() => formatRegistrationReference({ edition: 2, year: 2026, token: 'nothex!!' }))
+test('student cards: internal verification data, private bucket, deterministic path per edition', () => {
+  assert.deepEqual([...DATA_CLASSES.internalVerification], ['students[].studentCard'])
+  assert.equal(STUDENT_CARD_POLICY.required, true)
+  assert.equal(STUDENT_CARD_POLICY.printable, false)
+  assert.equal(STUDENT_CARD_POLICY.publicBucket, false)
+  assert.equal(STUDENT_CARD_POLICY.bucket, 'aivex-student-cards')
+  assert.equal(studentCardStoragePath(REGISTRATION_ID, 1, 'image/jpeg'), `edition-2/${REGISTRATION_ID}/student-1.jpg`)
+  assert.equal(studentCardStoragePath(REGISTRATION_ID.toUpperCase(), 3, 'image/webp', 3), `edition-3/${REGISTRATION_ID}/student-3.webp`)
+  assert.throws(() => studentCardStoragePath(REGISTRATION_ID, 4, 'image/jpeg'))
+  assert.throws(() => studentCardStoragePath('../other', 1, 'image/jpeg'))
+  assert.equal(studentCardUploadName(2, 'image/jpg'), 'studentCard_2.jpg')
+  assert.equal(LEGACY_V3_FIELDS.includes('nationalId'), true)
 })
 
-test('responses follow the contract', () => {
-  assert.deepEqual(registrationResponsesV4.created('AX2-26-A83F19C2'), { status: 201, body: { success: true, reference: 'AX2-26-A83F19C2' } })
-  assert.deepEqual(registrationResponsesV4.replayed('AX2-26-A83F19C2'), {
-    status: 200, body: { success: true, reference: 'AX2-26-A83F19C2', alreadyProcessed: true },
-  })
-  const invalid = validate({ ...validPayload(), version: 3 })
-  assert.deepEqual(registrationResponsesV4.failed(invalid.status, invalid.message, invalid.field).body, {
-    success: false, message: invalid.message, field: 'version',
-  })
-})
-
-test('normalizeText trims, folds whitespace and control characters, and composes NFC', () => {
-  assert.equal(normalizeText('  Amina \t\n Benali  '), 'Amina Benali')
-  assert.equal(normalizeText('Ali Omar'), 'Ali Omar')
-  assert.equal(normalizeText('Arréridj'), 'Arréridj')
-  assert.equal(normalizeText(42), '')
-})
-
-// Migration -----------------------------------------------------------------
-test('the v4 migration is additive and keeps the card bucket private', async () => {
-  const names = await readdir(new URL('../supabase/migrations/', import.meta.url))
-  assert.ok(names.includes('20260918120000_aivex_v4_contract.sql'))
-  const sql = (await read('supabase/migrations/20260918120000_aivex_v4_contract.sql'))
-    .split('\n').filter((line) => !line.trim().startsWith('--')).join('\n').toLowerCase()
-
-  for (const destructive of [/drop\s+table/, /drop\s+column/, /\btruncate\b/, /delete\s+from/, /drop\s+schema/, /drop\s+function/]) {
-    assert.doesNotMatch(sql, destructive)
-  }
-  assert.doesNotMatch(sql, /public\s*=\s*true/)
-  assert.match(sql, /on conflict \(id\) do update set public = false/)
-  assert.match(sql, /create table if not exists public\.aivex_students/)
-  assert.match(sql, /create table if not exists public\.aivex_settings/)
-  assert.match(sql, /unique \(registration_id, position\)/)
-  assert.match(sql, /unique \(registration_id, rfid_number\)/)
-  assert.doesNotMatch(sql, /unique \(edition, rfid_number\)/)
-  assert.match(sql, /check \(position between 1 and 3\)/)
-  assert.match(sql, /enable row level security/)
-  assert.match(sql, /delegation_head_national_id is null/)
-})
-
-// Frontend v4 model (behind VITE_AIVEX_FORM_VERSION=4) ------------------------
-test('frontend v4 model: three fixed students, RFID and BAC year, no legacy field', () => {
-  const model = getRegistrationModel(4)
-  assert.equal(model.version, 4)
-  assert.equal(model.draftKey, 'aivex-registration-draft-v4')
-  assert.deepEqual(model.createStudents(), [1, 2, 3].map((position) => ({
-    id: `student-${position}`, position, fullName: '', phone: '', bacYear: '', rfid: '', studentCard: null,
-  })))
-  assert.deepEqual(model.emptyPerson(), { fullName: '', phone: '', rfid: '' })
-  assert.deepEqual(model.STUDENT_FIELDS, ['fullName', 'phone', 'bacYear', 'rfid', 'studentCard'])
-  assert.deepEqual(model.SECTIONS.delegationHead.fields, ['fullName', 'phone', 'rfid'])
-  assert.deepEqual(model.SECTIONS.driver.fields, ['fullName', 'phone', 'rfid'])
-  // Drafts keep typed text only: never the card files.
-  assert.deepEqual(model.studentTextFields, ['fullName', 'phone', 'bacYear', 'rfid'])
-  assert.doesNotMatch(
-    JSON.stringify([model.createStudents(), model.emptyPerson(), model.STUDENT_FIELDS, model.SECTIONS, model.studentTextFields]),
-    /nationalId|registrationNumber|studyLevel|leader/i,
-  )
-
-  // Production (v3) model untouched; unknown versions fall back to it.
-  const legacy = getRegistrationModel(3)
-  assert.equal(legacy.draftKey, 'aivex-registration-draft-v3')
-  assert.ok(legacy.STUDENT_FIELDS.includes('registrationNumber'))
-  assert.equal(getRegistrationModel(undefined), legacy)
-  // A v3 draft is never read into the v4 form: every other key is dropped.
-  assert.deepEqual(DRAFT_KEYS, [
-    'aivex-registration-draft-v1', 'aivex-registration-draft-v2', 'aivex-registration-draft-v3', 'aivex-registration-draft-v4',
-  ])
-})
-
-test('frontend v4 checks mirror the contract, and the form payload passes the API validator', () => {
-  const state = filledState()
-  for (const student of state.students) assert.deepEqual(studentIssuesV4(student, state.students, undefined, NOW), {})
-
-  const sameRfid = state.students.map((student) => ({ ...student, rfid: ' 0047 ' }))
-  assert.ok(studentIssuesV4(sameRfid[1], sameRfid, undefined, NOW).rfid)
-  const empty = { ...state.students[0], bacYear: '', rfid: ' ', studentCard: null }
-  assert.deepEqual(Object.keys(studentIssuesV4(empty, state.students, undefined, NOW)), ['bacYear', 'rfid', 'studentCard'])
-  assert.ok(studentIssuesV4({ ...state.students[0], bacYear: '1985' }, state.students, undefined, NOW).bacYear)
-
-  assert.deepEqual(personIssuesV4({ fullName: 'Karim Haddad', phone: '0661 23 45 67', rfid: '00471236' }), {})
-  assert.deepEqual(Object.keys(personIssuesV4({ fullName: 'Karim Haddad', phone: '0661234567', rfid: '' })), ['rfid'])
-
-  const { payload, files } = buildSubmissionV4(state, { now: NOW, source: 'https://example.test/aivex/register' })
-  const result = validate(payload)
-  assert.equal(result.ok, true, result.message)
-  assert.equal(payload.submissionId, SUBMISSION_ID)
-  assert.deepEqual(files.map(({ field, position }) => ({ field, position })), [
-    { field: 'studentCard_1', position: 1 }, { field: 'studentCard_2', position: 2 }, { field: 'studentCard_3', position: 3 },
-  ])
-})
-
-test('v4 wording: RFID and BAC year in every language, v3 strings untouched', () => {
-  for (const lang of ['en', 'fr', 'ar']) {
-    const t = getRegistrationStrings(lang, 4)
-    for (const key of ['rfidLabel', 'rfidHint', 'bacYearLabel', 'selectBacYear', 'bacYearHint', 'revRfid', 'revBacYear',
-      'errRfidRequired', 'errRfidInvalid', 'errRfidShared', 'errBacYearRequired', 'errBacYearInvalid']) {
-      assert.equal(typeof t[key], 'string', `${lang}.${key}`)
+test('student cards: never a public URL; AIVEX logs carry a stage and a code only', async () => {
+  const files = ['api/aivex/register.js', 'shared/aivex/contract-v4.js', 'shared/aivex/word-mapping-v4.js',
+    ...(await readdir(new URL('../api/_lib/', import.meta.url))).filter((name) => name.startsWith('aivex-')).map((name) => `api/_lib/${name}`)]
+  for (const file of files) {
+    const source = await read(file)
+    assert.doesNotMatch(source, /getPublicUrl|createSignedUrl/, file)
+    for (const [, args] of source.matchAll(/console\.(?:error|log|warn)\(([^)]*)\)/g)) {
+      const logged = args.replace(/'[^']*'/g, "''")
+      assert.doesNotMatch(logged, /path|payload|body|registration\b|email|rfid|phone|message/i, `${file} logs ${args}`)
     }
-    assert.match(t.privacyIntro, /RFID/)
-    assert.equal(getRegistrationStrings(lang), registrationStrings[lang])
-    assert.equal(getRegistrationStrings(lang, 4), t, 'stable object per language')
   }
-  for (const key of ['rfidLabel', 'bacYearLabel', 'errRfidRequired', 'errBacYearRequired']) {
-    assert.notEqual(registrationStrings.fr[key], registrationStrings.en[key], `fr.${key} is translated`)
-    assert.notEqual(registrationStrings.ar[key], registrationStrings.en[key], `ar.${key} is translated`)
-  }
-
-  const options = getBacYearOptions(getRegistrationStrings('en', 4), bacYearChoices(NOW))
-  assert.deepEqual(options[0], { value: '', label: 'Select year' })
-  assert.deepEqual(options[1], { value: '2026', label: '2026' })
-  assert.deepEqual(options.at(-1), { value: '1990', label: '1990' })
-  for (const { value } of options.slice(1)) assert.equal(isValidBacYear(Number(value), NOW), true)
 })
 
-test('submissionId is a UUID v4 even without crypto.randomUUID (plain-HTTP previews)', () => {
-  const insecure = { getRandomValues: (array) => globalThis.crypto.getRandomValues(array) }
-  const ids = new Set(Array.from({ length: 50 }, () => createSubmissionId(insecure)))
-  assert.equal(ids.size, 50)
-  for (const id of ids) assert.equal(isUuidV4(id), true, id)
+test('Word mapping: official data only, 29 variables, no student card', () => {
+  const names = WORD_VARIABLES_V4.map((entry) => entry.variable)
+  assert.equal(names.length, 29)
+  for (const expected of ['registration_reference', 'wilaya_name', 'institution_name', 'team_name', 'activity_official_phone',
+    'activity_official_email', 'delegation_head_rfid', 'driver_rfid', 'student_1_bac_year', 'student_3_rfid']) {
+    assert.ok(names.includes(expected), expected)
+  }
+  const described = JSON.stringify(WORD_VARIABLES_V4)
+  assert.doesNotMatch(described, /card|national|registration_number|study_level|registrationNumber|studyLevel/i)
+  for (const excluded of WORD_EXCLUDED_FIELDS_V4) assert.equal(described.includes(excluded), false, excluded)
+  const data = resolveWordDataV4({
+    settings: { edition_name: 'AIVEX 2' },
+    registration: { reference: 'AIVEX2-7K3M9QXT', team_name: 'Infinity AI' },
+    students: [1, 2, 3].map((position) => ({ position, full_name: `S${position}`, student_card_path: `edition-2/x/student-${position}.jpg` })),
+  })
+  assert.equal(data.registration_reference, 'AIVEX2-7K3M9QXT')
+  assert.doesNotMatch(JSON.stringify(data), /student-\d\.jpg|card/i)
 })
 
-test('the shared contract is pure: no React, window, document, Supabase or process.env', async () => {
+test('shared contract is pure: no React, window, document, Supabase or process.env', async () => {
   for (const file of ['shared/aivex/contract-v4.js', 'shared/aivex/word-mapping-v4.js']) {
     const code = (await read(file)).split('\n').filter((line) => !line.trim().startsWith('//')).join('\n')
-    for (const forbidden of [/\bwindow\./, /\bdocument\./, /process\.env/, /from ['"]react['"]/, /@supabase/]) {
+    for (const forbidden of [/\bwindow\./, /\bdocument\./, /process\.env/, /from ['"]react['"]/, /@supabase/, /node:/]) {
       assert.doesNotMatch(code, forbidden, `${file}: ${forbidden}`)
     }
   }
+  const ids = new Set(Array.from({ length: 50 }, () => createSubmissionId({ getRandomValues: (a) => globalThis.crypto.getRandomValues(a) })))
+  assert.equal(ids.size, 50)
+  for (const id of ids) assert.equal(isUuidV4(id), true)
 })
 
-// API dispatch ----------------------------------------------------------------
-const v3Payload = () => {
-  const payload = validPayload()
-  payload.version = 3
-  payload.answers.delegationHead = { fullName: 'Karim Haddad', phone: '0661234567', nationalId: '123456789' }
-  payload.answers.driver = { fullName: 'Nabil Saidi', phone: '0770112233', nationalId: '987654321' }
-  payload.answers.students = [1, 2, 3].map((position) => ({
-    position,
-    fullName: `Student Number ${position}`,
-    registrationNumber: `20213304609${position}`,
-    studyLevel: 'Licence 3',
-    phone: `055000000${position}`,
-    studentCard: `studentCard_${position}`,
-  }))
-  return payload
-}
-
-const pngCards = (overrides = {}) => [1, 2, 3].map((position) => ({
-  field: `studentCard_${position}`,
-  buffer: IMAGES.png,
-  type: 'image/png',
-  filename: `studentCard_${position}.png`,
-  ...overrides[position],
-}))
-
-async function post(payload, cards, ip) {
-  const form = new FormData()
-  form.append('payload', JSON.stringify(payload))
-  for (const { field, buffer, type, filename } of cards) form.append(field, new Blob([buffer], { type }), filename)
-  const response = new Response(form)
-  const req = Readable.from([Buffer.from(await response.arrayBuffer())])
-  Object.assign(req, {
-    method: 'POST',
-    headers: { 'content-type': response.headers.get('content-type'), 'x-forwarded-for': ip },
-    socket: {},
-  })
-  return new Promise((resolve) => {
-    const res = {
-      headers: {},
-      setHeader(name, value) { this.headers[name] = value },
-      end(body) { resolve({ status: this.statusCode, body: JSON.parse(body) }) },
+test('migrations: additive, private bucket, v4 keys and constraints, e-mail not unique for v4', async () => {
+  const strip = (sql) => sql.split('\n').filter((line) => !line.trim().startsWith('--')).join('\n').toLowerCase()
+  const contract = strip(await read('supabase/migrations/20260918120000_aivex_v4_contract.sql'))
+  const writePath = strip(await read('supabase/migrations/20260919120000_aivex_v4_write_path.sql'))
+  for (const sql of [contract, writePath]) {
+    for (const destructive of [/drop\s+table/, /drop\s+column/, /\btruncate\b/, /delete\s+from/, /drop\s+schema/, /drop\s+function/]) {
+      assert.doesNotMatch(sql, destructive)
     }
-    registerHandler(req, res)
-  })
-}
-
-test('API: v4 is fully validated but never written (503); v3 keeps its production path', async () => {
-  // No database here: a request that reaches the write step fails on configuration.
-  delete process.env.SUPABASE_URL
-  delete process.env.SUPABASE_SECRET_KEY
-  delete process.env.VERCEL
-  const logged = console.error
-  console.error = () => {}
-  try {
-    const accepted = await post(validPayload(), pngCards(), '203.0.113.1')
-    assert.deepEqual(accepted, {
-      status: 503,
-      body: { success: false, message: 'AIVEX form v4 registrations are not open yet. Nothing was saved.' },
-    })
-
-    const invalid = validPayload()
-    invalid.answers.students[1].rfid = invalid.answers.students[0].rfid
-    const refused = await post(invalid, pngCards(), '203.0.113.2')
-    assert.equal(refused.status, 400)
-    assert.equal(refused.body.field, 'answers.students[1].rfid')
-
-    const lyingCard = await post(validPayload(), pngCards({ 2: { type: 'image/jpeg', filename: 'studentCard_2.jpg' } }), '203.0.113.3')
-    assert.equal(lyingCard.status, 415)
-    assert.equal(lyingCard.body.field, 'studentCard_2')
-
-    const missingCard = await post(validPayload(), pngCards().slice(0, 2), '203.0.113.4')
-    assert.equal(missingCard.status, 400)
-    assert.equal(missingCard.body.field, 'studentCard_3')
-
-    // v3 passes its own validation and reaches the (unconfigured) write step.
-    const legacy = await post(v3Payload(), pngCards(), '203.0.113.5')
-    assert.deepEqual(legacy, { status: 500, body: { success: false, message: 'Server configuration error.' } })
-  } finally {
-    console.error = logged
+    assert.doesNotMatch(sql, /public\s*=\s*true/)
   }
+  assert.match(contract, /on conflict \(id\) do update set public = false/)
+  assert.match(contract, /create unique index if not exists aivex_registrations_submission_id_uidx\s+on public\.aivex_registrations \(submission_id\)/)
+  assert.match(contract, /aivex_registrations_edition_contact_v3_uidx\s+on public\.aivex_registrations \(edition, lower\(activity_official_email\)\)\s+where form_version < 4/)
+  assert.match(contract, /unique \(registration_id, position\)/)
+  assert.match(contract, /unique \(registration_id, rfid_number\)/)
+  assert.doesNotMatch(contract + writePath, /unique \(edition, rfid_number\)/)
+  assert.match(contract, /student_card_path text not null/)
+  assert.match(writePath, /alter column submission_id set not null/)
+  assert.match(writePath, /add column if not exists submission_fingerprint text/)
+  assert.match(writePath, /'edition-' \|\| edition::text \|\| '\/' \|\| registration_id::text/)
 })

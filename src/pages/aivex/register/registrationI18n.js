@@ -75,11 +75,8 @@ const en = {
   delDesc: 'The head of delegation and the driver accompany the three students. Their details are used for access and logistics only.',
   headRole: 'Head of delegation',
   driverRole: 'Driver',
-  delegationNamePlaceholder: 'As written on the national ID card',
-  nationalIdLabel: 'National ID number',
-  nationalIdPlaceholder: 'As printed on the ID card',
-  nationalIdHint: 'Kept exactly as written, leading zeros included.',
-  // Form v4: RFID replaces the national ID number
+  delegationNamePlaceholder: 'First and last name',
+  // RFID (head of delegation, driver, students)
   rfidLabel: 'RFID number',
   rfidHint: 'Kept exactly as written, leading zeros included.',
   // Students step
@@ -93,13 +90,7 @@ const en = {
   studentRole: 'Student',
   studentPlaceholder: ({ number }) => `Student ${number}`,
   studentNamePlaceholder: 'As written on the student card',
-  regNumberLabel: 'Student registration number',
-  regNumberPlaceholder: '202133046094',
-  regNumberHint: 'Use the registration number printed on the student card.',
-  studyLevelLabel: 'Study level',
-  selectLevel: 'Select level',
-  studyLevels: ['Licence 1', 'Licence 2', 'Licence 3', 'Master 1', 'Master 2', 'Engineering cycle', 'Doctorate', 'Other'],
-  // Form v4: BAC year replaces registration number and study level
+  // BAC year
   bacYearLabel: 'BAC year',
   selectBacYear: 'Select year',
   bacYearHint: 'Year the baccalaureate was obtained.',
@@ -107,7 +98,7 @@ const en = {
   uploadTitle: 'Student card — Front side',
   uploadAttached: 'Attached',
   uploadRequired: 'Required',
-  uploadedOk: 'Uploaded ✓',
+  uploadedOk: 'Valid file ✓',
   replace: 'Replace',
   remove: 'Remove',
   uploadTag: 'Student ID / Front',
@@ -116,7 +107,7 @@ const en = {
   orSelectPrefix: 'or',
   orSelectLink: 'select from device',
   cardSpec: 'JPG / PNG / WEBP · Max 5 MB',
-  uploadHint: 'A clear photo of the front side, with the name and registration number readable.',
+  uploadHint: 'A clear photo of the front side, with the name readable.',
   droppedReload: ({ name }) => `“${name}” was not kept after the page reloaded. Attach it again.`,
   cardAlt: ({ name }) => `Front of ${name ? `${name}’s` : 'the'} student card`,
   // Record card
@@ -138,9 +129,6 @@ const en = {
   revFullName: 'Full name',
   revEmail: 'Email',
   revPhone: 'Phone',
-  revNationalId: 'National ID',
-  revRegId: 'Registration ID',
-  revStudyLevel: 'Study level',
   revRfid: 'RFID',
   revBacYear: 'BAC year',
   revStudentCard: 'Student card',
@@ -151,13 +139,13 @@ const en = {
   recordsCount: ({ count }) => `${count} records`,
   notProvided: 'Not provided',
   missing: 'Missing',
-  uploadedCheck: '✓ Uploaded',
+  uploadedCheck: '✓ Attached',
   hide: 'Hide',
   view: 'View',
   unnamedStudent: ({ number }) => `Student ${number}`,
   // Privacy
   privacyTitle: 'Privacy / Registration data',
-  privacyIntro: 'Personal details, national ID numbers and student card photos are collected only to:',
+  privacyIntro: 'Personal details, RFID numbers and student card photos are collected only to:',
   privacyLi1: 'verify the identity of each student and delegation member;',
   privacyLi2: 'confirm the students’ status;',
   privacyLi3: 'confirm the team’s registration;',
@@ -165,7 +153,7 @@ const en = {
   consentText: 'I confirm these details are accurate and agree to their use for the purposes above. Participation is confirmed by the organising committee under the official AIVEX rules.',
   // Success (inside the same sheet)
   successKicker: 'Registration signal',
-  successTitle: 'Team registered.',
+  successTitle: 'Registration saved successfully.',
   successStamp: 'Registration received ✓',
   successTeam: 'Team',
   successInstitution: 'Institution',
@@ -189,14 +177,8 @@ const en = {
   errRoleRequired: 'Role is required.',
   errEmailRequired: 'Email is required.',
   errEmailInvalid: 'Enter a valid email address.',
-  errNationalRequired: 'National ID number is required.',
-  errNationalInvalid: 'Use 6 to 20 letters or digits, as printed on the ID card.',
   errStudentNameRequired: 'Full name is required.',
   errStudentNameShort: 'Enter the full name as written on the student card.',
-  errRegRequired: 'Student registration number is required.',
-  errRegDigits: 'Use digits only, as printed on the student card.',
-  errRegShared: 'Each student needs their own registration number.',
-  errLevelRequired: 'Study level is required.',
   errRfidRequired: 'RFID number is required.',
   errRfidInvalid: 'Use at most 64 characters, as written.',
   errRfidShared: 'Each student needs their own RFID.',
@@ -209,6 +191,8 @@ const en = {
   errFileNone: 'No file was selected.',
   errFileType: 'Use a JPG, PNG or WEBP image of the card.',
   errFileSize: 'This image is larger than 5 MB.',
+  errFileEmpty: 'This file is empty.',
+  fileRejected: ({ name, details }) => `“${name}” (${details}) was not accepted:`,
 }
 
 const fr = {
@@ -275,10 +259,7 @@ const fr = {
   delDesc: 'Le chef de délégation et le chauffeur accompagnent les trois étudiants. Leurs infos servent uniquement à l’accès et à la logistique.',
   headRole: 'Chef de délégation',
   driverRole: 'Chauffeur',
-  delegationNamePlaceholder: 'Tel qu’écrit sur la carte d’identité nationale',
-  nationalIdLabel: 'Numéro de carte d’identité nationale',
-  nationalIdPlaceholder: 'Tel qu’imprimé sur la carte',
-  nationalIdHint: 'Conservé tel quel, zéros initiaux inclus.',
+  delegationNamePlaceholder: 'Nom et prénom',
   rfidLabel: 'Numéro RFID',
   rfidHint: 'Conservé tel quel, zéros initiaux inclus.',
   stuKicker: 'Participants',
@@ -291,19 +272,13 @@ const fr = {
   studentRole: 'Étudiant',
   studentPlaceholder: ({ number }) => `Étudiant ${number}`,
   studentNamePlaceholder: 'Tel qu’écrit sur la carte d’étudiant',
-  regNumberLabel: 'Numéro de matricule étudiant',
-  regNumberPlaceholder: '202133046094',
-  regNumberHint: 'Utilisez le matricule imprimé sur la carte d’étudiant.',
-  studyLevelLabel: 'Niveau d’études',
-  selectLevel: 'Sélectionner le niveau',
-  studyLevels: ['Licence 1', 'Licence 2', 'Licence 3', 'Master 1', 'Master 2', 'Cycle ingénieur', 'Doctorat', 'Autre'],
   bacYearLabel: 'Année du BAC',
   selectBacYear: 'Sélectionner l’année',
   bacYearHint: 'Année d’obtention du baccalauréat.',
   uploadTitle: 'Carte d’étudiant — Recto',
   uploadAttached: 'Jointe',
   uploadRequired: 'Requise',
-  uploadedOk: 'Téléversée ✓',
+  uploadedOk: 'Fichier valide ✓',
   replace: 'Remplacer',
   remove: 'Supprimer',
   uploadTag: 'Carte étudiant / Recto',
@@ -312,7 +287,7 @@ const fr = {
   orSelectPrefix: 'ou',
   orSelectLink: 'choisir depuis l’appareil',
   cardSpec: 'JPG / PNG / WEBP · Max 5 Mo',
-  uploadHint: 'Une photo nette du recto, avec le nom et le matricule lisibles.',
+  uploadHint: 'Une photo nette du recto, avec le nom lisible.',
   droppedReload: ({ name }) => `« ${name} » n’a pas été conservé après le rechargement. Joignez-le à nouveau.`,
   cardAlt: ({ name }) => `Recto de la carte d’étudiant ${name ? `de ${name}` : ''}`,
   recordComplete: 'Complet ✓',
@@ -332,9 +307,6 @@ const fr = {
   revFullName: 'Nom complet',
   revEmail: 'E-mail',
   revPhone: 'Téléphone',
-  revNationalId: 'Carte d’identité',
-  revRegId: 'Matricule',
-  revStudyLevel: 'Niveau d’études',
   revRfid: 'RFID',
   revBacYear: 'Année du BAC',
   revStudentCard: 'Carte d’étudiant',
@@ -345,19 +317,19 @@ const fr = {
   recordsCount: ({ count }) => `${count} fiches`,
   notProvided: 'Non renseigné',
   missing: 'Manquante',
-  uploadedCheck: '✓ Téléversée',
+  uploadedCheck: '✓ Jointe',
   hide: 'Masquer',
   view: 'Voir',
   unnamedStudent: ({ number }) => `Étudiant ${number}`,
   privacyTitle: 'Confidentialité / Données d’inscription',
-  privacyIntro: 'Les données personnelles, numéros de carte d’identité et photos des cartes d’étudiant sont collectés uniquement pour :',
+  privacyIntro: 'Les données personnelles, numéros RFID et photos des cartes d’étudiant sont collectés uniquement pour :',
   privacyLi1: 'vérifier l’identité de chaque étudiant et membre de la délégation ;',
   privacyLi2: 'confirmer le statut des étudiants ;',
   privacyLi3: 'confirmer l’inscription de l’équipe ;',
   privacyLi4: 'gérer les communications, l’accès et la logistique AIVEX.',
   consentText: 'Je confirme l’exactitude de ces infos et j’accepte leur utilisation pour les finalités ci-dessus. La participation est confirmée par le comité d’organisation selon le règlement officiel AIVEX.',
   successKicker: 'Signal d’inscription',
-  successTitle: 'Équipe inscrite.',
+  successTitle: 'Inscription enregistrée avec succès.',
   successStamp: 'Inscription reçue ✓',
   successTeam: 'Équipe',
   successInstitution: 'Établissement',
@@ -380,14 +352,8 @@ const fr = {
   errRoleRequired: 'La fonction est requise.',
   errEmailRequired: 'L’e-mail est requis.',
   errEmailInvalid: 'Saisissez une adresse e-mail valide.',
-  errNationalRequired: 'Le numéro de carte d’identité est requis.',
-  errNationalInvalid: 'Utilisez 6 à 20 lettres ou chiffres, comme sur la carte.',
   errStudentNameRequired: 'Le nom complet est requis.',
   errStudentNameShort: 'Saisissez le nom tel qu’écrit sur la carte d’étudiant.',
-  errRegRequired: 'Le matricule étudiant est requis.',
-  errRegDigits: 'Chiffres uniquement, comme sur la carte d’étudiant.',
-  errRegShared: 'Chaque étudiant doit avoir son propre matricule.',
-  errLevelRequired: 'Le niveau d’études est requis.',
   errRfidRequired: 'Le numéro RFID est requis.',
   errRfidInvalid: 'Au plus 64 caractères, tel qu’écrit.',
   errRfidShared: 'Chaque étudiant doit avoir son propre RFID.',
@@ -400,6 +366,8 @@ const fr = {
   errFileNone: 'Aucun fichier sélectionné.',
   errFileType: 'Utilisez une image JPG, PNG ou WEBP de la carte.',
   errFileSize: 'Cette image dépasse 5 Mo.',
+  errFileEmpty: 'Ce fichier est vide.',
+  fileRejected: ({ name, details }) => `« ${name} » (${details}) n’a pas été accepté :`,
 }
 
 const ar = {
@@ -467,10 +435,7 @@ const ar = {
   delDesc: 'رئيس الوفد والسائق يرافقان الطلبة الثلاثة. تُستعمل بياناتهما للدخول واللوجستيك فقط.',
   headRole: 'رئيس الوفد',
   driverRole: 'السائق',
-  delegationNamePlaceholder: 'كما هو مكتوب على بطاقة التعريف الوطنية',
-  nationalIdLabel: 'رقم بطاقة التعريف الوطنية',
-  nationalIdPlaceholder: 'كما هو مطبوع على البطاقة',
-  nationalIdHint: 'يُحفظ كما هو تماماً بما فيه الأصفار الأولى.',
+  delegationNamePlaceholder: 'الاسم واللقب',
   rfidLabel: 'رقم RFID',
   rfidHint: 'يُحفظ كما هو تماماً بما فيه الأصفار الأولى.',
   stuKicker: 'المشاركون',
@@ -483,19 +448,13 @@ const ar = {
   studentRole: 'طالب',
   studentPlaceholder: ({ number }) => `الطالب ${number}`,
   studentNamePlaceholder: 'كما هو مكتوب على بطاقة الطالب',
-  regNumberLabel: 'رقم تسجيل الطالب',
-  regNumberPlaceholder: '202133046094',
-  regNumberHint: 'استعمل رقم التسجيل المطبوع على بطاقة الطالب.',
-  studyLevelLabel: 'المستوى الدراسي',
-  selectLevel: 'اختر المستوى',
-  studyLevels: ['ليسانس 1', 'ليسانس 2', 'ليسانس 3', 'ماستر 1', 'ماستر 2', 'طور مهندس', 'دكتوراه', 'أخرى'],
   bacYearLabel: 'سنة البكالوريا',
   selectBacYear: 'اختر السنة',
   bacYearHint: 'سنة الحصول على شهادة البكالوريا.',
   uploadTitle: 'بطاقة الطالب — الوجه الأمامي',
   uploadAttached: 'مرفقة',
   uploadRequired: 'مطلوبة',
-  uploadedOk: 'تم الرفع ✓',
+  uploadedOk: 'ملف صالح ✓',
   replace: 'استبدال',
   remove: 'إزالة',
   uploadTag: 'بطاقة طالب / الأمام',
@@ -504,7 +463,7 @@ const ar = {
   orSelectPrefix: 'أو',
   orSelectLink: 'اختر من الجهاز',
   cardSpec: 'JPG / PNG / WEBP · حد أقصى 5 م.ب',
-  uploadHint: 'صورة واضحة للوجه الأمامي، مع اسم ورقم تسجيل مقروءين.',
+  uploadHint: 'صورة واضحة للوجه الأمامي، مع اسم مقروء.',
   droppedReload: ({ name }) => `«${name}» لم يُحفظ بعد إعادة التحميل. أرفقه من جديد.`,
   cardAlt: ({ name }) => `الوجه الأمامي لبطاقة الطالب ${name ? `الخاصة بـ ${name}` : ''}`,
   recordComplete: 'مكتمل ✓',
@@ -524,9 +483,6 @@ const ar = {
   revFullName: 'الاسم الكامل',
   revEmail: 'البريد الإلكتروني',
   revPhone: 'الهاتف',
-  revNationalId: 'بطاقة التعريف',
-  revRegId: 'رقم التسجيل',
-  revStudyLevel: 'المستوى الدراسي',
   revRfid: 'RFID',
   revBacYear: 'سنة البكالوريا',
   revStudentCard: 'بطاقة الطالب',
@@ -537,19 +493,19 @@ const ar = {
   recordsCount: ({ count }) => `${count} بطاقات`,
   notProvided: 'غير مذكور',
   missing: 'مفقودة',
-  uploadedCheck: '✓ تم الرفع',
+  uploadedCheck: '✓ مرفقة',
   hide: 'إخفاء',
   view: 'عرض',
   unnamedStudent: ({ number }) => `الطالب ${number}`,
   privacyTitle: 'الخصوصية / بيانات التسجيل',
-  privacyIntro: 'تُجمع البيانات الشخصية وأرقام بطاقات التعريف وصور بطاقات الطالب فقط من أجل:',
+  privacyIntro: 'تُجمع البيانات الشخصية وأرقام RFID وصور بطاقات الطالب فقط من أجل:',
   privacyLi1: 'التحقق من هوية كل طالب وعضو في الوفد؛',
   privacyLi2: 'تأكيد صفة الطلبة؛',
   privacyLi3: 'تأكيد تسجيل الفريق؛',
   privacyLi4: 'تدبير اتصالات AIVEX والدخول واللوجستيك.',
   consentText: 'أؤكد صحة هذه البيانات وأوافق على استعمالها للأغراض المذكورة أعلاه. تُؤكَّد المشاركة من طرف اللجنة المنظمة وفق القانون الرسمي لـ AIVEX.',
   successKicker: 'إشارة التسجيل',
-  successTitle: 'تم تسجيل الفريق.',
+  successTitle: 'تم حفظ التسجيل بنجاح.',
   successStamp: 'تم استلام التسجيل ✓',
   successTeam: 'الفريق',
   successInstitution: 'المؤسسة',
@@ -572,14 +528,8 @@ const ar = {
   errRoleRequired: 'الصفة مطلوبة.',
   errEmailRequired: 'البريد الإلكتروني مطلوب.',
   errEmailInvalid: 'أدخل بريداً إلكترونياً صحيحاً.',
-  errNationalRequired: 'رقم بطاقة التعريف مطلوب.',
-  errNationalInvalid: 'استعمل 6 إلى 20 حرفاً أو رقماً كما على البطاقة.',
   errStudentNameRequired: 'الاسم الكامل مطلوب.',
   errStudentNameShort: 'أدخل الاسم كما هو مكتوب على بطاقة الطالب.',
-  errRegRequired: 'رقم تسجيل الطالب مطلوب.',
-  errRegDigits: 'أرقام فقط كما على بطاقة الطالب.',
-  errRegShared: 'كل طالب يحتاج رقم تسجيل خاصاً به.',
-  errLevelRequired: 'المستوى الدراسي مطلوب.',
   errRfidRequired: 'رقم RFID مطلوب.',
   errRfidInvalid: '64 حرفاً على الأكثر، كما هو مكتوب.',
   errRfidShared: 'كل طالب يحتاج رقم RFID خاصاً به.',
@@ -592,35 +542,14 @@ const ar = {
   errFileNone: 'لم يتم اختيار أي ملف.',
   errFileType: 'استعمل صورة JPG أو PNG أو WEBP للبطاقة.',
   errFileSize: 'هذه الصورة أكبر من 5 م.ب.',
+  errFileEmpty: 'هذا الملف فارغ.',
+  fileRejected: ({ name, details }) => `لم يُقبل «${name}» (${details}):`,
 }
 
 export const registrationStrings = { en, fr, ar }
 
-// Form v4 wording where the v3 text names data v4 no longer collects
-// (national ID numbers, registration number on the card).
-const v4Wording = {
-  en: {
-    uploadHint: 'A clear photo of the front side, with the name readable.',
-    privacyIntro: 'Personal details, RFID numbers and student card photos are collected only to:',
-  },
-  fr: {
-    uploadHint: 'Une photo nette du recto, avec le nom lisible.',
-    privacyIntro: 'Les données personnelles, numéros RFID et photos des cartes d’étudiant sont collectés uniquement pour :',
-  },
-  ar: {
-    uploadHint: 'صورة واضحة للوجه الأمامي، مع اسم مقروء.',
-    privacyIntro: 'تُجمع البيانات الشخصية وأرقام RFID وصور بطاقات الطالب فقط من أجل:',
-  },
-}
-
-// Built once so each language keeps a stable object identity per version.
-const registrationStringsV4 = Object.fromEntries(
-  Object.entries(registrationStrings).map(([lang, strings]) => [lang, { ...strings, ...v4Wording[lang] }]),
-)
-
-export function getRegistrationStrings(lang, version = 3) {
-  const table = version === 4 ? registrationStringsV4 : registrationStrings
-  return table[lang] || table.en
+export function getRegistrationStrings(lang) {
+  return registrationStrings[lang] || en
 }
 
 export function getBacYearOptions(t, years) {
@@ -638,18 +567,6 @@ export function getRoleOptions(t) {
   ]
 }
 
-export function getStudyOptions(t) {
-  const values = ['Licence 1', 'Licence 2', 'Licence 3', 'Master 1', 'Master 2', 'Engineering cycle', 'Doctorate', 'Other']
-  return [
-    { value: '', label: t.selectLevel },
-    ...values.map((value, index) => ({ value, label: t.studyLevels[index] || value })),
-  ]
-}
-
 export function getRoleLabel(value, t) {
   return getRoleOptions(t).find((role) => role.value && role.value === value)?.label || ''
-}
-
-export function getStudyLabel(value, t) {
-  return getStudyOptions(t).find((option) => option.value === value)?.label || value || ''
 }

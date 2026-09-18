@@ -84,7 +84,7 @@ async function postToEndpoint(endpoint, { body, headers, timeoutMs }) {
 
 // `files` ([{ field, file }]) switches the request to multipart/form-data:
 // the JSON envelope travels in a `payload` part, each file in its own part.
-// Used by the membership form and AIVEX form v3 (legacy).
+// Used by the membership form.
 export async function submitApplication(kind, answers, { files = [], version = 1 } = {}) {
   const endpoint = ENDPOINTS[kind]
   const reference = makeReference(kind)
@@ -120,11 +120,11 @@ export async function submitApplication(kind, answers, { files = [], version = 1
   return { delivered: true, reference: payload.reference || reference }
 }
 
-// AIVEX form v4 (behind VITE_AIVEX_FORM_VERSION=4). A separate path on
-// purpose: `payload` is the canonical v4 envelope (shared contract), the
-// three cards travel as studentCard_1..3 with derived file names, and the
-// reference only ever comes from the server — there is no client fallback.
-// A replay of the same submissionId answers 200 { alreadyProcessed: true }.
+// AIVEX registration (form v4). multipart/form-data: `payload` is the
+// canonical v4 JSON (shared contract), the three cards travel as
+// studentCard_1..3 with derived file names — never as base64 in the JSON.
+// The reference only ever comes from the server: no client fallback. A
+// replay of the same submissionId answers 200 { alreadyProcessed: true }.
 export async function submitAivexRegistrationV4({ payload, files, website }) {
   if (website) return { delivered: true, reference: null }
   const endpoint = ENDPOINTS.aivex

@@ -1,37 +1,31 @@
 import { useEffect, useMemo, useReducer, useRef } from 'react'
-import { isApplicationDeliveryConfigured, submitAivexRegistrationV4, submitApplication } from '../../../lib/applicationSubmission'
+import { isApplicationDeliveryConfigured, submitAivexRegistrationV4 } from '../../../lib/applicationSubmission'
 import { OTHER_INSTITUTION_ID, findInstitution, findWilaya } from '../../../data/algeriaHigherEducation'
-import { createSubmissionId, isUuidV4, studentCardUploadName } from '../../../../shared/aivex/contract-v4.js'
-import { REGISTER_FORM_VERSION } from './formVersion'
+import { createRegistrationStateV4, isUuidV4, studentCardUploadName } from '../../../../shared/aivex/contract-v4.js'
 import {
-  DRAFT_KEYS, STEP, STUDENT_COUNT, buildSubmission, buildSubmissionV4, emptyOfficial, emptyTeam, getRegistrationModel,
+  DRAFT_KEY, LEGACY_DRAFT_KEYS, SECTIONS, SECTION_ISSUES, STEP, STUDENT_COUNT, STUDENT_FIELDS, STUDENT_TEXT_FIELDS,
+  buildSubmission, buildSummary, studentIssues,
 } from './registrationModel'
 import { getRegistrationStrings } from './registrationI18n'
 import prepareCardUploads from './prepareCardUploads'
 
-// Build-time choice (formVersion.js): v3 in production until v4 is enabled.
-const MODEL = getRegistrationModel(REGISTER_FORM_VERSION)
-const IS_V4 = MODEL.version === 4
-const SECTION_NAMES = Object.keys(MODEL.SECTIONS)
+const SECTION_NAMES = Object.keys(SECTIONS)
+// Empty records of the v4 contract, used as templates when a draft is read.
+const BLANK = createRegistrationStateV4({ submissionId: '' })
 
 export const fieldId = (section, field) => `axr-${section}-${field}`
 export const studentFieldId = (id, field) => `axr-${id}-${field}`
 export const recordId = (key) => `axr-record-${key}`
 export const CONSENT_ID = 'axr-consent'
 
+// createRegistrationStateV4() gives the contract part: a fresh submissionId
+// (the idempotency key of this attempt, kept across retries and reloads,
+// renewed only by a reset), the team, the delegation and three fixed students.
 const initialState = () => ({
   step: STEP.institution,
-  // v4 idempotency key: one per attempt, kept across retries and reloads,
-  // renewed only by a reset (after a success or on request).
-  ...(IS_V4 ? { submissionId: createSubmissionId() } : {}),
-  team: emptyTeam(),
-  activityOfficial: emptyOfficial(),
-  delegationHead: MODEL.emptyPerson(),
-  driver: MODEL.emptyPerson(),
-  students: MODEL.createStudents(),
+  ...createRegistrationStateV4(),
   touched: {},
   attempted: {},
-  consent: false,
   website: '',
   status: 'idle',
   result: null,
@@ -44,22 +38,21 @@ const pick = (source, template) => Object.fromEntries(
 )
 
 // Files cannot live in sessionStorage: the draft keeps every typed answer and
-// remembers which card was attached so the card can ask for it again.
+// remembers which card was attached so the form can ask for it again.
 function restore() {
   const base = initialState()
   try {
-    // A draft of another form version is never read into this one.
-    DRAFT_KEYS.filter((key) => key !== MODEL.draftKey).forEach((key) => window.sessionStorage.removeItem(key))
-    const draft = JSON.parse(window.sessionStorage.getItem(MODEL.draftKey) || 'null')
+    LEGACY_DRAFT_KEYS.forEach((key) => window.sessionStorage.removeItem(key))
+    const draft = JSON.parse(window.sessionStorage.getItem(DRAFT_KEY) || 'null')
     if (!draft || !Array.isArray(draft.students) || draft.students.length !== STUDENT_COUNT) return base
 
-    const team = pick(draft.team, emptyTeam())
+    const team = pick(draft.team, BLANK.team)
     // Never keep an institution that does not belong to the saved wilaya.
     if (!findWilaya(team.wilaya)) Object.assign(team, { wilaya: '', institution: '', customInstitution: '' })
     else if (!findInstitution(team.wilaya, team.institution)) Object.assign(team, { institution: '', customInstitution: '' })
     if (team.institution !== OTHER_INSTITUTION_ID) team.customInstitution = ''
 
-    const studentText = Object.fromEntries(MODEL.studentTextFields.map((field) => [field, '']))
+    const studentText = Object.fromEntries(STUDENT_TEXT_FIELDS.map((field) => [field, '']))
     const students = base.students.map((student, index) => ({
       ...student,
       ...pick(draft.students[index], studentText),
@@ -69,11 +62,11 @@ function restore() {
     return {
       ...base,
       // Same attempt after a reload: it keeps its idempotency key.
-      ...(IS_V4 && isUuidV4(draft.submissionId) ? { submissionId: draft.submissionId } : {}),
+      ...(isUuidV4(draft.submissionId) ? { submissionId: draft.submissionId } : {}),
       team,
-      activityOfficial: pick(draft.activityOfficial, emptyOfficial()),
-      delegationHead: pick(draft.delegationHead, MODEL.emptyPerson()),
-      driver: pick(draft.driver, MODEL.emptyPerson()),
+      activityOfficial: pick(draft.activityOfficial, BLANK.activityOfficial),
+      delegationHead: pick(draft.delegationHead, BLANK.delegationHead),
+      driver: pick(draft.driver, BLANK.driver),
       students,
       step: Math.min(Number(draft.step) || 0, lostCards ? STEP.students : STEP.review),
       hasDraft: true,
@@ -144,25 +137,18 @@ function reducer(state, action) {
 const toUserMessage = (error, L) => {
   if (error?.name === 'AbortError') return L?.errTimeout || 'The request timed out. Your answers are still here — please try again.'
   const raw = typeof error?.message === 'string' ? error.message.trim() : ''
-  if (raw && !/(stack trace|supabase|sb_secret|service_role|postgres|password|secret|api[_-]?key|node_modules)/i.test(raw)) return raw.slice(0, 300)
+  if (raw && !/(stack trace|supabase|sb_secret|service_role|postgres|password|secret|api[_-]?key|node_modules|edition-\d+\/)/i.test(raw)) return raw.slice(0, 300)
   return L?.errSendFail || 'We could not send the registration. Your answers are still saved in this tab.'
 }
 
 const hasText = (record) => Object.values(record).some((value) => typeof value === 'string' && value.trim())
-const studentText = (student) => Object.fromEntries(MODEL.studentTextFields.map((field) => [field, student[field]]))
+const studentText = (student) => Object.fromEntries(STUDENT_TEXT_FIELDS.map((field) => [field, student[field]]))
 
-// v3 (production): generic envelope, the card parts keep their file names.
-async function deliverV3({ team, activityOfficial, delegationHead, driver, students, consent, website }) {
-  const { answers, files } = buildSubmission({ team, activityOfficial, delegationHead, driver, students, consent })
-  const uploads = await prepareCardUploads(files)
-  return submitApplication('aivex', { ...answers, website }, { files: uploads, version: 3 })
-}
-
-// v4: canonical payload carrying the attempt's submissionId. Card parts are
-// named after their position and final type (prepareCardUploads may
-// re-encode a large photo as JPEG).
-async function deliverV4(state) {
-  const { payload, files } = buildSubmissionV4(state, { source: window.location.href })
+// Canonical v4 payload carrying the attempt's submissionId, plus the three
+// cards. Card parts are named after their position and final type
+// (prepareCardUploads may re-encode a large photo as JPEG).
+async function deliver(state) {
+  const { payload, files } = buildSubmission(state)
   const uploads = await prepareCardUploads(files)
   return submitAivexRegistrationV4({
     payload,
@@ -177,16 +163,16 @@ export default function useCompetitionRegistration(lang = 'en') {
   const {
     step, submissionId, team, activityOfficial, delegationHead, driver, students, touched, attempted, consent, status, focus,
   } = state
-  const L = typeof lang === 'string' ? getRegistrationStrings(lang, MODEL.version) : (lang || getRegistrationStrings('en', MODEL.version))
+  const L = typeof lang === 'string' ? getRegistrationStrings(lang) : (lang || getRegistrationStrings('en'))
 
   const derived = useMemo(() => {
     const issues = {
-      team: MODEL.SECTION_ISSUES.team(team, L),
-      activityOfficial: MODEL.SECTION_ISSUES.activityOfficial(activityOfficial, L),
-      delegationHead: MODEL.SECTION_ISSUES.delegationHead(delegationHead, L),
-      driver: MODEL.SECTION_ISSUES.driver(driver, L),
+      team: SECTION_ISSUES.team(team, L),
+      activityOfficial: SECTION_ISSUES.activityOfficial(activityOfficial, L),
+      delegationHead: SECTION_ISSUES.delegationHead(delegationHead, L),
+      driver: SECTION_ISSUES.driver(driver, L),
     }
-    const studentErrors = Object.fromEntries(students.map((student) => [student.id, MODEL.studentIssues(student, students, L)]))
+    const studentErrors = Object.fromEntries(students.map((student) => [student.id, studentIssues(student, students, L)]))
     const completeCount = students.filter((student) => !Object.keys(studentErrors[student.id]).length).length
     const sectionComplete = Object.fromEntries(SECTION_NAMES.map((name) => [name, !Object.keys(issues[name]).length]))
     return { issues, studentErrors, completeCount, sectionComplete }
@@ -195,14 +181,14 @@ export default function useCompetitionRegistration(lang = 'en') {
   // Persist typed answers (never files); drop the draft once delivered.
   useEffect(() => {
     if (status === 'success') {
-      window.sessionStorage.removeItem(MODEL.draftKey)
+      window.sessionStorage.removeItem(DRAFT_KEY)
       return undefined
     }
     const timer = window.setTimeout(() => {
       try {
         const snapshot = {
           step,
-          ...(submissionId ? { submissionId } : {}),
+          submissionId,
           team,
           activityOfficial,
           delegationHead,
@@ -211,8 +197,8 @@ export default function useCompetitionRegistration(lang = 'en') {
         }
         const hasAnswers = [team, activityOfficial, delegationHead, driver].some(hasText)
           || students.some((student) => hasText(studentText(student)) || student.studentCard)
-        if (hasAnswers) window.sessionStorage.setItem(MODEL.draftKey, JSON.stringify(snapshot))
-        else window.sessionStorage.removeItem(MODEL.draftKey)
+        if (hasAnswers) window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify(snapshot))
+        else window.sessionStorage.removeItem(DRAFT_KEY)
       } catch {
         // Private browsing can refuse storage; the form keeps working in memory.
       }
@@ -248,14 +234,14 @@ export default function useCompetitionRegistration(lang = 'en') {
   const firstIssue = (stepIndex) => {
     if (stepIndex === STEP.students) {
       for (const student of students) {
-        const field = MODEL.STUDENT_FIELDS.find((name) => derived.studentErrors[student.id][name])
+        const field = STUDENT_FIELDS.find((name) => derived.studentErrors[student.id][name])
         if (field) return studentFieldId(student.id, field)
       }
       return null
     }
     for (const section of SECTION_NAMES) {
-      if (MODEL.SECTIONS[section].step !== stepIndex) continue
-      const field = MODEL.SECTIONS[section].fields.find((name) => derived.issues[section][name])
+      if (SECTIONS[section].step !== stepIndex) continue
+      const field = SECTIONS[section].fields.find((name) => derived.issues[section][name])
       if (field) return fieldId(section, field)
     }
     return null
@@ -271,6 +257,7 @@ export default function useCompetitionRegistration(lang = 'en') {
   const submit = async (event) => {
     event?.preventDefault()
     if (step !== STEP.review) return advance()
+    // A missing or invalid card (three are required) sends the user back to it.
     for (const stepIndex of [STEP.institution, STEP.delegation, STEP.students]) {
       const target = firstIssue(stepIndex)
       if (target) {
@@ -279,13 +266,14 @@ export default function useCompetitionRegistration(lang = 'en') {
       }
     }
     if (!consent) return dispatch({ type: 'attempt', step: STEP.review, focus: { id: CONSENT_ID } })
+    // One request at a time: the button is disabled too, this also covers a double submit.
     if (submitting.current) return undefined
 
     submitting.current = true
     dispatch({ type: 'status', status: 'submitting' })
     try {
       const [result] = await Promise.all([
-        IS_V4 ? deliverV4(state) : deliverV3(state),
+        deliver(state),
         new Promise((resolve) => window.setTimeout(resolve, 460)),
       ])
       dispatch({ type: 'status', status: result.delivered ? 'success' : 'draft', result })
@@ -303,12 +291,11 @@ export default function useCompetitionRegistration(lang = 'en') {
   return {
     ...state,
     ...derived,
-    formVersion: MODEL.version,
     langStrings: L,
     endpointConfigured: isApplicationDeliveryConfigured('aivex'),
-    summary: () => MODEL.buildSummary(state),
+    summary: () => buildSummary(state),
     fieldError: (section, field) => (
-      shows(MODEL.SECTIONS[section].step, `${section}.${field}`) ? derived.issues[section][field] || '' : ''
+      shows(SECTIONS[section].step, `${section}.${field}`) ? derived.issues[section][field] || '' : ''
     ),
     studentError: (id, field) => (
       shows(STEP.students, `student.${id}.${field}`) ? derived.studentErrors[id]?.[field] || '' : ''

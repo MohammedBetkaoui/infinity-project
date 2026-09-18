@@ -6,7 +6,6 @@ import useMotionPreference from '../../../hooks/useMotionPreference'
 import { MOTION_EASE } from '../../../lib/motion'
 import DelegationStep from './DelegationStep'
 import InstitutionStep from './InstitutionStep'
-import { REGISTER_FORM_VERSION } from './formVersion'
 import { SECTIONS, STEP, STUDENT_COUNT, institutionLabel } from './registrationModel'
 import { REGISTER_LANG_STORAGE_KEY, getRegistrationStrings } from './registrationI18n'
 import RegistrationLayout from './RegistrationLayout'
@@ -31,7 +30,7 @@ const readLang = () => {
 export default function CompetitionRegistration() {
   const reduced = useMotionPreference()
   const [lang, setLang] = useState(readLang)
-  const t = getRegistrationStrings(lang, REGISTER_FORM_VERSION)
+  const t = getRegistrationStrings(lang)
   const registration = useCompetitionRegistration(lang)
   const { step, status, team, activityOfficial, result, sectionComplete, completeCount } = registration
   const [copied, setCopied] = useState(false)

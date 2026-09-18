@@ -2,7 +2,7 @@ import ApplicationField from '../../../components/forms/ApplicationField'
 import { studentFieldProps } from './fieldProps'
 import RecordCard from './RecordCard'
 import { STUDENT_COUNT, bacYearChoices } from './registrationModel'
-import { getBacYearOptions, getStudyOptions } from './registrationI18n'
+import { getBacYearOptions } from './registrationI18n'
 import StepHeading from './StepHeading'
 import StudentCardUpload from './StudentCardUpload'
 import { recordId, studentFieldId } from './useCompetitionRegistration'
@@ -24,9 +24,7 @@ function StudentsReadout({ complete, t }) {
 }
 
 export default function StudentsStep({ registration, reduced, t }) {
-  const { students, completeCount, studentErrors, studentError, setStudent, touch, formVersion } = registration
-  const v4 = formVersion === 4
-  const studyLevels = getStudyOptions(t)
+  const { students, completeCount, studentErrors, studentError, setStudent, touch } = registration
   const bacYears = getBacYearOptions(t, bacYearChoices())
 
   return (
@@ -44,33 +42,17 @@ export default function StudentsStep({ registration, reduced, t }) {
             <RecordCard key={student.id} id={recordId(student.id)} index={number} role={t.studentRole} order={order} reduced={reduced}
               name={student.fullName.trim()} placeholder={t.studentPlaceholder({ number })} t={t}
               remaining={Object.keys(studentErrors[student.id]).length}>
-              {v4 ? (
-                <>
-                  <div className="af-grid-two">
-                    <ApplicationField {...field('fullName')} label={t.fullNameLabel} autoComplete="off" placeholder={t.studentNamePlaceholder} />
-                    <ApplicationField {...field('phone')} label={t.phoneLabel} type="tel" inputMode="tel"
-                      autoComplete="off" placeholder={t.phonePlaceholder} hint={t.phoneHint} />
-                  </div>
-                  <div className="af-grid-two">
-                    <ApplicationField {...field('bacYear')} label={t.bacYearLabel} as="select" options={bacYears} hint={t.bacYearHint} />
-                    <ApplicationField {...field('rfid')} label={t.rfidLabel} autoComplete="off" spellCheck={false} hint={t.rfidHint} />
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="af-grid-two">
-                    <ApplicationField {...field('fullName')} label={t.fullNameLabel} autoComplete="off" placeholder={t.studentNamePlaceholder} />
-                    <ApplicationField {...field('registrationNumber')} label={t.regNumberLabel} inputMode="numeric"
-                      autoComplete="off" placeholder={t.regNumberPlaceholder} hint={t.regNumberHint} />
-                  </div>
-                  <div className="af-grid-two">
-                    <ApplicationField {...field('studyLevel')} label={t.studyLevelLabel} as="select" options={studyLevels} />
-                    <ApplicationField {...field('phone')} label={t.phoneLabel} type="tel" inputMode="tel"
-                      autoComplete="off" placeholder={t.phonePlaceholder} hint={t.phoneHint} />
-                  </div>
-                </>
-              )}
+              <div className="af-grid-two">
+                <ApplicationField {...field('fullName')} label={t.fullNameLabel} autoComplete="off" placeholder={t.studentNamePlaceholder} />
+                <ApplicationField {...field('phone')} label={t.phoneLabel} type="tel" inputMode="tel"
+                  autoComplete="off" placeholder={t.phonePlaceholder} hint={t.phoneHint} />
+              </div>
+              <div className="af-grid-two">
+                <ApplicationField {...field('bacYear')} label={t.bacYearLabel} as="select" options={bacYears} hint={t.bacYearHint} />
+                <ApplicationField {...field('rfid')} label={t.rfidLabel} autoComplete="off" spellCheck={false} hint={t.rfidHint} />
+              </div>
               <StudentCardUpload
+                studentLabel={t.studentPlaceholder({ number })}
                 inputId={studentFieldId(student.id, 'studentCard')}
                 file={student.studentCard}
                 droppedCard={student.droppedCard}

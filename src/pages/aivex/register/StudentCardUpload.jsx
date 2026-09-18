@@ -1,21 +1,24 @@
 import { useRef, useState } from 'react'
+import { STUDENT_CARD_POLICY, canonicalCardMime } from '../../../../shared/aivex/contract-v4.js'
 import { CARD_TYPES, checkCardFile, formatBytes } from './registrationModel'
 import useObjectUrl from './useObjectUrl'
 
-const EXTENSIONS = { 'image/jpeg': 'JPG', 'image/png': 'PNG', 'image/webp': 'WEBP' }
+// "JPG · 1.2 MB" for an accepted type, the raw MIME type otherwise.
+const describe = (file) => `${STUDENT_CARD_POLICY.types[canonicalCardMime(file.type)]?.label || file.type || '?'} · ${formatBytes(file.size)}`
 
-export default function StudentCardUpload({ inputId, file, droppedCard, error, ownerName, onChange, t }) {
+export default function StudentCardUpload({ inputId, studentLabel, file, droppedCard, error, ownerName, onChange, t }) {
   const inputRef = useRef(null)
   const [dragging, setDragging] = useState(false)
-  const [fileError, setFileError] = useState('')
+  // A picked file that failed the checks: shown, never kept in the form.
+  const [rejected, setRejected] = useState(null)
   const preview = useObjectUrl(file)
-  const shownError = fileError || error
+  const shownError = rejected?.message || error
   const errorId = `${inputId}-error`
   const hintId = `${inputId}-hint`
 
   const accept = (candidate) => {
     const problem = checkCardFile(candidate, t)
-    setFileError(problem)
+    setRejected(problem ? { name: candidate.name, details: describe(candidate), message: problem } : null)
     if (!problem) onChange(candidate)
   }
 
@@ -33,7 +36,7 @@ export default function StudentCardUpload({ inputId, file, droppedCard, error, o
   }
 
   const remove = () => {
-    setFileError('')
+    setRejected(null)
     onChange(null)
     window.requestAnimationFrame(() => inputRef.current?.focus())
   }
@@ -43,7 +46,7 @@ export default function StudentCardUpload({ inputId, file, droppedCard, error, o
   return (
     <div className="axr-upload" data-state={state}>
       <div className="axr-upload-head">
-        <label htmlFor={inputId}>{t.uploadTitle}</label>
+        <label htmlFor={inputId}>{studentLabel ? `${studentLabel} · ${t.uploadTitle}` : t.uploadTitle}</label>
         <span aria-hidden="true">{file ? t.uploadAttached : t.uploadRequired}</span>
       </div>
 
@@ -67,7 +70,7 @@ export default function StudentCardUpload({ inputId, file, droppedCard, error, o
           <div className="axr-upload-info">
             <span className="axr-upload-status">{t.uploadedOk}</span>
             <strong title={file.name}>{file.name}</strong>
-            <small>{EXTENSIONS[file.type] || 'Image'} · {formatBytes(file.size)}</small>
+            <small>{describe(file)}</small>
             <div className="axr-upload-actions">
               <button type="button" onClick={() => inputRef.current?.click()}>{t.replace}</button>
               <button type="button" onClick={remove}>{t.remove}</button>
@@ -94,7 +97,12 @@ export default function StudentCardUpload({ inputId, file, droppedCard, error, o
 
       <div className="af-field-meta">
         {shownError
-          ? <span id={errorId} className="af-error" role="alert">{shownError}</span>
+          ? (
+            <span id={errorId} className="af-error" role="alert">
+              {rejected && <>{t.fileRejected({ name: rejected.name, details: rejected.details })} </>}
+              {shownError}
+            </span>
+          )
           : (
             <span id={hintId} className="af-hint">
               {droppedCard && !file
