@@ -202,6 +202,54 @@ test('8. the rendered file is a valid, minimally-different DOCX (same parts, onl
 // 9-14. Orchestration: status workflow, idempotency, failure handling
 // =================================================================================
 
+test('8b. the official design is kept exactly: the rendered document is the template with only the {{tokens}} replaced', async () => {
+  const template = await loadRegistrationTemplate()
+  const { registration, students, settings } = sampleRows()
+  const data = resolveWordDataV4({ settings, registration, students })
+  const [source, rendered] = await Promise.all([JSZip.loadAsync(template), JSZip.loadAsync(await renderRegistrationDocx(template, data))])
+  // Rebuild every part by substituting the tokens in the template ourselves:
+  // any other difference (a run, a style, a table, the header text boxes,
+  // the signature/stamp block, a margin) would make this comparison fail.
+  const escape = (value) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;')
+  for (const path of Object.keys(source.files).filter((name) => name.endsWith('.xml'))) {
+    const expected = (await source.files[path].async('string')).replace(/\{\{([a-zA-Z0-9_]+)\}\}/g, (_, key) => escape(data[key]))
+    assert.equal(await rendered.files[path].async('string'), expected, `${path} differs beyond the placeholder values`)
+  }
+})
+
+test('8c. the final document holds official V4 data only: no V3 field, no student card, no internal path', async () => {
+  const { registration, students, settings } = sampleRows()
+  const rendered = await renderRegistrationDocx(await loadRegistrationTemplate(), resolveWordDataV4({ settings, registration, students }))
+  const zip = await JSZip.loadAsync(rendered)
+  for (const path of Object.keys(zip.files).filter((name) => name.endsWith('.xml'))) {
+    const xml = await zip.files[path].async('string')
+    assert.doesNotMatch(xml, /\{\{|\}\}/, `${path}: placeholder left`)
+    assert.doesNotMatch(xml, /studentCard|student_card|nationalId|national_id|registrationNumber|registration_number|studyLevel|study_level|aivex-student-cards/i, path)
+  }
+})
+
+test('8d. exactly students 1, 2 and 3: a missing, extra or duplicated position fails the docx, never a partial document', async () => {
+  const three = sampleRows().students
+  for (const [label, students] of [
+    ['two students', three.slice(0, 2)],
+    ['four students', [...three, { ...three[0], position: 4 }]],
+    ['position 3 duplicated', [three[0], three[1], { ...three[1], position: 2 }]],
+  ]) {
+    const store = createMemoryDocumentStore(sampleRows({ students }))
+    const logged = console.error
+    console.error = () => {}
+    let result
+    try {
+      result = await generateOfficialDocuments({ store, registrationId: REGISTRATION_ID, now: NOW })
+    } finally {
+      console.error = logged
+    }
+    assert.equal(result.docx, false, label)
+    assert.equal(store.registrations.get(REGISTRATION_ID).document_status, 'generation_failed', label)
+    assert.equal(store.objects.size, 0, `${label}: no file uploaded`)
+  }
+})
+
 test('9. a full, valid generation moves generating -> awaiting_signature, docx generated, pdf honestly failed', async () => {
   const store = createMemoryDocumentStore(sampleRows())
   const result = await generateOfficialDocuments({ store, registrationId: REGISTRATION_ID, now: NOW })
