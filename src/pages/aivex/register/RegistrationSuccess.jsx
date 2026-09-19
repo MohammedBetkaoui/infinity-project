@@ -34,7 +34,7 @@ function OfficialDocument({ reference, submissionId, t }) {
   )
 }
 
-export default function RegistrationSuccess({ teamName, institution, studentCount, contactEmail, reference, submissionId, reduced, onReset, t }) {
+export default function RegistrationSuccess({ teamName, institution, studentCount, contactEmail, reference, submissionId, magicLink, reduced, onReset, t }) {
   return (
     <motion.div className="axr-success" role="status"
       initial={reduced ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
@@ -42,6 +42,13 @@ export default function RegistrationSuccess({ teamName, institution, studentCoun
       <span className="axr-success-kicker">{t.successKicker}</span>
       <h2 id="axr-success-heading" tabIndex={-1}>{t.successTitle}</h2>
       <p className="axr-success-stamp">{t.successStamp}</p>
+
+      {magicLink && (
+        <p className="axr-success-access">
+          <a className="af-button af-button-secondary" href={magicLink}>{t.successAccessDossier}</a>
+          <span>{t.successAccessHint}</span>
+        </p>
+      )}
 
       {reference && submissionId && <OfficialDocument reference={reference} submissionId={submissionId} t={t} />}
 

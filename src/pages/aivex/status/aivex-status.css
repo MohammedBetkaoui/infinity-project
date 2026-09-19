@@ -1,0 +1,49 @@
+/* AIVEX candidate status page (Magic Link, Phase 5A). Reuses the
+   .ax-registration-page / .axr-* design tokens and .af-button primitives
+   from ../register/aivex-register.css and application-form.css — this file
+   only adds the page's own, simpler single-column layout. */
+
+.axs-main { position: relative; padding-block: clamp(54px, 7vw, 94px) clamp(70px, 8vw, 110px); }
+.axs-paper {
+  --af-ink: #111111;
+  --af-muted: #675f5c;
+  --af-line: #4f001d27;
+  --af-line-strong: #4f001d58;
+  --af-control: #f8f6f1;
+  --af-accent: #db0051;
+  --af-accent-soft: #db005187;
+  --af-danger: #a1293d;
+  --af-button: #f59e0b;
+  --af-button-hover: #ffb632;
+  --af-button-ink: #111111;
+  position: relative;
+  max-width: 640px;
+  margin-inline: auto;
+  padding: clamp(30px, 4.2vw, 57px);
+  clip-path: polygon(0 0, calc(100% - 29px) 0, 100% 29px, 100% 100%, 0 100%);
+  background: var(--ax-paper);
+  color: var(--ax-black);
+  box-shadow: 0 35px 80px #0000003d;
+}
+.axs-paper::before { position: absolute; top: 0; left: 0; width: 108px; height: 5px; content: ''; background: var(--ax-pink); }
+
+.axs-card { min-width: 0; }
+.axs-card h2 { font-family: Rajdhani, sans-serif; font-size: clamp(30px, 3.4vw, 42px); font-weight: 600; letter-spacing: -.03em; line-height: 1.05; }
+.axs-card > p { max-width: 56ch; margin-top: 16px; color: var(--af-muted); font-size: 13px; line-height: 1.85; }
+.axs-kicker { display: block; margin-bottom: 11px; color: var(--af-muted); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+
+.axs-record { margin: 26px 0 0; border-top: 1px solid var(--af-line-strong); }
+.axs-record > div { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 17px; padding-block: 12px; border-bottom: 1px solid #4f001d14; }
+.axs-record dt { color: #756c68; font-size: 10px; }
+.axs-record dd { margin: 0; font-family: Rajdhani, sans-serif; font-size: 18px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
+.axs-ref { font-family: ui-monospace, monospace; font-size: 13px; letter-spacing: .06em; }
+
+.axs-document { margin-top: 26px; padding: 18px 20px 20px; border: 1px solid var(--af-line-strong); border-inline-start: 3px solid var(--af-accent); }
+.axs-document-note { max-width: 60ch; font-size: 12px; line-height: 1.8; color: var(--af-muted); }
+.axs-document .af-button { margin-top: 16px; }
+.axs-document-error { margin-top: 12px; color: #b42318; font-size: 12px; line-height: 1.6; }
+.axs-document-pending { margin-top: 22px; padding: 14px 16px; border: 1px dashed var(--af-line-strong); color: var(--af-muted); font-size: 12px; line-height: 1.7; }
+
+@media (max-width: 640px) {
+  .axs-record > div { grid-template-columns: 105px minmax(0, 1fr); }
+}

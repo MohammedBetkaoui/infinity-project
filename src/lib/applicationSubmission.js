@@ -143,6 +143,10 @@ export async function submitAivexRegistrationV4({ payload, files, website }) {
     delivered: true,
     reference: typeof result.reference === 'string' ? result.reference : null,
     alreadyProcessed: result.alreadyProcessed === true,
+    // Absent whenever issuance failed server-side (best-effort, never
+    // blocks a successful registration) — the success screen simply omits
+    // the "access my file" action in that case.
+    magicLink: typeof result.magicLink === 'string' ? result.magicLink : null,
   }
 }
 

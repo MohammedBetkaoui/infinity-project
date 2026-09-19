@@ -4,7 +4,8 @@
 // unaffected: it serves api/ natively on the same domain.
 //
 // Usage (two terminals):
-//   npm run dev:api   -> http://localhost:3001  (/api/join, /api/aivex/register, /api/aivex/document)
+//   npm run dev:api   -> http://localhost:3001  (/api/join, /api/aivex/register, /api/aivex/document,
+//                        /api/aivex/magic-link, /api/aivex/magic-link/verify, /api/aivex/magic-link/document)
 //   npm run dev       -> http://localhost:5173 (proxies /api to the above)
 //
 // Only Node builtins are used. .env.local is loaded server-side and is
@@ -41,6 +42,9 @@ const joinHandler = await load('join.js')
 const streamingRoutes = {
   '/api/aivex/register': await load('aivex', 'register.js'),
   '/api/aivex/document': await load('aivex', 'document.js'),
+  '/api/aivex/magic-link': await load('aivex', 'magic-link.js'),
+  '/api/aivex/magic-link/verify': await load('aivex', 'magic-link', 'verify.js'),
+  '/api/aivex/magic-link/document': await load('aivex', 'magic-link', 'document.js'),
 }
 
 const json = (res, status, payload) => {

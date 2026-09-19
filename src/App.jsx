@@ -20,6 +20,7 @@ const CommunityPage = lazy(() => import('./pages/community/CommunityPage'))
 const ContactPage = lazy(() => import('./pages/contact/ContactPage'))
 const JoinPage = lazy(() => import('./pages/join/JoinPage'))
 const AivexRegisterPage = lazy(() => import('./pages/aivex/register/AivexRegisterPage'))
+const AivexStatusPage = lazy(() => import('./pages/aivex/status/AivexStatusPage'))
 // Back-office: its own chunk, so none of it ships with the public site.
 const AdminApp = lazy(() => import('./admin/AdminApp'))
 
@@ -109,6 +110,7 @@ export default function App() {
       <RouteScrollReset />
       <Routes>
         <Route path="/aivex/register" element={<Suspense fallback={null}><AivexRegisterPage /></Suspense>} />
+        <Route path="/aivex/status" element={<Suspense fallback={null}><AivexStatusPage /></Suspense>} />
         <Route path="/aivex" element={<AivexRoute />} />
         <Route path="/join" element={<SitePage><Suspense fallback={<p className="page-container py-40" role="status">Opening the application...</p>}><JoinPage /></Suspense></SitePage>} />
         <Route path="/about" element={<SitePage><AboutPage /></SitePage>} />

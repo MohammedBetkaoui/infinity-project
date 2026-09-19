@@ -13,7 +13,12 @@
 //   -> generateOfficialDocuments: best-effort official DOCX generation
 //      (api/_lib/aivex-document-generation.js) — never changes the response;
 //      the browser then downloads it through api/aivex/document.js
-//   -> 201 { success: true, reference } | 200 replay { ..., alreadyProcessed }
+//   -> issueMagicLink: best-effort candidate access link
+//      (api/_lib/aivex-magic-link.js), added to the response when it
+//      succeeds; a failure here never changes the response either — the
+//      applicant's own browser can still use api/aivex/document.js, and
+//      api/aivex/magic-link.js is the recovery path for a link afterwards
+//   -> 201 { success: true, reference, magicLink? } | 200 replay { ..., alreadyProcessed }
 //
 // A v3 payload is refused with a 400 ("reload the page"), never converted.
 // Nothing is written until everything has been validated. Same conventions
@@ -26,6 +31,8 @@ import {
 } from '../../shared/aivex/contract-v4.js'
 import { generateOfficialDocuments } from '../_lib/aivex-document-generation.js'
 import { createSupabaseDocumentStore } from '../_lib/aivex-document-store.js'
+import { issueMagicLink } from '../_lib/aivex-magic-link.js'
+import { createSupabaseMagicLinkStore } from '../_lib/aivex-magic-link-store.js'
 import { generateRegistrationReference } from '../_lib/aivex-reference.js'
 import { createSupabaseRegistrationStore, registerV4 } from '../_lib/aivex-registration-v4.js'
 import { validateStudentCardsV4 } from '../_lib/aivex-validation-v4.js'
@@ -75,10 +82,14 @@ const createDefaultDocumentStore = () => {
   const supabase = createDefaultSupabaseClient()
   return supabase ? createSupabaseDocumentStore(supabase) : null
 }
+const createDefaultMagicLinkStore = () => {
+  const supabase = createDefaultSupabaseClient()
+  return supabase ? createSupabaseMagicLinkStore(supabase) : null
+}
 
 // Factory so tests can inject an in-memory store and a fixed clock.
 export function createRegisterHandler({
-  createStore = createDefaultStore, createDocumentStore = createDefaultDocumentStore,
+  createStore = createDefaultStore, createDocumentStore = createDefaultDocumentStore, createMagicLinkStore = createDefaultMagicLinkStore,
   now = () => new Date(), generateReference = generateRegistrationReference,
 } = {}) {
   return async function handler(req, res) {
@@ -163,6 +174,22 @@ export function createRegisterHandler({
         if (documentStore) await generateOfficialDocuments({ store: documentStore, registrationId: outcome.registrationId, now: clock })
       } catch (error) {
         console.error('[aivex] Document generation step crashed', { code: error?.code })
+      }
+
+      // Same best-effort discipline: a link the applicant can reopen later
+      // is valuable, but its failure must never turn a valid registration
+      // into an error, and the raw link/token is never logged (only a
+      // stage + code on failure, nothing at all on success).
+      try {
+        const magicLinkStore = createMagicLinkStore()
+        if (magicLinkStore) {
+          const { magicLink } = await issueMagicLink({
+            magicLinkStore, registrationId: outcome.registrationId, now: clock, ip: getClientIp(req), userAgent: req.headers?.['user-agent'], req,
+          })
+          if (magicLink) outcome.body = { ...outcome.body, magicLink }
+        }
+      } catch (error) {
+        console.error('[aivex] Magic link issuance step crashed', { code: error?.code })
       }
     }
 

@@ -8,6 +8,10 @@
     "api/aivex/document.js": {
       "maxDuration": 60,
       "includeFiles": "public/word-form/**"
+    },
+    "api/aivex/magic-link/document.js": {
+      "maxDuration": 60,
+      "includeFiles": "public/word-form/**"
     }
   },
   "rewrites": [

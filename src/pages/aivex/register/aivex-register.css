@@ -267,6 +267,8 @@ html[data-page='aivex']::-webkit-scrollbar-thumb { border: 2px solid #1a1114; bo
 .axr-success-document-title { font-family: Rajdhani, sans-serif; font-size: 21px; font-weight: 600; line-height: 1.15; }
 .axr-success .axr-success-document .af-button { margin-top: 16px; }
 .axr-success-document-hint { max-width: 60ch; margin-top: 14px; color: var(--af-muted); font-size: 12px; line-height: 1.8; }
+.axr-success-access { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-top: 22px; }
+.axr-success-access span { max-width: 52ch; color: var(--af-muted); font-size: 11px; line-height: 1.7; }
 .axr-success-document-error { margin-top: 12px; color: #b42318; font-size: 12px; line-height: 1.6; }
 .axr-paper-credit { display: flex; align-items: center; justify-content: flex-start; margin-top: 24px; padding-top: 18px; border-top: 1px solid #4f001d1f; color: #172f49; }
 /* Faculty lockup: always LTR + pinned left, even inside the Arabic (RTL) sheet. */

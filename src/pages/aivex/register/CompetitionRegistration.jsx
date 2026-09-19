@@ -86,7 +86,8 @@ export default function CompetitionRegistration() {
 
       {done ? (
         <RegistrationSuccess teamName={team.name.trim()} institution={institutionLabel(team, lang)} studentCount={STUDENT_COUNT}
-          contactEmail={activityOfficial.email.trim()} reference={result?.reference} submissionId={registration.submissionId} reduced={reduced} onReset={registration.reset} t={t} />
+          contactEmail={activityOfficial.email.trim()} reference={result?.reference} submissionId={registration.submissionId}
+          magicLink={result?.magicLink} reduced={reduced} onReset={registration.reset} t={t} />
       ) : (
         <form onSubmit={registration.submit} noValidate aria-label={t.formAria}>
           <div className="af-trap" aria-hidden="true">
