@@ -6,11 +6,12 @@
 //     -> render the official DOCX from the fixed template
 //     -> upload it to the private bucket aivex-generated-forms
 //     -> record it in aivex_generated_documents
-//     -> attempt a PDF companion (see api/_lib/aivex-document-template.js:
-//        not implemented in this phase — recorded honestly as failed,
-//        never faked)
-//   -> document_status: awaiting_signature (docx succeeded) or
-//      generation_failed (it did not)
+//   -> document_status: awaiting_signature (the official Word document is
+//      ready to download — api/aivex/document.js) or generation_failed
+//
+// DOCX is the only document the application produces. Turning it into a
+// PDF, printing it, and having it signed and stamped by the institution is
+// done by hand, outside the application; no conversion service is called.
 //
 // Called right after a registration is created, and again on every replay
 // of the same submissionId (api/aivex/register.js) — plus by the
@@ -27,11 +28,14 @@
 // registration-v4.js for that, unrelated, part of the pipeline).
 
 import {
-  AIVEX_TEMPLATE_VERSION, DOCX_MIME, PDF_MIME, convertDocxToPdf, loadRegistrationTemplate, renderRegistrationDocx,
+  AIVEX_TEMPLATE_VERSION, DOCX_MIME, loadRegistrationTemplate, renderRegistrationDocx,
 } from './aivex-document-template.js'
 import { resolveWordDataV4 } from '../../shared/aivex/word-mapping-v4.js'
 
-const DOCUMENT_TYPES = Object.freeze({ docx: 'docx', pdf: 'pdf' })
+// Generated automatically: docx only. aivex_generated_documents and the
+// bucket still accept 'pdf' (a signed copy uploaded later), which is not
+// something this pipeline ever writes.
+const DOCUMENT_TYPES = Object.freeze({ docx: 'docx' })
 
 // Same reasoning as STALE_AFTER_MS in aivex-registration-v4.js: longer than
 // the function's maxDuration (60 s, vercel.json), so a claim still being
@@ -95,7 +99,7 @@ async function generateDocx(store, { registrationId, registration, data }) {
       generation_status: 'generated', file_path: path, mime_type: DOCX_MIME, file_size_bytes: buffer.length,
       template_version: AIVEX_TEMPLATE_VERSION, error_code: null,
     })
-    return { ok: true, buffer }
+    return { ok: true }
   } catch (error) {
     logFailure(`docx-${step}`, error)
     // Best effort: an upload that succeeded before a later step failed
@@ -105,48 +109,6 @@ async function generateDocx(store, { registrationId, registration, data }) {
       registration_id: registrationId, edition: registration.edition, document_type: DOCUMENT_TYPES.docx,
       generation_status: 'failed', template_version: AIVEX_TEMPLATE_VERSION, error_code: errorCode(step),
     }).catch((rowError) => logFailure('docx-row', rowError))
-    return { ok: false }
-  }
-}
-
-// Isolated on purpose (see aivex-document-template.js): today this always
-// records an honest 'failed' row with a distinct, non-alarming reason
-// instead of a fabricated PDF. The docx outcome alone decides document_status.
-// Never attempted without a source docx: there is nothing to convert.
-async function generatePdf(store, { registrationId, registration, docxBuffer }) {
-  if (!docxBuffer) {
-    await store.upsertDocumentRow({
-      registration_id: registrationId, edition: registration.edition, document_type: DOCUMENT_TYPES.pdf,
-      generation_status: 'failed', template_version: AIVEX_TEMPLATE_VERSION, error_code: 'docx_generation_failed',
-    }).catch((rowError) => logFailure('pdf-row', rowError))
-    return { ok: false }
-  }
-  let step = 'pdf_conversion'
-  try {
-    const outcome = await convertDocxToPdf(docxBuffer)
-    if (!outcome.available) {
-      await store.upsertDocumentRow({
-        registration_id: registrationId, edition: registration.edition, document_type: DOCUMENT_TYPES.pdf,
-        generation_status: 'failed', template_version: AIVEX_TEMPLATE_VERSION, error_code: outcome.reason,
-      })
-      return { ok: false }
-    }
-    const path = generatedDocumentPath(registrationId, registration.edition, registration.reference, DOCUMENT_TYPES.pdf)
-    step = 'pdf_upload'
-    await store.uploadDocument(path, outcome.buffer, PDF_MIME)
-    step = 'pdf_record'
-    await store.upsertDocumentRow({
-      registration_id: registrationId, edition: registration.edition, document_type: DOCUMENT_TYPES.pdf,
-      generation_status: 'generated', file_path: path, mime_type: PDF_MIME, file_size_bytes: outcome.buffer.length,
-      template_version: AIVEX_TEMPLATE_VERSION, error_code: null,
-    })
-    return { ok: true }
-  } catch (error) {
-    logFailure(step, error)
-    await store.upsertDocumentRow({
-      registration_id: registrationId, edition: registration.edition, document_type: DOCUMENT_TYPES.pdf,
-      generation_status: 'failed', template_version: AIVEX_TEMPLATE_VERSION, error_code: errorCode(step),
-    }).catch((rowError) => logFailure('pdf-row', rowError))
     return { ok: false }
   }
 }
@@ -169,13 +131,12 @@ export async function generateOfficialDocuments({ store, registrationId, now = n
     const data = presentForDocument(resolveWordDataV4({ settings, registration, students }))
 
     const docx = await generateDocx(store, { registrationId, registration, data })
-    const pdf = await generatePdf(store, { registrationId, registration, docxBuffer: docx.buffer })
 
     await store.setDocumentStatus(registrationId, docx.ok ? 'awaiting_signature' : 'generation_failed')
-    return { attempted: true, docx: docx.ok, pdf: pdf.ok, at: now.toISOString() }
+    return { attempted: true, docx: docx.ok, at: now.toISOString() }
   } catch (error) {
     logFailure('generation', error)
     await store.setDocumentStatus(registrationId, 'generation_failed').catch((statusError) => logFailure('set-status', statusError))
-    return { attempted: true, docx: false, pdf: false, error: true }
+    return { attempted: true, docx: false, error: true }
   }
 }

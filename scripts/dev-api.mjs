@@ -4,7 +4,7 @@
 // unaffected: it serves api/ natively on the same domain.
 //
 // Usage (two terminals):
-//   npm run dev:api   -> http://localhost:3001  (/api/join, /api/aivex/register)
+//   npm run dev:api   -> http://localhost:3001  (/api/join, /api/aivex/register, /api/aivex/document)
 //   npm run dev       -> http://localhost:5173 (proxies /api to the above)
 //
 // Only Node builtins are used. .env.local is loaded server-side and is
@@ -36,10 +36,11 @@ if (existsSync(join(root, '.env.local'))) {
 
 const load = async (...segments) => (await import(pathToFileURL(join(root, 'api', ...segments)).href)).default
 const joinHandler = await load('join.js')
-// Multipart routes read the raw request stream themselves: the runner must
+// These routes read the raw request stream themselves: the runner must
 // not consume the body before handing the request over.
 const streamingRoutes = {
   '/api/aivex/register': await load('aivex', 'register.js'),
+  '/api/aivex/document': await load('aivex', 'document.js'),
 }
 
 const json = (res, status, payload) => {

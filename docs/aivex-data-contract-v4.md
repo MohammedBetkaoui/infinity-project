@@ -1,6 +1,6 @@
 # AIVEX — Data Contract V4
 
-> **Statut : Phase 4 — document officiel généré en DOCX (PDF isolé, non implémenté) — 2026-09-19.**
+> **Statut : document officiel généré en DOCX uniquement, téléchargeable après l'inscription ; aucune conversion PDF automatique (PDF manuel, hors application) — 2026-09-19.**
 > Frontend, API et schéma de base parlent uniquement le contrat V4 (Phase 2, en production depuis la Phase 3). Chaque inscription produit désormais son document officiel Word dans un bucket privé (§9.1).
 > **Déploiement : appliquer `20260920120000_aivex_v4_generated_documents.sql`** (§14).
 
@@ -183,9 +183,10 @@ Obligatoires (3 par inscription), données **internes de vérification** : jamai
 | Élément | Fichier |
 |---|---|
 | Template officiel (version `aivex-participation-template-01`) | [`public/word-form/aivex-participation-template-01.docx`](../public/word-form/aivex-participation-template-01.docx) |
-| Rendu DOCX, couche PDF isolée | [`api/_lib/aivex-document-template.js`](../api/_lib/aivex-document-template.js) |
+| Rendu DOCX | [`api/_lib/aivex-document-template.js`](../api/_lib/aivex-document-template.js) |
 | Orchestration, statuts, présentation des dates | [`api/_lib/aivex-document-generation.js`](../api/_lib/aivex-document-generation.js) |
 | Accès Supabase (claim atomique, Storage, métadonnées) | [`api/_lib/aivex-document-store.js`](../api/_lib/aivex-document-store.js) |
+| Téléchargement sécurisé (`POST /api/aivex/document`) | [`api/aivex/document.js`](../api/aivex/document.js) |
 | Relance administrative | [`scripts/aivex-retry-documents.mjs`](../scripts/aivex-retry-documents.mjs) |
 | Migration | [`20260920120000_aivex_v4_generated_documents.sql`](../supabase/migrations/20260920120000_aivex_v4_generated_documents.sql) |
 | Tests | [`tests/aivex-document-generation.test.mjs`](../tests/aivex-document-generation.test.mjs) |
@@ -197,7 +198,9 @@ Obligatoires (3 par inscription), données **internes de vérification** : jamai
 
 **Rendu DOCX.** Substitution littérale `{{clé}}` → valeur (échappée XML) dans chaque partie XML du .docx, avec `jszip` (MIT) comme seule nouvelle dépendance. Un placeholder sans donnée, ou une donnée sans placeholder, fait échouer la génération : un document officiel n'affiche jamais « {{…}} ». `docxtemplater` n'est pas utilisé : inutile une fois le template propre, et sa version libre est sous AGPL-3.0.
 
-**PDF.** Non implémenté, et jamais simulé. Une conversion fidèle (arabe RTL, tableaux bilingues, bloc signature/cachet) demande un moteur Word (LibreOffice ou une API externe) : ni l'un ni l'autre n'est disponible sur une fonction Vercel Node standard, et une API payante n'est pas une dépendance à ajouter sans décision. `convertDocxToPdf()` renvoie `{ available: false }` ; la ligne `pdf` est enregistrée `failed` avec `error_code = pdf_conversion_not_configured`. Brancher un vrai convertisseur = implémenter cette seule fonction.
+**PDF : manuel, hors application.** L'application produit **un seul** document automatiquement : le DOCX. Aucune conversion DOCX → PDF n'est faite ni tentée (pas de LibreOffice, Microsoft Graph, CloudConvert ni autre service) ; aucune ligne `pdf` n'est créée. L'établissement télécharge le DOCX, le convertit ou l'imprime lui-même, le fait signer et cacheter. La table et le bucket acceptent toujours `pdf` / `application/pdf` pour un futur dépôt du document **signé** (§10 `signed_document_uploaded`), qui n'est pas implémenté.
+
+**Lignes `pdf` historiques.** Les inscriptions générées avant ce changement ont une ligne `aivex_generated_documents` `document_type = 'pdf'`, `generation_status = 'failed'`, `error_code = 'pdf_conversion_not_configured'`, sans fichier. Elles sont **héritées et inertes** : rien ne les lit ni ne les réécrit. Conservées volontairement (pas de migration destructive) ; les supprimer éventuellement est une décision manuelle.
 
 **Dates.** `event_*_date` (`date`) sont imprimées telles quelles (`YYYY-MM-DD`) ; `submission_deadline` (`timestamptz`) est imprimée comme sa date calendaire à Alger (`Africa/Algiers`), au même format — jamais comme un horodatage machine. Le format d'affichage reste une décision ouverte (§15).
 
@@ -205,15 +208,17 @@ Obligatoires (3 par inscription), données **internes de vérification** : jamai
 
 ```
 not_generated ──claim──▶ generating ──docx OK──▶ awaiting_signature
-                              └──────docx KO──▶ generation_failed ──(rejeu du même submissionId / script)──▶ generating
+                              └──────docx KO──▶ generation_failed ──(rejeu du même submissionId / téléchargement / script)──▶ generating
 ```
 
 - Le claim est un `UPDATE … WHERE … RETURNING` atomique : un seul appelant génère ; `not_generated`, `generation_failed`, ou `generating` inchangé depuis plus de 3 min (tentative morte) sont repris ; `awaiting_signature` et au-delà ne sont jamais régénérés.
 - Un échec de génération **ne touche jamais l'inscription** (ni suppression, ni rollback, cartes conservées) et **ne change pas la réponse** de l'API : `201 { success, reference }` reste le contrat.
-- Relance : automatiquement au rejeu du même `submissionId` ; administrativement avec `node scripts/aivex-retry-documents.mjs` (liste seule) puis `--apply`.
-- `document_status` suit le DOCX (le document imprimable, signé et tamponné) ; le PDF a sa propre ligne et ne bloque rien.
+- Relance : automatiquement au rejeu du même `submissionId` ou à une demande de téléchargement ; administrativement avec `node scripts/aivex-retry-documents.mjs` (liste seule) puis `--apply`.
+- `document_status` suit le DOCX : `awaiting_signature` = **la fiche officielle Word est prête à être téléchargée**, puis signée et cachetée à la main. Aucun statut ne dépend d'un PDF.
 
-**Stockage.** Bucket **privé** `aivex-generated-forms`, `edition-{edition}/{registration_id}/{reference}.{docx|pdf}` ; table `aivex_generated_documents` (une ligne par inscription et par type ; une relance met la ligne à jour). Aucune URL publique ; rien de tout cela n'atteint le navigateur. Les cartes étudiantes n'entrent jamais dans le document.
+**Stockage.** Bucket **privé** `aivex-generated-forms`, `edition-{edition}/{registration_id}/{reference}.docx` (MIME `application/vnd.openxmlformats-officedocument.wordprocessingml.document`) ; table `aivex_generated_documents` (une ligne `docx` par inscription ; une relance met la ligne à jour). Aucune URL publique ni signée ; le chemin, le bucket et la table n'atteignent jamais le navigateur. Les cartes étudiantes n'entrent jamais dans le document.
+
+**Téléchargement.** Écran de succès : « Votre fiche officielle a été générée au format Word. » + bouton « 📄 Télécharger la fiche officielle » + consigne (convertir ou imprimer, faire signer et cacheter). Le navigateur envoie `POST /api/aivex/document` `{ reference, submissionId }` — en corps JSON, jamais dans une URL. Le serveur retrouve l'inscription par **les deux** (la référence seule, imprimée sur papier, ne suffit pas ; le `submissionId` n'est connu que de l'onglet qui a soumis et n'apparaît dans aucune réponse), lit le fichier avec la clé serveur et le renvoie en pièce jointe (`fiche-officielle-{reference}.docx`, `Cache-Control: no-store`). Couple inconnu ou discordant : même 404. DOCX pas encore `generated` : une tentative de génération idempotente (claim), sinon 409. Contrôle d'origine et limite de débit (20 / 15 min / IP) comme l'inscription ; journaux : étape + code uniquement. Limite assumée : après fermeture ou réinitialisation de l'onglet, le `submissionId` est perdu et le téléchargement n'est plus proposé (le DOCX reste conservé dans le bucket privé ; un renvoi passe par les organisateurs).
 
 ## 10. Statuts
 
@@ -270,6 +275,8 @@ Les inscriptions V3 existantes ne sont **pas** converties : l'année du BAC et l
 Tant que les migrations ne sont pas appliquées, l'API V4 répond 500 à toute inscription (colonnes absentes). Les anciennes pages V3 encore ouvertes reçoivent un 400 « reload the page ».
 
 **Phase 4 (documents).** Appliquer `20260920120000_aivex_v4_generated_documents.sql`, puis déployer. L'ordre n'est pas bloquant : sans cette migration, les inscriptions continuent de réussir et leurs documents passent en `generation_failed`, relançables ensuite avec `scripts/aivex-retry-documents.mjs --apply`. Renseigner aussi la ligne `aivex_settings` de l'édition 2 (nom, dates, date limite, e-mail) : sans elle, ces champs sortent vides dans le document.
+
+**DOCX seul + téléchargement.** Aucune migration : le schéma existant suffit (la contrainte `document_type in ('docx','pdf')` et le MIME PDF du bucket restent, pour un futur dépôt signé). Déployer suffit : nouvelle fonction `api/aivex/document.js` (déclarée dans `vercel.json` avec le template inclus), mêmes variables `SUPABASE_URL` / `SUPABASE_SECRET_KEY`, aucune variable PDF.
 
 ## 15. Décisions métier ouvertes
 

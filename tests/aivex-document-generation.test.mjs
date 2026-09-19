@@ -9,10 +9,11 @@ import { readFile, readdir } from 'node:fs/promises'
 import { Readable } from 'node:stream'
 import { test } from 'node:test'
 import JSZip from 'jszip'
+import { createDocumentHandler } from '../api/aivex/document.js'
 import { createRegisterHandler } from '../api/aivex/register.js'
 import { WORD_VARIABLES_V4, resolveWordDataV4 } from '../shared/aivex/word-mapping-v4.js'
 import {
-  AIVEX_TEMPLATE_VERSION, DOCX_MIME, convertDocxToPdf, loadRegistrationTemplate, renderRegistrationDocx, resetTemplateCache,
+  AIVEX_TEMPLATE_VERSION, DOCX_MIME, loadRegistrationTemplate, renderRegistrationDocx, resetTemplateCache,
 } from '../api/_lib/aivex-document-template.js'
 import {
   DOCUMENT_STALE_AFTER_MS, formatDocumentDate, generateOfficialDocuments, generatedDocumentPath,
@@ -250,10 +251,10 @@ test('8d. exactly students 1, 2 and 3: a missing, extra or duplicated position f
   }
 })
 
-test('9. a full, valid generation moves generating -> awaiting_signature, docx generated, pdf honestly failed', async () => {
+test('9. a full, valid generation moves generating -> awaiting_signature (Word document ready), docx only', async () => {
   const store = createMemoryDocumentStore(sampleRows())
   const result = await generateOfficialDocuments({ store, registrationId: REGISTRATION_ID, now: NOW })
-  assert.deepEqual(result, { attempted: true, docx: true, pdf: false, at: NOW.toISOString() })
+  assert.deepEqual(result, { attempted: true, docx: true, at: NOW.toISOString() })
   assert.equal(store.registrations.get(REGISTRATION_ID).document_status, 'awaiting_signature')
 
   const docx = store.documents.get(`${REGISTRATION_ID}:docx`)
@@ -264,24 +265,22 @@ test('9. a full, valid generation moves generating -> awaiting_signature, docx g
   assert.ok(docx.file_size_bytes > 0)
   assert.equal(store.objects.get(docx.file_path).buffer.length, docx.file_size_bytes)
 
-  const pdf = store.documents.get(`${REGISTRATION_ID}:pdf`)
-  assert.equal(pdf.generation_status, 'failed')
-  assert.equal(pdf.error_code, 'pdf_conversion_not_configured')
-  assert.equal(pdf.file_path, undefined)
-  assert.equal(store.objects.has('pdf'), false)
+  // DOCX is the only automatic document: no pdf row, no pdf file.
+  assert.deepEqual([...store.documents.keys()], [`${REGISTRATION_ID}:docx`])
+  assert.deepEqual([...store.objects.keys()], [docx.file_path])
 })
 
 test('10. document paths are edition-{edition}/{registrationId}/{reference}.{ext}', () => {
   assert.equal(generatedDocumentPath(REGISTRATION_ID, 2, 'AIVEX2-7K3M9QXT', 'docx'), `edition-2/${REGISTRATION_ID}/AIVEX2-7K3M9QXT.docx`)
-  assert.equal(generatedDocumentPath(REGISTRATION_ID, 2, 'AIVEX2-7K3M9QXT', 'pdf'), `edition-2/${REGISTRATION_ID}/AIVEX2-7K3M9QXT.pdf`)
+  assert.throws(() => generatedDocumentPath(REGISTRATION_ID, 2, 'AIVEX2-7K3M9QXT', 'pdf'), 'the pipeline never writes a pdf')
   assert.throws(() => generatedDocumentPath(REGISTRATION_ID, 0, 'AIVEX2-7K3M9QXT', 'docx'))
   assert.throws(() => generatedDocumentPath(REGISTRATION_ID, 2, 'AIVEX2-7K3M9QXT', 'txt'))
 })
 
-test('11. template_version is recorded on every generated-document row', async () => {
+test('11. template_version is recorded on the generated-document row', async () => {
   const store = createMemoryDocumentStore(sampleRows())
   await generateOfficialDocuments({ store, registrationId: REGISTRATION_ID, now: NOW })
-  for (const type of ['docx', 'pdf']) assert.equal(store.documents.get(`${REGISTRATION_ID}:${type}`).template_version, AIVEX_TEMPLATE_VERSION)
+  assert.equal(store.documents.get(`${REGISTRATION_ID}:docx`).template_version, AIVEX_TEMPLATE_VERSION)
 })
 
 test('12. a render failure marks document_status = generation_failed and leaves the registration data untouched', async () => {
@@ -373,9 +372,13 @@ test('13c. dates: a timestamptz deadline prints as its calendar date in Algeria,
   assert.doesNotMatch(text, /T\d{2}:\d{2}|\+00:00/)
 })
 
-test('14. PDF is never attempted, and never faked, without a real converter — and is skipped entirely if docx itself failed', async () => {
-  const unavailable = await convertDocxToPdf(Buffer.from('anything'))
-  assert.deepEqual(unavailable, { available: false, reason: 'pdf_conversion_not_configured' })
+test('14. no PDF is ever produced or attempted: DOCX is the only automatic document, even when it fails', async () => {
+  const sources = ['api/_lib/aivex-document-generation.js', 'api/_lib/aivex-document-store.js', 'api/_lib/aivex-document-template.js',
+    'api/aivex/register.js', 'api/aivex/document.js', 'scripts/aivex-retry-documents.mjs', 'package.json', 'vercel.json']
+  for (const file of sources) {
+    const source = await read(file)
+    assert.doesNotMatch(source, /convertDocxToPdf|generatePdf|pdf_conversion|PDF_MIME|application\/pdf|cloudconvert|convertapi|graph\.microsoft|microsoft graph|libreoffice|soffice/i, file)
+  }
 
   const store = createMemoryDocumentStore(sampleRows())
   store.uploadDocument = async () => { throw new Error('storage down') } // docx upload fails
@@ -383,14 +386,12 @@ test('14. PDF is never attempted, and never faked, without a real converter — 
   console.error = () => {}
   try {
     const result = await generateOfficialDocuments({ store, registrationId: REGISTRATION_ID, now: NOW })
-    assert.equal(result.docx, false)
-    assert.equal(result.pdf, false)
+    assert.deepEqual(result, { attempted: true, docx: false, at: NOW.toISOString() })
   } finally {
     console.error = logged
   }
-  const pdfRow = store.documents.get(`${REGISTRATION_ID}:pdf`)
-  assert.equal(pdfRow.generation_status, 'failed')
-  assert.equal(pdfRow.error_code, 'docx_generation_failed')
+  assert.deepEqual([...store.documents.keys()], [`${REGISTRATION_ID}:docx`], 'no pdf row, not even a failed one')
+  assert.equal(store.documents.get(`${REGISTRATION_ID}:docx`).error_code, 'upload_failed')
   assert.equal(store.registrations.get(REGISTRATION_ID).document_status, 'generation_failed')
 })
 
@@ -401,6 +402,7 @@ test('14. PDF is never attempted, and never faked, without a real converter — 
 test('storage: private bucket only, never a public URL, generated documents never exposed to the browser', async () => {
   const files = [
     'api/_lib/aivex-document-generation.js', 'api/_lib/aivex-document-store.js', 'api/_lib/aivex-document-template.js', 'api/aivex/register.js',
+    'api/aivex/document.js', 'src/lib/applicationSubmission.js', 'src/pages/aivex/register/RegistrationSuccess.jsx',
   ]
   for (const file of files) {
     const source = await read(file)
@@ -430,7 +432,7 @@ test('migration: additive, private bucket, correct constraints', async () => {
 })
 
 test('the document generator never uses the legacy V3 vocabulary or logs sensitive data', async () => {
-  const files = ['api/_lib/aivex-document-generation.js', 'api/_lib/aivex-document-store.js', 'api/_lib/aivex-document-template.js']
+  const files = ['api/_lib/aivex-document-generation.js', 'api/_lib/aivex-document-store.js', 'api/_lib/aivex-document-template.js', 'api/aivex/document.js']
   for (const file of files) {
     const source = await read(file)
     assert.doesNotMatch(source, /\b(nationalId|registrationNumber|studyLevel|isLeader)\b/, file)
@@ -526,6 +528,15 @@ function createSharedMemoryStores({ settings }) {
     async upsertDocumentRow(row) { db.documents.set(`${row.registration_id}:${row.document_type}`, row) },
     async removeDocumentFile(path) { db.files.delete(path) },
     async setDocumentStatus(registrationId, status) { find(registrationId).document_status = status },
+    async findRegistrationForDownload({ reference, submissionId }) {
+      const row = db.registrations.find((entry) => entry.submission_id === submissionId && entry.reference === reference)
+      return row ? { id: row.id, edition: row.edition, reference: row.reference } : null
+    },
+    async loadDocumentRow(registrationId, documentType) { return db.documents.get(`${registrationId}:${documentType}`) || null },
+    async downloadDocument(path) {
+      if (!db.files.has(path)) throw Object.assign(new Error('missing'), { stage: 'download', code: 404 })
+      return db.files.get(path).buffer
+    },
   }
   return { db, registrationStore, documentStore }
 }
@@ -587,8 +598,7 @@ test('e2e: a synthetic registration keeps the unchanged 201 contract and produce
   }
   assert.doesNotMatch(text, /student-\d\.png|studentCard/)
 
-  const pdf = db.documents.get(`${registration.id}:pdf`)
-  assert.deepEqual([pdf.generation_status, pdf.error_code], ['failed', 'pdf_conversion_not_configured'])
+  assert.deepEqual([...db.documents.keys()], [`${registration.id}:docx`], 'no pdf record is created')
 })
 
 test('e2e: replaying the same submissionId neither re-registers nor regenerates', async () => {
@@ -652,6 +662,173 @@ test('e2e: with no aivex_settings row yet, the document is still produced (editi
   const docx = db.documents.get(`${db.registrations[0].id}:docx`)
   const xml = await (await JSZip.loadAsync(db.files.get(docx.file_path).buffer)).file('word/document.xml').async('string')
   assert.doesNotMatch(xml, /\{\{/)
+})
+
+// =================================================================================
+// Download of the official Word document (api/aivex/document.js)
+// =================================================================================
+
+let downloadIp = 0
+function postDownload(handler, body, { raw, method = 'POST', headers = {} } = {}) {
+  const req = Readable.from([Buffer.from(raw ?? JSON.stringify(body))])
+  downloadIp += 1
+  Object.assign(req, {
+    method, socket: {},
+    headers: { 'content-type': 'application/json', 'x-forwarded-for': `203.0.113.${downloadIp % 250}`, ...headers },
+  })
+  return new Promise((resolve) => {
+    const res = {
+      headers: {},
+      setHeader(name, value) { this.headers[name.toLowerCase()] = value },
+      end(payload) {
+        const isJson = String(this.headers['content-type']).startsWith('application/json')
+        resolve({ status: this.statusCode, headers: this.headers, body: isJson ? JSON.parse(payload) : payload })
+      },
+    }
+    handler(req, res)
+  })
+}
+
+const downloadHandler = (stores) => createDocumentHandler({ createDocumentStore: () => stores.documentStore, now: () => NOW })
+
+async function registeredStores() {
+  const stores = createSharedMemoryStores({ settings: E2E_SETTINGS })
+  const { body } = await postRegistration(e2eHandler(stores), syntheticPayload())
+  return { stores, reference: body.reference }
+}
+
+test('download: the submitting browser gets the exact stored DOCX as a private, uncached attachment', async () => {
+  const { stores, reference } = await registeredStores()
+  const [path] = stores.db.files.keys()
+  const { status, headers, body } = await postDownload(downloadHandler(stores), { reference, submissionId: E2E_SUBMISSION_ID })
+  assert.equal(status, 200)
+  assert.equal(headers['content-type'], DOCX_MIME)
+  assert.equal(headers['content-disposition'], `attachment; filename="fiche-officielle-${reference}.docx"`)
+  assert.equal(headers['cache-control'], 'no-store')
+  assert.equal(headers['x-content-type-options'], 'nosniff')
+  assert.equal(Buffer.compare(body, stores.db.files.get(path).buffer), 0, 'byte-identical to the stored file')
+  const text = (await (await JSZip.loadAsync(body)).file('word/document.xml').async('string')).replace(/<[^>]+>/g, '')
+  assert.ok(text.includes(reference))
+  assert.equal(stores.db.files.size, 1, 'downloading never regenerates a settled document')
+})
+
+test('download: refused without the matching submissionId, with the same 404 for unknown and mismatched pairs', async () => {
+  const { stores, reference } = await registeredStores()
+  const handler = downloadHandler(stores)
+  const mismatched = await postDownload(handler, { reference, submissionId: '9b2f6c1e-3d4a-4b5c-8d6e-7f8091a2b3c4' })
+  const unknown = await postDownload(handler, { reference: 'AIVEX2-ZZZZZZZZ', submissionId: E2E_SUBMISSION_ID })
+  assert.equal(mismatched.status, 404)
+  assert.deepEqual(unknown.body, mismatched.body)
+  assert.equal(unknown.status, 404)
+  for (const bad of [{ reference }, { submissionId: E2E_SUBMISSION_ID }, { reference: 'x', submissionId: E2E_SUBMISSION_ID },
+    { reference, submissionId: 'not-a-uuid' }]) {
+    assert.equal((await postDownload(handler, bad)).status, 400)
+  }
+  assert.equal((await postDownload(handler, null, { raw: '{not json' })).status, 400)
+  const oversized = JSON.stringify({ reference, submissionId: E2E_SUBMISSION_ID, pad: 'x'.repeat(4096) })
+  assert.equal((await postDownload(handler, null, { raw: oversized })).status, 400)
+  const get = await postDownload(handler, null, { raw: '', method: 'GET' })
+  assert.equal(get.status, 405)
+  assert.equal(get.headers.allow, 'POST')
+  for (const response of [mismatched, unknown]) assert.doesNotMatch(JSON.stringify(response.body), /edition-|\.docx|registration_id|00000000-/)
+})
+
+test('download: a failed generation is retried on demand (claim-guarded) before answering; still failing -> 409, never a PDF', async () => {
+  const stores = createSharedMemoryStores({ settings: E2E_SETTINGS })
+  const { db, documentStore } = stores
+  const upload = documentStore.uploadDocument
+  documentStore.uploadDocument = async () => { throw Object.assign(new Error('storage down'), { statusCode: 503 }) }
+  const logged = console.error
+  console.error = () => {}
+  let reference, stillFailing
+  try {
+    reference = (await postRegistration(e2eHandler(stores), syntheticPayload())).body.reference
+    stillFailing = await postDownload(downloadHandler(stores), { reference, submissionId: E2E_SUBMISSION_ID })
+  } finally {
+    console.error = logged
+  }
+  assert.equal(stillFailing.status, 409)
+  assert.equal(db.registrations[0].document_status, 'generation_failed')
+
+  documentStore.uploadDocument = upload
+  const recovered = await postDownload(downloadHandler(stores), { reference, submissionId: E2E_SUBMISSION_ID })
+  assert.equal(recovered.status, 200)
+  assert.equal(db.registrations[0].document_status, 'awaiting_signature')
+  assert.deepEqual([...db.documents.keys()], [`${db.registrations[0].id}:docx`])
+})
+
+test('download: a storage failure answers 500 with no internals, and logs a stage and a code only', async () => {
+  const { stores, reference } = await registeredStores()
+  stores.documentStore.downloadDocument = async () => { throw Object.assign(new Error(`edition-2/secret/path ${reference}`), { stage: 'download', code: 503 }) }
+  const logs = []
+  const logged = console.error
+  console.error = (...args) => logs.push(args)
+  let response
+  try {
+    response = await postDownload(downloadHandler(stores), { reference, submissionId: E2E_SUBMISSION_ID })
+  } finally {
+    console.error = logged
+  }
+  assert.equal(response.status, 500)
+  assert.doesNotMatch(JSON.stringify(response.body), /edition-|secret|path/)
+  assert.deepEqual(logs, [['[aivex] Document download failed', { stage: 'download', code: 503 }]])
+})
+
+test('download: origin-checked and rate-limited like the registration endpoint', async () => {
+  const { stores, reference } = await registeredStores()
+  process.env.VERCEL = '1'
+  try {
+    const foreign = await postDownload(downloadHandler(stores), { reference, submissionId: E2E_SUBMISSION_ID },
+      { headers: { host: 'www.infinty-bba.com', origin: 'https://evil.example' } })
+    assert.equal(foreign.status, 403)
+  } finally {
+    delete process.env.VERCEL
+  }
+  const handler = downloadHandler(stores)
+  const statuses = []
+  for (let i = 0; i < 21; i += 1) {
+    statuses.push((await postDownload(handler, { reference, submissionId: E2E_SUBMISSION_ID }, { headers: { 'x-forwarded-for': '192.0.2.77' } })).status)
+  }
+  assert.ok(statuses.slice(0, 20).every((status) => status === 200))
+  assert.equal(statuses[20], 429)
+})
+
+test('download: the store reads the private bucket through the server client, by reference AND submissionId', async () => {
+  const { createSupabaseDocumentStore } = await import('../api/_lib/aivex-document-store.js')
+  const found = recordingSupabase({ data: { id: REGISTRATION_ID, edition: 2, reference: 'AIVEX2-7K3M9QXT' }, error: null })
+  await createSupabaseDocumentStore(found.client).findRegistrationForDownload({ reference: 'AIVEX2-7K3M9QXT', submissionId: E2E_SUBMISSION_ID })
+  assert.deepEqual(found.calls, [
+    ['db', 'from', 'aivex_registrations'],
+    ['db', 'select', 'id, edition, reference'],
+    ['db', 'eq', 'submission_id', E2E_SUBMISSION_ID],
+    ['db', 'eq', 'reference', 'AIVEX2-7K3M9QXT'],
+    ['db', 'eq', 'form_version', 4],
+    ['db', 'maybeSingle'],
+  ])
+  const file = recordingSupabase({ data: new Blob([Buffer.from('docx bytes')]), error: null })
+  const bytes = await createSupabaseDocumentStore(file.client).downloadDocument('edition-2/x/AIVEX2-7K3M9QXT.docx')
+  assert.equal(bytes.toString(), 'docx bytes')
+  assert.deepEqual(file.calls, [['storage', 'from', 'aivex-generated-forms'], ['storage', 'download', 'edition-2/x/AIVEX2-7K3M9QXT.docx']])
+})
+
+test('download: the frontend posts reference + submissionId (never in a URL) and shows the official French wording', async () => {
+  const client = await read('src/lib/applicationSubmission.js')
+  assert.match(client, /const AIVEX_DOCUMENT_ENDPOINT = '\/api\/aivex\/document'/)
+  assert.match(client, /body: JSON\.stringify\(\{ reference, submissionId \}\)/)
+  assert.doesNotMatch(client, /[?&]submissionId=|document\?/)
+  const { getRegistrationStrings } = await import('../src/pages/aivex/register/registrationI18n.js')
+  const fr = getRegistrationStrings('fr')
+  assert.equal(fr.successTitle.replace(/\.$/, ''), 'Inscription enregistrée avec succès')
+  assert.equal(fr.successDocumentReady, 'Votre fiche officielle a été générée au format Word.')
+  assert.equal(fr.successDownload, '📄 Télécharger la fiche officielle')
+  assert.equal(fr.successDownloadHint, 'Après téléchargement, veuillez convertir ou imprimer le document, puis le faire signer et cacheter par votre établissement conformément aux instructions de l’organisation.')
+  for (const lang of ['en', 'fr', 'ar']) {
+    const strings = getRegistrationStrings(lang)
+    for (const key of ['successDocumentReady', 'successDownload', 'successDownloading', 'successDownloadHint', 'successDownloadError']) {
+      assert.equal(typeof strings[key], 'string', `${lang}.${key}`)
+      assert.doesNotMatch(strings[key], /\bPDF\b/, `${lang}.${key}: the application never produces a PDF`)
+    }
+  }
 })
 
 // =================================================================================

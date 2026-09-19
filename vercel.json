@@ -4,6 +4,10 @@
     "api/aivex/register.js": {
       "maxDuration": 60,
       "includeFiles": "public/word-form/**"
+    },
+    "api/aivex/document.js": {
+      "maxDuration": 60,
+      "includeFiles": "public/word-form/**"
     }
   },
   "rewrites": [

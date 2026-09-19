@@ -111,5 +111,28 @@ export function createSupabaseDocumentStore(supabase) {
       const { error } = await supabase.from(REGISTRATIONS).update({ document_status: status }).eq('id', registrationId)
       if (error) throw new DocumentStoreError('set-status', error)
     },
+    // Download (api/aivex/document.js). A registration is only ever found by
+    // its public reference AND the submissionId the submitting browser
+    // generated — never by reference alone, which is printed on paper.
+    async findRegistrationForDownload({ reference, submissionId }) {
+      const { data, error } = await supabase.from(REGISTRATIONS).select('id, edition, reference')
+        .eq('submission_id', submissionId).eq('reference', reference).eq('form_version', 4).maybeSingle()
+      if (error) throw new DocumentStoreError('find-registration', error)
+      return data
+    },
+    async loadDocumentRow(registrationId, documentType) {
+      const { data, error } = await supabase.from(DOCUMENTS).select('generation_status, file_path, mime_type')
+        .eq('registration_id', registrationId).eq('document_type', documentType).maybeSingle()
+      if (error) throw new DocumentStoreError('load-document-row', error)
+      return data
+    },
+    // Read through the service-role client and streamed back by the
+    // function: no public URL, no signed URL, nothing that outlives the
+    // response.
+    async downloadDocument(path) {
+      const { data, error } = await bucket().download(path)
+      if (error || !data) throw new DocumentStoreError('download', error)
+      return Buffer.from(await data.arrayBuffer())
+    },
   }
 }

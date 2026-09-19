@@ -10,8 +10,9 @@
 //   -> validateStudentCardsV4 (presence, type, size, real image bytes)
 //   -> registerV4: idempotent on submissionId, aivex_registrations,
 //      private Storage, aivex_students (api/_lib/aivex-registration-v4.js)
-//   -> generateOfficialDocuments: best-effort DOCX/PDF generation
-//      (api/_lib/aivex-document-generation.js) — never changes the response
+//   -> generateOfficialDocuments: best-effort official DOCX generation
+//      (api/_lib/aivex-document-generation.js) — never changes the response;
+//      the browser then downloads it through api/aivex/document.js
 //   -> 201 { success: true, reference } | 200 replay { ..., alreadyProcessed }
 //
 // A v3 payload is refused with a 400 ("reload the page"), never converted.

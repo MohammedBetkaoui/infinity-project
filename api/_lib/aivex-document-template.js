@@ -35,11 +35,10 @@ const TEMPLATE_PATH = fileURLToPath(new URL('../../public/word-form/aivex-partic
 
 // Bumped whenever the template file itself changes shape (placeholders
 // added/removed, layout redone) — stored per generated document so an old
-// DOCX/PDF pair can always be traced back to the template that produced it.
+// DOCX can always be traced back to the template that produced it.
 export const AIVEX_TEMPLATE_VERSION = 'aivex-participation-template-01'
 
 export const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-export const PDF_MIME = 'application/pdf'
 
 let cachedTemplate = null
 
@@ -101,33 +100,4 @@ export async function renderRegistrationDocx(templateBuffer, data) {
   if (unusedData.length) throw new Error(`Data provided for placeholder(s) the template does not use: ${unusedData.join(', ')}`)
 
   return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE', compressionOptions: { level: 6 } })
-}
-
-// --- PDF ---------------------------------------------------------------
-//
-// Deliberately NOT implemented as a real conversion. A DOCX -> PDF pass
-// that keeps this template's layout (RTL Arabic, a bilingual mixed-script
-// table, an embedded signature/stamp block) needs a real Word rendering
-// engine: LibreOffice/soffice, or an external conversion API. Neither is
-// available here:
-//   - LibreOffice is not installed in this dev environment and is not a
-//     realistic addition to a standard Vercel Node serverless function
-//     (no container/custom runtime in this project, and shipping+invoking
-//     a headless office suite from a stock Node function is not something
-//     that deploys reliably on the current Vercel plan/tooling);
-//   - an external HTTP conversion API would work, but is a new paid/
-//     credentialed third-party dependency this phase has no authorization
-//     to add.
-// Rather than fake success (a byte-identical copy relabelled .pdf, or a
-// blank PDF), this returns a clear "not available" result. The caller
-// records that honestly (aivex_generated_documents.pdf row -> failed,
-// error_code 'pdf_conversion_not_configured') instead of lying about it.
-// The DOCX alone is the actual signable artifact for this template (its
-// last line is the signature/stamp block), so this does not block the
-// registration's document workflow — see aivex-document-generation.js.
-//
-// To wire in a real converter later: implement this function to return
-// { available: true, buffer }, and nothing else in the pipeline changes.
-export async function convertDocxToPdf() {
-  return { available: false, reason: 'pdf_conversion_not_configured' }
 }

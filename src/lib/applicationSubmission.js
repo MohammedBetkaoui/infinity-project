@@ -145,3 +145,44 @@ export async function submitAivexRegistrationV4({ payload, files, website }) {
     alreadyProcessed: result.alreadyProcessed === true,
   }
 }
+
+// Official AIVEX Word document (DOCX) of a delivered registration. POST, so
+// the submissionId — the proof that this browser sent the registration —
+// never lands in a URL, a history entry or a server access log. The file
+// comes back as the response body (the storage bucket stays private) and is
+// saved through a short-lived object URL revoked right after the click.
+const AIVEX_DOCUMENT_ENDPOINT = '/api/aivex/document'
+
+export async function downloadAivexOfficialDocument({ reference, submissionId }) {
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS * 5)
+  try {
+    let response
+    try {
+      response = await fetch(AIVEX_DOCUMENT_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document, application/json' },
+        body: JSON.stringify({ reference, submissionId }),
+        signal: controller.signal,
+      })
+    } catch (networkError) {
+      if (networkError?.name === 'AbortError') throw networkError
+      throw new Error('We could not reach the server. Please check your connection and try again.', { cause: networkError })
+    }
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}))
+      throw new Error(pickServerMessage(payload) || STATUS_FALLBACKS[response.status] || `The download endpoint returned ${response.status}.`)
+    }
+    const blob = await response.blob()
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `fiche-officielle-${reference}.docx`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  } finally {
+    window.clearTimeout(timeout)
+  }
+}

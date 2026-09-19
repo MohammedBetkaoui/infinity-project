@@ -263,6 +263,11 @@ html[data-page='aivex']::-webkit-scrollbar-thumb { border: 2px solid #1a1114; bo
 .axr-success-record .axr-success-ref { font-family: ui-monospace, monospace; font-size: 12px; letter-spacing: .08em; }
 .axr-success .axr-success-note { max-width: 50ch; margin-top: 22px; color: var(--af-muted); font-size: 12px; line-height: 1.8; }
 .axr-success .af-button { margin-top: 28px; }
+.axr-success-document { align-self: stretch; margin-top: 26px; padding: 18px 20px 20px; border: 1px solid var(--af-line-strong); border-inline-start: 3px solid var(--af-accent); }
+.axr-success-document-title { font-family: Rajdhani, sans-serif; font-size: 21px; font-weight: 600; line-height: 1.15; }
+.axr-success .axr-success-document .af-button { margin-top: 16px; }
+.axr-success-document-hint { max-width: 60ch; margin-top: 14px; color: var(--af-muted); font-size: 12px; line-height: 1.8; }
+.axr-success-document-error { margin-top: 12px; color: #b42318; font-size: 12px; line-height: 1.6; }
 .axr-paper-credit { display: flex; align-items: center; justify-content: flex-start; margin-top: 24px; padding-top: 18px; border-top: 1px solid #4f001d1f; color: #172f49; }
 /* Faculty lockup: always LTR + pinned left, even inside the Arabic (RTL) sheet. */
 .axr-form-paper[dir='rtl'] .axr-paper-credit { direction: ltr; justify-content: flex-start; text-align: left; }

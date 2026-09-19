@@ -71,7 +71,7 @@ if (!apply) {
 let failures = 0
 for (const row of pending) {
   const result = await generateOfficialDocuments({ store, registrationId: row.id, now: new Date() })
-  const outcome = !result.attempted ? `skipped (${result.reason})` : `docx ${result.docx ? 'generated' : 'FAILED'}, pdf ${result.pdf ? 'generated' : 'not generated'}`
+  const outcome = !result.attempted ? `skipped (${result.reason})` : `docx ${result.docx ? 'generated' : 'FAILED'}`
   if (result.attempted && !result.docx) failures += 1
   console.log(`  ${row.reference}  ${outcome}`)
 }
