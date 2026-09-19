@@ -44,6 +44,26 @@
 .axs-document-error { margin-top: 12px; color: #b42318; font-size: 12px; line-height: 1.6; }
 .axs-document-pending { margin-top: 22px; padding: 14px 16px; border: 1px dashed var(--af-line-strong); color: var(--af-muted); font-size: 12px; line-height: 1.7; }
 
+.axs-upload-received { margin-top: 26px; padding: 18px 20px 20px; border: 1px solid var(--af-line-strong); border-inline-start: 3px solid #2e7d32; }
+.axs-upload-received-title { font-family: Rajdhani, sans-serif; font-size: 18px; font-weight: 600; }
+.axs-upload-received-meta { margin-top: 6px; font-family: ui-monospace, monospace; font-size: 11px; color: var(--af-muted); }
+.axs-upload-received-note { max-width: 60ch; margin-top: 10px; color: var(--af-muted); font-size: 12px; line-height: 1.7; }
+
+.axs-upload { margin-top: 22px; padding: 18px 20px 20px; border: 1px dashed var(--af-line-strong); }
+.axs-upload-title { font-family: Rajdhani, sans-serif; font-size: 18px; font-weight: 600; }
+.axs-upload-instructions, .axs-upload-meta { max-width: 60ch; margin-top: 8px; color: var(--af-muted); font-size: 12px; line-height: 1.7; }
+.axs-upload-meta { font-size: 11px; text-transform: uppercase; letter-spacing: .03em; }
+.axs-upload-input { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); }
+.axs-upload label.af-button { display: inline-flex; margin-top: 14px; cursor: pointer; }
+.axs-upload label.af-button[data-disabled] { pointer-events: none; opacity: .6; }
+.axs-upload-picked { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; font-size: 12px; }
+.axs-upload-picked span:first-child { font-weight: 650; overflow-wrap: anywhere; }
+.axs-upload-picked span:last-child { color: var(--af-muted); }
+.axs-upload-issue { margin-top: 10px; color: var(--af-danger); font-size: 11px; }
+.axs-upload .af-button-primary { display: inline-flex; margin-top: 14px; }
+.axs-upload-error { margin-top: 12px; color: #b42318; font-size: 12px; line-height: 1.6; }
+.axs-upload-success { margin-top: 12px; color: #2e7d32; font-size: 12px; font-weight: 650; line-height: 1.6; }
+
 @media (max-width: 640px) {
   .axs-record > div { grid-template-columns: 105px minmax(0, 1fr); }
 }

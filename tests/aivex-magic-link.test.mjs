@@ -602,20 +602,8 @@ test('frontend: /aivex/status is routed, and every required state has FR/EN/AR s
   assert.equal(getStatusStrings('fr').downloadButton, '📄 Télécharger la fiche officielle')
 })
 
-test('Phase 5B is not implemented: no signed-document upload, no aivex-signed-forms bucket, no admin review', async () => {
-  const files = [
-    'api/_lib/aivex-magic-link.js', 'api/_lib/aivex-magic-link-store.js', 'api/aivex/magic-link.js',
-    'api/aivex/magic-link/verify.js', 'api/aivex/magic-link/document.js', 'src/pages/aivex/status/AivexStatusPage.jsx',
-  ]
-  for (const file of files) {
-    const source = await read(file)
-    // Displaying the existing 'signed_document_uploaded' status label (a
-    // pre-existing enum value, per the brief: "Phase 5A only needs to
-    // display existing relevant states") is fine; actual upload plumbing —
-    // a file input, a signed-document bucket, an upload/admin endpoint — is not.
-    assert.doesNotMatch(source, /aivex-signed-forms/i, file)
-    assert.doesNotMatch(source, /type=["']file["']/i, file)
-    assert.doesNotMatch(source, /\/api\/aivex\/(signed|admin)/i, file)
-    assert.doesNotMatch(source, /correction.?workflow/i, file)
-  }
-})
+// Phase 5B (signed-document upload) is now implemented — see
+// tests/aivex-signed-document.test.mjs, including its own guard for what
+// Phase 5B itself must NOT contain (admin review, OCR, payment, etc.). The
+// test that used to assert "no upload exists yet" was removed here because
+// that premise is no longer true, not because the check was weakened.

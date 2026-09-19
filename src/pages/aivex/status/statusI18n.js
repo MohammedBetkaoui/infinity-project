@@ -64,6 +64,34 @@ const en = {
   downloadButton: '📄 Download the official form',
   downloading: 'Preparing the download…',
   downloadError: 'The download failed. Please try again in a moment; if it keeps failing, contact the organisers with your reference.',
+
+  sizeUnit: 'MB',
+  uploadSectionTitle: 'Submit the signed document',
+  uploadInstructions: 'Once printed, signed and stamped by your institution, scan or photograph the document and submit it here.',
+  uploadSupportedFormats: 'Accepted formats: PDF, JPG, JPEG, PNG',
+  uploadMaxSize: 'Maximum size: 10 MB',
+  uploadChooseFile: 'Choose a file',
+  uploadReplaceFile: 'Choose a different file',
+  uploadSubmit: 'Submit the signed document',
+  uploadSubmitting: 'Sending…',
+  uploadFileIssues: {
+    type: 'Unsupported format. Please use a PDF, JPG or PNG file.',
+    size: 'This file is larger than the 10 MB limit.',
+    empty: 'This file is empty.',
+    missing: 'Please choose a file.',
+  },
+  uploadErrors: {
+    document_not_ready: 'The official document is not ready yet, so a signed copy cannot be submitted at this time.',
+    invalid: 'This link is not valid. Please reopen the page from your original Magic Link.',
+    expired: 'This link has expired. Please contact the organisers with your reference.',
+    revoked: 'This link is no longer active. Please use the most recent link you received.',
+    network: 'We could not reach the server. Please check your connection and try again.',
+    error: 'The upload failed. Please try again in a moment; if it keeps failing, contact the organisers with your reference.',
+  },
+  uploadSuccessTitle: 'Your signed document has been received.',
+  uploadReceivedTitle: 'Signed document received',
+  uploadReceivedVersion: ({ version }) => `Version ${version}`,
+  uploadReceivedNote: 'This confirms receipt only — the organisers have not yet reviewed it.',
 }
 
 const fr = {
@@ -125,6 +153,34 @@ const fr = {
   downloadButton: '📄 Télécharger la fiche officielle',
   downloading: 'Préparation du téléchargement…',
   downloadError: 'Le téléchargement a échoué. Réessayez dans un instant ; si le problème persiste, contactez les organisateurs avec votre référence.',
+
+  sizeUnit: 'Mo',
+  uploadSectionTitle: 'Déposer le document signé',
+  uploadInstructions: 'Une fois imprimé, signé et cacheté par votre établissement, scannez ou photographiez le document et déposez-le ici.',
+  uploadSupportedFormats: 'Formats acceptés : PDF, JPG, JPEG, PNG',
+  uploadMaxSize: 'Taille maximale : 10 Mo',
+  uploadChooseFile: 'Choisir un fichier',
+  uploadReplaceFile: 'Choisir un autre fichier',
+  uploadSubmit: 'Envoyer le document signé',
+  uploadSubmitting: 'Envoi en cours…',
+  uploadFileIssues: {
+    type: 'Format non pris en charge. Utilisez un fichier PDF, JPG ou PNG.',
+    size: 'Ce fichier dépasse la limite de 10 Mo.',
+    empty: 'Ce fichier est vide.',
+    missing: 'Veuillez choisir un fichier.',
+  },
+  uploadErrors: {
+    document_not_ready: 'Le document officiel n’est pas encore prêt : impossible de déposer une version signée pour le moment.',
+    invalid: 'Ce lien n’est pas valide. Merci de rouvrir la page depuis votre lien d’accès d’origine.',
+    expired: 'Ce lien a expiré. Merci de contacter les organisateurs avec votre référence.',
+    revoked: 'Ce lien n’est plus actif. Merci d’utiliser le dernier lien reçu.',
+    network: 'Nous n’avons pas pu joindre le serveur. Vérifiez votre connexion et réessayez.',
+    error: 'L’envoi a échoué. Réessayez dans un instant ; si le problème persiste, contactez les organisateurs avec votre référence.',
+  },
+  uploadSuccessTitle: 'Votre document signé a bien été reçu.',
+  uploadReceivedTitle: 'Document signé reçu',
+  uploadReceivedVersion: ({ version }) => `Version ${version}`,
+  uploadReceivedNote: 'Ceci confirme uniquement la réception : les organisateurs ne l’ont pas encore examiné.',
 }
 
 const ar = {
@@ -186,6 +242,34 @@ const ar = {
   downloadButton: '📄 تحميل الاستمارة الرسمية',
   downloading: 'جارٍ تحضير التحميل…',
   downloadError: 'تعذّر التحميل. حاولوا مجدداً بعد لحظات؛ وإذا استمر المشكل، اتصلوا بالمنظمين مع ذكر المرجع.',
+
+  sizeUnit: 'ميغابايت',
+  uploadSectionTitle: 'إيداع الوثيقة الموقّعة',
+  uploadInstructions: 'بعد طباعتها وتوقيعها وختمها من طرف مؤسستكم، امسحوها ضوئياً أو صوّروها ثم أودعوها هنا.',
+  uploadSupportedFormats: 'الصيغ المقبولة: PDF، JPG، JPEG، PNG',
+  uploadMaxSize: 'الحجم الأقصى: 10 ميغابايت',
+  uploadChooseFile: 'اختيار ملف',
+  uploadReplaceFile: 'اختيار ملف آخر',
+  uploadSubmit: 'إرسال الوثيقة الموقّعة',
+  uploadSubmitting: 'جارٍ الإرسال…',
+  uploadFileIssues: {
+    type: 'صيغة غير مدعومة. استخدموا ملف PDF أو JPG أو PNG.',
+    size: 'حجم هذا الملف يتجاوز الحد الأقصى البالغ 10 ميغابايت.',
+    empty: 'هذا الملف فارغ.',
+    missing: 'يرجى اختيار ملف.',
+  },
+  uploadErrors: {
+    document_not_ready: 'الوثيقة الرسمية غير جاهزة بعد: لا يمكن إيداع نسخة موقّعة حالياً.',
+    invalid: 'هذا الرابط غير صالح. يرجى إعادة فتح الصفحة من رابط الوصول الأصلي.',
+    expired: 'انتهت صلاحية هذا الرابط. يرجى الاتصال بالمنظمين مع ذكر المرجع.',
+    revoked: 'هذا الرابط لم يعد نشطاً. يرجى استخدام آخر رابط تلقيتموه.',
+    network: 'تعذّر الوصول إلى الخادم. تحققوا من اتصالكم وحاولوا مجدداً.',
+    error: 'تعذّر الإرسال. حاولوا مجدداً بعد لحظات؛ وإذا استمر المشكل، اتصلوا بالمنظمين مع ذكر المرجع.',
+  },
+  uploadSuccessTitle: 'تم استلام وثيقتكم الموقّعة بنجاح.',
+  uploadReceivedTitle: 'الوثيقة الموقّعة مستلَمة',
+  uploadReceivedVersion: ({ version }) => `النسخة ${version}`,
+  uploadReceivedNote: 'هذا يؤكد الاستلام فقط: لم يقم المنظمون بمراجعتها بعد.',
 }
 
 export const statusStrings = { en, fr, ar }

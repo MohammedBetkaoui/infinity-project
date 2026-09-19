@@ -26,12 +26,18 @@ export function parseMultipart(req, limits) {
     allowedFields,
     fileFieldPattern,
     maxFieldBytes = 64 * 1024,
+    // Both messages default to their original, exact wording so every
+    // existing caller (api/aivex/register.js) is unaffected — only a
+    // caller with a different file policy (api/aivex/magic-link/upload.js,
+    // whose limit is 10 MB, not 5) needs to override either of these.
+    contentTypeMessage = 'Registrations must be sent as multipart/form-data.',
+    fileSizeMessage = 'Each student card must be 5 MB or smaller.',
   } = limits
 
   return new Promise((resolve, reject) => {
     const contentType = req.headers?.['content-type'] || ''
     if (!/^multipart\/form-data;/i.test(contentType)) {
-      reject(new MultipartError(415, 'Registrations must be sent as multipart/form-data.'))
+      reject(new MultipartError(415, contentTypeMessage))
       return
     }
 
@@ -99,7 +105,7 @@ export function parseMultipart(req, limits) {
       })
       stream.on('limit', () => {
         truncated = true
-        fail(413, 'Each student card must be 5 MB or smaller.')
+        fail(413, fileSizeMessage)
       })
       stream.on('close', () => {
         if (settled || truncated) return

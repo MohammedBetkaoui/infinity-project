@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import InfinityClubMark from '../../../components/InfinityClubMark'
+import { UPLOAD_ELIGIBLE_DOCUMENT_STATUSES } from '../../../../shared/aivex/signed-document-policy.js'
 import AivexLogoMark from '../AivexLogoMark'
 import { REGISTER_LANGS, REGISTER_LANG_STORAGE_KEY, getStatusStrings } from './statusI18n'
 import useAivexStatus from './useAivexStatus'
@@ -48,10 +49,65 @@ function OfficialDocument({ documentStatus, download, downloading, downloadError
   )
 }
 
-// DOCUMENT READY / REGISTRATION AVAILABLE BUT DOCUMENT NOT READY both render
-// through here — the distinction is just which branch of OfficialDocument
-// above applies for the current document_status.
-function ValidCard({ data, download, downloading, downloadError, t }) {
+// Read-only confirmation of the current signed-document version already on
+// file — RECEIVED only, never "validated" (section 16 of the Phase 5B
+// brief): no admin review exists yet, and this page never implies one has
+// happened.
+function SignedDocumentReceived({ signedDocument, t }) {
+  return (
+    <div className="axs-upload-received" role="status">
+      <p className="axs-upload-received-title">{t.uploadReceivedTitle}</p>
+      <p className="axs-upload-received-meta">{t.uploadReceivedVersion({ version: signedDocument.version })}</p>
+      <p className="axs-upload-received-note">{t.uploadReceivedNote}</p>
+    </div>
+  )
+}
+
+// The upload form itself. Client-side file checks (extension/size, via
+// upload.issue) are a UX hint only — the server re-validates everything,
+// including the magic bytes a browser cannot read (Phase 5B brief, §18).
+function SignedDocumentUpload({ upload, hasExisting, selectSignedDocument, submitSignedDocument, t }) {
+  const busy = upload.status === 'uploading'
+  const handleChange = (event) => {
+    const file = event.target.files?.[0]
+    if (file) selectSignedDocument(file)
+    event.target.value = '' // allow picking the exact same file again after an error
+  }
+
+  return (
+    <section className="axs-upload" aria-labelledby="axs-upload-title">
+      <p id="axs-upload-title" className="axs-upload-title">{t.uploadSectionTitle}</p>
+      <p className="axs-upload-instructions">{t.uploadInstructions}</p>
+      <p className="axs-upload-meta">{t.uploadSupportedFormats} · {t.uploadMaxSize}</p>
+
+      <input type="file" id="axs-upload-input" className="axs-upload-input" disabled={busy}
+        accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={handleChange} />
+      <label htmlFor="axs-upload-input" className="af-button af-button-secondary" data-disabled={busy ? '' : undefined}>
+        {hasExisting ? t.uploadReplaceFile : t.uploadChooseFile}
+      </label>
+
+      {upload.file && (
+        <p className="axs-upload-picked">
+          <span>{upload.file.name}</span>
+          <span>{(upload.file.size / (1024 * 1024)).toFixed(2)} {t.sizeUnit}</span>
+        </p>
+      )}
+      {upload.issue && <p className="axs-upload-issue" role="alert">{t.uploadFileIssues[upload.issue] || t.uploadFileIssues.missing}</p>}
+
+      {upload.file && !upload.issue && (
+        <button type="button" className="af-button af-button-primary" onClick={submitSignedDocument} disabled={busy} aria-busy={busy}>
+          {busy ? t.uploadSubmitting : t.uploadSubmit}
+        </button>
+      )}
+
+      {upload.status === 'error' && <p className="axs-upload-error" role="alert">{t.uploadErrors[upload.message] || t.uploadErrors.error}</p>}
+      {upload.status === 'success' && <p className="axs-upload-success" role="status">{t.uploadSuccessTitle}</p>}
+    </section>
+  )
+}
+
+function ValidCard({ data, download, downloading, downloadError, upload, selectSignedDocument, submitSignedDocument, t }) {
+  const uploadEligible = UPLOAD_ELIGIBLE_DOCUMENT_STATUSES.includes(data.documentStatus)
   return (
     <div className="axs-card" role="status">
       <span className="axs-kicker">{t.validKicker}</span>
@@ -68,6 +124,14 @@ function ValidCard({ data, download, downloading, downloadError, t }) {
       </dl>
 
       <OfficialDocument documentStatus={data.documentStatus} download={download} downloading={downloading} downloadError={downloadError} t={t} />
+
+      {uploadEligible && (
+        <>
+          {data.signedDocument && <SignedDocumentReceived signedDocument={data.signedDocument} t={t} />}
+          <SignedDocumentUpload upload={upload} hasExisting={Boolean(data.signedDocument)}
+            selectSignedDocument={selectSignedDocument} submitSignedDocument={submitSignedDocument} t={t} />
+        </>
+      )}
     </div>
   )
 }
@@ -75,7 +139,7 @@ function ValidCard({ data, download, downloading, downloadError, t }) {
 export default function AivexStatusPage() {
   const [lang, setLang] = useState(readLang)
   const t = getStatusStrings(lang)
-  const { status, data, download, downloading, downloadError } = useAivexStatus()
+  const { status, data, download, downloading, downloadError, upload, selectSignedDocument, submitSignedDocument } = useAivexStatus()
 
   useEffect(() => {
     try {
@@ -133,7 +197,8 @@ export default function AivexStatusPage() {
             </div>
 
             {status === 'valid'
-              ? <ValidCard data={data} download={download} downloading={downloading} downloadError={downloadError} t={t} />
+              ? <ValidCard data={data} download={download} downloading={downloading} downloadError={downloadError}
+                  upload={upload} selectSignedDocument={selectSignedDocument} submitSignedDocument={submitSignedDocument} t={t} />
               : <MessageCard title={messages[status]?.[0] || t.serverErrorTitle} text={messages[status]?.[1] || t.serverErrorText} />}
           </div>
         </div>

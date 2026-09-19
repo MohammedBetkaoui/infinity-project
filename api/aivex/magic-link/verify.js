@@ -16,10 +16,18 @@
 // The response never carries the raw token, an internal id, a Storage path
 // or a Supabase URL — only what src/pages/aivex/status needs to render.
 // Logs carry a stage and a code only.
+//
+// Phase 5B addition (the only change to this file): when a signed document
+// has been received, the response also carries its version and upload
+// timestamp — never the file, the storage path, or anything about earlier
+// versions. Absent whenever none has been uploaded yet, so every existing
+// response shape (document_status still 'awaiting_signature' or earlier)
+// is byte-for-byte unchanged.
 
 import { createClient } from '@supabase/supabase-js'
 import { resolveMagicLink } from '../../_lib/aivex-magic-link.js'
 import { createSupabaseMagicLinkStore } from '../../_lib/aivex-magic-link-store.js'
+import { createSupabaseSignedDocumentStore } from '../../_lib/aivex-signed-document-store.js'
 import { readJsonBody, sendJson as send } from '../../_lib/http.js'
 import { consumeRateLimit, getClientIp, isTrustedOrigin } from '../../_lib/security.js'
 
@@ -35,7 +43,16 @@ function createDefaultMagicLinkStore() {
   return createSupabaseMagicLinkStore(createClient(supabaseUrl, supabaseSecret, { auth: { persistSession: false, autoRefreshToken: false } }))
 }
 
-export function createMagicLinkVerifyHandler({ createMagicLinkStore = createDefaultMagicLinkStore, now = () => new Date() } = {}) {
+function createDefaultSignedDocumentStore() {
+  const supabaseUrl = process.env.SUPABASE_URL
+  const supabaseSecret = process.env.SUPABASE_SECRET_KEY
+  if (!supabaseUrl || !supabaseSecret) return null
+  return createSupabaseSignedDocumentStore(createClient(supabaseUrl, supabaseSecret, { auth: { persistSession: false, autoRefreshToken: false } }))
+}
+
+export function createMagicLinkVerifyHandler({
+  createMagicLinkStore = createDefaultMagicLinkStore, createSignedDocumentStore = createDefaultSignedDocumentStore, now = () => new Date(),
+} = {}) {
   return async function handler(req, res) {
     if (req.method !== 'POST') {
       res.setHeader('Allow', 'POST')
@@ -86,6 +103,14 @@ export function createMagicLinkVerifyHandler({ createMagicLinkStore = createDefa
         console.error('[aivex] Magic link touch failed', { stage: 'touch', code: error?.code })
       })
 
+      let signedDocument
+      if (registration.document_status === 'signed_document_uploaded') {
+        stage = 'load-signed-document'
+        const signedDocumentStore = createSignedDocumentStore()
+        const latest = signedDocumentStore ? await signedDocumentStore.latestForCandidate(resolved.registrationId) : null
+        if (latest) signedDocument = { version: latest.version, uploadedAt: latest.uploaded_at }
+      }
+
       send(res, 200, {
         success: true,
         status: 'valid',
@@ -96,6 +121,7 @@ export function createMagicLinkVerifyHandler({ createMagicLinkStore = createDefa
         studentCount: registration.student_count,
         registrationStatus: registration.registration_status,
         documentStatus: registration.document_status,
+        ...(signedDocument ? { signedDocument } : {}),
       })
     } catch (error) {
       console.error('[aivex] Magic link verification failed', { stage: error?.stage || stage, code: error?.code })
