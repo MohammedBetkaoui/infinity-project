@@ -9,13 +9,14 @@ export default function useAivexExperience(pageRef, ready) {
   const introPlayed = useRef(false)
   useScrollAnimations(pageRef, (motion) => {
     const root = pageRef.current
-    // Every section shares one text choreography (rise on entry, dissolve only
-    // behind the fixed ax-header) — not just the big h2 titles. Display nodes
-    // use word masks, body copy uses line illumination; both exit at
-    // `bottom top+=96` so nothing fades mid-viewport.
+    // Every section shares the Home presence choreography (rise on entry the
+    // moment the block is on screen, hide only once fully out of view) — not
+    // just the big h2 titles. Display nodes use word masks, body copy uses
+    // line illumination; the scrubbed gallery, scene and code study keep
+    // their own motion (see below).
     // Sticky companions first: the gallery and preparation intros stay pinned
-    // below the header while their document position travels on, so a scrubbed
-    // exit would dissolve them mid-screen. They enter once (`once: true`) and
+    // below the header while their document position travels on, so any exit
+    // would dissolve them mid-screen. They enter once (`once: true`) and
     // hold — the header masks them naturally when they finally release.
     root.querySelectorAll('.ax-gallery-intro h2, .ax-preparation-intro h2')
       .forEach((title) => motion.revealText(title, { once: true }))
@@ -103,9 +104,7 @@ export default function useAivexExperience(pageRef, ready) {
     motion.revealSection('.ax-fact', { mode: 'depth', trigger: '.ax-facts', stagger: .08 })
     motion.revealSection('.ax-preparation-item', { mode: 'depth', trigger: '.ax-preparation-list', stagger: .06 })
     motion.revealSection('.ax-faq-item', { mode: 'depth', trigger: '.ax-faq-list', stagger: .06 })
-    motion.revealSection('.ax-footer-home', {
-      mode: 'depth', start: 'clamp(top 99%)', end: 'clamp(bottom bottom)',
-    })
+    motion.revealSection('.ax-footer-home', { mode: 'depth' })
     motion.revealAllText()
     motion.parallaxElement('.ax-footer-cross', -.16, { rotation: 9 })
   }, { enabled: ready })

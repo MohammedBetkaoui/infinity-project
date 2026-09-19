@@ -114,10 +114,10 @@ export default function App() {
         <Route path="/aivex/status" element={<Suspense fallback={null}><AivexStatusPage /></Suspense>} />
         <Route path="/aivex" element={<AivexRoute />} />
         <Route path="/join" element={<SitePage><Suspense fallback={<p className="page-container py-40" role="status">Opening the application...</p>}><JoinPage /></Suspense></SitePage>} />
-        <Route path="/about" element={<SitePage><AboutPage /></SitePage>} />
-        <Route path="/events" element={<SitePage><EventsPage /></SitePage>} />
-        <Route path="/community" element={<SitePage><Suspense fallback={<p className="page-container py-40" role="status">Opening the community...</p>}><CommunityPage /></Suspense></SitePage>} />
-        <Route path="/contact" element={<SitePage><Suspense fallback={<p className="page-container py-40" role="status">Opening contact...</p>}><ContactPage /></Suspense></SitePage>} />
+        <Route path="/about" element={<SitePage motionTrigger="viewport"><AboutPage /></SitePage>} />
+        <Route path="/events" element={<SitePage motionTrigger="viewport"><EventsPage /></SitePage>} />
+        <Route path="/community" element={<SitePage motionTrigger="viewport"><Suspense fallback={<p className="page-container py-40" role="status">Opening the community...</p>}><CommunityPage /></Suspense></SitePage>} />
+        <Route path="/contact" element={<SitePage motionTrigger="viewport"><Suspense fallback={<p className="page-container py-40" role="status">Opening contact...</p>}><ContactPage /></Suspense></SitePage>} />
       <Route path="/" element={<HomeRoute />} />
       <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

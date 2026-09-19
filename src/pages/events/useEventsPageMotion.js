@@ -1,7 +1,7 @@
 import useScrollAnimations from '../../hooks/useScrollAnimations'
 
-// Same scrubbed, reversible choreography as the rest of the site: headings
-// rise, copy illuminates, and each year's cards fade in as that year arrives.
+// Same viewport presence choreography as Home: headings rise, copy
+// illuminates, and each year's cards fade in as that year arrives.
 export default function useEventsPageMotion(pageRef) {
   useScrollAnimations(pageRef, ({ revealText, revealSection, revealAllText }) => {
     const page = pageRef.current

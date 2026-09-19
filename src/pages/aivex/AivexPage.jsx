@@ -29,7 +29,7 @@ export default function AivexPage({ ready, onReady }) {
       <div className="aivex-page" ref={pageRef}>
         <a className="ax-skip" href="#ax-main">Skip to content</a>
         <AivexHeader />
-        <main id="ax-main" tabIndex={-1}>
+        <main id="ax-main" tabIndex={-1} data-motion-trigger="viewport">
           <AivexHero />
           <AivexGallery ready={ready} />
           <AivexApproach />

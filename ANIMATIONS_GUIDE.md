@@ -177,18 +177,25 @@ bas niveau, reserver soi-meme la largeur du conteneur de texte.
 
 ## Scenes integrees
 
-- Home : logo en profondeur, pin court, titres par mots, visuel AIVEX devoile,
-  mosaique a plusieurs vitesses, FAQ (questions, réponses et cartes en
-  chorégraphie AIVEX) et sortie de page. Pôles : onglets,
+- Home, About, Community, Events, Contact et AIVEX : presence viewport
+  (attribut `data-motion-trigger="viewport"` sur le `<main>`) — titres mot
+  par mot, paragraphes ligne par ligne, environ une seconde, rejoues en
+  remontant.
+  Home garde en plus son pin (logo en profondeur, visuel AIVEX devoile,
+  mosaique a plusieurs vitesses, FAQ et sortie de page). Pôles : onglets,
   carte atelier et liens avec la chorégraphie AIVEX (display/reading, depth).
-- About : reveals editoriaux et signal qui parcourt les etapes du projet.
-- Community : entrees des cadres, parallax exterieur et carrousel 3D interieur
-  independant, avec navigation clavier et lightbox conservees.
-- Events et Contact : grands titres lisibles, visuels et lignes de contenu
-  animes sans ajouter de hauteur artificielle.
-- AIVEX : galerie pilotee par ScrollTrigger. Les quickSetters GSAP mettent a
+  Sur About, le signal qui parcourt les etapes du projet et les progressions
+  d'etapes restent scrubbes ; sur Community, le parallax exterieur des cadres
+  reste scrubbe et le carrousel 3D interieur garde son horloge Framer
+  independante (navigation clavier et lightbox conservees) ; sur Contact, le
+  trait du repertoire reste scrubbe.
+- AIVEX : textes et cartes en presence viewport comme Home ; les intros
+  collees (galerie, preparation) entrent une fois et tiennent (`once: true`).
+  La galerie reste pilotee par ScrollTrigger. Les quickSetters GSAP mettent a
   jour images, miniatures et progression. La MotionValue partage la position
   avec les controles manuels ; elle n'ecoute plus le scroll via Framer.
+  L'intro du hero, la barre de progression, le parallax du footer et la
+  scene 3D gardent leurs horloges dediees.
 - Navigation : fond transparent en haut, fond lisible apres 24 px. Barre de
   progression du document et curseur optionnel, sans retirer le pointeur natif.
 
