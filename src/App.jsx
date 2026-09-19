@@ -24,12 +24,12 @@ const AivexStatusPage = lazy(() => import('./pages/aivex/status/AivexStatusPage'
 // Back-office: its own chunk, so none of it ships with the public site.
 const AdminApp = lazy(() => import('./admin/AdminApp'))
 
-function SitePage({ children, mainRef }) {
+function SitePage({ children, mainRef, motionTrigger }) {
   return (
       <div className="min-h-screen overflow-clip bg-background text-text-primary">
         <ScrollExperience />
         <Navbar />
-        <main ref={mainRef}>{children}</main>
+        <main ref={mainRef} data-motion-trigger={motionTrigger}>{children}</main>
         <Footer />
       </div>
   )
@@ -38,8 +38,9 @@ function SitePage({ children, mainRef }) {
 function HomePage() {
   const mainRef = useRef(null)
   useHomeScrollMotion(mainRef)
+  // Home text reveals on presence: readable the moment it is on screen.
   return (
-    <SitePage mainRef={mainRef}>
+    <SitePage mainRef={mainRef} motionTrigger="viewport">
       <Hero />
       <Poles />
       <Events />

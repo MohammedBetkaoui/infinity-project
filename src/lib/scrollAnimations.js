@@ -1,10 +1,55 @@
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { SplitText } from 'gsap/SplitText'
-import { SCROLL_MOTION } from './animationSettings'
+import { SCROLL_MOTION, VIEWPORT_MOTION } from './animationSettings'
 import { requestScrollRefresh } from './scrollRefresh'
+import { watchPresence } from './viewportPresence'
 
 gsap.registerPlugin(ScrollTrigger, SplitText)
+
+// A page opts into viewport-triggered reveals by marking a region with
+// data-motion-trigger="viewport" (Home marks its <main>). Every scope inside
+// it — the page hook, AnimatedText, ScrollReveal, the FAQ and poles — then
+// reveals on presence instead of scroll distance, with no per-call option.
+const viewportDriven = (node) => !!node?.closest?.('[data-motion-trigger="viewport"]')
+
+// Viewport-triggered text: the heroes' masked rise, played on a clock the
+// moment the block is on screen. Headings rise word by word; body copy rises
+// line by line, so a whole paragraph is readable within a second.
+function watchText(target, instance, reading) {
+  // Own copies: SplitText empties and refills its arrays in place on revert
+  // and re-split, which would retarget a watcher that kept the live array.
+  const words = [...instance.words]
+  const lines = [...instance.lines]
+  const step = (count, each) => Math.min(each, VIEWPORT_MOTION.staggerMax / Math.max(1, count - 1))
+  const exit = { duration: VIEWPORT_MOTION.exitDuration, ease: 'power2.in' }
+  if (!reading) {
+    gsap.set(words, { transformOrigin: '0% 100%' })
+    return watchPresence(target, {
+      animated: words, exit,
+      hidden: (side) => side === 'above'
+        ? { yPercent: -118, rotation: -4, opacity: 0 }
+        : { yPercent: 118, rotation: SCROLL_MOTION.displayTilt, opacity: 0 },
+      shown: { yPercent: 0, rotation: 0, opacity: 1 },
+      enter: {
+        duration: VIEWPORT_MOTION.displayDuration, ease: VIEWPORT_MOTION.ease,
+        stagger: step(words.length, VIEWPORT_MOTION.displayStagger),
+      },
+    })
+  }
+  const lineOf = new Map()
+  lines.forEach((line, index) => line.querySelectorAll('.motion-text-word').forEach((word) => lineOf.set(word, index)))
+  const lineStep = step(lines.length, VIEWPORT_MOTION.lineStagger)
+  return watchPresence(target, {
+    animated: words, exit,
+    hidden: (side) => ({ yPercent: side === 'above' ? -110 : 110, opacity: 0 }),
+    shown: { yPercent: 0, opacity: 1 },
+    enter: {
+      duration: VIEWPORT_MOTION.readingDuration, ease: VIEWPORT_MOTION.ease,
+      stagger: (index, word) => (lineOf.get(word) || 0) * lineStep,
+    },
+  })
+}
 
 // One choreography on every viewport: phones play the same masked rises,
 // tilts, depth, wipes and parallax as desktop. `compact` survives only as an
@@ -34,9 +79,13 @@ export function createScrollAnimations(scope, { reduced, canPin }) {
   function revealText(ref, options = {}) {
     const target = element(ref)
     if (!target || reduced || target.dataset.motionText) return null
-    if (options.scroll !== false && !options.once && target.closest(STICKY_TEXT_SCOPE)) {
+    // Presence ignores trigger/start/end/scrub/drift: the block itself is the
+    // trigger, and sticky blocks need no special case (the observer sees them).
+    const viewport = options.scroll !== false && !options.once && viewportDriven(target)
+    if (!viewport && options.scroll !== false && !options.once && target.closest(STICKY_TEXT_SCOPE)) {
       options = { ...options, once: true }
     }
+    let unwatch = null
     // Display headings rise word by word inside line masks; body copy
     // illuminates word by word like an editorial reading state.
     const reading = (options.type || 'words') !== 'words'
@@ -77,6 +126,14 @@ export function createScrollAnimations(scope, { reduced, canPin }) {
           })
           requestScrollRefresh()
           return once
+        }
+        // A re-split (resize, late font) rebuilds the words; presence state
+        // is remembered per block, so on-screen text simply stays shown.
+        if (viewport) {
+          unwatch?.()
+          unwatch = watchText(target, instance, reading)
+          requestScrollRefresh()
+          return null
         }
         // Scroll-driven scenes: one scrubbed timeline covers entry AND exit,
         // so scrolling back up replays the hide in reverse. This is what
@@ -157,8 +214,67 @@ export function createScrollAnimations(scope, { reduced, canPin }) {
         return scene
       },
     })
-    cleanups.push(() => split.revert())
+    cleanups.push(() => { unwatch?.(); split.revert() })
     return split
+  }
+
+  // A solid curtain uncovers the content using transform only. No animated clip-path or blur.
+  function addCurtain(target, color) {
+    const curtain = document.createElement('span')
+    curtain.className = 'motion-curtain'
+    curtain.setAttribute('aria-hidden', 'true')
+    if (color) curtain.style.background = color
+    target.classList.add('motion-wipe-surface')
+    target.append(curtain)
+    cleanups.push(() => { curtain.remove(); target.classList.remove('motion-wipe-surface') })
+    return curtain
+  }
+
+  // Viewport-triggered sections. Each block reveals as it comes on screen;
+  // with `trigger`, the group enters together (staggered) when that element
+  // does — kept for compact groups such as the pole tabs.
+  function watchSections(targets, mode, options) {
+    const common = {
+      delay: options.delay || 0, once: options.once,
+      exit: { duration: VIEWPORT_MOTION.exitDuration, ease: 'power2.in' },
+    }
+    let animated = targets
+    let motion
+    if (mode === 'wipe' || mode === 'horizontal') {
+      const axis = mode === 'horizontal' ? 'scaleX' : 'scaleY'
+      animated = targets.map((target) => addCurtain(target, options.color))
+      gsap.set(animated, { transformOrigin: mode === 'horizontal' ? 'right center' : 'center top' })
+      motion = { hidden: () => ({ [axis]: 1 }), shown: { [axis]: 0 }, duration: .9, ease: 'power3.inOut' }
+    } else if (mode === 'draw') {
+      gsap.set(targets, { transformOrigin: 'left center' })
+      motion = { hidden: () => ({ scaleX: 0 }), shown: { scaleX: 1 }, duration: 1, ease: 'power3.inOut' }
+    } else {
+      const depth = mode === 'depth'
+      // yPercent, not y: the rise composes with a scrubbed `y` the block may
+      // already carry (the club photo parallax) instead of fighting it.
+      const rise = (sign) => (index, target) => sign * VIEWPORT_MOTION.rise / Math.max(target.offsetHeight, 1) * 100
+      if (depth) gsap.set(targets, { transformPerspective: 1200 })
+      motion = {
+        hidden: (side) => ({
+          opacity: 0, yPercent: rise(side === 'above' ? -1 : 1),
+          rotationX: depth ? (side === 'above' ? 5 : -5) : 0, scale: depth ? .985 : 1,
+        }),
+        shown: { opacity: 1, yPercent: 0, rotationX: 0, scale: 1 },
+        duration: VIEWPORT_MOTION.revealDuration, ease: SCROLL_MOTION.ease,
+      }
+    }
+    const { hidden, shown, duration, ease } = motion
+    const host = element(options.trigger)
+    if (host) {
+      cleanups.push(watchPresence(host, {
+        ...common, animated, hidden, shown,
+        enter: { duration, ease, stagger: options.stagger ?? .1 },
+      }))
+      return
+    }
+    targets.forEach((target, index) => cleanups.push(watchPresence(target, {
+      ...common, animated: animated[index], hidden, shown, enter: { duration, ease },
+    })))
   }
 
   function revealSection(ref, options = {}) {
@@ -169,23 +285,22 @@ export function createScrollAnimations(scope, { reduced, canPin }) {
       target.dataset.motionReveal = mode
       cleanups.push(() => { delete target.dataset.motionReveal })
     })
+    if (viewportDriven(targets[0])) {
+      watchSections(targets, mode, options)
+      return null
+    }
     const trigger = settings(targets[0], options)
     if (mode === 'wipe' || mode === 'horizontal') {
-      // A solid curtain uncovers the content using transform only. No animated clip-path or blur.
-      const curtains = targets.map((target) => {
-        const curtain = document.createElement('span')
-        curtain.className = 'motion-curtain'
-        curtain.setAttribute('aria-hidden', 'true')
-        if (options.color) curtain.style.background = options.color
-        target.classList.add('motion-wipe-surface')
-        target.append(curtain)
-        cleanups.push(() => { curtain.remove(); target.classList.remove('motion-wipe-surface') })
-        return curtain
-      })
+      const curtains = targets.map((target) => addCurtain(target, options.color))
       return gsap.fromTo(curtains, { scaleX: 1, scaleY: 1 }, {
         [mode === 'horizontal' ? 'scaleX' : 'scaleY']: 0,
         transformOrigin: mode === 'horizontal' ? 'right center' : 'center top',
         stagger: options.stagger ?? .1, ease: 'power3.inOut', scrollTrigger: trigger,
+      })
+    }
+    if (mode === 'draw') {
+      return gsap.fromTo(targets, { scaleX: 0 }, {
+        scaleX: 1, transformOrigin: 'left center', ease: 'none', scrollTrigger: trigger,
       })
     }
     gsap.set(targets, {

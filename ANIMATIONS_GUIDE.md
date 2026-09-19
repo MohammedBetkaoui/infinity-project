@@ -92,7 +92,7 @@ wrappers distincts, comme `team-frame-reveal` et `team-frame-depth`.
 | --- | --- |
 | `revealText(ref, options)` | `type`, `trigger`, `start`, `end`, `scrub`, `once`, `scroll: false`, `delay`, `drift: false` (mots seuls, la boîte du contrôle reste fixe) |
 | `revealAllText()` | sans options : balaye `h1-h4` + `p, blockquote, figcaption, dt, dd` du scope, ignore le déjà-animé, les contrôles (`button`), les héros avec intro, la galerie, le notebook, les frames du carrousel et les régions Framer (accordéons, onglets). À appeler en dernier dans chaque `configure`. |
-| `revealSection(ref, options)` | `mode`, `color`, `trigger`, `start`, `end`, `stagger`, `once` |
+| `revealSection(ref, options)` | `mode` (`fade`, `depth`, `wipe`, `horizontal`, `draw` : trait SVG trace de gauche a droite), `color`, `trigger`, `start`, `end`, `stagger`, `once`, `delay` (mode viewport) |
 | `parallaxElement(ref, speed, options)` | `axis: 'x' / 'y'`, `rotation`, `trigger`, `start`, `end` |
 | `countUp(ref, target, options)` | `suffix`, `format`, `delay` |
 | `pinSection(ref, duration, options)` | `pin`, `start`, `id` ; retourne une timeline ou `null` |
@@ -110,6 +110,37 @@ Les positions par defaut vont de `top 93%` a `top 58%`. On ne les borne pas
 automatiquement a zero : les contenus deja presents au premier ecran doivent
 etre visibles. Un titre deja passe dans sa zone de lecture est entierement affiche.
 Pour le footer, `clamp(bottom bottom)` permet de terminer avant la fin du document.
+
+### Mode viewport (page d'accueil)
+
+Le scrub lie la lisibilite a la distance de scroll : un paragraphe n'etait
+entierement lisible qu'arrive vers le milieu de l'ecran. La page d'accueil
+utilise donc un autre declenchement, active par un attribut sur une region :
+
+```jsx
+<main data-motion-trigger="viewport">...</main>
+```
+
+Tout ce qui est anime dans cette region (`revealText`, `revealAllText`,
+`revealSection`, `AnimatedText`, `ScrollReveal`, FAQ, poles) passe alors par
+`src/lib/viewportPresence.js` (IntersectionObserver) :
+
+- **Entree** : des qu'un bloc depasse de 6 % le bas de l'ecran, son animation
+  joue sur une horloge (titres mot par mot, paragraphes ligne par ligne,
+  environ une seconde). Plusieurs blocs entrant ensemble s'enchainent du haut vers le bas.
+- **Sortie** : le bloc se masque seulement lorsqu'il est entierement hors
+  champ (sous le header fixe ou sous le bas de l'ecran). L'ecart entre les deux
+  seuils evite tout clignotement quand le pouce hesite sur un bord.
+- **Retour** : en remontant, le texte redescend a sa place depuis le haut.
+- Un bloc deja visible ne rejoue pas son entree lors d'une reconstruction
+  (ouverture d'une question de la FAQ, changement d'onglet, redimensionnement).
+- Les blocs `sticky` sont suivis sans cas particulier.
+
+Dans ce mode, `start`, `end`, `scrub` et `drift` sont ignores ; `trigger`
+reste utile pour faire entrer un groupe d'un bloc (ex. le trait sous le titre
+Contact, declenche par le `h2`). Les reglages sont dans `VIEWPORT_MOTION`
+(`src/lib/animationSettings.js`). Pour etendre ce comportement a une autre
+page, ajouter l'attribut a sa region principale.
 
 ### Un pin, pas un obstacle
 
