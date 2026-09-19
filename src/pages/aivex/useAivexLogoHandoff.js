@@ -37,6 +37,13 @@ export default function useAivexLogoHandoff(loaderRef, ready, onComplete) {
 
       // Keep the moving logo intact; the Hero takes over at the exact same rectangle.
       gsap.set(destination, { visibility: 'hidden' })
+      // Freeze every animated tile where it is (the snake wave), then settle
+      // the row flat before the flight so the mark arrives as one block.
+      const tiles = [...mark.querySelectorAll('.aivex-loader-tile')]
+      tiles.forEach((tile) => {
+        const style = getComputedStyle(tile)
+        gsap.set(tile, { animation: 'none', transform: style.transform, opacity: style.opacity })
+      })
       const svg = mark.querySelector('svg')
       if (svg) {
         const style = getComputedStyle(svg)
@@ -44,7 +51,9 @@ export default function useAivexLogoHandoff(loaderRef, ready, onComplete) {
       }
       gsap.set(mark, { transformOrigin: '0 0', willChange: 'transform' })
       timeline = gsap.timeline({ onComplete: finish })
-        .to(svg || {}, { y: 0, opacity: 1, duration: .18, ease: 'power2.out' }, 0)
+      if (tiles.length) timeline.to(tiles, { y: 0, opacity: 1, duration: .18, ease: 'power2.out' }, 0)
+      else timeline.to(svg || {}, { y: 0, opacity: 1, duration: .18, ease: 'power2.out' }, 0)
+      timeline
         .to('.aivex-loader-caption', { opacity: 0, duration: .16 }, 0)
         .to('.aivex-loader-backdrop', { opacity: 0, duration: .52, ease: 'power2.inOut' }, .14)
         .to(mark, {
