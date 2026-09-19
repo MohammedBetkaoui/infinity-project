@@ -141,20 +141,29 @@ export default function useAivexExperience(pageRef, ready) {
   useLayoutEffect(() => {
     if (!ready || introPlayed.current || location.hash || window.scrollY >= 100) return
     const media = gsap.matchMedia()
-    media.add('(prefers-reduced-motion: no-preference)', () => {
+    const play = () => media.add('(prefers-reduced-motion: no-preference)', () => {
       // The Hero starts when the loader leaves, not underneath its two-second hold.
-      // Same intro on every viewport, phones included.
+      // Same intro on every viewport, phones included. The statement waits for
+      // the loader's letters to settle into the Hero logo (see
+      // useAivexLogoHandoff), so nothing rises underneath the flight.
       const intro = gsap.timeline({ defaults: { ease: 'power4.out' }, onComplete: () => { introPlayed.current = true } })
-      intro.from('.ax-scene-reveal', { rotationY: -16, rotationX: 6, z: -80, duration: 1.36 }, 0)
+      intro.from('.ax-scene-reveal', { rotationY: -16, rotationX: 6, z: -80, duration: 1.36 }, .12)
       intro
-        .from('.ax-art-reveal', { opacity: 0, duration: .88 }, .06)
-        .from('.ax-orbit-arc', { strokeDashoffset: 1, duration: 1.1, ease: 'power3.inOut' }, .08)
-        .from('.ax-title-line', { yPercent: 110, duration: .68, stagger: .085 }, .32)
-        .from('.ax-intro-detail', { opacity: 0, duration: .52, stagger: .035 }, .66)
+        .from('.ax-art-reveal', { opacity: 0, duration: .88 }, .18)
+        .from('.ax-orbit-arc', { strokeDashoffset: 1, duration: 1.1, ease: 'power3.inOut' }, .2)
+        .from('.ax-title-line', { yPercent: 110, duration: .72, stagger: .085 }, .78)
+        .from('.ax-intro-detail', { opacity: 0, y: 6, duration: .56, stagger: .035, clearProps: 'transform' }, 1.02)
       const finishIntro = () => { if (window.scrollY > 32 && intro.progress() < 1) intro.progress(1) }
       window.addEventListener('scroll', finishIntro, { passive: true })
       return () => window.removeEventListener('scroll', finishIntro)
     }, pageRef)
-    return () => media.revert()
+    // Same start frame as the loader's logo flight, after the stall of the
+    // ready commit, so the two timelines stay in step (see useAivexLogoHandoff).
+    // The loader still covers the Hero until then.
+    let frame = requestAnimationFrame(() => { frame = requestAnimationFrame(play) })
+    return () => {
+      cancelAnimationFrame(frame)
+      media.revert()
+    }
   }, [pageRef, ready])
 }

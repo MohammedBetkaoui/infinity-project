@@ -11,7 +11,7 @@
 }
 .aivex-loader-backdrop { position: absolute; inset: 0; background: #111111; }
 .aivex-loader-content { position: relative; width: fit-content; max-width: 100%; }
-.aivex-loader-mark { display: flex; gap: clamp(6px, 1.4vw, 12px); width: fit-content; transform-origin: 0 0; }
+.aivex-loader-mark { display: flex; gap: clamp(6px, 1.4vw, 12px); width: fit-content; }
 /* One tile per letter of public/assets/aivex/logo.svg: each window frames a
    single letter box of the original artwork at its exact colours. */
 .aivex-loader-tile {

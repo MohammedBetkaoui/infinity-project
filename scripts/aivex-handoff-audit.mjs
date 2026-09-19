@@ -51,12 +51,19 @@ try {
       if (loader?.dataset.handoff) {
         state.started ??= now
         state.mode = loader.dataset.handoff
-        const mark = loader.querySelector('.aivex-loader-mark').getBoundingClientRect()
         const target = document.querySelector('[data-aivex-logo-target]')
-        const rect = target.getBoundingClientRect()
-        state.samples.push({ at: now, x: mark.x, y: mark.y, width: mark.width, height: mark.height,
-          destinationHidden: getComputedStyle(target).visibility === 'hidden',
-          target: {x:rect.x,y:rect.y,width:rect.width,height:rect.height} })
+        const artwork = target.querySelector('svg')
+        const rect = artwork.getBoundingClientRect()
+        const art = artwork.viewBox.baseVal
+        // Each loader tile must land on its own letter slot of the Hero artwork.
+        const tiles = [...loader.querySelectorAll('.aivex-loader-tile')].map(tile => {
+          const box = tile.getBoundingClientRect()
+          const slot = tile.querySelector('svg').viewBox.baseVal
+          return { x: box.x, y: box.y, width: box.width, height: box.height, target: {
+            x: rect.x + (slot.x - art.x) * rect.width / art.width, y: rect.y + (slot.y - art.y) * rect.height / art.height,
+            width: slot.width * rect.width / art.width, height: slot.height * rect.height / art.height } }
+        })
+        state.samples.push({ at: now, tiles, destinationHidden: getComputedStyle(target).visibility === 'hidden' })
       }
       if (!loader && state.firstSeen !== null) { state.ended = now; return }
       if (now < 10000) requestAnimationFrame(sample)
@@ -73,8 +80,10 @@ try {
     await send('Emulation.setDeviceMetricsOverride', { width: test.width, height: 900, deviceScaleFactor: 1, mobile: test.width < 800 })
     await send('Emulation.setTouchEmulationEnabled', { enabled: test.width < 800 })
     await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: test.motion }] })
-    const navigation = await send('Page.navigate', { url: `${origin}/aivex${test.hash || ''}` })
-    if (!navigation.loaderId) await send('Page.reload')
+    // Always a fresh document: /aivex → /aivex#hash alone would stay in-page.
+    await send('Page.navigate', { url: 'about:blank' })
+    await pause(100)
+    await send('Page.navigate', { url: `${origin}/aivex${test.hash || ''}` })
     let state
     for (let attempt = 0; attempt < 120; attempt++) {
       await pause(60)
@@ -94,9 +103,13 @@ try {
     if (mode === 'travel') {
       assert(state.samples.length > 10)
       assert(state.samples.every(sample => sample.destinationHidden), 'One visible logo during the flight')
-      const last = state.samples.at(-1)
-      landingError = Math.abs(last.x - last.target.x) + Math.abs(last.y - last.target.y) + Math.abs(last.width - last.target.width) + Math.abs(last.height - last.target.height)
-      assert(landingError < 3, 'The moving logo lands on the exact Hero rectangle')
+      const error = tile => Math.abs(tile.x - tile.target.x) + Math.abs(tile.y - tile.target.y) + Math.abs(tile.width - tile.target.width) + Math.abs(tile.height - tile.target.height)
+      landingError = Math.max(...state.samples.at(-1).tiles.map(error))
+      assert(landingError < 3, 'Every moving letter lands on its exact slot of the Hero logo')
+      // The row travels as one piece: gaps only ever close, tiles never overlap.
+      const gaps = state.samples.map(sample => sample.tiles.slice(1).map((tile, i) => tile.x - (sample.tiles[i].x + sample.tiles[i].width)))
+      assert(gaps.every(row => row.every(gap => gap > -1)), 'Letters never overlap during the flight')
+      assert(gaps.every((row, s) => s === 0 || row.every((gap, i) => gap <= gaps[s - 1][i] + .5)), 'Gaps between letters close steadily')
     }
     assert(await evaluate('getComputedStyle(document.querySelector("[data-aivex-logo-target]")).visibility === "visible" && !document.querySelector("[inert]")'))
     report.push({ ...test, mode, hold: Math.round(hold), duration: Math.round(state.ended - state.started), landingError })
