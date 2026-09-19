@@ -602,6 +602,80 @@ test('frontend: /aivex/status is routed, and every required state has FR/EN/AR s
   assert.equal(getStatusStrings('fr').downloadButton, '📄 Télécharger la fiche officielle')
 })
 
+// =================================================================================
+// Success-screen access card — the Magic Link handed to the candidate.
+// =================================================================================
+
+// Comments legitimately *describe* what the card must never do ("never
+// written to localStorage..."), so these checks read the code only.
+const withoutComments = (source) => source
+  .replace(/\{\s*\/\*[\s\S]*?\*\/\s*\}/g, '')
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .split('\n').map((line) => line.replace(/\/\/.*$/, '')).join('\n')
+
+test('access card: uses the backend link verbatim, and never stores, logs or transmits it', async () => {
+  const card = withoutComments(await read('src/pages/aivex/register/MagicLinkAccessCard.jsx'))
+  // Used exactly as the API returned it: never rebuilt from parts, never
+  // parsed, never re-fetched just to open it.
+  assert.match(card, /href=\{magicLink\}/, 'the CTA opens the link itself')
+  assert.match(card, /value=\{magicLink\}/, 'the QR encodes the same link')
+  assert.match(card, /navigator\.clipboard\.writeText\(magicLink\)/, 'copy copies the same link')
+  assert.doesNotMatch(card, /new URL\(|\.replace\(|\.split\(|searchParams/, 'the link is never taken apart')
+
+  // A bearer credential: no persistence anywhere, no logging, no telemetry.
+  assert.doesNotMatch(card, /localStorage|sessionStorage|indexedDB|document\.cookie|\.setItem\(/)
+  assert.doesNotMatch(card, /console\.(log|error|warn|info|debug)/)
+  assert.doesNotMatch(card, /fetch\(|XMLHttpRequest|navigator\.sendBeacon|analytics|gtag|dataLayer/)
+})
+
+test('access card: the QR code is generated in the browser — no third-party QR service anywhere in the frontend', async () => {
+  const card = await read('src/pages/aivex/register/MagicLinkAccessCard.jsx')
+  assert.match(card, /from 'qrcode\.react'/, 'client-side encoder, bundled with the app')
+  assert.match(card, /marginSize=\{QR_QUIET_ZONE_MODULES\}/, 'the QR keeps its quiet zone (qrcode.react defaults it to 0)')
+  assert.match(card, /const QR_QUIET_ZONE_MODULES = 4\b/)
+  assert.doesNotMatch(card, /https?:\/\//, 'the card references no remote URL at all')
+
+  // No remote QR generator may ever appear anywhere in the frontend: doing
+  // so would hand a bearer credential to a third party as a query string.
+  for (const entry of await readdir(new URL('../src/', import.meta.url), { recursive: true })) {
+    if (!entry.endsWith('.js') && !entry.endsWith('.jsx')) continue
+    const source = await read(`src/${entry}`)
+    assert.doesNotMatch(source, /qrserver|chart\.googleapis|goqr|qrickit|quickchart|qr-code-generator|qrcode\.show/i, `src/${entry}`)
+  }
+})
+
+test('access card: rendered only when the backend actually returned a link, with the reference kept separate from it', async () => {
+  const success = await read('src/pages/aivex/register/RegistrationSuccess.jsx')
+  assert.match(success, /\{magicLink && <MagicLinkAccessCard magicLink=\{magicLink\} t=\{t\} \/>\}/)
+  // The reference is an identifier, not a credential: it is shown in its
+  // own block, outside the access card, and that block carries only the
+  // reference — never the link.
+  const referenceBlock = /<p className="axr-success-reference">([\s\S]*?)<\/p>/.exec(success)
+  assert.ok(referenceBlock, 'the reference has its own block')
+  assert.match(referenceBlock[1], /\{reference\}/)
+  assert.doesNotMatch(referenceBlock[1], /magicLink/, 'the reference block never carries the link')
+})
+
+test('access card: FR/EN/AR strings exist for every action, and no warning text leaks a link or token', async () => {
+  const { getRegistrationStrings } = await import('../src/pages/aivex/register/registrationI18n.js')
+  const keys = ['accessTitle', 'accessLead', 'accessOpen', 'accessCopy', 'accessCopied', 'accessCopyFailed',
+    'accessQrHint', 'accessQrAlt', 'accessReference', 'accessWarning']
+  for (const lang of ['en', 'fr', 'ar']) {
+    const strings = getRegistrationStrings(lang)
+    for (const key of keys) assert.equal(typeof strings[key], 'string', `${lang}.${key}`)
+    // Nothing user-visible may contain a URL or the word "token".
+    for (const key of keys) assert.doesNotMatch(strings[key], /https?:\/\/|token/i, `${lang}.${key}`)
+  }
+  assert.equal(getRegistrationStrings('fr').accessOpen, 'Accéder à mon dossier')
+  assert.equal(getRegistrationStrings('en').accessOpen, 'Access my application')
+  assert.equal(getRegistrationStrings('ar').accessOpen, 'الوصول إلى ملفي')
+  assert.equal(getRegistrationStrings('fr').accessCopy, 'Copier le lien')
+  assert.equal(getRegistrationStrings('fr').accessCopied, '✓ Lien copié')
+  assert.equal(getRegistrationStrings('fr').accessQrHint, 'Scannez ce QR code avec votre téléphone pour retrouver votre dossier.')
+  assert.equal(getRegistrationStrings('fr').accessReference, 'Référence AIVEX')
+  for (const lang of ['en', 'fr', 'ar']) assert.match(getRegistrationStrings(lang).accessWarning, /🔒/)
+})
+
 // Phase 5B (signed-document upload) is now implemented — see
 // tests/aivex-signed-document.test.mjs, including its own guard for what
 // Phase 5B itself must NOT contain (admin review, OCR, payment, etc.). The

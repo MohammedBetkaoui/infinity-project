@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { RotateCcw } from 'lucide-react'
 import { downloadAivexOfficialDocument } from '../../../lib/applicationSubmission'
+import MagicLinkAccessCard from './MagicLinkAccessCard'
 
 // Official Word document of the registration: the only document the
 // application produces. The download is authorised by the submissionId this
@@ -43,12 +44,17 @@ export default function RegistrationSuccess({ teamName, institution, studentCoun
       <h2 id="axr-success-heading" tabIndex={-1}>{t.successTitle}</h2>
       <p className="axr-success-stamp">{t.successStamp}</p>
 
-      {magicLink && (
-        <p className="axr-success-access">
-          <a className="af-button af-button-secondary" href={magicLink}>{t.successAccessDossier}</a>
-          <span>{t.successAccessHint}</span>
+      {/* An identifier, never a credential: the reference alone opens
+          nothing. Shown on its own, above the access card, so it is not
+          mistaken for part of the private link below it. */}
+      {reference && (
+        <p className="axr-success-reference">
+          <span>{t.accessReference}</span>
+          <strong className="axr-success-ref">{reference}</strong>
         </p>
       )}
+
+      {magicLink && <MagicLinkAccessCard magicLink={magicLink} t={t} />}
 
       {reference && submissionId && <OfficialDocument reference={reference} submissionId={submissionId} t={t} />}
 
@@ -57,7 +63,6 @@ export default function RegistrationSuccess({ teamName, institution, studentCoun
         <div><dt>{t.successInstitution}</dt><dd>{institution}</dd></div>
         <div><dt>{t.successStudents}</dt><dd>{t.successStudentsValue({ count: studentCount })}</dd></div>
         <div><dt>{t.successContact}</dt><dd>{contactEmail}</dd></div>
-        {reference && <div><dt>{t.successReference}</dt><dd className="axr-success-ref">{reference}</dd></div>}
       </dl>
 
       <p className="axr-success-note">

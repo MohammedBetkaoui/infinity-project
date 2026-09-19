@@ -267,8 +267,46 @@ html[data-page='aivex']::-webkit-scrollbar-thumb { border: 2px solid #1a1114; bo
 .axr-success-document-title { font-family: Rajdhani, sans-serif; font-size: 21px; font-weight: 600; line-height: 1.15; }
 .axr-success .axr-success-document .af-button { margin-top: 16px; }
 .axr-success-document-hint { max-width: 60ch; margin-top: 14px; color: var(--af-muted); font-size: 12px; line-height: 1.8; }
-.axr-success-access { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-top: 22px; }
-.axr-success-access span { max-width: 52ch; color: var(--af-muted); font-size: 11px; line-height: 1.7; }
+/* Reference: an identifier, shown on its own line so it is never read as
+   part of the private access link that follows it. */
+/* Two classes on purpose: `.ax-registration-page :is(h1, h2, h3, p)` resets
+   margins at (0,1,1), which outranks a single class on a <p>. */
+.axr-success .axr-success-reference { align-self: stretch; display: flex; flex-direction: column; gap: 5px; margin-top: 26px; }
+.axr-success-reference > span { color: var(--af-muted); font-size: 10px; font-weight: 650; letter-spacing: .09em; text-transform: uppercase; }
+.axr-success-reference .axr-success-ref { font-family: ui-monospace, monospace; font-size: clamp(18px, 2.4vw, 22px); font-weight: 700; letter-spacing: .1em; color: var(--af-ink); overflow-wrap: anywhere; }
+
+/* Magic Link access card. Grid areas rather than order tweaks, so desktop
+   reads as two columns (actions left, QR right) and a phone gets the exact
+   sequence it needs: open, scan, copy, then the privacy note. */
+.axr-access {
+  align-self: stretch;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "head qr" "cta qr" "copy qr" "warn warn";
+  align-items: start;
+  gap: 15px 30px;
+  margin-top: 24px;
+  padding: 20px 22px 22px;
+  border: 1px solid var(--af-line-strong);
+  border-inline-start: 3px solid var(--af-accent);
+  background: var(--af-control);
+}
+.axr-access-head { grid-area: head; }
+.axr-access-head h3 { display: flex; align-items: center; gap: 9px; font-family: Rajdhani, sans-serif; font-size: 21px; font-weight: 600; line-height: 1.15; }
+.axr-access-head p { max-width: 44ch; margin-top: 9px; color: var(--af-muted); font-size: 12px; line-height: 1.8; }
+.axr-access-cta { grid-area: cta; }
+.axr-access-copy { grid-area: copy; }
+/* Beats `.axr-success .af-button { margin-top: 28px }`, inside this card only. */
+.axr-success .axr-access .af-button { margin-top: 0; }
+.axr-access .axr-access-feedback { min-height: 15px; margin-top: 9px; color: var(--af-muted); font-size: 11px; line-height: 1.5; }
+.axr-access-feedback[data-state='copied'] { color: #2e7d32; font-weight: 650; }
+.axr-access-feedback[data-state='failed'] { color: var(--af-danger); }
+.axr-access-warning { grid-area: warn; max-width: 68ch; padding: 11px 13px; border: 1px dashed var(--af-line-strong); color: #6d4a55; font-size: 11px; line-height: 1.75; }
+
+.axr-access-qr { grid-area: qr; display: flex; flex-direction: column; align-items: center; gap: 9px; margin: 0; }
+.axr-access-qr-frame { display: block; padding: 9px; border: 1px solid var(--af-line); background: #ffffff; }
+.axr-access-qr-frame svg { display: block; width: 100%; height: auto; max-width: 188px; }
+.axr-access-qr figcaption { max-width: 26ch; color: var(--af-muted); font-size: 11px; line-height: 1.6; text-align: center; }
 .axr-success-document-error { margin-top: 12px; color: #b42318; font-size: 12px; line-height: 1.6; }
 .axr-paper-credit { display: flex; align-items: center; justify-content: flex-start; margin-top: 24px; padding-top: 18px; border-top: 1px solid #4f001d1f; color: #172f49; }
 /* Faculty lockup: always LTR + pinned left, even inside the Arabic (RTL) sheet. */
@@ -320,6 +358,9 @@ html[data-page='aivex']::-webkit-scrollbar-thumb { border: 2px solid #1a1114; bo
   .axr-upload-drop { min-height: 140px; }
   .axr-review-item, .axr-success-record > div { grid-template-columns: 95px minmax(0, 1fr); }
   .axr-review-record { padding-inline: 13px; }
+  /* One column, in the order a phone needs it: open, scan, copy, warning. */
+  .axr-access { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "cta" "qr" "copy" "warn"; gap: 14px; padding: 18px; }
+  .axr-access-qr-frame svg { max-width: 168px; }
   .axr-privacy { grid-template-columns: 1fr; gap: 10px; }
   .axr-paper-credit-mark { height: 36px; max-width: 260px; }
   .axr-footer > div { flex-direction: column; gap: 7px; }
