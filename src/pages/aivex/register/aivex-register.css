@@ -221,6 +221,8 @@ html[data-page='aivex']::-webkit-scrollbar-thumb { border: 2px solid #1a1114; bo
 .axr-id-upload .axr-upload-head { align-items: flex-start; min-height: 30px; }
 .axr-id-upload .axr-upload-head label { line-height: 1.45; }
 .axr-id-upload .axr-upload-drop { min-height: 132px; }
+/* Balanced lines: "5 Mo." never ends up alone on its own line. */
+.axr-id-upload :is(.axr-upload-frame strong, .axr-upload-drop > small, .af-hint, .af-error) { text-wrap: balance; }
 .axr-id-file { grid-template-columns: 44px minmax(0, 1fr); align-items: start; gap: 14px; }
 .axr-id-file-icon { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--af-line-strong); background: #efece5; color: var(--af-accent); }
 .axr-upload-actions button { min-height: 28px; border-bottom: 1px solid currentColor; color: var(--af-muted); font-size: 10px; font-weight: 650; transition: color .2s; }

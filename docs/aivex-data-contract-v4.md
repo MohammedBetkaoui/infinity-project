@@ -3,6 +3,8 @@
 > **Statut : document officiel généré en DOCX uniquement, téléchargeable après l'inscription ; aucune conversion PDF automatique (PDF manuel, hors application) — 2026-09-19.**
 > Frontend, API et schéma de base parlent uniquement le contrat V4 (Phase 2, en production depuis la Phase 3). Chaque inscription produit désormais son document officiel Word dans un bucket privé (§9.1).
 > **Déploiement : appliquer `20260920120000_aivex_v4_generated_documents.sql`** (§14).
+>
+> **Mise à jour 2026-09-23 — documents d'identité de la délégation (§8b).** Toute *nouvelle* inscription joint l'image de la carte nationale d'identité du chef de délégation et du chauffeur (5 images au total avec les 3 cartes étudiantes). **Le contrat reste en version 4** : l'ajout est purement additif (deux clés dans des objets déjà fermés, deux parties multipart, huit colonnes NULLables), l'API et le formulaire sont déployés ensemble, et une page périmée reçoit déjà un 400 « rechargez la page ». **Déploiement : appliquer `20260923120000_aivex_v4_identity_documents.sql` AVANT de déployer ce code** (§14).
 
 | Élément | Fichier |
 |---|---|
@@ -14,8 +16,9 @@
 | Modèle du formulaire (étapes, messages traduits) | [`src/pages/aivex/register/registrationModel.js`](../src/pages/aivex/register/registrationModel.js) |
 | État, brouillon, envoi | [`src/pages/aivex/register/useCompetitionRegistration.js`](../src/pages/aivex/register/useCompetitionRegistration.js) |
 | Mapping Word (données officielles uniquement) | [`shared/aivex/word-mapping-v4.js`](../shared/aivex/word-mapping-v4.js) |
-| Migrations | [`20260918120000_aivex_v4_contract.sql`](../supabase/migrations/20260918120000_aivex_v4_contract.sql), [`20260919120000_aivex_v4_write_path.sql`](../supabase/migrations/20260919120000_aivex_v4_write_path.sql), [`20260920120000_aivex_v4_generated_documents.sql`](../supabase/migrations/20260920120000_aivex_v4_generated_documents.sql) |
-| Tests | [`tests/aivex-contract-v4.test.mjs`](../tests/aivex-contract-v4.test.mjs), [`tests/aivex-document-generation.test.mjs`](../tests/aivex-document-generation.test.mjs) — `npm test` / `npm run test:contract` |
+| Migrations | [`20260918120000_aivex_v4_contract.sql`](../supabase/migrations/20260918120000_aivex_v4_contract.sql), [`20260919120000_aivex_v4_write_path.sql`](../supabase/migrations/20260919120000_aivex_v4_write_path.sql), [`20260920120000_aivex_v4_generated_documents.sql`](../supabase/migrations/20260920120000_aivex_v4_generated_documents.sql), [`20260923120000_aivex_v4_identity_documents.sql`](../supabase/migrations/20260923120000_aivex_v4_identity_documents.sql) |
+| Documents d'identité (formulaire) | [`IdentityDocuments.jsx`](../src/pages/aivex/register/IdentityDocuments.jsx), [`IdentityCardUpload.jsx`](../src/pages/aivex/register/IdentityCardUpload.jsx) |
+| Tests | [`tests/aivex-contract-v4.test.mjs`](../tests/aivex-contract-v4.test.mjs), [`tests/aivex-document-generation.test.mjs`](../tests/aivex-document-generation.test.mjs), [`tests/aivex-identity-documents.test.mjs`](../tests/aivex-identity-documents.test.mjs) — `npm test` / `npm run test:contract` |
 
 ---
 
@@ -25,12 +28,13 @@
 Word officiel          → contrat du document     (shared/aivex/word-mapping-v4.js)
 Modèle applicatif V4   → contrat de base          (aivex_registrations, aivex_students)
 Cartes étudiantes      → pièces de vérification   (bucket privé aivex-student-cards)
+Cartes d'identité      → pièces de vérification   (bucket privé aivex-id-cards)
 ```
 
 | Classe | Usage | Champs |
 |---|---|---|
 | **OFFICIAL DATA** | PostgreSQL, Word/PDF, administration | équipe, wilaya, établissement, responsable des activités, chef de délégation, chauffeur, étudiants (nom, téléphone, année du BAC, RFID), référence |
-| **INTERNAL VERIFICATION DATA** | Contrôle d'identité par l'administration | `students[].studentCard` (photo de la carte) |
+| **INTERNAL VERIFICATION DATA** | Contrôle d'identité par l'administration | `students[].studentCard` (photo de la carte), `delegationHead.idCard`, `driver.idCard` (image de la carte nationale d'identité) |
 
 ## 2. Architecture
 
@@ -39,15 +43,17 @@ Navigateur                                        API (Vercel, Node)            
 ─────────                                         ──────────────────                       ────────
 createRegistrationStateV4()  submissionId (UUID v4)
 buildSubmission(state)  ──── multipart ───────▶  POST /api/aivex/register
-  payload = JSON V4                                origine · rate limit · parseMultipart
+  payload = JSON V4                                origine · rate limit · parseMultipart (5 fichiers max)
   studentCard_1..3 = fichiers                      honeypot
-                                                   validateRegistrationV4()   (contrat partagé)
-                                                   validateStudentCardsV4()   (règle partagée + octets)
+  delegationHeadIdCard, driverIdCard = fichiers    validateRegistrationV4()   (contrat partagé)
+                                                   validateRegistrationFilesV4() (règle partagée + octets + SHA-256)
                                                    registerV4()
                                                      1. submission_id déjà vu ?       ──▶ aivex_registrations
-                                                     2. INSERT inscription + référence ──▶ aivex_registrations
-                                                     3. upload des 3 cartes           ──▶ Storage privé
-                                                     4. INSERT des 3 étudiants        ──▶ aivex_students
+                                                     2. INSERT inscription + référence
+                                                        + métadonnées des 2 cartes d'identité ──▶ aivex_registrations
+                                                     3. upload des 3 cartes étudiantes ──▶ Storage privé aivex-student-cards
+                                                        puis des 2 cartes d'identité   ──▶ Storage privé aivex-id-cards
+                                                     4. INSERT des 3 étudiants        ──▶ aivex_students  (marqueur de complétude, TOUJOURS en dernier)
                                   ◀──── 201 { success, reference } / 200 rejeu / 4xx / 500
 ```
 
@@ -66,8 +72,8 @@ Le contrat partagé est **pur** (ni React, ni `window`, ni Supabase, ni `process
     "institution": { "id": "univ-bba", "name": "Université Mohamed El Bachir El Ibrahimi de Bordj Bou Arréridj", "custom": false }
   },
   "activityOfficial": { "role": "activities_officer", "fullName": "…", "email": "…", "phone": "…" },
-  "delegationHead": { "fullName": "…", "phone": "…", "rfid": "…" },
-  "driver": { "fullName": "…", "phone": "…", "rfid": "…" },
+  "delegationHead": { "fullName": "…", "phone": "…", "rfid": "…", "idCard": "delegationHeadIdCard" },
+  "driver": { "fullName": "…", "phone": "…", "rfid": "…", "idCard": "driverIdCard" },
   "students": [
     { "position": 1, "fullName": "…", "phone": "…", "bacYear": 2023, "rfid": "…", "studentCard": "studentCard_1" },
     { "position": 2, "fullName": "…", "phone": "…", "bacYear": 2023, "rfid": "…", "studentCard": "studentCard_2" },
@@ -77,7 +83,7 @@ Le contrat partagé est **pur** (ni React, ni `window`, ni Supabase, ni `process
 }
 ```
 
-- `studentCard` nomme la partie multipart ; le fichier n'est **jamais** en base64 dans le JSON.
+- `studentCard` et `idCard` nomment la partie multipart ; le fichier n'est **jamais** en base64 dans le JSON. `idCard` doit valoir exactement `delegationHeadIdCard` / `driverIdCard` (un chemin, une URL ou un autre nom est refusé, champ `delegationHead.idCard` / `driver.idCard`) : le client ne choisit jamais un chemin de stockage. Aucun numéro d'identité, checksum ou chemin n'existe dans le JSON (objets fermés).
 - `edition` et `formVersion` sont envoyés par le formulaire et **vérifiés** par l'API (`2` et `4` exactement) : une page périmée ne peut pas déposer dans une autre édition.
 - Objets **fermés** : toute clé inconnue est refusée avec son chemin. Champs V3 (`form`, `version`, `answers`, `nationalId`, `registrationNumber`, `studyLevel`, `leader`, `isLeader`, `member`) → 400 « belongs to the old registration form ». Champs serveur (`reference`, `status`, `registrationStatus`, `documentStatus`, `submittedAt`, `source`, …) → 400 « assigned by the server ».
 - `source` (page d'origine, sans paramètres) et `submitted_at` sont déterminés par le serveur.
@@ -90,8 +96,10 @@ Le contrat partagé est **pur** (ni React, ni `window`, ni Supabase, ni `process
 | `studentCard_1` | carte de l'étudiant position 1 | obligatoire |
 | `studentCard_2` | carte de l'étudiant position 2 | obligatoire |
 | `studentCard_3` | carte de l'étudiant position 3 | obligatoire |
+| `delegationHeadIdCard` | image de la carte nationale d'identité du chef de délégation | obligatoire (nouvelles inscriptions) |
+| `driverIdCard` | image de la carte nationale d'identité du chauffeur | obligatoire (nouvelles inscriptions) |
 
-Toute autre partie ou un 4ᵉ fichier → refus. Le navigateur nomme chaque partie `studentCard_N.{jpg|png|webp}` (après une éventuelle recompression) : le nom d'origine du fichier ne quitte pas l'appareil et le serveur ne l'utilise jamais comme chemin.
+Toute autre partie, un 6ᵉ fichier, un fichier en double ou un champ texte portant le nom d'un fichier → refus. Le navigateur nomme chaque partie `studentCard_N.{jpg|png|webp}` / `delegationHeadIdCard.{jpg|png}` / `driverIdCard.{jpg|png}` (après une éventuelle recompression) : le nom d'origine du fichier (souvent un nom de personne) ne quitte pas l'appareil et le serveur ne l'utilise jamais comme chemin. Limite Vercel de 4,5 Mo par requête : le navigateur recompresse chaque image pour tenir dans un budget partagé (≈ 800 Ko chacune avec 5 images).
 
 ## 5. Validation
 
@@ -113,9 +121,10 @@ Une seule source de règles (`contract-v4.js`) : le formulaire les applique cham
 | `students[i].bacYear` | **entier**, `1990 ≤ année ≤ année courante + 1` (le sélecteur propose jusqu'à l'année courante) |
 | RFID étudiants | distincts dans l'équipe |
 | `students[i].studentCard` | `=== "studentCard_{i+1}"` |
+| `delegationHead.idCard` / `driver.idCard` | `=== "delegationHeadIdCard"` / `=== "driverIdCard"` |
 | `consent` | `=== true` |
 
-**Cartes** (`studentCardFileIssue`, identique formulaire / API) : présente, type `image/jpeg|png|webp`, 1 octet à 5 Mo. L'API ajoute : signature binaire réelle (`file-type`), type déclaré = type détecté, extension cohérente. Codes : 400 absente/vide, 413 trop grande, 415 type refusé.
+**Cartes** (`imageFileIssue`, identique formulaire / API, une politique par type de document) : présente, type `image/jpeg|png|webp` pour une carte étudiante, `image/jpeg|png` pour une carte d'identité (**pas de WEBP** : le texte du formulaire annonce JPG, JPEG ou PNG), 1 octet à 5 Mo. L'API ajoute : signature binaire réelle (`file-type`), type déclaré = type détecté, extension cohérente ; pour les cartes d'identité, le SHA-256 des octets reçus (minuscules, calculé par le serveur — jamais fourni par le client). Codes : 400 absente/vide, 413 trop grande (refusée pendant la réception du fichier), 415 type refusé (PDF, SVG, GIF, TIFF, HEIC, ZIP, exécutable, HTML, JavaScript, fichier renommé, type ≠ contenu). Ordre de contrôle = ordre du formulaire : cartes d'identité, puis cartes étudiantes ; rien n'est écrit tant que les cinq images ne sont pas valides.
 
 ## 6. Base de données
 
@@ -131,12 +140,15 @@ Une seule source de règles (`contract-v4.js`) : le formulaire les applique cham
 | `team_name`, `wilaya_code`, `wilaya_name`, `institution_id`, `institution_name`, `institution_custom` | équipe (snapshots) |
 | `activity_official_role/_name/_email/_phone` | responsable des activités |
 | `delegation_head_name/_phone/_rfid`, `driver_name/_phone/_rfid` | délégation |
+| `delegation_head_id_card_path/_mime/_size/_sha256`, `driver_id_card_path/_mime/_size/_sha256` | **documents d'identité** (métadonnées seulement, NULLables : `20260923120000_…`). Chemin privé dans `aivex-id-cards`, `image/jpeg` \| `image/png`, taille en octets (1 – 5 Mo), SHA-256 en hexadécimal minuscule. Jamais l'image, une URL, une URL signée, du base64, un numéro lu sur la carte ni un résultat d'OCR. |
 | `student_count` (= 3), `consent` (= true) | |
 | `registration_status` (`submitted`), `document_status` (`not_generated`) | statuts serveur |
 | `current_form_revision` (0), `template_version` | préparés pour le document officiel |
 | `source`, `submitted_at`, `created_at`, `updated_at` | serveur |
 
 Contrôles pour `form_version >= 4` : toutes les données officielles présentes, `delegation_head_national_id` et `driver_national_id` **NULL**, empreinte présente. L'unicité par e-mail ne s'applique plus qu'aux lignes `form_version < 4`.
+
+Contrôles des documents d'identité (`aivex_registrations_delegation_head_id_card_check`, `aivex_registrations_driver_id_card_check`) : pour chaque personne, les quatre colonnes sont **toutes NULL** (inscriptions historiques) **ou toutes valides** — jamais un document à moitié enregistré ; le chemin doit valoir `edition-{edition}/{id de l'inscription}/{delegation-head|driver}/{uuid}.{jpg|png}` (une carte ne peut appartenir qu'à sa propre inscription et à sa propre personne) avec une extension cohérente avec le type ; type `image/jpeg|png`, taille 1 – 5 242 880, SHA-256 `^[0-9a-f]{64}$`. Les colonnes restent NULLables **au niveau base** : une règle « NOT NULL » ne saurait distinguer une nouvelle inscription d'une ancienne ; c'est l'API qui exige les deux documents. Les inscriptions existantes n'ont donc aucun document d'identité et n'en reçoivent pas rétroactivement.
 
 ### 6.2 `public.aivex_students`
 
@@ -157,8 +169,9 @@ Une ligne par édition (dates, e-mail de dépôt, version du template, interrupt
 |---|---|
 | `20260918120000_aivex_v4_contract.sql` | colonnes V4, `aivex_students`, `aivex_settings`, statuts, index, RLS, bucket privé |
 | `20260919120000_aivex_v4_write_path.sql` | `submission_fingerprint`, `submission_id` NOT NULL (défaut + remplissage des anciennes lignes), `form_version` défaut 4, chemin des cartes avec l'édition, droits `service_role` |
+| `20260923120000_aivex_v4_identity_documents.sql` | 8 colonnes NULLables (`*_id_card_path/_mime/_size/_sha256`), 2 contraintes « tout ou rien », bucket privé `aivex-id-cards`. Aucune policy, aucun `grant`/`revoke`, RLS inchangée. |
 
-Toutes deux additives et rejouables (aucun `DROP TABLE` / `DROP COLUMN` / `DELETE`). Elles ont été exécutées sur un PostgreSQL 18 local (PGlite) à partir d'un schéma d'origine reconstitué : migrations, ré-exécution, conservation des anciennes lignes, insertion au format V3 pendant la bascule, écriture V4 complète et 12 contraintes vérifiées. Le schéma d'origine réel n'étant pas dans le dépôt, **une exécution sur un projet Supabase de staging reste nécessaire** avant la production.
+Toutes additives et rejouables (aucun `DROP TABLE` / `DROP COLUMN` / `DELETE`). Elles ont été exécutées sur un PostgreSQL 18 local (PGlite) à partir d'un schéma d'origine reconstitué : migrations, ré-exécution, conservation des anciennes lignes, insertion au format V3 pendant la bascule, écriture V4 complète et 12 contraintes vérifiées. Le schéma d'origine réel n'étant pas dans le dépôt, **une exécution sur un projet Supabase de staging reste nécessaire** avant la production.
 
 ## 7. Storage
 
@@ -170,13 +183,27 @@ Toutes deux additives et rejouables (aucun `DROP TABLE` / `DROP COLUMN` / `DELET
 | Base | `student_card_path`, `student_card_mime`, `student_card_size_bytes` par étudiant |
 | Lecture | aucune en Phase 2 ; plus tard par URL signée courte côté serveur. Aucune URL publique (vérifié par test). Les chemins ne sont jamais renvoyés au navigateur. |
 
+**Cartes d'identité** *(documents d'identité)* : bucket **séparé** `aivex-id-cards`, **privé** (forcé par la migration), 5 Mo, `image/jpeg` et `image/png`, sans policy pour `anon`/`authenticated` — séparé de `aivex-student-cards` pour que l'accès aux pièces d'identité puisse être accordé et audité à part. Chemin : `edition-2/{registration_id}/{delegation-head|driver}/{uuid aléatoire}.{jpg|png}` — l'UUID de l'inscription et un UUID tiré par le **serveur** pour chaque fichier ; jamais un nom, un téléphone, un RFID, un e-mail ou un numéro d'identité, jamais rien venu du client. Écriture par le service role, `upsert: false`. Le chemin figure dans la ligne d'inscription **dès son INSERT** (avant l'upload), de sorte qu'une tentative interrompue sait toujours quels fichiers elle devait créer.
+
 ## 8. Cartes étudiantes
 
 Obligatoires (3 par inscription), données **internes de vérification** : jamais dans le Word/PDF, jamais publiques, jamais journalisées. Formulaire : un bloc « Student 0N · Student card — Front side » par étudiant, avec nom, type, taille et état (« Valid file ✓ » ou refus détaillé : nom, type, taille, raison), boutons Remplacer / Supprimer. Une carte absente bloque l'étape Étudiants et l'envoi. Les fichiers restent dans l'état React et ne sont jamais écrits dans le brouillon.
 
+## 8b. Documents d'identité (chef de délégation, chauffeur)
+
+Une image de la **carte nationale d'identité** par personne, **obligatoire pour toute nouvelle inscription** — mêmes principes que les cartes étudiantes (données internes de vérification : jamais dans le Word, jamais publiques, jamais journalisées, jamais téléchargeables par le Magic Link ni visibles sur `/aivex/status`), plus **minimisation** : seule l'image est collectée. Rien n'en est lu (ni OCR, ni numéro d'identité, ni date ou lieu de naissance, adresse, photo) ; la base ne garde que chemin privé, type, taille et SHA-256.
+
+**Formulaire.** Étape « Délégation », section séparée « Documents d'identité » après les deux fiches : intitulés « Carte nationale d'identité — Chef de délégation » / « — Chauffeur », consigne « Veuillez importer une image lisible de la carte nationale d'identité. », « Image JPG, JPEG ou PNG. Taille maximale : 5 Mo. », et une note de confidentialité (« … collectés uniquement pour la vérification des membres de la délégation. Ils sont stockés dans un espace privé et ne sont pas publiquement accessibles. ») — FR/EN/AR, **sans durée de conservation ni promesse juridique** puisqu'aucune n'est définie. Par document : `<label>` réel, `aria-describedby`, `aria-invalid`, erreur annoncée (`role="alert"`), nom + type + taille du fichier, Remplacer / Supprimer, glisser-déposer. L'image n'est **pas affichée** (ni aperçu, ni URL d'objet) ; l'écran de relecture n'indique que « ✓ Jointe » + type et taille. Un brouillon ne garde jamais le fichier ni son nom, seulement le fait qu'une carte avait été jointe (pour la redemander après un rechargement).
+
+**Écriture (idempotence et échecs).** L'inscription n'est complète que si ses **3 étudiants** existent, et ils sont insérés **en dernier**, après les 5 fichiers : impossible d'avoir une inscription « réussie » à laquelle il manque un document. Un échec (stockage ou base) supprime les fichiers de la tentative — les deux chemins d'identité prévus, envoyés ou non — puis la ligne. **Si un fichier n'a pas pu être supprimé, la ligne est conservée** (incomplète) : c'est la seule trace de l'endroit où il se trouve ; la tentative suivante avec le même `submissionId` (après 3 minutes) ou un opérateur le supprime. Un rejeu d'une inscription complète répond 200 sans rien renvoyer au stockage. `registerV4` refuse d'écrire une inscription sans les deux cartes validées, et un store qui ne conserve pas l'identifiant d'inscription généré par le serveur (les chemins le nomment).
+
+**Anciennes inscriptions.** `delegation_head_id_card_*` et `driver_id_card_*` restent NULL : acceptable pour l'historique, rien n'est réclamé rétroactivement.
+
+**Compatibilité administration (Phase 5C).** Le modèle est prêt — chemin, type, taille et SHA-256 par personne, rattachés à l'inscription — mais **aucune lecture n'existe encore** : à concevoir avec l'accès administrateur (lecture côté serveur uniquement, `Content-Type` image fixe et `nosniff`, jamais de chemin renvoyé au navigateur).
+
 ## 9. Mapping Word
 
-29 variables, données officielles uniquement : édition et dates (`aivex_settings`), `registration_reference`, wilaya, établissement, équipe, téléphone et e-mail du responsable, chef de délégation et chauffeur (nom, téléphone, RFID), 3 étudiants (nom, téléphone, année du BAC, RFID), date limite et e-mail de dépôt. **Aucune** variable de carte, de n° d'identité, de matricule ou de niveau.
+29 variables, données officielles uniquement : édition et dates (`aivex_settings`), `registration_reference`, wilaya, établissement, équipe, téléphone et e-mail du responsable, chef de délégation et chauffeur (nom, téléphone, RFID), 3 étudiants (nom, téléphone, année du BAC, RFID), date limite et e-mail de dépôt. **Aucune** variable de carte (étudiante ou d'identité), de n° d'identité, de matricule ou de niveau : les colonnes `*_id_card_*` sont dans `WORD_EXCLUDED_FIELDS_V4` et le générateur ne lit que les colonnes que le mapping nomme (test).
 
 ### 9.1 Génération du document officiel (Phase 4)
 
@@ -241,13 +268,14 @@ not_generated ──claim──▶ generating ──docx OK──▶ awaiting_si
 
 L'index UNIQUE de `submission_id` est la garde finale : deux requêtes simultanées → une seule insertion, l'autre relit la ligne et suit le tableau. `maxDuration` de la fonction est fixé à 60 s (`vercel.json`), bien sous le seuil de 3 minutes.
 
-**Échec en cours d'écriture** (upload ou insertion des étudiants) : les cartes déjà envoyées et l'inscription sont supprimées (nettoyage compensatoire), réponse 500 générique.
+**Échec en cours d'écriture** (upload ou insertion des étudiants) : les cartes déjà envoyées (étudiantes **et** d'identité) et l'inscription sont supprimées (nettoyage compensatoire), réponse 500 générique — sauf si un fichier n'a pas pu être supprimé : la ligne est alors conservée (§8b). Une tentative morte (≥ 3 min) est découverte au rejeu : ses cartes étudiantes (chemin déterministe) et ses cartes d'identité (chemins enregistrés dans la ligne) sont supprimées, puis l'inscription est refaite.
 
 ## 12. Sécurité et confidentialité
 
 - `SUPABASE_SECRET_KEY` uniquement dans l'environnement serveur ; les variables `VITE_`/`INFINITY_`/`AIVEX_` sont publiques et lues statiquement.
-- Conservés : POST seul, contrôle d'origine (production), rate limit (5 / 15 min / IP), honeypot (succès neutre sans écriture), limites mémoire multipart.
+- Conservés : POST seul, contrôle d'origine (production), rate limit (5 / 15 min / IP), honeypot (succès neutre sans écriture), limites mémoire multipart (5 fichiers, 5 Mo chacun, refusés pendant la réception).
 - Validation serveur complète : UUID, versions, objets fermés, types réels des fichiers, taille, nombre de fichiers.
+- Documents d'identité : jamais d'URL publique ni signée, jamais de chemin ou de secret renvoyé au navigateur, jamais de contenu, chemin, nom de fichier ni checksum dans les journaux (une étape et un code, vérifié par test sur chaque chemin d'échec), aucune lecture par le Magic Link ni par `/aivex/status`.
 - RLS sur les 4 tables sans policy ; `anon`/`authenticated` sans droits sur `aivex_students`/`aivex_settings`.
 - Réponses : jamais de SQL, de détail Supabase, de chemin Storage ni de stack trace. Journaux : une étape et un code d'erreur, jamais de payload, nom, téléphone, e-mail, RFID ou chemin (vérifié par test).
 
@@ -276,6 +304,8 @@ Tant que les migrations ne sont pas appliquées, l'API V4 répond 500 à toute i
 
 **Phase 4 (documents).** Appliquer `20260920120000_aivex_v4_generated_documents.sql`, puis déployer. L'ordre n'est pas bloquant : sans cette migration, les inscriptions continuent de réussir et leurs documents passent en `generation_failed`, relançables ensuite avec `scripts/aivex-retry-documents.mjs --apply`. Renseigner aussi la ligne `aivex_settings` de l'édition 2 (nom, dates, date limite, e-mail) : sans elle, ces champs sortent vides dans le document.
 
+**Documents d'identité (2026-09-23).** Appliquer `20260923120000_aivex_v4_identity_documents.sql` (SQL editor Supabase) **avant** de déployer : le nouveau code sélectionne et insère les colonnes `*_id_card_*`, donc une inscription répondrait 500 tant qu'elles n'existent pas. La migration est additive et rejouable ; ses requêtes de contrôle (lecture seule) figurent en fin de fichier : colonnes NULLables, aucune inscription existante modifiée, contraintes actives, bucket `aivex-id-cards` privé, aucune policy `storage.objects`. Déployer ensuite frontend et API ensemble ; les onglets restés ouverts sur l'ancien formulaire reçoivent un 400 « rechargez la page ». Après la première vraie inscription, vérifier qu'elle a les deux documents (requête fournie dans la migration). La migration a été exécutée sur PostgreSQL (PGlite) à la suite complète des migrations à partir d'un schéma d'origine reconstitué : idempotence, lignes existantes inchangées octet pour octet, droits et RLS inchangés, 14 valeurs invalides refusées ; **une exécution sur un projet Supabase de staging reste recommandée** (le schéma d'origine réel n'est pas dans le dépôt).
+
 **DOCX seul + téléchargement.** Aucune migration : le schéma existant suffit (la contrainte `document_type in ('docx','pdf')` et le MIME PDF du bucket restent, pour un futur dépôt signé). Déployer suffit : nouvelle fonction `api/aivex/document.js` (déclarée dans `vercel.json` avec le template inclus), mêmes variables `SUPABASE_URL` / `SUPABASE_SECRET_KEY`, aucune variable PDF.
 
 ## 15. Décisions métier ouvertes
@@ -287,4 +317,5 @@ Tant que les migrations ne sont pas appliquées, l'API V4 répond 500 à toute i
 5. Template Word : `activity_official_name` / rôle, formats des dates.
 6. Valeurs officielles de `aivex_settings` (édition 2).
 7. Conservation des numéros d'identité des inscriptions V3.
-8. Limite Vercel de 4,5 Mo par requête : compression navigateur (actuelle) ou upload direct vers Storage.
+8. Limite Vercel de 4,5 Mo par requête : compression navigateur (actuelle) ou upload direct vers Storage. Avec 5 images le budget passe à ≈ 800 Ko chacune (contre 1,2 Mo pour 3).
+9. Cartes d'identité : durée de conservation (aucune n'est définie ni annoncée), qui peut les lire et avec quelle traçabilité, recto seul ou recto-verso, WEBP accepté ou non (refusé aujourd'hui).

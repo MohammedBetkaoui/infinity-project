@@ -3,19 +3,22 @@
 > **Status: Phase 4D audit — 2026-09-19. Audit only; the production DOCX workflow (registration → Supabase → private storage → DOCX → secure download) is unchanged.**
 >
 > This document records what the current, live implementation actually does. It does not make a legal determination — Algerian data-protection compliance is the university's/DPO's decision (§18).
+>
+> **Update 2026-09-23 — identity documents.** New registrations now also carry one national identity card **image** for the head of delegation and one for the driver. They are stored in their own private bucket (`aivex-id-cards`); the sections below mark what changed with "*(identity documents)*". The rest of the audit is unchanged and was not re-run. Migration: `20260923120000_aivex_v4_identity_documents.sql`.
 
 ## 1. Architecture
 
 ```
 Browser
-  │  multipart POST (payload JSON + 3 card images)
+  │  multipart POST (payload JSON + 3 student-card images + 2 identity-card images)
   ▼
 Vercel Serverless Function — api/aivex/register.js  (Node, region: iad1 — see §14)
   │  validate → write → generate the official DOCX
   ▼
 Supabase PostgreSQL            Supabase Storage (private)
   aivex_registrations            aivex-student-cards
-  aivex_students                 aivex-generated-forms
+  aivex_students                 aivex-id-cards   (identity documents)
+                                 aivex-generated-forms
   aivex_settings
   aivex_generated_documents
   │
@@ -38,6 +41,7 @@ No PDF conversion, no external document-processing service, no user accounts. `a
 | Driver: name, phone, RFID | `aivex_registrations` | Personal (staff) |
 | Student: name, phone, BAC year, RFID | `aivex_students` (3 rows/registration) | Personal (student) |
 | Student-card image | Storage `aivex-student-cards`, path in `aivex_students.student_card_path` | **Personal, identity document** |
+| *(identity documents)* Head-of-delegation and driver national identity card **image** | Storage `aivex-id-cards`; metadata only in `aivex_registrations.delegation_head_id_card_{path,mime,size,sha256}` and `driver_id_card_{…}` | **Personal, identity document** |
 | Submission metadata: `submission_id` (UUID), `submission_fingerprint` (SHA-256), source page, timestamps | `aivex_registrations` | Technical/operational |
 | Edition settings: dates, deadline, submission e-mail, template version | `aivex_settings` | Organisational |
 | Generated DOCX + its metadata | Storage `aivex-generated-forms`, row in `aivex_generated_documents` | **Personal (recombines everything above into one document)** |
@@ -46,12 +50,15 @@ Current production inventory (2026-09-19, read-only, no personal values reproduc
 
 Student-card images are the most sensitive item: they are identity-document photographs, stored as files (not database rows), never included in the generated DOCX (§4), and never served through a public or signed URL (§8).
 
+*(identity documents)* The two delegation identity-card images are the same class of data and follow the same rules, with a **data-minimisation** rule on top: only the image is collected. Nothing is read from it — no OCR, and no national ID number, date of birth, address or photo is extracted into any field — and the database holds only a private path, the MIME type, the size in bytes and a SHA-256 of the file (never the image, a URL, a signed URL or base64). The browser does not display the image back (it shows the file name, type and size only), and it is never kept in a form draft (only *whether* one was attached).
+
 ## 3. Data flow
 
 | Step | What travels | Where | External service involved |
 |---|---|---|---|
 | A. Registration submit | Full multipart payload (all fields in §2 except the generated DOCX) | Browser → `api/aivex/register.js` (Vercel) → Supabase Postgres | None |
 | B. Student-card images | 3 image files (≤5 MB each, JPEG/PNG/WEBP) | Browser → `api/aivex/register.js` → Supabase Storage (`aivex-student-cards`, private) | None |
+| B2. *(identity documents)* Identity-card images | 2 image files (≤5 MB each, JPEG/PNG only), the same request as B | Browser → `api/aivex/register.js` → Supabase Storage (`aivex-id-cards`, private); the function computes their SHA-256 and stores path/MIME/size/SHA-256 in `aivex_registrations` | None |
 | C. Generated DOCX | Registration + student data, rendered into the fixed template | Server-side only: `api/_lib/aivex-document-generation.js` reads Postgres, writes to Storage (`aivex-generated-forms`, private) | None |
 | D. Downloaded DOCX | The stored `.docx` bytes | Supabase Storage → `api/aivex/document.js` (server reads with the service key) → browser, as a response body | None |
 | E. Logs | Stage name + numeric/string error code only (§10) | Vercel's own log pipeline | None (Vercel is the hosting/runtime platform itself, not a third-party processor of content) |
@@ -62,6 +69,7 @@ PDF conversion was removed in an earlier phase; this audit re-confirms (§16) th
 ## 4. Storage
 
 - **`aivex-student-cards`** — private (`public = false`), 5 MB/file limit, MIME allow-list `image/jpeg`, `image/png`, `image/webp`. No `storage.objects` policy exists for it, so `anon`/`authenticated` have no read or write access through the Storage API; only the service-role key (server-side) can reach it.
+- **`aivex-id-cards`** *(identity documents)* — private (`public = false`), 5 MB/file limit, MIME allow-list `image/jpeg`, `image/png` (WEBP, accepted for student cards, is deliberately not accepted here). Created by `20260923120000_aivex_v4_identity_documents.sql`, which forces `public = false` and adds **no** `storage.objects` policy: `anon`/`authenticated` have no access, only the server-side service role does. It is separate from `aivex-student-cards` so that access to identity documents can be granted and audited on its own. Object paths are built by the server — `edition-{edition}/{registration_id}/{delegation-head|driver}/{random UUID}.{jpg|png}` — from the registration's own UUID and one fresh random UUID per file: never a name, phone number, RFID, e-mail or national ID number, and never anything the client sent. A database CHECK constraint pins each stored path to its own registration and person.
 - **`aivex-generated-forms`** — private (`public = false`), 10 MB/file limit, MIME allow-list `application/vnd.openxmlformats-officedocument.wordprocessingml.document` (docx) and `application/pdf` (kept for a possible future signed-document upload — nothing writes a `pdf` file today). Same access model: no policy, service-role only.
 - No `getPublicUrl` or `createSignedUrl` call exists anywhere in `api/`, `shared/`, or `src/` (enforced by tests in `tests/aivex-contract-v4.test.mjs`, `tests/aivex-document-generation.test.mjs`, and the new `tests/aivex-security-audit.test.mjs`). Files are only ever read server-side and streamed back through `api/aivex/document.js`.
 - Card images are **never** embedded in the generated DOCX (verified in production during Phase 4/4C: the only two images inside a generated document are the template's own logos, byte-identical to the source template).
@@ -85,8 +93,8 @@ PDF conversion was removed in an earlier phase; this audit re-confirms (§16) th
 **`api/aivex/register.js`**
 - Origin check (`isTrustedOrigin`) enforced only on Vercel (`process.env.VERCEL`), same-origin/no-header-fails-open pattern documented in `api/_lib/security.js`.
 - Rate limit: 5 requests / 15 minutes / client IP, in-memory (per warm instance — see §9).
-- Multipart limits: 3 files max, 5 MB/file, 30 MB/request, only the `payload` field and `studentCard_1..3` fields accepted.
-- Full field validation (`validateRegistrationV4`) before any write; student-card bytes checked by magic number (`file-type`), not just declared MIME.
+- Multipart limits: 5 files max (`studentCard_1..3`, `delegationHeadIdCard`, `driverIdCard`), 5 MB/file, 30 MB/request, only the `payload` field accepted besides them. The 5 MB limit is enforced **while the file streams** (busboy stops the file at the limit and the request is refused at once; a 40 MB body is refused after about 5 MB — covered by a test), and a rejected upload buffers nothing beyond that limit.
+- Full field validation (`validateRegistrationV4`) before any write; every image's bytes checked by magic number (`file-type`), not just declared MIME — and the declared MIME, the file-name extension and the detected type must all agree. *(identity documents)* Nothing is stored unless all five images have passed; the identity cards' SHA-256 is computed by the server from the received bytes (a client-supplied checksum has no way in).
 - Honeypot field answered with a neutral success and no write/upload.
 - Idempotent on `submissionId`: a replay returns the same reference, never a duplicate row.
 - Errors never expose Supabase internals, stack traces, or SQL (`registrationResponsesV4.failed`, fixed message set).
@@ -154,7 +162,7 @@ Grep-audited every `console.log/error/warn` call in `api/_lib/aivex-*.js`, `api/
 
 **Recommendation (not implemented, per this phase's scope):** the organiser/university should define, separately:
 1. How long a **registration record** (names, phones, RFIDs) is kept after the event concludes.
-2. How long a **student-card image** — the most sensitive item, an identity document — is kept; a shorter retention than the registration record itself is a common practice for this category of data.
+2. How long a **student-card image** — the most sensitive item, an identity document — is kept; a shorter retention than the registration record itself is a common practice for this category of data. *(identity documents)* The same question applies, with the same urgency, to the **identity-card images of the head of delegation and the driver** (`aivex-id-cards`): **no retention period exists for them and none is stated anywhere in the application** (the form deliberately says only that they are collected for delegation verification and kept in a private area).
 3. How long a **generated Word document** is kept once the applicant has downloaded and had it signed.
 4. (Future) The same question for a signed-document upload, once that feature exists.
 
@@ -166,7 +174,7 @@ Verified two ways: schema analysis, and a real deletion performed in Phase 4C (5
 
 - **Registration row deleted** → `aivex_students` rows for it are removed automatically (`on delete cascade` FK, `20260918120000_aivex_v4_contract.sql`).
 - **Registration row deleted** → `aivex_generated_documents` rows for it are removed automatically (`on delete cascade` FK, `20260920120000_aivex_v4_generated_documents.sql`).
-- **Storage objects are NOT cascaded** — Supabase Storage objects are not foreign-keyed to Postgres rows, so student-card files and the generated DOCX file must be deleted separately (`storage.remove()`), which Phase 4C did explicitly before deleting each registration row. Verified after the fact: all 5 deleted registrations' Storage folders were empty (0 files) afterward, and no other registration's files were touched.
+- **Storage objects are NOT cascaded** — Supabase Storage objects are not foreign-keyed to Postgres rows, so student-card files, the generated DOCX file and *(identity documents)* the two identity-card files in `aivex-id-cards` (paths in `aivex_registrations.*_id_card_path`, or the whole `edition-{edition}/{registration_id}/` prefix) must be deleted separately (`storage.remove()`), which Phase 4C did explicitly before deleting each registration row. Verified after the fact: all 5 deleted registrations' Storage folders were empty (0 files) afterward, and no other registration's files were touched.
 
 **Status: PASS** for the cascade behaviour that exists; **the storage side requires an explicit extra step**, which is a real operational fact to know (there is no one-call "delete everything for this registration" today) rather than a defect — it was handled correctly by hand in Phase 4C, and any future deletion tooling must do the same two-step removal.
 
@@ -209,6 +217,10 @@ Confirmed **not** present anywhere in the codebase (import, `fetch()` call, depe
 - **Rate limiting is per-instance, not distributed** (§9).
 - **Storage deletion is a manual, separate step from the database delete** (§12) — there is no single "delete a registration and everything it owns" operation today.
 - **The DOCX download only works from the browser tab that submitted the registration** (documented in the Phase 4B production report): after a reload or closing the tab, the `submissionId` needed to authorise the download is gone from that browser, and the file can only be retrieved by the organisers going directly to Storage.
+- *(identity documents)* **A file is checked by its magic bytes, not decoded.** An image that starts like a JPEG/PNG but is not a fully valid picture (or that carries extra data after it) is accepted. That is harmless while the files stay in a private bucket that nothing serves to a browser; **any future admin viewer must serve them through the backend with a fixed image `Content-Type` and `X-Content-Type-Options: nosniff`, never inline HTML**, and must not re-expose a storage path.
+- *(identity documents)* **No admin read path exists yet.** The data model (per-registration path, MIME, size, SHA-256) is ready for the admin review phase, but nothing reads these files today — deliberately: the candidate Magic Link and `/aivex/status` never reference them (test-enforced).
+- *(identity documents)* **Cleanup that itself fails is not silent, but not automatic either.** If a stored file cannot be removed after a failed registration, the (incomplete) registration row is kept — it is the only record of where the file is — and the next attempt with the same `submissionId` (after 3 minutes) or an operator removes it. A registration abandoned for good in that state has no owner to retry it; a periodic look for registrations with no students is an operator task.
+- *(identity documents)* **Vercel's 4.5 MB request limit** applies to all five images together; the browser recompresses each image to fit (about 800 KB each), which is enough to read a card but is not the original photo.
 - **`aivex_members`** is an unused, V3-era table still present in the schema (protected by the same zero-policy RLS, but otherwise orphaned) — not a security issue, but schema debt.
 - **Supabase's project region is unverified** (§14) — a real gap in what this audit can confirm without dashboard access.
 - **Backup/PITR configuration is unverified** (§13) — same reason.
@@ -221,7 +233,8 @@ These require a person, not code, and were **not** decided or implemented in thi
 2. **Confirm whether the Vercel project's default function region should be pinned explicitly** (currently an account/dashboard default, `iad1`, not committed in code).
 3. **Decide whether the `SUPABASE_SECRET_KEY` currently in `.env.local` should be rotated**, given it has resided in a OneDrive-synced folder (§5) — the key itself was never committed to Git, but OneDrive's own cloud sync is a separate, uncontrolled channel.
 4. **Move the repository (and therefore `.env.local`) out of the OneDrive-synced folder**, as a standing recommendation from earlier phases, still open.
-5. **Define a retention period** for each of: registration records, student-card images, generated Word documents, and (later) signed documents (§11) — none exists today.
+5. **Define a retention period** for each of: registration records, student-card images, *(identity documents)* delegation identity-card images, generated Word documents, and (later) signed documents (§11) — none exists today.
+5b. *(identity documents)* **Decide who may read the identity-card images, and how that access is logged**, before the admin review phase reads `aivex-id-cards`. The application never grants it to candidates.
 6. **Investigate `AIVEX2-7ZS7057Y`** — a registration that appeared during the Phase 4C testing window, was not created by any known test run, and uses a real institution name (flagged in the Phase 4C report; still open).
 7. **Make the actual legal determination** under Algerian Law 18-07 regarding cross-border processing/storage of student and staff personal data (§15) — this document only lays out the technical facts; the conclusion is the university's/DPO's to reach.
 8. **Confirm Supabase's own backup/PITR configuration and retention** meets the university's requirements (§13).
