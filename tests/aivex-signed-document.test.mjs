@@ -527,10 +527,23 @@ test('I3. no PII/secret-shaped logging and no getPublicUrl/createSignedUrl acros
 // =================================================================================
 
 test('J. the upload UI is gated on the same eligibility rule the server enforces, never localStorage/sessionStorage', async () => {
+  // The page is split into small components (Dossier -> SignaturePanel /
+  // ReceivedPanel -> SignedDocumentDropzone); the gate lives in the page, the
+  // file input in the dropzone, and neither may be reachable without the gate.
   const page = await read('src/pages/aivex/status/AivexStatusPage.jsx')
   assert.match(page, /UPLOAD_ELIGIBLE_DOCUMENT_STATUSES/)
-  assert.match(page, /type="file"/)
   assert.match(page, /uploadEligible/)
+  assert.match(page, /uploadEligible && stage === 'sign'[\s\S]{0,40}<SignaturePanel/, 'the signature panel is only rendered when upload is eligible')
+  assert.match(page, /uploadEligible && stage === 'received'[\s\S]{0,40}<ReceivedPanel/, 'the received panel is only rendered when upload is eligible')
+  const dropzone = await read('src/pages/aivex/status/SignedDocumentDropzone.jsx')
+  assert.match(dropzone, /type="file"/)
+  for (const file_ of ['SignaturePanel.jsx', 'ReceivedPanel.jsx']) {
+    assert.match(await read(`src/pages/aivex/status/${file_}`), /<SignedDocumentDropzone/, `${file_} reuses the one dropzone`)
+  }
+  // Nothing outside the gated panels may render the dropzone or a file input.
+  for (const file_ of ['OfficialFormPanel.jsx', 'DossierHeader.jsx', 'ProgressTracker.jsx', 'StatusNotices.jsx']) {
+    assert.doesNotMatch(await read(`src/pages/aivex/status/${file_}`), /SignedDocumentDropzone|type="file"/, file_)
+  }
 
   const hook = await read('src/pages/aivex/status/useAivexStatus.js')
   assert.match(hook, /\/api\/aivex\/magic-link\/upload/)
@@ -574,6 +587,10 @@ test('Phase 5B does not implement admin review, OCR, payment, notifications or c
     'api/_lib/aivex-signed-document-store.js', 'api/_lib/aivex-signed-document-upload.js',
     'api/_lib/aivex-signed-document-validation.js', 'api/aivex/magic-link/upload.js',
     'src/pages/aivex/status/AivexStatusPage.jsx', 'src/pages/aivex/status/useAivexStatus.js',
+    'src/pages/aivex/status/DossierHeader.jsx', 'src/pages/aivex/status/OfficialFormPanel.jsx',
+    'src/pages/aivex/status/ProgressTracker.jsx', 'src/pages/aivex/status/ReceivedPanel.jsx',
+    'src/pages/aivex/status/SignaturePanel.jsx', 'src/pages/aivex/status/SignedDocumentDropzone.jsx',
+    'src/pages/aivex/status/StatusNotices.jsx', 'src/pages/aivex/status/statusModel.js',
   ]
   for (const path of files) {
     // Comments may legitimately *say* "no admin review yet" (several do,

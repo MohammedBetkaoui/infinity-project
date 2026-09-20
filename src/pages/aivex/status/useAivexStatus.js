@@ -14,6 +14,9 @@ const VERIFY_ENDPOINT = '/api/aivex/magic-link/verify'
 const DOCUMENT_ENDPOINT = '/api/aivex/magic-link/document'
 const UPLOAD_ENDPOINT = '/api/aivex/magic-link/upload'
 const REQUEST_TIMEOUT_MS = 12000
+// A 10 MB file over a slow mobile connection needs far more headroom than
+// the short JSON calls above.
+const UPLOAD_TIMEOUT_MS = REQUEST_TIMEOUT_MS * 10
 
 const KNOWN_FAILURES = new Set(['invalid', 'expired', 'revoked', 'registration_not_found'])
 
@@ -25,7 +28,7 @@ function readTokenFromUrl() {
   }
 }
 
-const BLANK_UPLOAD = { file: null, uploadId: null, issue: '', status: 'idle', message: '' }
+const BLANK_UPLOAD = { file: null, uploadId: null, issue: '', status: 'idle', message: '', progress: 0 }
 
 // A direct load of /aivex/status?token=... (bookmark, reopened link, page
 // refresh) is the only entry point this page supports on purpose: it never
@@ -45,16 +48,22 @@ export default function useAivexStatus() {
   // idempotency check this key exists for). Picking a different file starts
   // a new attempt with a fresh id.
   const [upload, setUpload] = useState(BLANK_UPLOAD)
-  // Bumped after a successful upload to re-run the verify effect below, so
-  // the rest of the page (documentStatus, signedDocument) reflects the new
-  // state immediately, from the same server response shape as a fresh load.
+  // Bumped to re-run the verify effect below: after a successful upload (so
+  // the page reflects the new state from the same server response shape as
+  // a fresh load), or when the candidate asks to refresh / retry.
   const [refreshCount, setRefreshCount] = useState(0)
+  const [refreshState, setRefreshState] = useState({ busy: false, failed: false })
 
   useEffect(() => {
     if (!token) return undefined
     let cancelled = false
     const controller = new AbortController()
     const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+
+    // A refresh that merely fails to reach the server must not throw away a
+    // dossier the candidate is already looking at; an answer that says the
+    // link is invalid, expired or revoked always replaces it.
+    const fail = (status) => setState((previous) => (previous.status === 'valid' && status === 'server_error' ? previous : { status, data: null }))
 
     fetch(VERIFY_ENDPOINT, {
       method: 'POST',
@@ -67,12 +76,17 @@ export default function useAivexStatus() {
         if (cancelled) return
         if (response.ok && payload?.success === true) {
           setState({ status: 'valid', data: payload })
+          setRefreshState({ busy: false, failed: false })
           return
         }
-        setState({ status: KNOWN_FAILURES.has(payload?.status) ? payload.status : 'server_error', data: null })
+        const status = KNOWN_FAILURES.has(payload?.status) ? payload.status : 'server_error'
+        fail(status)
+        setRefreshState({ busy: false, failed: status === 'server_error' })
       })
       .catch(() => {
-        if (!cancelled) setState({ status: 'server_error', data: null })
+        if (cancelled) return
+        fail('server_error')
+        setRefreshState({ busy: false, failed: true })
       })
       .finally(() => window.clearTimeout(timeout))
 
@@ -82,6 +96,16 @@ export default function useAivexStatus() {
       window.clearTimeout(timeout)
     }
   }, [token, refreshCount])
+
+  const refresh = () => {
+    setRefreshState({ busy: true, failed: false })
+    setRefreshCount((count) => count + 1)
+  }
+  // From the error card: back to the loading skeleton, then ask again.
+  const retry = () => {
+    setState({ status: 'loading', data: null })
+    setRefreshCount((count) => count + 1)
+  }
 
   const download = async () => {
     if (!token || downloadState.busy) return
@@ -121,39 +145,61 @@ export default function useAivexStatus() {
   // including the magic bytes a browser cannot read (section 18 of the
   // Phase 5B brief). A fresh uploadId marks this as a new attempt.
   const selectSignedDocument = (file) => {
-    setUpload({ file, uploadId: createSubmissionId(), issue: signedDocumentFileIssue(file), status: 'idle', message: '' })
+    setUpload({ ...BLANK_UPLOAD, file, uploadId: createSubmissionId(), issue: signedDocumentFileIssue(file) })
   }
-  const clearSignedDocument = () => setUpload(BLANK_UPLOAD)
+  const clearSignedDocument = () => setUpload((previous) => (previous.status === 'uploading' ? previous : BLANK_UPLOAD))
 
-  const submitSignedDocument = async () => {
+  // XMLHttpRequest rather than fetch, for one reason: it is the only browser
+  // API that reports how much of the request body has actually left the
+  // device, which is what makes a 10 MB upload on a phone feel trustworthy.
+  // The request itself is the same multipart body as before (token, the
+  // per-file uploadId, the file) to the same endpoint.
+  const submitSignedDocument = () => {
     if (!token || !upload.file || upload.issue || upload.status === 'uploading') return
-    setUpload((prev) => ({ ...prev, status: 'uploading', message: '' }))
-    const controller = new AbortController()
-    // Generous: a 10 MB upload over a slow mobile connection needs more
-    // headroom than the short JSON calls above.
-    const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS * 10)
-    try {
-      const body = new FormData()
-      body.append('token', token)
-      body.append('uploadId', upload.uploadId)
-      body.append('file', upload.file, upload.file.name)
-      const response = await fetch(UPLOAD_ENDPOINT, { method: 'POST', body, signal: controller.signal })
-      const payload = await response.json().catch(() => ({}))
-      if (!response.ok || payload?.success !== true) {
-        setUpload((prev) => ({ ...prev, status: 'error', message: payload?.status || 'error' }))
+    setUpload((previous) => ({ ...previous, status: 'uploading', message: '', progress: 0 }))
+
+    const body = new FormData()
+    body.append('token', token)
+    body.append('uploadId', upload.uploadId)
+    body.append('file', upload.file, upload.file.name)
+
+    const request = new XMLHttpRequest()
+    request.open('POST', UPLOAD_ENDPOINT)
+    request.responseType = 'json'
+    request.timeout = UPLOAD_TIMEOUT_MS
+    request.upload.onprogress = (event) => {
+      if (!event.lengthComputable) return
+      const progress = Math.min(100, Math.round((event.loaded / event.total) * 100))
+      setUpload((previous) => (previous.status === 'uploading' ? { ...previous, progress } : previous))
+    }
+    request.onload = () => {
+      const payload = request.response && typeof request.response === 'object' ? request.response : {}
+      if (request.status >= 200 && request.status < 300 && payload.success === true) {
+        setUpload({ ...BLANK_UPLOAD, status: 'success' })
+        setRefreshCount((count) => count + 1)
         return
       }
-      setUpload({ ...BLANK_UPLOAD, status: 'success' })
-      setRefreshCount((count) => count + 1)
-    } catch {
-      setUpload((prev) => ({ ...prev, status: 'error', message: 'network' }))
-    } finally {
-      window.clearTimeout(timeout)
+      setUpload((previous) => ({ ...previous, status: 'error', message: payload.status || 'error', progress: 0 }))
     }
+    const networkFailure = () => setUpload((previous) => ({ ...previous, status: 'error', message: 'network', progress: 0 }))
+    request.onerror = networkFailure
+    request.ontimeout = networkFailure
+    request.send(body)
   }
 
   return {
-    status: state.status, data: state.data, download, downloading: downloadState.busy, downloadError: downloadState.error,
-    upload, selectSignedDocument, clearSignedDocument, submitSignedDocument,
+    status: state.status,
+    data: state.data,
+    download,
+    downloading: downloadState.busy,
+    downloadError: downloadState.error,
+    refresh,
+    retry,
+    refreshing: refreshState.busy,
+    refreshFailed: refreshState.failed,
+    upload,
+    selectSignedDocument,
+    clearSignedDocument,
+    submitSignedDocument,
   }
 }

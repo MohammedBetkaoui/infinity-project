@@ -1,4 +1,4 @@
-// Translations for the AIVEX candidate status page (Magic Link, Phase 5A).
+// Translations for the AIVEX candidate status page (Magic Link, Phase 5A/5B).
 // Same shape/convention as ../register/registrationI18n.js: one flat object
 // per language, a lookup by code, RTL handled through `dir`.
 import { REGISTER_LANGS, REGISTER_LANG_STORAGE_KEY } from '../register/registrationI18n.js'
@@ -8,37 +8,37 @@ export { REGISTER_LANGS, REGISTER_LANG_STORAGE_KEY }
 const en = {
   dir: 'ltr',
   pageTitle: 'My AIVEX file',
+  headerLabel: 'My file',
   languageLabel: 'Page language',
   backToEvent: 'Back to event page',
 
+  // Loading + the states in which the link itself does not open a file.
   loadingTitle: 'Opening your file…',
   loadingText: 'Please wait a moment.',
-
   invalidTitle: 'This link is not valid.',
   invalidText: 'This access link could not be recognised. Please use the exact link you received after registering, or contact the organisers with your reference.',
-
   expiredTitle: 'This link has expired.',
   expiredText: 'Access links are valid for a limited time. Please contact the organisers with your reference to get a new one.',
-
   revokedTitle: 'This link is no longer active.',
   revokedText: 'A newer access link has since been issued for this registration. Please use the most recent link you received, or contact the organisers.',
-
   notFoundTitle: 'Registration not found.',
   notFoundText: 'We could not find the registration associated with this link. Please contact the organisers with your reference.',
-
   serverErrorTitle: 'Something went wrong.',
   serverErrorText: 'We could not open your file right now. Please try again in a moment.',
+  retryButton: 'Try again',
 
+  // The dossier header.
   validKicker: 'AIVEX file',
   validTitle: 'Your registration',
   fieldReference: 'Reference',
-  fieldTeam: 'Team',
   fieldInstitution: 'Institution',
   fieldWilaya: 'Wilaya',
   fieldStudents: 'Students',
   studentsValue: ({ count }) => `${count} students`,
   fieldRegistrationStatus: 'Application status',
-  fieldDocumentStatus: 'Official document',
+  copyReference: 'Copy the reference',
+  referenceCopied: 'Reference copied',
+  referenceCopyFailed: 'The reference could not be copied',
 
   registrationStatus: {
     submitted: 'Submitted',
@@ -47,33 +47,65 @@ const en = {
     rejected: 'Rejected',
     cancelled: 'Cancelled',
   },
+  // Short on purpose: these are the labels of the status badge.
   documentStatus: {
-    not_generated: 'Not generated yet',
-    generating: 'Being generated',
-    awaiting_signature: 'Ready — awaiting your signature',
+    not_generated: 'Being prepared',
+    generating: 'Being prepared',
+    awaiting_signature: 'Awaiting signature',
     signed_document_uploaded: 'Signed document received',
     under_review: 'Under review',
     changes_required: 'Changes required',
     validated: 'Validated',
-    generation_failed: 'Generation issue — please retry the download',
+    generation_failed: 'Generation issue',
     expired: 'Expired',
   },
 
-  documentReadyNote: 'Your official Word document is ready. After downloading, please convert or print it, then have it signed and stamped by your institution as instructed by the organisers.',
-  documentPendingNote: 'The official document is being prepared. Please check back in a moment.',
+  // Progress.
+  progressTitle: 'File progress',
+  steps: {
+    registered: 'Registration received',
+    form: 'Official form ready',
+    signed: 'Signed document submitted',
+    review: 'Review by the organisers',
+  },
+  stepState: { done: 'Completed', current: 'In progress', upcoming: 'Upcoming', attention: 'Needs attention' },
+
+  // Panel: the official form still has to be signed.
+  nextStepTitle: 'Your next step',
+  stepDownloadTitle: 'Get the official form',
+  documentReadyNote: 'Your official form has been generated in Word format.',
   downloadButton: '📄 Download the official form',
   downloading: 'Preparing the download…',
   downloadError: 'The download failed. Please try again in a moment; if it keeps failing, contact the organisers with your reference.',
-
-  sizeUnit: 'MB',
+  stepSignTitle: 'Print, sign and stamp',
+  stepSignText: 'Convert or print the document, then have it signed and stamped by your institution as instructed by the organisers.',
   uploadSectionTitle: 'Submit the signed document',
   uploadInstructions: 'Once printed, signed and stamped by your institution, scan or photograph the document and submit it here.',
-  uploadSupportedFormats: 'Accepted formats: PDF, JPG, JPEG, PNG',
-  uploadMaxSize: 'Maximum size: 10 MB',
+
+  // Panels: the form is not ready, could not be prepared, or the file has moved on.
+  preparingTitle: 'Your official form is being prepared',
+  documentPendingNote: 'The official document is being prepared. Please check back in a moment.',
+  refreshButton: 'Refresh',
+  refreshing: 'Refreshing…',
+  refreshFailed: 'Could not refresh. Please try again.',
+  retryTitle: 'The form could not be prepared',
+  retryText: 'Downloading again restarts its preparation automatically. If the problem continues, contact the organisers with your reference.',
+  officialFormTitle: 'Official form',
+
+  // Upload.
+  sizeUnit: 'MB',
+  sizeUnitKb: 'KB',
+  uploadDropTitle: 'Drag and drop your signed document here',
+  uploadDropActive: 'Drop the file to select it',
+  uploadDropOr: 'or',
   uploadChooseFile: 'Choose a file',
   uploadReplaceFile: 'Choose a different file',
+  uploadSupportedFormats: 'Accepted formats: PDF, JPG, JPEG, PNG',
+  uploadMaxSize: 'Maximum size: 10 MB',
+  uploadRemove: 'Remove this file',
   uploadSubmit: 'Submit the signed document',
   uploadSubmitting: 'Sending…',
+  uploadProcessing: 'Checking your document…',
   uploadFileIssues: {
     type: 'Unsupported format. Please use a PDF, JPG or PNG file.',
     size: 'This file is larger than the 10 MB limit.',
@@ -89,45 +121,52 @@ const en = {
     error: 'The upload failed. Please try again in a moment; if it keeps failing, contact the organisers with your reference.',
   },
   uploadSuccessTitle: 'Your signed document has been received.',
+
+  // Panel: a signed document is on file.
   uploadReceivedTitle: 'Signed document received',
   uploadReceivedVersion: ({ version }) => `Version ${version}`,
+  uploadReceivedOn: ({ date }) => `Received on ${date}`,
   uploadReceivedNote: 'This confirms receipt only — the organisers have not yet reviewed it.',
+  newVersionTitle: 'Submit a new version',
+  newVersionHint: 'Only needed to replace the document you already sent. Earlier versions are kept.',
+
+  // Footer.
+  helpText: 'Questions? Message the organisers on Instagram and mention your reference:',
+  privateNote: 'This page is private: anyone who has this link can access your file. Do not share it.',
 }
 
 const fr = {
   dir: 'ltr',
   pageTitle: 'Mon dossier AIVEX',
+  headerLabel: 'Mon dossier',
   languageLabel: 'Langue de la page',
   backToEvent: 'Retour à la page de l’événement',
 
   loadingTitle: 'Ouverture de votre dossier…',
   loadingText: 'Veuillez patienter un instant.',
-
   invalidTitle: 'Ce lien n’est pas valide.',
   invalidText: 'Ce lien d’accès n’a pas été reconnu. Merci d’utiliser exactement le lien reçu après votre inscription, ou de contacter les organisateurs avec votre référence.',
-
   expiredTitle: 'Ce lien a expiré.',
   expiredText: 'Les liens d’accès sont valables pour une durée limitée. Merci de contacter les organisateurs avec votre référence pour en obtenir un nouveau.',
-
   revokedTitle: 'Ce lien n’est plus actif.',
   revokedText: 'Un lien d’accès plus récent a depuis été émis pour cette inscription. Merci d’utiliser le dernier lien reçu, ou de contacter les organisateurs.',
-
   notFoundTitle: 'Inscription introuvable.',
   notFoundText: 'Nous n’avons pas retrouvé l’inscription associée à ce lien. Merci de contacter les organisateurs avec votre référence.',
-
   serverErrorTitle: 'Une erreur est survenue.',
   serverErrorText: 'Nous n’avons pas pu ouvrir votre dossier pour le moment. Merci de réessayer dans un instant.',
+  retryButton: 'Réessayer',
 
   validKicker: 'Dossier AIVEX',
   validTitle: 'Votre inscription',
   fieldReference: 'Référence',
-  fieldTeam: 'Équipe',
   fieldInstitution: 'Établissement',
   fieldWilaya: 'Wilaya',
   fieldStudents: 'Étudiants',
   studentsValue: ({ count }) => `${count} étudiants`,
   fieldRegistrationStatus: 'Statut de l’inscription',
-  fieldDocumentStatus: 'Document officiel',
+  copyReference: 'Copier la référence',
+  referenceCopied: 'Référence copiée',
+  referenceCopyFailed: 'La référence n’a pas pu être copiée',
 
   registrationStatus: {
     submitted: 'Soumise',
@@ -137,32 +176,59 @@ const fr = {
     cancelled: 'Annulée',
   },
   documentStatus: {
-    not_generated: 'Pas encore généré',
-    generating: 'Génération en cours',
-    awaiting_signature: 'Prêt — en attente de signature',
+    not_generated: 'En préparation',
+    generating: 'En préparation',
+    awaiting_signature: 'En attente de signature',
     signed_document_uploaded: 'Document signé reçu',
     under_review: 'En cours d’examen',
     changes_required: 'Corrections nécessaires',
     validated: 'Validé',
-    generation_failed: 'Problème de génération — réessayez le téléchargement',
+    generation_failed: 'Problème de génération',
     expired: 'Expiré',
   },
 
-  documentReadyNote: 'Votre fiche officielle a été générée au format Word. Après téléchargement, veuillez convertir ou imprimer le document, puis le faire signer et cacheter par votre établissement conformément aux instructions de l’organisation.',
-  documentPendingNote: 'Le document officiel est en cours de préparation. Merci de revenir dans un instant.',
+  progressTitle: 'Avancement du dossier',
+  steps: {
+    registered: 'Inscription enregistrée',
+    form: 'Fiche officielle prête',
+    signed: 'Document signé déposé',
+    review: 'Vérification par les organisateurs',
+  },
+  stepState: { done: 'Terminé', current: 'En cours', upcoming: 'À venir', attention: 'À traiter' },
+
+  nextStepTitle: 'Votre prochaine étape',
+  stepDownloadTitle: 'Récupérer la fiche officielle',
+  documentReadyNote: 'Votre fiche officielle a été générée au format Word.',
   downloadButton: '📄 Télécharger la fiche officielle',
   downloading: 'Préparation du téléchargement…',
   downloadError: 'Le téléchargement a échoué. Réessayez dans un instant ; si le problème persiste, contactez les organisateurs avec votre référence.',
-
-  sizeUnit: 'Mo',
+  stepSignTitle: 'Imprimer, signer et cacheter',
+  stepSignText: 'Convertissez ou imprimez le document, puis faites-le signer et cacheter par votre établissement conformément aux instructions de l’organisation.',
   uploadSectionTitle: 'Déposer le document signé',
   uploadInstructions: 'Une fois imprimé, signé et cacheté par votre établissement, scannez ou photographiez le document et déposez-le ici.',
-  uploadSupportedFormats: 'Formats acceptés : PDF, JPG, JPEG, PNG',
-  uploadMaxSize: 'Taille maximale : 10 Mo',
+
+  preparingTitle: 'Votre fiche officielle est en cours de préparation',
+  documentPendingNote: 'Le document officiel est en cours de préparation. Merci de revenir dans un instant.',
+  refreshButton: 'Actualiser',
+  refreshing: 'Actualisation…',
+  refreshFailed: 'Actualisation impossible. Réessayez.',
+  retryTitle: 'La fiche n’a pas pu être préparée',
+  retryText: 'Le téléchargement relance automatiquement sa préparation. Si le problème persiste, contactez les organisateurs avec votre référence.',
+  officialFormTitle: 'Fiche officielle',
+
+  sizeUnit: 'Mo',
+  sizeUnitKb: 'Ko',
+  uploadDropTitle: 'Glissez-déposez votre document signé ici',
+  uploadDropActive: 'Relâchez pour sélectionner le fichier',
+  uploadDropOr: 'ou',
   uploadChooseFile: 'Choisir un fichier',
   uploadReplaceFile: 'Choisir un autre fichier',
+  uploadSupportedFormats: 'Formats acceptés : PDF, JPG, JPEG, PNG',
+  uploadMaxSize: 'Taille maximale : 10 Mo',
+  uploadRemove: 'Retirer ce fichier',
   uploadSubmit: 'Envoyer le document signé',
   uploadSubmitting: 'Envoi en cours…',
+  uploadProcessing: 'Vérification du document…',
   uploadFileIssues: {
     type: 'Format non pris en charge. Utilisez un fichier PDF, JPG ou PNG.',
     size: 'Ce fichier dépasse la limite de 10 Mo.',
@@ -178,45 +244,50 @@ const fr = {
     error: 'L’envoi a échoué. Réessayez dans un instant ; si le problème persiste, contactez les organisateurs avec votre référence.',
   },
   uploadSuccessTitle: 'Votre document signé a bien été reçu.',
+
   uploadReceivedTitle: 'Document signé reçu',
   uploadReceivedVersion: ({ version }) => `Version ${version}`,
+  uploadReceivedOn: ({ date }) => `Reçu le ${date}`,
   uploadReceivedNote: 'Ceci confirme uniquement la réception : les organisateurs ne l’ont pas encore examiné.',
+  newVersionTitle: 'Déposer une nouvelle version',
+  newVersionHint: 'Uniquement pour remplacer le document déjà envoyé. Les versions précédentes sont conservées.',
+
+  helpText: 'Une question ? Écrivez aux organisateurs sur Instagram en indiquant votre référence :',
+  privateNote: 'Cette page est personnelle : toute personne qui possède ce lien peut accéder à votre dossier. Ne le partagez pas.',
 }
 
 const ar = {
   dir: 'rtl',
   pageTitle: 'ملفي في AIVEX',
+  headerLabel: 'ملفي',
   languageLabel: 'لغة الصفحة',
   backToEvent: 'العودة إلى صفحة الفعالية',
 
   loadingTitle: 'جارٍ فتح ملفكم…',
   loadingText: 'يرجى الانتظار للحظات.',
-
   invalidTitle: 'هذا الرابط غير صالح.',
   invalidText: 'تعذّر التعرف على رابط الوصول هذا. يرجى استخدام الرابط الذي تلقيتموه بالضبط بعد التسجيل، أو الاتصال بالمنظمين مع ذكر المرجع.',
-
   expiredTitle: 'انتهت صلاحية هذا الرابط.',
   expiredText: 'روابط الوصول صالحة لمدة محدودة. يرجى الاتصال بالمنظمين مع ذكر المرجع للحصول على رابط جديد.',
-
   revokedTitle: 'هذا الرابط لم يعد نشطاً.',
   revokedText: 'تم إصدار رابط وصول أحدث لهذا التسجيل. يرجى استخدام آخر رابط تلقيتموه، أو الاتصال بالمنظمين.',
-
   notFoundTitle: 'التسجيل غير موجود.',
   notFoundText: 'تعذّر العثور على التسجيل المرتبط بهذا الرابط. يرجى الاتصال بالمنظمين مع ذكر المرجع.',
-
   serverErrorTitle: 'حدث خطأ ما.',
   serverErrorText: 'تعذّر فتح ملفكم حالياً. يرجى إعادة المحاولة بعد لحظات.',
+  retryButton: 'إعادة المحاولة',
 
   validKicker: 'ملف AIVEX',
   validTitle: 'تسجيلكم',
   fieldReference: 'المرجع',
-  fieldTeam: 'الفريق',
   fieldInstitution: 'المؤسسة',
   fieldWilaya: 'الولاية',
   fieldStudents: 'الطلبة',
   studentsValue: ({ count }) => `${count} طلبة`,
   fieldRegistrationStatus: 'حالة التسجيل',
-  fieldDocumentStatus: 'الوثيقة الرسمية',
+  copyReference: 'نسخ المرجع',
+  referenceCopied: 'تم نسخ المرجع',
+  referenceCopyFailed: 'تعذّر نسخ المرجع',
 
   registrationStatus: {
     submitted: 'مُرسَل',
@@ -226,32 +297,59 @@ const ar = {
     cancelled: 'ملغى',
   },
   documentStatus: {
-    not_generated: 'لم يُنشأ بعد',
-    generating: 'جارٍ الإنشاء',
-    awaiting_signature: 'جاهز — بانتظار التوقيع',
+    not_generated: 'قيد التحضير',
+    generating: 'قيد التحضير',
+    awaiting_signature: 'بانتظار التوقيع',
     signed_document_uploaded: 'تم استلام الوثيقة الموقّعة',
     under_review: 'قيد المراجعة',
     changes_required: 'تصحيحات مطلوبة',
     validated: 'مصادَق عليه',
-    generation_failed: 'مشكل في الإنشاء — أعيدوا محاولة التحميل',
+    generation_failed: 'مشكل في الإنشاء',
     expired: 'منتهي الصلاحية',
   },
 
-  documentReadyNote: 'تم إنشاء استمارتكم الرسمية بصيغة Word. بعد التحميل، يرجى تحويل الوثيقة أو طباعتها، ثم توقيعها وختمها من طرف مؤسستكم وفقاً لتعليمات المنظمين.',
-  documentPendingNote: 'الوثيقة الرسمية قيد التحضير. يرجى العودة بعد لحظات.',
+  progressTitle: 'تقدّم الملف',
+  steps: {
+    registered: 'تم استلام التسجيل',
+    form: 'الاستمارة الرسمية جاهزة',
+    signed: 'إيداع الوثيقة الموقّعة',
+    review: 'مراجعة المنظمين',
+  },
+  stepState: { done: 'مكتمل', current: 'قيد التنفيذ', upcoming: 'قادم', attention: 'يتطلب إجراءً' },
+
+  nextStepTitle: 'خطوتكم التالية',
+  stepDownloadTitle: 'الحصول على الاستمارة الرسمية',
+  documentReadyNote: 'تم إنشاء استمارتكم الرسمية بصيغة Word.',
   downloadButton: '📄 تحميل الاستمارة الرسمية',
   downloading: 'جارٍ تحضير التحميل…',
   downloadError: 'تعذّر التحميل. حاولوا مجدداً بعد لحظات؛ وإذا استمر المشكل، اتصلوا بالمنظمين مع ذكر المرجع.',
-
-  sizeUnit: 'ميغابايت',
+  stepSignTitle: 'الطباعة والتوقيع والختم',
+  stepSignText: 'حوّلوا الوثيقة أو اطبعوها، ثم وقّعوها واختموها من طرف مؤسستكم وفقاً لتعليمات المنظمين.',
   uploadSectionTitle: 'إيداع الوثيقة الموقّعة',
   uploadInstructions: 'بعد طباعتها وتوقيعها وختمها من طرف مؤسستكم، امسحوها ضوئياً أو صوّروها ثم أودعوها هنا.',
-  uploadSupportedFormats: 'الصيغ المقبولة: PDF، JPG، JPEG، PNG',
-  uploadMaxSize: 'الحجم الأقصى: 10 ميغابايت',
+
+  preparingTitle: 'يجري تحضير استمارتكم الرسمية',
+  documentPendingNote: 'الوثيقة الرسمية قيد التحضير. يرجى العودة بعد لحظات.',
+  refreshButton: 'تحديث',
+  refreshing: 'جارٍ التحديث…',
+  refreshFailed: 'تعذّر التحديث. حاولوا مجدداً.',
+  retryTitle: 'تعذّر تحضير الاستمارة',
+  retryText: 'يؤدي التحميل إلى إعادة تحضيرها تلقائياً. إذا استمر المشكل، اتصلوا بالمنظمين مع ذكر المرجع.',
+  officialFormTitle: 'الاستمارة الرسمية',
+
+  sizeUnit: 'ميغابايت',
+  sizeUnitKb: 'كيلوبايت',
+  uploadDropTitle: 'اسحبوا وأفلتوا وثيقتكم الموقّعة هنا',
+  uploadDropActive: 'أفلتوا الملف لاختياره',
+  uploadDropOr: 'أو',
   uploadChooseFile: 'اختيار ملف',
   uploadReplaceFile: 'اختيار ملف آخر',
+  uploadSupportedFormats: 'الصيغ المقبولة: PDF، JPG، JPEG، PNG',
+  uploadMaxSize: 'الحجم الأقصى: 10 ميغابايت',
+  uploadRemove: 'إزالة هذا الملف',
   uploadSubmit: 'إرسال الوثيقة الموقّعة',
   uploadSubmitting: 'جارٍ الإرسال…',
+  uploadProcessing: 'جارٍ فحص الوثيقة…',
   uploadFileIssues: {
     type: 'صيغة غير مدعومة. استخدموا ملف PDF أو JPG أو PNG.',
     size: 'حجم هذا الملف يتجاوز الحد الأقصى البالغ 10 ميغابايت.',
@@ -267,9 +365,16 @@ const ar = {
     error: 'تعذّر الإرسال. حاولوا مجدداً بعد لحظات؛ وإذا استمر المشكل، اتصلوا بالمنظمين مع ذكر المرجع.',
   },
   uploadSuccessTitle: 'تم استلام وثيقتكم الموقّعة بنجاح.',
+
   uploadReceivedTitle: 'الوثيقة الموقّعة مستلَمة',
   uploadReceivedVersion: ({ version }) => `النسخة ${version}`,
+  uploadReceivedOn: ({ date }) => `استُلمت بتاريخ ${date}`,
   uploadReceivedNote: 'هذا يؤكد الاستلام فقط: لم يقم المنظمون بمراجعتها بعد.',
+  newVersionTitle: 'إيداع نسخة جديدة',
+  newVersionHint: 'فقط لاستبدال الوثيقة المُرسَلة سابقاً. تُحفظ النسخ السابقة.',
+
+  helpText: 'لديكم سؤال؟ راسلوا المنظمين على إنستغرام مع ذكر المرجع:',
+  privateNote: 'هذه الصفحة شخصية: يمكن لأي شخص يملك هذا الرابط الوصول إلى ملفكم. لا تشاركوه مع الآخرين.',
 }
 
 export const statusStrings = { en, fr, ar }
