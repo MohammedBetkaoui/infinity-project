@@ -30,6 +30,9 @@ import { getBacYearOptions, getRegistrationStrings, registrationStrings } from '
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8')
 
 const NOW = new Date('2026-09-18T10:00:00Z')
+// Letters and spaces only (a name never holds a digit); student RFIDs are exactly eight digits, leading zeros kept.
+const STUDENT_NAMES = ['Student Number One', 'Student Number Two', 'Student Number Three']
+const studentRfid = (position) => `0000000${position}`
 const SUBMISSION_ID = '3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b'
 const OTHER_SUBMISSION_ID = '9b1d2c3e-4f5a-4b6c-8d7e-0f1a2b3c4d5e'
 const REGISTRATION_ID = '6c1f0e2a-7b3d-4c5e-9f8a-0b1c2d3e4f5a'
@@ -53,14 +56,14 @@ const validPayload = (overrides = {}) => ({
     institution: { id: 'univ-bba', name: 'Université Mohamed El Bachir El Ibrahimi', custom: false },
   },
   activityOfficial: { role: 'activities_officer', fullName: 'Amina Benali', email: 'activities@univ-bba.dz', phone: '0555 12 34 56' },
-  delegationHead: { fullName: 'Karim Haddad', phone: '+213 661 23 45 67', rfid: '00471236', idCard: 'delegationHeadIdCard' },
+  delegationHead: { fullName: 'Karim Haddad', phone: '0661 23 45 67', rfid: '00471236', idCard: 'delegationHeadIdCard' },
   driver: { fullName: 'Nabil Saidi', phone: '0770 11 22 33', rfid: 'A1B2C3D4', idCard: 'driverIdCard' },
   students: [1, 2, 3].map((position) => ({
     position,
-    fullName: `Student Number ${position}`,
+    fullName: STUDENT_NAMES[position - 1],
     phone: `0550 00 00 0${position}`,
     bacYear: 2021 + position,
-    rfid: `00${position}9876`,
+    rfid: studentRfid(position),
     studentCard: `studentCard_${position}`,
   })),
   consent: true,
@@ -85,7 +88,7 @@ const v3Payload = () => ({
   },
 })
 
-const validate = (payload) => validateRegistrationV4(payload, { now: NOW })
+const validate = (payload) => validateRegistrationV4(payload)
 const withChange = (change) => {
   const payload = validPayload()
   change(payload)
@@ -233,7 +236,7 @@ test('1. a valid v4 submission is stored and answered 201 with a server referenc
   assert.deepEqual(store.students.map((student) => student.student_card_path),
     [1, 2, 3].map((position) => `edition-2/${row.id}/student-${position}.png`))
   assert.deepEqual([...store.objects.keys()], store.students.map((student) => student.student_card_path))
-  assert.deepEqual(store.students.map((student) => [student.bac_year, student.rfid_number]), [[2022, '0019876'], [2023, '0029876'], [2024, '0039876']])
+  assert.deepEqual(store.students.map((student) => [student.bac_year, student.rfid_number]), [[2022, '00000001'], [2023, '00000002'], [2024, '00000003']])
   assert.doesNotMatch(JSON.stringify(body), /edition-2\/|student-1\.png/, 'no Storage path in the response')
 })
 
@@ -321,11 +324,11 @@ test('8. a missing BAC year is refused', async () => {
   assert.match(body.message, /required/)
 })
 
-test('9. an invalid BAC year is refused (integers in 1990..current year + 1 only)', () => {
-  for (const bad of ['2023', 'BAC 2023', '2023/2024', 2023.5, 1989, 2028, null]) {
+test('9. an invalid BAC year is refused (integers from 2019 to 2026 only, whatever the date)', () => {
+  for (const bad of ['2023', 'BAC 2023', '2023/2024', 2023.5, 1989, 1990, 2018, 2027, 2028, null]) {
     rejects(withChange((p) => { p.students[0].bacYear = bad }), 'students[0].bacYear')
   }
-  for (const good of [1990, 2026, 2027]) assert.equal(withChange((p) => { p.students[0].bacYear = good }).ok, true, `bacYear ${good}`)
+  for (const good of [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]) assert.equal(withChange((p) => { p.students[0].bacYear = good }).ok, true, `bacYear ${good}`)
 })
 
 test('10. a missing RFID is refused (students, head of delegation, driver)', () => {
@@ -443,16 +446,16 @@ const filledState = () => {
   Object.assign(state.team, { name: ' Infinity  AI ', wilaya: '34', institution: 'univ-bba' })
   Object.assign(state.activityOfficial, { role: 'sub_director_activities', fullName: 'Amina Benali', email: ' Amina@Univ-BBA.dz', phone: '0555 12 34 56' })
   Object.assign(state.delegationHead, {
-    fullName: 'Karim Haddad', phone: '+213 661 23 45 67', rfid: ' 00471236 ', idCard: new File([IMAGES.png], 'CNI_karim_haddad.PNG', { type: 'image/png' }),
+    fullName: 'Karim Haddad', phone: '0661 23 45 67', rfid: ' 00471236 ', idCard: new File([IMAGES.png], 'CNI_karim_haddad.PNG', { type: 'image/png' }),
   })
   Object.assign(state.driver, {
     fullName: 'Nabil Saidi', phone: '0770 11 22 33', rfid: '0099', idCard: new File([IMAGES.jpeg], 'nabil-saidi-id.jpg', { type: 'image/jpeg' }),
   })
   state.students.forEach((student) => Object.assign(student, {
-    fullName: `Student Number ${student.position}`,
+    fullName: STUDENT_NAMES[student.position - 1],
     phone: `0550 00 00 0${student.position}`,
     bacYear: String(2021 + student.position),
-    rfid: `00${student.position}`,
+    rfid: ` ${studentRfid(student.position)} `,
     studentCard: new File([IMAGES.png], `IMG_000${student.position}.PNG`, { type: 'image/png' }),
   }))
   state.consent = true
@@ -533,10 +536,12 @@ test('contract: versions and the student count are defined once, in the shared c
 })
 
 test('contract: frontend field checks agree with the API validator', () => {
+  // Head of delegation: phone, delegation RFID (any text up to 64 characters) and name.
   const samples = {
-    phone: ['0555 12 34 56', '+213 555 12 34 56', '12345', '05a5 12 34 56', '+213+555123456', '', `0555${' '.repeat(40)}123456`],
-    rfid: ['00471236', ' 0047 ', '', '   ', 'x'.repeat(64), 'x'.repeat(65), 'AB\\u0000CD'],
-    fullName: ['Karim Haddad', 'Al', '   ', 'K'.repeat(120), 'K'.repeat(121)],
+    phone: ['0555 12 34 56', '0555-12-34-56', '0555.12.34.56', '0661234567', '+213 555 12 34 56', '+213555123456', '12345', '05a5 12 34 56',
+      '055512345', '05551234567', '0455123456', '0855123456', '1234567890', '', '   ', `0555${' '.repeat(40)}123456`],
+    rfid: ['00471236', 'A1B2C3D4', ' 0047 ', '', '   ', 'x'.repeat(64), 'x'.repeat(65), 'AB\u0000CD'],
+    fullName: ['Karim Haddad', 'Al', 'Al1', '   ', 'K'.repeat(120), 'K'.repeat(121), 'Karim123', 'Karim_Haddad', 'عبد الرحمان', 'عبد-الرحمان'],
   }
   for (const [field, values] of Object.entries(samples)) {
     for (const value of values) {
@@ -546,10 +551,25 @@ test('contract: frontend field checks agree with the API validator', () => {
     }
   }
   const students = filledState().students
-  for (const bacYear of ['1989', '1990', '2026', '2027', '2028', 'BAC 2023', '']) {
-    const frontendOk = !studentIssues({ ...students[0], bacYear }, students, undefined, NOW).bacYear
+  for (const bacYear of ['1989', '1990', '2018', '2019', '2026', '2027', '2028', 'BAC 2023', '']) {
+    const frontendOk = !studentIssues({ ...students[0], bacYear }, students).bacYear
     const backendOk = withChange((p) => { p.students[0].bacYear = normalizeBacYear(bacYear) ?? bacYear }).ok
     assert.equal(frontendOk, backendOk, `bacYear ${bacYear}`)
+  }
+  // Student RFID: exactly eight digits, in the form and in the API alike.
+  for (const rfid of ['12345678', '00123456', '00000001', '1234567', '123456789', '1234ABCD', '1234 5678', '1234567A', '', '   ', ' 12345678 ']) {
+    const frontendOk = !studentIssues({ ...students[0], rfid }, [students[0]]).rfid
+    const backendOk = withChange((p) => { p.students[0].rfid = rfid }).ok
+    assert.equal(frontendOk, backendOk, `students[0].rfid = ${JSON.stringify(rfid)}`)
+  }
+  // Student names and phones follow the same shared rules as the delegation's.
+  for (const value of ['Amina Benali', 'محمد أمين', 'Amina2', 'Amina@', 'Am']) {
+    const frontendOk = !studentIssues({ ...students[0], fullName: value }, students).fullName
+    assert.equal(frontendOk, withChange((p) => { p.students[0].fullName = value }).ok, `students[0].fullName = ${value}`)
+  }
+  for (const value of ['0550000001', '+213550000001', '0450000001']) {
+    const frontendOk = !studentIssues({ ...students[0], phone: value }, students).phone
+    assert.equal(frontendOk, withChange((p) => { p.students[0].phone = value }).ok, `students[0].phone = ${value}`)
   }
 })
 
@@ -611,11 +631,11 @@ test('form: three fixed students, RFID + BAC year, text-only draft under the v4 
   assert.deepEqual(LEGACY_DRAFT_KEYS, ['aivex-registration-draft-v1', 'aivex-registration-draft-v2', 'aivex-registration-draft-v3'])
 
   const filled = filledState()
-  for (const student of filled.students) assert.deepEqual(studentIssues(student, filled.students, undefined, NOW), {})
+  for (const student of filled.students) assert.deepEqual(studentIssues(student, filled.students), {})
   const missingCard = { ...filled.students[0], studentCard: null }
-  assert.ok(studentIssues(missingCard, filled.students, undefined, NOW).studentCard, 'a missing card blocks the submission')
-  const sameRfid = filled.students.map((student) => ({ ...student, rfid: ' 0047 ' }))
-  assert.ok(studentIssues(sameRfid[1], sameRfid, undefined, NOW).rfid)
+  assert.ok(studentIssues(missingCard, filled.students).studentCard, 'a missing card blocks the submission')
+  const sameRfid = filled.students.map((student) => ({ ...student, rfid: ' 12345678 ' }))
+  assert.equal(studentIssues(sameRfid[1], sameRfid).rfid, 'Each student needs their own RFID.')
 })
 
 test('form: every language has the v4 wording and no v3 field label', () => {
@@ -635,11 +655,11 @@ test('form: every language has the v4 wording and no v3 field label', () => {
     assert.notEqual(registrationStrings.fr[key], registrationStrings.en[key], `fr.${key} translated`)
     assert.notEqual(registrationStrings.ar[key], registrationStrings.en[key], `ar.${key} translated`)
   }
-  const options = getBacYearOptions(getRegistrationStrings('en'), bacYearChoices(NOW))
-  assert.deepEqual([options[0], options[1], options.at(-1)], [
-    { value: '', label: 'Select year' }, { value: '2026', label: '2026' }, { value: '1990', label: '1990' },
-  ])
-  for (const { value } of options.slice(1)) assert.equal(isValidBacYear(Number(value), NOW), true)
+  // The select offers exactly the years the API accepts (2019 to 2026, most recent first), and no others.
+  const options = getBacYearOptions(getRegistrationStrings('en'), bacYearChoices())
+  assert.deepEqual(options.map(({ value }) => value), ['', '2026', '2025', '2024', '2023', '2022', '2021', '2020', '2019'])
+  assert.deepEqual(options[0], { value: '', label: 'Select year' })
+  for (const { value } of options.slice(1)) assert.equal(isValidBacYear(Number(value)), true)
 })
 
 // =================================================================================
@@ -748,7 +768,7 @@ test('normalisers: text, e-mail, phone, RFID (leading zeros kept), BAC year', ()
   assert.equal(normalizeRfid(471236), '')
   assert.equal(normalizeBacYear('2023'), 2023)
   assert.equal(normalizeBacYear('BAC 2023'), null)
-  assert.equal(validate(validPayload()).value.students[0].rfid, '0019876')
+  assert.equal(validate(validPayload()).value.students[0].rfid, '00000001')
 })
 
 test('validation: wilaya and institution come from the dataset (snapshot), custom institutions allowed', () => {

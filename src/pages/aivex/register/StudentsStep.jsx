@@ -49,7 +49,10 @@ export default function StudentsStep({ registration, reduced, t }) {
               </div>
               <div className="af-grid-two">
                 <ApplicationField {...field('bacYear')} label={t.bacYearLabel} as="select" options={bacYears} hint={t.bacYearHint} />
-                <ApplicationField {...field('rfid')} label={t.rfidLabel} autoComplete="off" spellCheck={false} hint={t.rfidHint} />
+                {/* Digits only, but never type="number" (it would drop the leading zeros) and no maxLength
+                    (a pasted value must fail visibly, not be silently cut to 8 characters). */}
+                <ApplicationField {...field('rfid')} label={t.rfidLabel} inputMode="numeric" autoComplete="off" spellCheck={false}
+                  hint={t.studentRfidHint} />
               </div>
               <StudentCardUpload
                 studentLabel={t.studentPlaceholder({ number })}

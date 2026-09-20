@@ -5,6 +5,8 @@
 > **Déploiement : appliquer `20260920120000_aivex_v4_generated_documents.sql`** (§14).
 >
 > **Mise à jour 2026-09-23 — documents d'identité de la délégation (§8b).** Toute *nouvelle* inscription joint l'image de la carte nationale d'identité du chef de délégation et du chauffeur (5 images au total avec les 3 cartes étudiantes). **Le contrat reste en version 4** : l'ajout est purement additif (deux clés dans des objets déjà fermés, deux parties multipart, huit colonnes NULLables), l'API et le formulaire sont déployés ensemble, et une page périmée reçoit déjà un 400 « rechargez la page ». **Déploiement : appliquer `20260923120000_aivex_v4_identity_documents.sql` AVANT de déployer ce code** (§14).
+>
+> **Mise à jour 2026-09-23 — règles de validation de l'édition 2 (§5b).** Téléphone : **10 chiffres, 05 / 06 / 07** (`+213…` refusé). RFID **étudiant** : **exactement 8 chiffres** (celui du chef de délégation et du chauffeur reste borné à 1–64). Année du BAC : **2019 à 2026**, fixe. Noms de personnes : **lettres Unicode et espaces**, 3–120. Toutes ces règles n'existent qu'une fois, dans le contrat partagé, et l'API les réapplique avant toute écriture. **Aucune migration** : les colonnes stockent déjà ces valeurs (§5b).
 
 | Élément | Fichier |
 |---|---|
@@ -18,7 +20,7 @@
 | Mapping Word (données officielles uniquement) | [`shared/aivex/word-mapping-v4.js`](../shared/aivex/word-mapping-v4.js) |
 | Migrations | [`20260918120000_aivex_v4_contract.sql`](../supabase/migrations/20260918120000_aivex_v4_contract.sql), [`20260919120000_aivex_v4_write_path.sql`](../supabase/migrations/20260919120000_aivex_v4_write_path.sql), [`20260920120000_aivex_v4_generated_documents.sql`](../supabase/migrations/20260920120000_aivex_v4_generated_documents.sql), [`20260923120000_aivex_v4_identity_documents.sql`](../supabase/migrations/20260923120000_aivex_v4_identity_documents.sql) |
 | Documents d'identité (formulaire) | [`IdentityDocuments.jsx`](../src/pages/aivex/register/IdentityDocuments.jsx), [`IdentityCardUpload.jsx`](../src/pages/aivex/register/IdentityCardUpload.jsx) |
-| Tests | [`tests/aivex-contract-v4.test.mjs`](../tests/aivex-contract-v4.test.mjs), [`tests/aivex-document-generation.test.mjs`](../tests/aivex-document-generation.test.mjs), [`tests/aivex-identity-documents.test.mjs`](../tests/aivex-identity-documents.test.mjs) — `npm test` / `npm run test:contract` |
+| Tests | [`tests/aivex-contract-v4.test.mjs`](../tests/aivex-contract-v4.test.mjs), [`tests/aivex-document-generation.test.mjs`](../tests/aivex-document-generation.test.mjs), [`tests/aivex-identity-documents.test.mjs`](../tests/aivex-identity-documents.test.mjs), [`tests/aivex-validation-rules.test.mjs`](../tests/aivex-validation-rules.test.mjs) — `npm test` / `npm run test:contract` |
 
 ---
 
@@ -112,19 +114,66 @@ Une seule source de règles (`contract-v4.js`) : le formulaire les applique cham
 | `team.name` | 2–120 caractères (normalisé) |
 | `team.wilaya.code` | `01`–`58` présent dans le dataset ; `name` re-dérivé du dataset (snapshot) |
 | `team.institution` | `custom` booléen ; `custom: false` ⇒ `id` listé **dans la wilaya choisie**, `name` re-dérivé ; `custom: true` ⇒ `id = "other"` + nom 3–180 |
-| `activityOfficial.role` | `sub_director_activities` \| `activities_officer` |
+| `activityOfficial.role` | `sub_director_activities` \| `activities_officer`, valeur exacte |
 | `activityOfficial.email` | format e-mail, ≤ 254, minuscules — **non unique** |
-| téléphones | chaîne ≤ 40, puis `^\+?\d{9,15}$` après suppression des séparateurs |
-| noms | 3–120 caractères |
-| `rfid` (tous) | **chaîne** (un nombre est refusé), trim, 1–64, sans caractère de contrôle, zéros initiaux conservés |
+| téléphones (6 champs) | chaîne ≤ 40 ; espaces, tirets et points retirés, puis `^0[567][0-9]{8}$` : **10 chiffres, 05 / 06 / 07** (`+213…` refusé, jamais réécrit) — §5b |
+| noms de personnes (6 champs) | NFC, contrôle et formatage invisible retirés, espaces réduites, **lettres Unicode + espaces**, 3–120 — §5b |
+| RFID chef de délégation / chauffeur | **chaîne** (un nombre est refusé), trim, 1–64, sans caractère de contrôle, zéros initiaux conservés |
+| RFID étudiant | **chaîne**, trim, `^[0-9]{8}$` : **exactement 8 chiffres**, zéros initiaux conservés ; distincts dans l'équipe — §5b |
 | `students` | tableau d'**exactement 3**, positions `1, 2, 3` dans l'ordre |
-| `students[i].bacYear` | **entier**, `1990 ≤ année ≤ année courante + 1` (le sélecteur propose jusqu'à l'année courante) |
-| RFID étudiants | distincts dans l'équipe |
+| `students[i].bacYear` | **entier de 2019 à 2026**, fixe pour l'édition (le sélecteur propose exactement ces années) — §5b |
 | `students[i].studentCard` | `=== "studentCard_{i+1}"` |
 | `delegationHead.idCard` / `driver.idCard` | `=== "delegationHeadIdCard"` / `=== "driverIdCard"` |
 | `consent` | `=== true` |
 
 **Cartes** (`imageFileIssue`, identique formulaire / API, une politique par type de document) : présente, type `image/jpeg|png|webp` pour une carte étudiante, `image/jpeg|png` pour une carte d'identité (**pas de WEBP** : le texte du formulaire annonce JPG, JPEG ou PNG), 1 octet à 5 Mo. L'API ajoute : signature binaire réelle (`file-type`), type déclaré = type détecté, extension cohérente ; pour les cartes d'identité, le SHA-256 des octets reçus (minuscules, calculé par le serveur — jamais fourni par le client). Codes : 400 absente/vide, 413 trop grande (refusée pendant la réception du fichier), 415 type refusé (PDF, SVG, GIF, TIFF, HEIC, ZIP, exécutable, HTML, JavaScript, fichier renommé, type ≠ contenu). Ordre de contrôle = ordre du formulaire : cartes d'identité, puis cartes étudiantes ; rien n'est écrit tant que les cinq images ne sont pas valides.
+
+## 5b. Règles de l'édition 2 (téléphone, RFID, BAC, noms)
+
+Toutes vivent **une seule fois**, dans [`shared/aivex/contract-v4.js`](../shared/aivex/contract-v4.js) ; le formulaire ([`registrationModel.js`](../src/pages/aivex/register/registrationModel.js)) et l'API (`validateRegistrationV4`) appellent les mêmes fonctions — aucune expression régulière n'est recopiée dans React ni dans l'API (vérifié par test). Le formulaire est la couche d'ergonomie ; **l'API refait chaque contrôle avant toute écriture** : `400` + `field`, et rien n'est ouvert, stocké, généré ni émis.
+
+| Règle | Fonctions / constantes | Valeur canonique |
+|---|---|---|
+| Téléphone (responsable des activités, chef de délégation, chauffeur, 3 étudiants) | `normalizePhone`, `isValidPhone`, `isValidPhoneInput`, `PHONE_PATTERN` | `^0[567][0-9]{8}$` — 10 chiffres, 05 / 06 / 07 |
+| RFID **étudiant** | `isValidStudentRfid`, `STUDENT_RFID_PATTERN` | `^[0-9]{8}$` — texte, zéros initiaux conservés |
+| RFID **chef de délégation / chauffeur** | `isValidDelegationRfid`, `LIMITS.delegationRfid` | texte, trim, 1–64, sans caractère de contrôle (**inchangé**) |
+| Année du BAC | `BAC_YEAR_RANGE`, `isValidBacYear`, `bacYearChoices` | entier de 2019 à 2026 |
+| Nom de personne (6 champs) | `normalizePersonName`, `personNameIssue`, `isValidPersonName` | lettres Unicode + espaces, 3–120 |
+
+**Téléphone.** Les séparateurs inoffensifs saisis — espaces, tirets, points — sont retirés **avant** la validation : `0555 12 34 56`, `0555-12-34-56` et `0555.12.34.56` deviennent `0555123456`, et c'est cette valeur canonique qui est validée, comparée (empreinte d'idempotence : la même inscription retapée avec d'autres séparateurs est un rejeu, pas un conflit) et stockée. Tout le reste rend le numéro invalide : la notation internationale n'est **pas** une représentation alternative (`+213555123456` est refusé, jamais réécrit en `0555123456`), les parenthèses ne sont pas des séparateurs, seuls les chiffres ASCII 0–9 comptent (pas les chiffres arabo-indiens), un nombre JSON n'est pas un téléphone. Refusés : `055512345`, `05551234567`, `0455123456`, `0855123456`, `1234567890`, `05551234AB`. **Doublons autorisés** : aucune règle d'unicité n'a été spécifiée, donc aucune n'est inventée (le chef de délégation et le chauffeur peuvent partager un numéro ; un étudiant peut avoir celui du responsable).
+
+**RFID étudiant ≠ RFID de la délégation.** Deux validateurs distincts, volontairement : `isValidStudentRfid` (exactement 8 chiffres) ne s'applique qu'aux **étudiants**. Le RFID du chef de délégation et du chauffeur garde sa règle technique (`isValidDelegationRfid`, 1–64 caractères) car aucun besoin métier ne confirme le même format pour eux (décision ouverte n°1) ; il n'existe plus de validateur générique « isValidRfid » qu'on pourrait appliquer au mauvais type de personne. Un RFID est un **identifiant, pas un nombre** : il reste du texte de bout en bout (formulaire, JSON, API, colonne `text`) — `"00123456"` ne devient jamais `123456`. Un nombre JSON est refusé (« must be sent as text »), les espaces internes ne sont pas retirés (`1234 5678` est refusé), seuls ceux de début et de fin le sont. Unicité **entre les 3 étudiants** d'une inscription, contrôlée dans le formulaire et dans l'API ; aucune contrainte entre un étudiant et la délégation (non spécifiée).
+
+**Année du BAC.** Fixe pour l'édition 2 : `BAC_YEAR_RANGE = { min: 2019, max: 2026 }`. Elle ne dépend pas de l'horloge (ni année courante, ni +1) et ne s'étend pas d'elle-même : pour une édition ultérieure, on modifie ce contrat volontairement. Le `<select>` propose exactement ces 8 années (la plus récente d'abord) ; l'API refuse toute autre valeur envoyée à la main (2018, 2027, 1990, `"2023"`, 2023.5…). Un brouillon enregistré avant cette règle qui contiendrait une autre année n'est pas restauré dans le sélecteur.
+
+**Noms de personnes** (responsable des activités, chef de délégation, chauffeur, 3 étudiants). `normalizePersonName` : NFC, caractères de contrôle remplacés par une espace, marques de formatage invisibles supprimées (marques directionnelles, joiners de largeur nulle : elles ne changent aucune lettre, mais collées depuis un texte arabe elles feraient échouer un nom pour une raison invisible, et une inversion de direction peut faire afficher un nom pour un autre), espaces multiples réduites à une, début et fin retirés — `"  Mohammed    Amine  "` devient `"Mohammed Amine"`. **L'orthographe n'est jamais modifiée** : pas de translittération, pas de majuscules ni de minuscules forcées, l'arabe reste de l'arabe. Puis `personNameIssue` : `required` (rien après normalisation), `chars` (autre chose que des lettres et des espaces), `short` / `long` (hors 3–120) ; les caractères sont jugés avant la longueur (`12` n'est pas un nom, quelle que soit sa longueur). « Lettre » = propriété Unicode `\p{L}` (latin accentué, arabe, cyrillique…), avec ses marques combinantes `\p{M}` (voyelles arabes, accents sans forme précomposée) ; un mot commence toujours par une lettre. Refusés : chiffres, ponctuation (tiret, apostrophe, point, virgule…), symboles, soulignement, `@ # / \ *`, emojis. Acceptés : `Mohammed`, `Mohammed Amine`, `عبد الرحمان`, `محمد أمين`, `مُحَمَّد`, `José Núñez`. Refusés : `Mohammed123`, `Mohammed@`, `Mohammed_Amine`, `Mohammed.Amine`, `Mohammed/Amine`, `محمد123`, `عبد-الرحمان`. **À valider avec les organisateurs** : les noms à trait d'union ou à apostrophe (`Jean-Pierre`, `Ait M'Hamed`, `Abd-Errahmane`) sont refusés par cette règle, telle que spécifiée.
+
+**Nom d'équipe : une autre règle.** Pas de « lettres seulement » : `Null Pointers`, `404 Not Found`, `Team_42`, `C++ Crew!` restent valides ; seules la présence, la longueur (2–120) et la normalisation (`normalizeText`) s'appliquent.
+
+**Autres contrôles (audit).** E-mail : syntaxe, ≤ 254, minuscules, **aucune restriction de domaine** ; un caractère de contrôle ou de formatage invisible est refusé (un NUL provoquerait une erreur PostgreSQL). Rôle, code de wilaya et identifiant d'établissement : **valeur exacte** — jamais `trim`, jamais un libellé traduit : le formulaire les prend dans une liste, tout écart est une requête fabriquée. L'établissement officiel est toujours **re-résolu depuis le dataset** : un établissement d'une autre wilaya ou un identifiant inventé (`__proto__`, `constructor`…) est refusé ; `other` n'est admis que si `custom: true`, et inversement. Exactement 3 étudiants en positions entières 1, 2, 3 (`"1"`, `"01"`, `null`, `0`, `4` refusés). `consent === true` exactement, jamais converti (`"true"` refusé). `submissionId` : UUID v4 (un v1 est refusé). Champs inconnus, champs V3 et champs réservés au serveur (dont `reference`) : refusés. Texte libre : jamais de caractère de contrôle conservé (NUL → espace) ; un type inattendu (nombre, tableau, objet…) est un 400 propre, jamais une exception.
+
+**Formulaire.** Erreur sous le champ à la sortie du champ (`onBlur`), à la sortie de l'étape (« Continuer ») et à l'envoi (chaque étape est revérifiée), jamais avant toute interaction. Téléphones : `type="tel" inputMode="tel"` ; RFID étudiant : `inputMode="numeric"` (jamais `type="number"`, qui supprimerait les zéros initiaux) ; ni `maxLength`, ni filtre clavier, ni blocage du collage : une valeur collée doit échouer visiblement (le validateur partagé l'attrape), pas être tronquée en silence. Le nom du responsable des activités (la personne qui remplit le formulaire) accepte l'auto-remplissage `name` ; les autres noms non (ce ne sont pas ceux de l'utilisateur) ; les téléphones ne sont pas auto-remplis (les navigateurs proposent `+213…`, que la règle refuse). Messages FR / EN / AR dédiés : `errPhoneInvalid`, `errStudentRfidInvalid`, `errBacYearInvalid`, `errNameInvalid` (+ `studentRfidHint`, `phoneHint`, `bacYearHint`). Les nombres de ces messages sont ceux du contrat : un test échoue si le contrat change sans que les textes soient revus.
+
+**Base de données : aucune migration.** `phone`, `rfid_number`, `delegation_head_rfid`, `driver_rfid` sont `text` (le zéro initial est préservé), `bac_year` est `smallint`. Les contraintes existantes (téléphones `^\+?[0-9]{9,15}$`, RFID de 1 à 64 caractères, `bac_year` entre 1990 et 2100 et au plus l'année courante + 1) acceptent toutes les valeurs que l'API peut maintenant produire : les nouvelles règles en sont un sous-ensemble (testé). L'API est donc la seule à imposer les formats stricts ; les ajouter en base (`CHECK … NOT VALID`) serait un durcissement possible, non fait ici.
+
+**Inscriptions existantes.** Rien n'est revalidé ni modifié : celles déjà enregistrées ont pu être acceptées avec les anciennes règles (téléphone `+213…`, RFID d'une autre longueur, année du BAC hors 2019–2026, nom avec chiffre) et restent lisibles telles quelles (document Word, Magic Link). Pour les repérer, requête de contrôle en **lecture seule** (éditeur SQL Supabase) :
+
+```sql
+select r.reference, r.submitted_at
+  from public.aivex_registrations r
+ where r.form_version >= 4
+   and (r.activity_official_phone !~ '^0[567][0-9]{8}$'
+     or r.delegation_head_phone !~ '^0[567][0-9]{8}$'
+     or r.driver_phone !~ '^0[567][0-9]{8}$'
+     or exists (select 1 from public.aivex_students s
+                 where s.registration_id = r.id
+                   and (s.phone !~ '^0[567][0-9]{8}$'
+                     or s.rfid_number !~ '^[0-9]{8}$'
+                     or s.bac_year not between 2019 and 2026)))
+ order by r.submitted_at;
+```
+
+Tests : [`tests/aivex-validation-rules.test.mjs`](../tests/aivex-validation-rules.test.mjs) (matrice complète sur les fonctions partagées, concordance formulaire ⇔ API sur des valeurs générées, requêtes forgées envoyées directement à l'API, absence de règle recopiée hors du contrat).
 
 ## 6. Base de données
 
@@ -310,12 +359,16 @@ Tant que les migrations ne sont pas appliquées, l'API V4 répond 500 à toute i
 
 ## 15. Décisions métier ouvertes
 
-1. RFID : format exact, casse, unicité sur toute l'édition, partage possible entre étudiant, chef de délégation et chauffeur.
-2. Borne haute de l'année du BAC (année courante ou + 1).
+1. RFID **du chef de délégation et du chauffeur** : format exact (aujourd'hui seulement 1–64 caractères, non confirmé), casse, unicité sur toute l'édition, partage possible entre étudiant et délégation. *(Le RFID étudiant est décidé : exactement 8 chiffres.)*
+2. ~~Borne haute de l'année du BAC~~ **Décidé** : 2019 à 2026 pour l'édition 2, fixe ; à revoir volontairement à chaque édition.
 3. Cartes : PDF accepté ? recto seul ? durée de conservation.
-4. Téléphones : format saisi ou E.164 pour le document imprimé.
+4. ~~Téléphones : format saisi ou E.164~~ **Décidé** : national à 10 chiffres (05 / 06 / 07), imprimé tel que stocké.
 5. Template Word : `activity_official_name` / rôle, formats des dates.
 6. Valeurs officielles de `aivex_settings` (édition 2).
 7. Conservation des numéros d'identité des inscriptions V3.
 8. Limite Vercel de 4,5 Mo par requête : compression navigateur (actuelle) ou upload direct vers Storage. Avec 5 images le budget passe à ≈ 800 Ko chacune (contre 1,2 Mo pour 3).
 9. Cartes d'identité : durée de conservation (aucune n'est définie ni annoncée), qui peut les lire et avec quelle traçabilité, recto seul ou recto-verso, WEBP accepté ou non (refusé aujourd'hui).
+10. Noms de personnes : la règle « lettres et espaces » refuse le trait d'union et l'apostrophe (`Jean-Pierre`, `Ait M'Hamed`, `Abd-Errahmane`) — à confirmer, car de tels noms sont courants.
+11. Chiffres arabo-indiens (٠–٩) : non acceptés dans les téléphones et les RFID (seuls 0–9) ; ils ne sont pas convertis.
+12. Unicité des téléphones : aucune règle imposée (le chef de délégation et le chauffeur peuvent partager un numéro).
+13. Contraintes de format en base (`CHECK … NOT VALID` sur téléphone, RFID étudiant, année du BAC) : non ajoutées, l'API fait foi ; à décider avec les migrations de la phase d'administration.

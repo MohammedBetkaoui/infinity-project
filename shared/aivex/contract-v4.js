@@ -231,30 +231,65 @@ export const LIMITS = Object.freeze({
   fullName: frozen([3, 120]),
   email: 254,
   phoneInput: 40,
-  // Technical bounds only: no RFID format has been confirmed by the organisers.
-  rfid: frozen([1, 64]),
+  // Head of delegation and driver ONLY. No RFID format has been confirmed for
+  // them by the organisers, so this stays a technical bound; the student RFID
+  // has its own, exact rule (STUDENT_RFID_PATTERN).
+  delegationRfid: frozen([1, 64]),
   source: 500,
-  bacYearMin: 1990,
-  bacYearAhead: 1,
 })
+
+// --- Business rules of this edition ---------------------------------------
+//
+// Fixed on purpose. Nothing below is derived from the clock or expands by
+// itself every year: when a later edition needs another range or format, this
+// contract is changed deliberately (and AIVEX_EDITION with it).
+
+// BAC year: 2019 to 2026 inclusive, for the current edition.
+export const BAC_YEAR_RANGE = Object.freeze({ min: 2019, max: 2026 })
+
+// Phone: an Algerian mobile number in its national form — exactly ten digits,
+// starting with 05, 06 or 07. '+213…' is NOT an accepted alternative: it is
+// never rewritten into a local number, it is refused.
+export const PHONE_PATTERN = /^0[567][0-9]{8}$/
+
+// Student RFID: exactly eight digits (an identifier, kept as text: leading
+// zeros stay). The head of delegation's and the driver's RFID do NOT follow
+// this rule (see LIMITS.delegationRfid).
+export const STUDENT_RFID_PATTERN = /^[0-9]{8}$/
 
 // --- Normalisers (pure, identical in the browser and on the server) -------
 
 const CONTROL_CHARS = /\p{Cc}/gu
+// Invisible formatting characters: bidirectional marks (LRM, RLM, embeddings and
+// overrides), zero-width joiners, soft hyphen, BOM.
+const FORMAT_CHARS = /\p{Cf}/gu
 
 // Trimmed, NFC, control characters and runs of whitespace folded to one space.
 export const normalizeText = (value) => (typeof value === 'string'
   ? value.normalize('NFC').replace(CONTROL_CHARS, ' ').replace(/\s+/g, ' ').trim()
   : '')
 
+// A person's name: normalizeText, after dropping the invisible formatting
+// characters that Arabic text pasted from a chat or a document often carries
+// (RLM, LRM...). They change no letter, but they would make a name fail
+// "letters only" for a reason the applicant cannot see, and bidirectional
+// overrides can make a name display as another one. The spelling is otherwise
+// untouched: never transliterated, never upper- or lower-cased.
+export const normalizePersonName = (value) => normalizeText(typeof value === 'string' ? value.replace(FORMAT_CHARS, '') : value)
+
 export const normalizeEmail = (value) => (typeof value === 'string' ? value.trim().toLowerCase() : '')
 
-// Separators removed, optional leading '+' kept: '0555 12 34 56' -> '0555123456',
-// '+213 555 12 34 56' -> '+213555123456'. Always a string, never a Number.
-export const normalizePhone = (value) => (typeof value === 'string' ? value.trim().replace(/[\s().-]/g, '') : '')
+// Harmless visual separators are dropped BEFORE validating, so that the
+// canonical value is what is checked and stored: '0555 12 34 56',
+// '0555-12-34-56' and '0555.12.34.56' all become '0555123456'. Anything else
+// stays where it is and makes the number invalid — in particular a leading
+// '+' ('+213 555 12 34 56' -> '+213555123456', refused) and parentheses.
+// Always a string, never a Number.
+export const normalizePhone = (value) => (typeof value === 'string' ? value.trim().replace(/[\s.-]/g, '') : '')
 
 // An RFID is an identifier, not a quantity: a string, trimmed, nothing else
-// (leading zeros and case are kept as typed).
+// (leading zeros and case are kept as typed; inner spaces are NOT removed, so
+// '1234 5678' stays invalid).
 export const normalizeRfid = (value) => (typeof value === 'string' ? value.trim() : '')
 
 // Form inputs give '2023'; the payload carries the integer 2023. Anything
@@ -268,34 +303,57 @@ export function normalizeBacYear(value) {
 // --- Field rules (shared by the form messages and the API validator) ------
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const PHONE_RE = /^\+?\d{9,15}$/
+// An address never legitimately holds a control or an invisible formatting
+// character; one would reach PostgreSQL as text it cannot store (NUL) or hide
+// in the value.
+const EMAIL_UNSAFE_CHARS = /[\p{Cc}\p{Cf}]/u
 const WILAYA_CODE_RE = /^(0[1-9]|[1-4][0-9]|5[0-8])$/
+// Unicode-aware: any letter of any script (Latin with accents, Arabic...), with
+// its combining marks (Arabic vowel signs, Latin accents that have no
+// precomposed form), in words separated by single spaces. No digit, no
+// punctuation (hyphen, apostrophe, dot, underscore...), no symbol, no emoji.
+// A word must start with a letter, so a lone mark is not a name. Linear: the
+// two classes never overlap, there is no nested ambiguity.
+const PERSON_NAME_RE = /^\p{L}[\p{L}\p{M}]*(?: \p{L}[\p{L}\p{M}]*)*$/u
 
 export const within = (text, [min, max]) => text.length >= min && text.length <= max
-export const isValidEmail = (email) => email.length <= LIMITS.email && EMAIL_RE.test(email)
-export const isValidRfid = (rfid) => rfid.length >= LIMITS.rfid[0] && rfid.length <= LIMITS.rfid[1]
-  && !/\p{Cc}/u.test(rfid)
+export const isValidEmail = (email) => email.length <= LIMITS.email && EMAIL_RE.test(email) && !EMAIL_UNSAFE_CHARS.test(email)
+
+// A CANONICAL phone number (already through normalizePhone).
+export const isValidPhone = (phone) => typeof phone === 'string' && PHONE_PATTERN.test(phone)
 
 // Raw input (as typed) -> is it an acceptable phone number once normalised?
 export const isValidPhoneInput = (value) => typeof value === 'string'
-  && value.trim().length <= LIMITS.phoneInput && PHONE_RE.test(normalizePhone(value))
+  && value.trim().length <= LIMITS.phoneInput && isValidPhone(normalizePhone(value))
 
-export const bacYearRange = (now = new Date()) => ({
-  min: LIMITS.bacYearMin,
-  max: now.getUTCFullYear() + LIMITS.bacYearAhead,
-})
+// Two explicit RFID rules: a student's is exactly eight digits, the head of
+// delegation's and the driver's is only bounded. Both take a trimmed string.
+export const isValidStudentRfid = (rfid) => typeof rfid === 'string' && STUDENT_RFID_PATTERN.test(rfid)
+export const isValidDelegationRfid = (rfid) => typeof rfid === 'string' && within(rfid, LIMITS.delegationRfid)
+  && !/\p{Cc}/u.test(rfid)
 
-export function isValidBacYear(year, now = new Date()) {
-  const { min, max } = bacYearRange(now)
-  return Number.isInteger(year) && year >= min && year <= max
+// The one decision behind every person name (activity official, head of
+// delegation, driver, students): '' when acceptable, else the first problem —
+// 'required' (nothing left after normalising), 'chars' (something other than
+// letters and spaces), 'short' or 'long' (outside 3 to 120 characters). The
+// characters are checked first: '12' is not a name, whatever its length.
+// The form turns the code into a translated message, the API into an English one.
+export function personNameIssue(value) {
+  const name = normalizePersonName(value)
+  if (!name) return 'required'
+  if (!PERSON_NAME_RE.test(name)) return 'chars'
+  if (name.length < LIMITS.fullName[0]) return 'short'
+  return name.length > LIMITS.fullName[1] ? 'long' : ''
 }
+export const isValidPersonName = (value) => personNameIssue(value) === ''
 
-// Years offered by the form's select, most recent first. It stops at the
-// current year: a university student already holds the BAC. The validator
-// keeps the wider bacYearRange() tolerance.
-export function bacYearChoices(now = new Date()) {
-  const latest = now.getUTCFullYear()
-  return Array.from({ length: latest - LIMITS.bacYearMin + 1 }, (_, index) => latest - index)
+// BAC year, for the whole edition (BAC_YEAR_RANGE): an integer, never a string.
+export const isValidBacYear = (year) => Number.isInteger(year) && year >= BAC_YEAR_RANGE.min && year <= BAC_YEAR_RANGE.max
+
+// Years offered by the form's select, most recent first: exactly the years
+// the API accepts, and no others.
+export function bacYearChoices() {
+  return Array.from({ length: BAC_YEAR_RANGE.max - BAC_YEAR_RANGE.min + 1 }, (_, index) => BAC_YEAR_RANGE.max - index)
 }
 
 // --- Validator (pure: no database, no Storage, no network) ---------------
@@ -319,22 +377,46 @@ function unexpectedKey(record, allowed, path) {
   return null
 }
 
+// The stored value is the canonical ten-digit number, whatever separators were typed.
 function readPhone(value, label, field) {
-  return isValidPhoneInput(value) ? pass(normalizePhone(value)) : fail(`${label}: enter a valid phone number.`, field)
+  return isValidPhoneInput(value)
+    ? pass(normalizePhone(value))
+    : fail(`${label}: the phone number must contain exactly 10 digits and start with 05, 06 or 07.`, field)
+}
+
+const NAME_PROBLEMS = {
+  required: 'enter the full name.',
+  chars: 'the name must contain letters and spaces only.',
+  short: `enter the full name (${LIMITS.fullName[0]} to ${LIMITS.fullName[1]} characters).`,
+  long: `enter the full name (${LIMITS.fullName[0]} to ${LIMITS.fullName[1]} characters).`,
 }
 
 function readFullName(value, label, field) {
-  const fullName = normalizeText(value)
-  return within(fullName, LIMITS.fullName) ? pass(fullName) : fail(`${label}: enter the full name (3 to 120 characters).`, field)
+  const issue = personNameIssue(value)
+  return issue ? fail(`${label}: ${NAME_PROBLEMS[issue]}`, field) : pass(normalizePersonName(value))
 }
 
-function readRfid(value, label, field) {
+// An RFID is an identifier, not a number: it arrives as text (a JSON number has
+// already lost its leading zeros) and leaves as the same text. Which RFIDs are
+// acceptable is decided by the caller: a student's and a delegation member's
+// are two different rules.
+function readRfidText(value, label, field) {
   if (value === undefined || value === null) return fail(`${label}: the RFID is required.`, field)
-  // A JSON number has already lost its leading zeros: strings only.
   if (typeof value !== 'string') return fail(`${label}: the RFID must be sent as text.`, field)
   const rfid = normalizeRfid(value)
-  if (!rfid) return fail(`${label}: the RFID is required.`, field)
-  return isValidRfid(rfid) ? pass(rfid) : fail(`${label}: enter the RFID (1 to 64 characters).`, field)
+  return rfid ? pass(rfid) : fail(`${label}: the RFID is required.`, field)
+}
+
+function readDelegationRfid(value, label, field) {
+  const rfid = readRfidText(value, label, field)
+  if (!rfid.ok) return rfid
+  return isValidDelegationRfid(rfid.value) ? rfid : fail(`${label}: enter the RFID (${LIMITS.delegationRfid[0]} to ${LIMITS.delegationRfid[1]} characters).`, field)
+}
+
+function readStudentRfid(value, label, field) {
+  const rfid = readRfidText(value, label, field)
+  if (!rfid.ok) return rfid
+  return isValidStudentRfid(rfid.value) ? rfid : fail(`${label}: the student RFID must contain exactly 8 digits.`, field)
 }
 
 function readTeam(raw) {
@@ -349,7 +431,9 @@ function readTeam(raw) {
   if (!isObject(raw.wilaya)) return fail('Please choose a valid wilaya.', `${path}.wilaya`)
   const wilayaExtra = unexpectedKey(raw.wilaya, V4_FIELDS.wilaya, `${path}.wilaya`)
   if (wilayaExtra) return wilayaExtra
-  const code = typeof raw.wilaya.code === 'string' ? raw.wilaya.code.trim() : ''
+  // Codes, ids and enum values are matched EXACTLY, never trimmed: they are
+  // tokens the form takes from a list, so anything else is a crafted request.
+  const code = typeof raw.wilaya.code === 'string' ? raw.wilaya.code : ''
   const wilaya = WILAYA_CODE_RE.test(code) ? findWilaya(code) : null
   if (!wilaya) return fail('Please choose a valid wilaya.', `${path}.wilaya.code`)
 
@@ -358,8 +442,11 @@ function readTeam(raw) {
   const institutionExtra = unexpectedKey(rawInstitution, V4_FIELDS.institution, `${path}.institution`)
   if (institutionExtra) return institutionExtra
   if (typeof rawInstitution.custom !== 'boolean') return fail('Invalid institution data.', `${path}.institution.custom`)
-  const id = typeof rawInstitution.id === 'string' ? rawInstitution.id.trim() : ''
+  const id = typeof rawInstitution.id === 'string' ? rawInstitution.id : ''
 
+  // A custom institution is allowed ONLY through the "other" entry, and a
+  // listed one only if it belongs to the chosen wilaya: the official record
+  // is always resolved here, from the dataset, never from what was sent.
   let institution
   if (rawInstitution.custom) {
     if (id !== OTHER_INSTITUTION_ID) return fail(`A custom institution must use the id "${OTHER_INSTITUTION_ID}".`, `${path}.institution.id`)
@@ -387,7 +474,8 @@ function readActivityOfficial(raw) {
   const extra = unexpectedKey(raw, V4_FIELDS.activityOfficial, path)
   if (extra) return extra
 
-  const role = typeof raw.role === 'string' ? raw.role.trim() : ''
+  // The internal value, exactly: never a translated label, never padded.
+  const role = typeof raw.role === 'string' ? raw.role : ''
   if (!ACTIVITY_OFFICIAL_ROLES.includes(role)) return fail(`${label}: choose a role.`, `${path}.role`)
 
   const fullName = readFullName(raw.fullName, label, `${path}.fullName`)
@@ -417,7 +505,7 @@ function readPerson(raw, path, label, cardField) {
   if (!fullName.ok) return fullName
   const phone = readPhone(raw.phone, label, `${path}.phone`)
   if (!phone.ok) return phone
-  const rfid = readRfid(raw.rfid, label, `${path}.rfid`)
+  const rfid = readDelegationRfid(raw.rfid, label, `${path}.rfid`)
   if (!rfid.ok) return rfid
   if (raw.idCard !== cardField) {
     return fail(`${label}: the identity card image is required and must be sent as "${cardField}". Please reload the page.`, `${path}.idCard`)
@@ -426,12 +514,11 @@ function readPerson(raw, path, label, cardField) {
   return pass({ fullName: fullName.value, phone: phone.value, rfid: rfid.value, idCard: cardField })
 }
 
-function readStudents(raw, now) {
+function readStudents(raw) {
   const path = 'students'
   if (!Array.isArray(raw)) return fail('Invalid student list.', path)
   if (raw.length !== AIVEX_STUDENT_COUNT) return fail(`A team is exactly ${AIVEX_STUDENT_COUNT} students.`, path)
 
-  const { min, max } = bacYearRange(now)
   const students = []
   const rfids = new Set()
   for (const [index, student] of raw.entries()) {
@@ -442,6 +529,7 @@ function readStudents(raw, now) {
     const extra = unexpectedKey(student, V4_FIELDS.student, base)
     if (extra) return extra
 
+    // The integer, strictly: '1', '01', null, 0 and 4 are all refused.
     if (student.position !== position) return fail(`${label}: the position must be ${position}.`, `${base}.position`)
 
     const fullName = readFullName(student.fullName, label, `${base}.fullName`)
@@ -453,9 +541,11 @@ function readStudents(raw, now) {
     if (student.bacYear === undefined || student.bacYear === null || student.bacYear === '') {
       return fail(`${label}: the BAC year is required.`, `${base}.bacYear`)
     }
-    if (!isValidBacYear(student.bacYear, now)) return fail(`${label}: enter the BAC year (${min} to ${max}).`, `${base}.bacYear`)
+    if (!isValidBacYear(student.bacYear)) {
+      return fail(`${label}: the BAC year must be between ${BAC_YEAR_RANGE.min} and ${BAC_YEAR_RANGE.max}.`, `${base}.bacYear`)
+    }
 
-    const rfid = readRfid(student.rfid, label, `${base}.rfid`)
+    const rfid = readStudentRfid(student.rfid, label, `${base}.rfid`)
     if (!rfid.ok) return rfid
     if (rfids.has(rfid.value)) return fail(`${label}: each student needs their own RFID.`, `${base}.rfid`)
     rfids.add(rfid.value)
@@ -473,7 +563,10 @@ function readStudents(raw, now) {
 // { ok: true, value } with a clean, explicitly rebuilt structure — the only
 // input the API maps to the database — or { ok: false, status: 400, message,
 // field } where `field` is the payload path of the first problem.
-export function validateRegistrationV4(body, { now = new Date() } = {}) {
+//
+// Pure and independent of the clock: every rule of the edition (BAC years,
+// phone and RFID formats) is a constant of this file.
+export function validateRegistrationV4(body) {
   if (!isObject(body)) return fail('Invalid registration data.')
   // A v3 payload ({ form, version: 3, answers }) stops here: never converted.
   if (body.formVersion !== AIVEX_FORM_VERSION) {
@@ -495,7 +588,7 @@ export function validateRegistrationV4(body, { now = new Date() } = {}) {
   if (!delegationHead.ok) return delegationHead
   const driver = readPerson(body.driver, 'driver', 'Driver', identityCardField('driver'))
   if (!driver.ok) return driver
-  const students = readStudents(body.students, now)
+  const students = readStudents(body.students)
   if (!students.ok) return students
   if (body.consent !== true) return fail('Please confirm the registration statement before submitting.', 'consent')
 
@@ -573,7 +666,7 @@ export function buildRegistrationPayloadV4(state) {
   const custom = team.institution === OTHER_INSTITUTION_ID
   const listed = custom ? null : findInstitution(team.wilaya, team.institution)
   const person = (record, subject) => ({
-    fullName: normalizeText(record.fullName),
+    fullName: normalizePersonName(record.fullName),
     phone: normalizePhone(record.phone),
     rfid: normalizeRfid(record.rfid),
     idCard: identityCardField(subject),
@@ -592,7 +685,7 @@ export function buildRegistrationPayloadV4(state) {
     },
     activityOfficial: {
       role: activityOfficial.role,
-      fullName: normalizeText(activityOfficial.fullName),
+      fullName: normalizePersonName(activityOfficial.fullName),
       email: normalizeEmail(activityOfficial.email),
       phone: normalizePhone(activityOfficial.phone),
     },
@@ -600,7 +693,7 @@ export function buildRegistrationPayloadV4(state) {
     driver: person(driver, 'driver'),
     students: students.map((student) => ({
       position: student.position,
-      fullName: normalizeText(student.fullName),
+      fullName: normalizePersonName(student.fullName),
       phone: normalizePhone(student.phone),
       bacYear: normalizeBacYear(student.bacYear),
       rfid: normalizeRfid(student.rfid),

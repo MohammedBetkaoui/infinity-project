@@ -174,12 +174,12 @@ const syntheticPayload = (submissionId, teamName) => ({
   edition: 2,
   formVersion: 4,
   team: { name: teamName, wilaya: { code: '34', name: 'x' }, institution: { id: 'univ-bba', name: 'x', custom: false } },
-  activityOfficial: { role: 'activities_officer', fullName: 'Phase5A Test Official', email: 'phase5a-test@example.invalid', phone: '0555000000' },
-  delegationHead: { fullName: 'Phase5A Test Head', phone: '0555000001', rfid: 'TEST-HEAD-0001', idCard: 'delegationHeadIdCard' },
-  driver: { fullName: 'Phase5A Test Driver', phone: '0555000002', rfid: 'TEST-DRIVER-0001', idCard: 'driverIdCard' },
+  activityOfficial: { role: 'activities_officer', fullName: 'Phase Five A Test Official', email: 'phase5a-test@example.invalid', phone: '0555000000' },
+  delegationHead: { fullName: 'Phase Five A Test Head', phone: '0555000001', rfid: 'TEST-HEAD-0001', idCard: 'delegationHeadIdCard' },
+  driver: { fullName: 'Phase Five A Test Driver', phone: '0555000002', rfid: 'TEST-DRIVER-0001', idCard: 'driverIdCard' },
   students: [1, 2, 3].map((position) => ({
-    position, fullName: `Phase5A Test Student ${position}`, phone: `055500000${position + 2}`,
-    bacYear: 2021, rfid: `TEST-STUDENT-000${position}`, studentCard: `studentCard_${position}`,
+    position, fullName: `Phase Five A Test Student ${['One', 'Two', 'Three'][position - 1]}`, phone: `055500000${position + 2}`,
+    bacYear: 2021, rfid: `9000000${position}`, studentCard: `studentCard_${position}`,
   })),
   consent: true,
 })
@@ -398,7 +398,7 @@ test('e2e: verify returns only candidate-safe fields, no internal id, no student
   assert.equal(verified.body.documentStatus, 'awaiting_signature')
   assert.equal(verified.body.studentCount, 3)
   const flat = JSON.stringify(verified.body)
-  assert.doesNotMatch(flat, /00000000-0000-4000-8000-|edition-\d+\/|\.docx|Phase5A Test Student|TEST-STUDENT-|TEST-HEAD-|TEST-DRIVER-|phase5a-test@/, 'no internal id, card path, student detail, RFID or email leaks')
+  assert.doesNotMatch(flat, /00000000-0000-4000-8000-|edition-\d+\/|\.docx|Phase Five A Test Student|9000000\d|TEST-HEAD-|TEST-DRIVER-|phase5a-test@/, 'no internal id, card path, student detail, RFID or email leaks')
 })
 
 test('D. isolation: a Magic Link for registration A can never resolve, verify or download registration B, even if B is named explicitly', async () => {

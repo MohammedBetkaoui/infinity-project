@@ -6,7 +6,7 @@ import {
 } from '../../../../shared/aivex/contract-v4.js'
 import {
   DRAFT_KEY, LEGACY_DRAFT_KEYS, SECTIONS, SECTION_ISSUES, STEP, STUDENT_COUNT, STUDENT_FIELDS, STUDENT_TEXT_FIELDS,
-  buildSubmission, buildSummary, studentIssues,
+  bacYearChoices, buildSubmission, buildSummary, studentIssues,
 } from './registrationModel'
 import { getRegistrationStrings } from './registrationI18n'
 import prepareCardUploads from './prepareCardUploads'
@@ -58,11 +58,17 @@ function restore() {
     if (team.institution !== OTHER_INSTITUTION_ID) team.customInstitution = ''
 
     const studentText = Object.fromEntries(STUDENT_TEXT_FIELDS.map((field) => [field, '']))
-    const students = base.students.map((student, index) => ({
-      ...student,
-      ...pick(draft.students[index], studentText),
-      droppedCard: typeof draft.students[index]?.droppedCard === 'string' ? draft.students[index].droppedCard : null,
-    }))
+    const offeredYears = bacYearChoices().map(String)
+    const students = base.students.map((student, index) => {
+      const typed = pick(draft.students[index], studentText)
+      return {
+        ...student,
+        ...typed,
+        // The select only offers the edition's years: a draft holding another one is not restored.
+        bacYear: offeredYears.includes(typed.bacYear) ? typed.bacYear : '',
+        droppedCard: typeof draft.students[index]?.droppedCard === 'string' ? draft.students[index].droppedCard : null,
+      }
+    })
     const lostCards = students.some((student) => student.droppedCard)
     const droppedIdCards = Object.fromEntries(IDENTITY_CARD_SUBJECTS.map((subject) => [subject, draft.droppedIdCards?.[subject] === true]))
     const lostIdCards = Object.values(droppedIdCards).some(Boolean)

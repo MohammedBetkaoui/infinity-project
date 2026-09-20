@@ -63,11 +63,11 @@ const validPayload = (overrides = {}) => ({
     institution: { id: 'univ-bba', name: 'Université Mohamed El Bachir El Ibrahimi', custom: false },
   },
   activityOfficial: { role: 'activities_officer', fullName: 'Amina Benali', email: 'activities@univ-bba.dz', phone: '0555 12 34 56' },
-  delegationHead: { fullName: 'Karim Haddad', phone: '+213 661 23 45 67', rfid: '00471236', idCard: HEAD },
+  delegationHead: { fullName: 'Karim Haddad', phone: '0661 23 45 67', rfid: '00471236', idCard: HEAD },
   driver: { fullName: 'Nabil Saidi', phone: '0770 11 22 33', rfid: 'A1B2C3D4', idCard: DRIVER },
   students: [1, 2, 3].map((position) => ({
-    position, fullName: `Student Number ${position}`, phone: `0550 00 00 0${position}`, bacYear: 2021 + position,
-    rfid: `00${position}9876`, studentCard: `studentCard_${position}`,
+    position, fullName: ['Student Number One', 'Student Number Two', 'Student Number Three'][position - 1], phone: `0550 00 00 0${position}`, bacYear: 2021 + position,
+    rfid: `0000000${position}`, studentCard: `studentCard_${position}`,
   })),
   consent: true,
   ...overrides,
@@ -958,7 +958,7 @@ test('form: the state carries an idCard per person, the payload only names its p
   Object.assign(state.activityOfficial, { role: 'activities_officer', fullName: 'Amina Benali', email: 'a@univ-bba.dz', phone: '0555123456' })
   Object.assign(state.delegationHead, { fullName: 'Karim Haddad', phone: '0661234567', rfid: '0047', idCard: file('CNI karim haddad.png') })
   Object.assign(state.driver, { fullName: 'Nabil Saidi', phone: '0770112233', rfid: 'A1', idCard: file('nabil.jpg', IMAGES.jpeg, 'image/jpeg') })
-  state.students.forEach((student) => Object.assign(student, { fullName: `Student ${student.position}`, phone: '0550000000', bacYear: '2022', rfid: `R${student.position}`, studentCard: file(`s${student.position}.png`) }))
+  state.students.forEach((student) => Object.assign(student, { fullName: `Student ${['One', 'Two', 'Three'][student.position - 1]}`, phone: '0550000000', bacYear: '2022', rfid: `1234567${student.position}`, studentCard: file(`s${student.position}.png`) }))
   state.consent = true
 
   const payload = buildRegistrationPayloadV4(state)

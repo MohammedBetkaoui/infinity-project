@@ -2,15 +2,17 @@ import {
   OTHER_INSTITUTION_ID, findInstitution, findWilaya, institutionDisplayName, wilayaDisplayName,
 } from '../../../data/algeriaHigherEducation.js'
 import {
-  ACTIVITY_OFFICIAL_ROLES, AIVEX_FORM_VERSION, AIVEX_STUDENT_COUNT, IDENTITY_CARD_POLICY, IDENTITY_CARD_SUBJECTS, LIMITS,
+  ACTIVITY_OFFICIAL_ROLES, AIVEX_FORM_VERSION, AIVEX_STUDENT_COUNT, BAC_YEAR_RANGE, IDENTITY_CARD_POLICY, IDENTITY_CARD_SUBJECTS, LIMITS,
   STUDENT_CARD_POLICY, bacYearChoices, buildRegistrationPayloadV4, canonicalCardMime, identityCardField, identityCardFileIssue,
-  isValidBacYear, isValidEmail, isValidPhoneInput, isValidRfid, normalizeBacYear, normalizeEmail, normalizeRfid, normalizeText,
-  studentCardField, studentCardFileIssue, within,
+  isValidBacYear, isValidDelegationRfid, isValidEmail, isValidPhoneInput, isValidStudentRfid, normalizeBacYear, normalizeEmail,
+  normalizeRfid, normalizeText, personNameIssue, studentCardField, studentCardFileIssue, within,
 } from '../../../../shared/aivex/contract-v4.js'
 
 // Form model of the AIVEX registration, contract v4. Versions, limits and
 // field rules come from shared/aivex/contract-v4.js — the same rules the API
-// re-runs. This file only adds the step layout and translated messages.
+// re-runs. This file only adds the step layout and translated messages: it
+// decides NOTHING about what a valid phone, RFID, BAC year or name is. The form
+// is the UX layer; the API is the authority and validates everything again.
 
 export { AIVEX_FORM_VERSION as FORM_VERSION, AIVEX_STUDENT_COUNT as STUDENT_COUNT, bacYearChoices }
 export const CARD_TYPES = Object.keys(STUDENT_CARD_POLICY.types)
@@ -50,20 +52,38 @@ const collect = (entries) => Object.fromEntries(entries.filter(([, message]) => 
 
 const phoneIssue = (value, L) => {
   if (!text(value)) return msg(L, 'errPhoneRequired', 'Phone number is required.')
-  return isValidPhoneInput(value) ? '' : msg(L, 'errPhoneInvalid', 'Enter a valid phone number.')
+  return isValidPhoneInput(value) ? '' : msg(L, 'errPhoneInvalid', 'The phone number must contain exactly 10 digits and start with 05, 06 or 07.')
 }
 
-const nameIssue = (value, L) => {
-  const name = normalizeText(value)
-  if (!name) return msg(L, 'errNameRequired', 'Full name is required.')
-  return within(name, LIMITS.fullName) ? '' : msg(L, 'errNameLength', 'Enter the full name (3 to 120 characters).')
+// Every person name — activity official, head of delegation, driver, students —
+// goes through the one shared rule (personNameIssue); `student` only picks the
+// wording of the "required" and "too short" messages, never the rule.
+const nameIssue = (value, L, { student = false } = {}) => {
+  switch (personNameIssue(value)) {
+    case 'required': return msg(L, student ? 'errStudentNameRequired' : 'errNameRequired', 'Full name is required.')
+    case 'chars': return msg(L, 'errNameInvalid', 'The name must contain letters and spaces only.')
+    case 'short': return student
+      ? msg(L, 'errStudentNameShort', 'Enter the full name as written on the student card.')
+      : msg(L, 'errNameLength', 'Enter the full name (3 to 120 characters).')
+    case 'long': return msg(L, 'errNameLength', 'Enter the full name (3 to 120 characters).')
+    default: return ''
+  }
 }
 
-// RFID: text as typed (leading zeros kept), only trimmed.
-const rfidIssue = (value, L) => {
+// Head of delegation and driver: text as typed (leading zeros kept), only
+// trimmed, and only bounded. NOT the student rule: no delegation RFID format
+// has been confirmed by the organisers.
+const delegationRfidIssue = (value, L) => {
   const rfid = normalizeRfid(value)
   if (!rfid) return msg(L, 'errRfidRequired', 'RFID number is required.')
-  return isValidRfid(rfid) ? '' : msg(L, 'errRfidInvalid', 'Use at most 64 characters, as written.')
+  return isValidDelegationRfid(rfid) ? '' : msg(L, 'errRfidInvalid', 'Use at most 64 characters, as written.')
+}
+
+// A student's RFID: exactly eight digits, kept as text so the leading zeros stay.
+const studentRfidIssue = (value, L) => {
+  const rfid = normalizeRfid(value)
+  if (!rfid) return msg(L, 'errRfidRequired', 'RFID number is required.')
+  return isValidStudentRfid(rfid) ? '' : msg(L, 'errStudentRfidInvalid', 'The student RFID must contain exactly 8 digits.')
 }
 
 export function teamIssues(team, L) {
@@ -99,7 +119,7 @@ export function personIssues(person, L) {
   return collect([
     ['fullName', nameIssue(person.fullName, L)],
     ['phone', phoneIssue(person.phone, L)],
-    ['rfid', rfidIssue(person.rfid, L)],
+    ['rfid', delegationRfidIssue(person.rfid, L)],
   ])
 }
 
@@ -142,18 +162,15 @@ export function checkCardFile(file, L) {
   }
 }
 
-export function studentIssues(student, students = [], L, now = new Date()) {
-  const name = normalizeText(student.fullName)
+export function studentIssues(student, students = [], L) {
   const rfid = normalizeRfid(student.rfid)
   const shared = rfid && students.some((other) => other.id !== student.id && normalizeRfid(other.rfid) === rfid)
   return collect([
-    ['fullName', !name ? msg(L, 'errStudentNameRequired', 'Full name is required.')
-      : name.length < LIMITS.fullName[0] ? msg(L, 'errStudentNameShort', 'Enter the full name as written on the student card.')
-        : within(name, LIMITS.fullName) ? '' : msg(L, 'errNameLength', 'Enter the full name (3 to 120 characters).')],
+    ['fullName', nameIssue(student.fullName, L, { student: true })],
     ['phone', phoneIssue(student.phone, L)],
     ['bacYear', !text(student.bacYear) ? msg(L, 'errBacYearRequired', 'BAC year is required.')
-      : isValidBacYear(normalizeBacYear(student.bacYear), now) ? '' : msg(L, 'errBacYearInvalid', 'Choose the BAC year from the list.')],
-    ['rfid', rfidIssue(student.rfid, L) || (shared ? msg(L, 'errRfidShared', 'Each student needs their own RFID.') : '')],
+      : isValidBacYear(normalizeBacYear(student.bacYear)) ? '' : msg(L, 'errBacYearInvalid', `The BAC year must be between ${BAC_YEAR_RANGE.min} and ${BAC_YEAR_RANGE.max}.`)],
+    ['rfid', studentRfidIssue(student.rfid, L) || (shared ? msg(L, 'errRfidShared', 'Each student needs their own RFID.') : '')],
     ['studentCard', student.studentCard ? checkCardFile(student.studentCard, L) : msg(L, 'errCardRequired', 'Student card is required.')],
   ])
 }

@@ -7,8 +7,10 @@
 //   -> origin / rate-limit checks -> streaming multipart parse (five files at
 //      most, 5 MB each, refused WHILE they stream) -> honeypot
 //   -> validateRegistrationV4 (team, institution, activity contact,
-//      delegation, exactly three students, BAC years, RFIDs, consent,
-//      submissionId, edition, formVersion)
+//      delegation, exactly three students, names, phones, RFIDs, BAC years,
+//      consent, submissionId, edition, formVersion) — the shared contract,
+//      the same rules the form applies, re-run here as the authority; nothing
+//      below runs, and nothing is opened or written, until it passes
 //   -> validateRegistrationFilesV4 (all five images: presence, type, size,
 //      real image bytes, SHA-256 of the identity cards)
 //   -> registerV4: idempotent on submissionId, aivex_registrations,
@@ -150,7 +152,7 @@ export function createRegisterHandler({
     }
 
     const clock = now()
-    const registration = validateRegistrationV4(body, { now: clock })
+    const registration = validateRegistrationV4(body)
     if (!registration.ok) {
       refuse(res, registration.status, registration.message, registration.field)
       return

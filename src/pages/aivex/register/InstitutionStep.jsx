@@ -70,7 +70,7 @@ export default function InstitutionStep({ registration, reduced, t, lang }) {
           note={t.contactNote}>
           <div className="af-grid-two">
             <ApplicationField {...field('activityOfficial', 'role')} label={t.roleLabel} as="select" options={activityRoles} />
-            <ApplicationField {...field('activityOfficial', 'fullName')} label={t.fullNameLabel} placeholder={t.fullNamePlaceholder} autoComplete="off" />
+            <ApplicationField {...field('activityOfficial', 'fullName')} label={t.fullNameLabel} placeholder={t.fullNamePlaceholder} autoComplete="name" />
           </div>
           <div className="af-grid-two">
             <ApplicationField {...field('activityOfficial', 'email')} label={t.emailLabel} type="email" inputMode="email"

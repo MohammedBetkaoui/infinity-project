@@ -468,12 +468,12 @@ const syntheticPayload = () => ({
   edition: 2,
   formVersion: 4,
   team: { name: 'PHASE4 TEST', wilaya: { code: '34', name: 'x' }, institution: { id: 'univ-bba', name: 'x', custom: false } },
-  activityOfficial: { role: 'activities_officer', fullName: 'Phase4 Test Official', email: 'phase4-test@example.invalid', phone: '0555000000' },
-  delegationHead: { fullName: 'Phase4 Test Head', phone: '0555000001', rfid: 'TEST-HEAD-0001', idCard: 'delegationHeadIdCard' },
-  driver: { fullName: 'Phase4 Test Driver', phone: '0555000002', rfid: 'TEST-DRIVER-0001', idCard: 'driverIdCard' },
+  activityOfficial: { role: 'activities_officer', fullName: 'Phase Four Test Official', email: 'phase4-test@example.invalid', phone: '0555000000' },
+  delegationHead: { fullName: 'Phase Four Test Head', phone: '0555000001', rfid: 'TEST-HEAD-0001', idCard: 'delegationHeadIdCard' },
+  driver: { fullName: 'Phase Four Test Driver', phone: '0555000002', rfid: 'TEST-DRIVER-0001', idCard: 'driverIdCard' },
   students: [1, 2, 3].map((position) => ({
-    position, fullName: `Phase4 Test Student ${position}`, phone: `055500000${position + 2}`,
-    bacYear: 2021, rfid: `TEST-STUDENT-000${position}`, studentCard: `studentCard_${position}`,
+    position, fullName: `Phase Four Test Student ${['One', 'Two', 'Three'][position - 1]}`, phone: `055500000${position + 2}`,
+    bacYear: 2021, rfid: `9000000${position}`, studentCard: `studentCard_${position}`,
   })),
   consent: true,
 })
@@ -595,8 +595,8 @@ test('e2e: a synthetic registration keeps the unchanged 201 contract and produce
   const xml = await (await JSZip.loadAsync(db.files.get(docx.file_path).buffer)).file('word/document.xml').async('string')
   const text = xml.replace(/<[^>]+>/g, '')
   assert.doesNotMatch(xml, /\{\{/)
-  for (const value of [body.reference, 'PHASE4 TEST', 'Bordj Bou Arréridj', 'Phase4 Test Head', 'TEST-HEAD-0001', 'Phase4 Test Driver',
-    'TEST-DRIVER-0001', 'Phase4 Test Student 1', 'Phase4 Test Student 3', 'TEST-STUDENT-0002', '2021', 'phase4-test@example.invalid',
+  for (const value of [body.reference, 'PHASE4 TEST', 'Bordj Bou Arréridj', 'Phase Four Test Head', 'TEST-HEAD-0001', 'Phase Four Test Driver',
+    'TEST-DRIVER-0001', 'Phase Four Test Student One', 'Phase Four Test Student Three', '90000002', '2021', 'phase4-test@example.invalid',
     '2026-12-10', '2026-12-12', '2026-11-30', 'aivex@univ-bba.dz', 'الطبعة الثانية',
     // Official label, re-derived server-side from the dataset (the payload said "x").
     'Université Mohamed El Bachir El Ibrahimi de Bordj Bou Arréridj']) {
