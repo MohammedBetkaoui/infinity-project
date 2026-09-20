@@ -1,14 +1,16 @@
 // AIVEX form v4 — contract, API and form tests (node --test, no network, no database).
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { readFile, readdir } from 'node:fs/promises'
 import { Readable } from 'node:stream'
 import { test } from 'node:test'
 import {
   ACTIVITY_OFFICIAL_ROLES, AIVEX_EDITION, AIVEX_FORM_VERSION, AIVEX_STUDENT_COUNT, DATA_CLASSES, DEFAULT_DOCUMENT_STATUS,
-  DEFAULT_REGISTRATION_STATUS, DOCUMENT_STATUSES, LEGACY_V3_FIELDS, REGISTRATION_STATUSES, STUDENT_CARD_FIELDS,
-  STUDENT_CARD_FIELD_PATTERN, STUDENT_CARD_POLICY, V4_FIELDS, bacYearChoices, buildRegistrationPayloadV4,
+  DEFAULT_REGISTRATION_STATUS, DOCUMENT_STATUSES, LEGACY_V3_FIELDS, REGISTRATION_FILE_FIELD_PATTERN, REGISTRATION_MAX_FILES,
+  REGISTRATION_STATUSES, STUDENT_CARD_FIELDS, STUDENT_CARD_POLICY, V4_FIELDS, bacYearChoices, buildRegistrationPayloadV4,
   createRegistrationStateV4, createSubmissionId, isUuidV4, isValidBacYear, normalizeBacYear, normalizeEmail, normalizePhone,
   normalizeRfid, normalizeText, registrationResponsesV4, studentCardFileIssue, studentCardStoragePath, studentCardUploadName,
+  identityCardUploadName,
   validateRegistrationV4,
 } from '../shared/aivex/contract-v4.js'
 import { WORD_EXCLUDED_FIELDS_V4, WORD_VARIABLES_V4, resolveWordDataV4 } from '../shared/aivex/word-mapping-v4.js'
@@ -16,7 +18,7 @@ import { REGISTRATION_REFERENCE_PATTERN, generateRegistrationReference } from '.
 import {
   STALE_AFTER_MS, registerV4, registrationFingerprint, toRegistrationRow, toStudentRows,
 } from '../api/_lib/aivex-registration-v4.js'
-import { validateStudentCardsV4 } from '../api/_lib/aivex-validation-v4.js'
+import { validateRegistrationFilesV4, validateStudentCardsV4 } from '../api/_lib/aivex-validation-v4.js'
 import { parseMultipart } from '../api/_lib/multipart.js'
 import { createRegisterHandler } from '../api/aivex/register.js'
 import {
@@ -51,8 +53,8 @@ const validPayload = (overrides = {}) => ({
     institution: { id: 'univ-bba', name: 'Université Mohamed El Bachir El Ibrahimi', custom: false },
   },
   activityOfficial: { role: 'activities_officer', fullName: 'Amina Benali', email: 'activities@univ-bba.dz', phone: '0555 12 34 56' },
-  delegationHead: { fullName: 'Karim Haddad', phone: '+213 661 23 45 67', rfid: '00471236' },
-  driver: { fullName: 'Nabil Saidi', phone: '0770 11 22 33', rfid: 'A1B2C3D4' },
+  delegationHead: { fullName: 'Karim Haddad', phone: '+213 661 23 45 67', rfid: '00471236', idCard: 'delegationHeadIdCard' },
+  driver: { fullName: 'Nabil Saidi', phone: '0770 11 22 33', rfid: 'A1B2C3D4', idCard: 'driverIdCard' },
   students: [1, 2, 3].map((position) => ({
     position,
     fullName: `Student Number ${position}`,
@@ -105,9 +107,10 @@ function createMemoryStore() {
   const registrations = []
   const students = []
   const objects = new Map()
+  const identityObjects = new Map()
   let nextId = 0
   const store = {
-    registrations, students, objects,
+    registrations, students, objects, identityObjects,
     async findBySubmissionId(submissionId) {
       const row = registrations.find((entry) => entry.submission_id === submissionId)
       if (!row) return null
@@ -117,6 +120,7 @@ function createMemoryStore() {
         fingerprint: row.submission_fingerprint,
         createdAt: row.created_at,
         studentCount: students.filter((entry) => entry.registration_id === row.id).length,
+        identityCardPaths: [row.delegation_head_id_card_path, row.driver_id_card_path].filter(Boolean),
       }
     },
     async insertRegistration(row) {
@@ -124,7 +128,8 @@ function createMemoryStore() {
       if (registrations.some((entry) => entry.submission_id === row.submission_id || entry.reference === row.reference)) {
         return { ok: false, duplicate: true, code: '23505' }
       }
-      const id = `00000000-0000-4000-8000-${String(++nextId).padStart(12, '0')}`
+      // The API generates the registration id: the identity card paths name it.
+      const id = row.id || `00000000-0000-4000-8000-${String(++nextId).padStart(12, '0')}`
       registrations.push({ ...row, id, created_at: row.submitted_at })
       return { ok: true, id, reference: row.reference }
     },
@@ -132,11 +137,16 @@ function createMemoryStore() {
       if (objects.has(path)) throw Object.assign(new Error('exists'), { code: 'Duplicate' })
       objects.set(path, { size: buffer.length, mime })
     },
+    async uploadIdentityCard(path, buffer, mime) {
+      if (identityObjects.has(path)) throw Object.assign(new Error('exists'), { code: 'Duplicate' })
+      identityObjects.set(path, { size: buffer.length, mime })
+    },
     async insertStudents(rows) {
       if (rows.length !== AIVEX_STUDENT_COUNT) throw Object.assign(new Error('team size'), { code: '23514' })
       students.push(...rows)
     },
     async removeCards(paths) { paths.forEach((path) => objects.delete(path)) },
+    async removeIdentityCards(paths) { paths.forEach((path) => identityObjects.delete(path)) },
     async deleteRegistration(id) {
       registrations.splice(registrations.findIndex((entry) => entry.id === id), 1)
       for (let index = students.length - 1; index >= 0; index -= 1) if (students[index].registration_id === id) students.splice(index, 1)
@@ -147,9 +157,14 @@ function createMemoryStore() {
 
 // --- HTTP helper: a real multipart request through the real handler ------------
 let ipCounter = 0
-const pngCards = (overrides = {}) => [1, 2, 3].map((position) => ({
-  field: `studentCard_${position}`, buffer: IMAGES.png, type: 'image/png', filename: `studentCard_${position}.png`, ...overrides[position],
-}))
+const pngCards = (overrides = {}) => [
+  ...[1, 2, 3].map((position) => ({
+    field: `studentCard_${position}`, buffer: IMAGES.png, type: 'image/png', filename: `studentCard_${position}.png`, ...overrides[position],
+  })),
+  ...['delegationHeadIdCard', 'driverIdCard'].map((field) => ({
+    field, buffer: IMAGES.png, type: 'image/png', filename: `${field}.png`, ...overrides[field],
+  })),
+]
 
 // Builds the real multipart request and hands it to the real handler.
 // `fields` is [{ name, value }] for the non-file parts (normally just
@@ -277,7 +292,7 @@ test('7. a team that is not exactly three students is refused (fewer or more)', 
   const { store, handler } = makeApi()
   const two = validPayload()
   two.students.pop()
-  const fewer = await post(handler, two, pngCards().slice(0, 2))
+  const fewer = await post(handler, two, pngCards().filter((card) => card.field !== 'studentCard_3'))
   assert.equal(fewer.status, 400)
   assert.equal(fewer.body.field, 'students')
 
@@ -288,10 +303,11 @@ test('7. a team that is not exactly three students is refused (fewer or more)', 
   assert.equal(more.status, 400)
   assert.equal(more.body.field, 'students')
 
-  // A fourth file is refused by the multipart layer itself (maxFiles = 3),
-  // before the JSON is even parsed.
+  // A sixth file is refused by the multipart layer itself (maxFiles = 5: three
+  // student cards and two identity cards), before the JSON is even parsed.
   const extraFile = await post(handler, validPayload(), [...pngCards(), { field: 'studentCard_4', buffer: IMAGES.png, type: 'image/png', filename: 'studentCard_4.png' }])
   assert.equal(extraFile.status, 413)
+  assert.equal(REGISTRATION_MAX_FILES, 5)
   assert.equal(store.registrations.length, 0)
 })
 
@@ -426,8 +442,12 @@ const filledState = () => {
   const state = createRegistrationStateV4({ submissionId: SUBMISSION_ID })
   Object.assign(state.team, { name: ' Infinity  AI ', wilaya: '34', institution: 'univ-bba' })
   Object.assign(state.activityOfficial, { role: 'sub_director_activities', fullName: 'Amina Benali', email: ' Amina@Univ-BBA.dz', phone: '0555 12 34 56' })
-  Object.assign(state.delegationHead, { fullName: 'Karim Haddad', phone: '+213 661 23 45 67', rfid: ' 00471236 ' })
-  Object.assign(state.driver, { fullName: 'Nabil Saidi', phone: '0770 11 22 33', rfid: '0099' })
+  Object.assign(state.delegationHead, {
+    fullName: 'Karim Haddad', phone: '+213 661 23 45 67', rfid: ' 00471236 ', idCard: new File([IMAGES.png], 'CNI_karim_haddad.PNG', { type: 'image/png' }),
+  })
+  Object.assign(state.driver, {
+    fullName: 'Nabil Saidi', phone: '0770 11 22 33', rfid: '0099', idCard: new File([IMAGES.jpeg], 'nabil-saidi-id.jpg', { type: 'image/jpeg' }),
+  })
   state.students.forEach((student) => Object.assign(student, {
     fullName: `Student Number ${student.position}`,
     phone: `0550 00 00 0${student.position}`,
@@ -456,33 +476,43 @@ test('contract: the form builds exactly the payload the API validates', () => {
   assert.equal(result.value.team.name, 'Infinity AI')
   assert.equal(result.value.activityOfficial.email, 'amina@univ-bba.dz')
 
-  // Files travel as their own parts, never inside the JSON.
-  assert.deepEqual(files.map(({ field, position }) => ({ field, position })), [1, 2, 3].map((position) => ({ field: `studentCard_${position}`, position })))
+  // Files travel as their own parts, never inside the JSON: the three student
+  // cards, then the two identity cards (the payload only names their parts).
+  assert.deepEqual(files.map(({ field }) => field), ['studentCard_1', 'studentCard_2', 'studentCard_3', 'delegationHeadIdCard', 'driverIdCard'])
+  assert.deepEqual(files.filter(({ position }) => position).map(({ position }) => position), [1, 2, 3])
+  assert.deepEqual(files.filter(({ subject }) => subject).map(({ subject }) => subject), ['delegationHead', 'driver'])
   assert.ok(files.every(({ file }) => file instanceof File))
+  assert.equal(payload.delegationHead.idCard, 'delegationHeadIdCard')
+  assert.equal(payload.driver.idCard, 'driverIdCard')
+  assert.doesNotMatch(JSON.stringify(payload), /CNI_karim|nabil-saidi-id/, "the applicant's own file names never leave the device")
 })
 
-test('contract: multipart payload + studentCard_1..3 survive the real parser, with derived file names', async () => {
+test('contract: multipart payload + the five image parts survive the real parser, with derived file names', async () => {
   const state = filledState()
   const { payload, files } = buildSubmission(state)
   const form = new FormData()
   form.append('payload', JSON.stringify(payload))
-  for (const { field, position, file } of files) form.append(field, file, studentCardUploadName(position, file.type))
+  for (const { field, position, file } of files) {
+    form.append(field, file, position ? studentCardUploadName(position, file.type) : identityCardUploadName(field, file.type))
+  }
 
   const response = new Response(form)
   const req = Readable.from([Buffer.from(await response.arrayBuffer())])
   req.headers = { 'content-type': response.headers.get('content-type') }
   const parsed = await parseMultipart(req, {
     maxFileBytes: STUDENT_CARD_POLICY.maxBytes,
-    maxFiles: AIVEX_STUDENT_COUNT,
+    maxFiles: REGISTRATION_MAX_FILES,
     maxRequestBytes: 30 * 1024 * 1024,
     allowedFields: new Set(['payload']),
-    fileFieldPattern: STUDENT_CARD_FIELD_PATTERN,
+    fileFieldPattern: REGISTRATION_FILE_FIELD_PATTERN,
   })
-  assert.deepEqual([...parsed.files.values()].map((file) => file.filename), ['studentCard_1.png', 'studentCard_2.png', 'studentCard_3.png'])
+  assert.deepEqual([...parsed.files.values()].map((file) => file.filename),
+    ['studentCard_1.png', 'studentCard_2.png', 'studentCard_3.png', 'delegationHeadIdCard.png', 'driverIdCard.jpg'])
   const registration = validate(JSON.parse(parsed.fields.payload))
   assert.equal(registration.ok, true, registration.message)
-  const cards = await validateStudentCardsV4(registration.value.students, parsed.files)
-  assert.equal(cards.ok, true, cards.message)
+  const checked = await validateRegistrationFilesV4(registration.value.students, parsed.files)
+  assert.equal(checked.ok, true, checked.message)
+  assert.deepEqual(checked.identityCards.map((card) => [card.subject, card.mime]), [['delegationHead', 'image/png'], ['driver', 'image/jpeg']])
 })
 
 test('contract: versions and the student count are defined once, in the shared contract', async () => {
@@ -572,8 +602,8 @@ test('form: three fixed students, RFID + BAC year, text-only draft under the v4 
   assert.deepEqual(state.students, [1, 2, 3].map((position) => ({
     id: `student-${position}`, position, fullName: '', phone: '', bacYear: '', rfid: '', studentCard: null,
   })))
-  assert.deepEqual(state.delegationHead, { fullName: '', phone: '', rfid: '' })
-  assert.deepEqual(state.driver, { fullName: '', phone: '', rfid: '' })
+  assert.deepEqual(state.delegationHead, { fullName: '', phone: '', rfid: '', idCard: null })
+  assert.deepEqual(state.driver, { fullName: '', phone: '', rfid: '', idCard: null })
   assert.deepEqual(SECTIONS.delegationHead.fields, ['fullName', 'phone', 'rfid'])
   assert.deepEqual(STUDENT_FIELDS, ['fullName', 'phone', 'bacYear', 'rfid', 'studentCard'])
   assert.deepEqual(STUDENT_TEXT_FIELDS, ['fullName', 'phone', 'bacYear', 'rfid'])
@@ -618,6 +648,13 @@ test('form: every language has the v4 wording and no v3 field label', () => {
 
 const registration = () => validate(validPayload()).value
 const cards = () => [1, 2, 3].map((position) => ({ position, field: `studentCard_${position}`, buffer: Buffer.alloc(10), mime: 'image/png', extension: 'png', size: 10 }))
+const identityCards = () => ['delegationHead', 'driver'].map((subject) => {
+  const buffer = Buffer.from(IMAGES.png)
+  return {
+    subject, field: `${subject}IdCard`, buffer, mime: 'image/png', extension: 'png', size: buffer.length,
+    sha256: createHash('sha256').update(buffer).digest('hex'),
+  }
+})
 
 test('write path: an incomplete registration answers 409 while recent, and is redone once stale', async () => {
   const store = createMemoryStore()
@@ -625,11 +662,11 @@ test('write path: an incomplete registration answers 409 while recent, and is re
   await store.insertRegistration(toRegistrationRow(value, {
     reference: 'AIVEX2-DEAD0000', fingerprint: registrationFingerprint(value), source: null, now: NOW,
   }))
-  const busy = await registerV4({ store, registration: value, cards: cards(), now: NOW })
+  const busy = await registerV4({ store, registration: value, cards: cards(), identityCards: identityCards(), now: NOW })
   assert.equal(busy.status, 409)
   assert.equal(busy.retryAfterSeconds, 15)
 
-  const later = await registerV4({ store, registration: value, cards: cards(), now: new Date(NOW.getTime() + STALE_AFTER_MS + 1) })
+  const later = await registerV4({ store, registration: value, cards: cards(), identityCards: identityCards(), now: new Date(NOW.getTime() + STALE_AFTER_MS + 1) })
   assert.equal(later.status, 201)
   assert.notEqual(later.body.reference, 'AIVEX2-DEAD0000')
   assert.equal(store.registrations.length, 1)
@@ -647,7 +684,7 @@ test('write path: a failed upload removes what was written; a reference collisio
   const logged = console.error
   console.error = () => {}
   try {
-    const failed = await registerV4({ store, registration: registration(), cards: cards(), now: NOW })
+    const failed = await registerV4({ store, registration: registration(), cards: cards(), identityCards: identityCards(), now: NOW })
     assert.equal(failed.status, 500)
     assert.doesNotMatch(failed.body.message, /storage|supabase|edition-/i)
   } finally {
@@ -658,7 +695,7 @@ test('write path: a failed upload removes what was written; a reference collisio
   const clean = createMemoryStore()
   await clean.insertRegistration({ submission_id: OTHER_SUBMISSION_ID, reference: 'AIVEX2-TAKEN000', submitted_at: NOW.toISOString() })
   const references = ['AIVEX2-TAKEN000', 'AIVEX2-FRESH000']
-  const outcome = await registerV4({ store: clean, registration: registration(), cards: cards(), now: NOW, generateReference: () => references.shift() })
+  const outcome = await registerV4({ store: clean, registration: registration(), cards: cards(), identityCards: identityCards(), now: NOW, generateReference: () => references.shift() })
   assert.equal(outcome.status, 201)
   assert.deepEqual(outcome.body, { success: true, reference: 'AIVEX2-FRESH000' })
   assert.equal(typeof outcome.registrationId, 'string') // internal id: for document generation, never in the response body
@@ -744,7 +781,7 @@ test('statuses: v4 values, shared by the contract and the migration', async () =
 })
 
 test('student cards: internal verification data, private bucket, deterministic path per edition', () => {
-  assert.deepEqual([...DATA_CLASSES.internalVerification], ['students[].studentCard'])
+  assert.deepEqual([...DATA_CLASSES.internalVerification], ['students[].studentCard', 'delegationHead.idCard', 'driver.idCard'])
   assert.equal(STUDENT_CARD_POLICY.required, true)
   assert.equal(STUDENT_CARD_POLICY.printable, false)
   assert.equal(STUDENT_CARD_POLICY.publicBucket, false)

@@ -2,9 +2,10 @@ import {
   OTHER_INSTITUTION_ID, findInstitution, findWilaya, institutionDisplayName, wilayaDisplayName,
 } from '../../../data/algeriaHigherEducation.js'
 import {
-  ACTIVITY_OFFICIAL_ROLES, AIVEX_FORM_VERSION, AIVEX_STUDENT_COUNT, LIMITS, STUDENT_CARD_POLICY, bacYearChoices,
-  buildRegistrationPayloadV4, isValidBacYear, isValidEmail, isValidPhoneInput, isValidRfid, normalizeBacYear,
-  normalizeEmail, normalizeRfid, normalizeText, studentCardField, studentCardFileIssue, within,
+  ACTIVITY_OFFICIAL_ROLES, AIVEX_FORM_VERSION, AIVEX_STUDENT_COUNT, IDENTITY_CARD_POLICY, IDENTITY_CARD_SUBJECTS, LIMITS,
+  STUDENT_CARD_POLICY, bacYearChoices, buildRegistrationPayloadV4, canonicalCardMime, identityCardField, identityCardFileIssue,
+  isValidBacYear, isValidEmail, isValidPhoneInput, isValidRfid, normalizeBacYear, normalizeEmail, normalizeRfid, normalizeText,
+  studentCardField, studentCardFileIssue, within,
 } from '../../../../shared/aivex/contract-v4.js'
 
 // Form model of the AIVEX registration, contract v4. Versions, limits and
@@ -13,15 +14,21 @@ import {
 
 export { AIVEX_FORM_VERSION as FORM_VERSION, AIVEX_STUDENT_COUNT as STUDENT_COUNT, bacYearChoices }
 export const CARD_TYPES = Object.keys(STUDENT_CARD_POLICY.types)
+// Identity cards accept fewer types than student cards (no WEBP).
+export const IDENTITY_CARD_TYPES = Object.keys(IDENTITY_CARD_POLICY.types)
 
 export const STEP = { institution: 0, delegation: 1, students: 2, review: 3 }
 
 // Field order drives "focus the first error". Each section belongs to a step.
+// identityDocuments is the identity card image of each person of the
+// delegation (its fields are the two persons); it comes last in its step,
+// after the two records, as it does on screen.
 export const SECTIONS = {
   team: { step: STEP.institution, fields: ['name', 'wilaya', 'institution', 'customInstitution'] },
   activityOfficial: { step: STEP.institution, fields: ['role', 'fullName', 'email', 'phone'] },
   delegationHead: { step: STEP.delegation, fields: ['fullName', 'phone', 'rfid'] },
   driver: { step: STEP.delegation, fields: ['fullName', 'phone', 'rfid'] },
+  identityDocuments: { step: STEP.delegation, fields: [...IDENTITY_CARD_SUBJECTS] },
 }
 // Same order as the student record renders them.
 export const STUDENT_FIELDS = ['fullName', 'phone', 'bacYear', 'rfid', 'studentCard']
@@ -96,11 +103,32 @@ export function personIssues(person, L) {
   ])
 }
 
+// The identity card image of the head of delegation / the driver. Same check
+// for a picked file and for the kept one, and the same rule the API applies.
+export function checkIdentityFile(file, L) {
+  switch (identityCardFileIssue(file)) {
+    case 'missing': return msg(L, 'errFileNone', 'No file was selected.')
+    case 'type': return msg(L, 'errIdFileType', 'Use a JPG or PNG image of the identity card.')
+    case 'empty': return msg(L, 'errFileEmpty', 'This file is empty.')
+    case 'size': return msg(L, 'errFileSize', 'This image is larger than 5 MB.')
+    default: return ''
+  }
+}
+
+// `cards` = { delegationHead: File | null, driver: File | null }.
+export function identityIssues(cards, L) {
+  return collect(IDENTITY_CARD_SUBJECTS.map((subject) => [
+    subject,
+    cards[subject] ? checkIdentityFile(cards[subject], L) : msg(L, 'errIdRequired', 'The identity card image is required.'),
+  ]))
+}
+
 export const SECTION_ISSUES = {
   team: teamIssues,
   activityOfficial: officialIssues,
   delegationHead: personIssues,
   driver: personIssues,
+  identityDocuments: identityIssues,
 }
 
 // Same messages for a picked file (StudentCardUpload) and the kept one.
@@ -132,6 +160,11 @@ export function studentIssues(student, students = [], L, now = new Date()) {
 
 export const formatBytes = (bytes) => (bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`)
 
+// "PNG · 1.2 MB" for an accepted type, the raw MIME type otherwise.
+export const describeCardFile = (file, policy = STUDENT_CARD_POLICY) => (
+  `${policy.types[canonicalCardMime(file.type)]?.label || file.type || '?'} · ${formatBytes(file.size)}`
+)
+
 const ROLE_LABELS = { sub_director_activities: 'Sub-director of Activities', activities_officer: 'Activities Officer' }
 export const roleLabel = (value) => ROLE_LABELS[value] || ''
 
@@ -145,13 +178,22 @@ export const wilayaLabel = (code, lang) => {
 }
 
 // The request: `payload` is the canonical v4 JSON (shared contract), each
-// card travels as its own multipart part studentCard_1..3.
+// student card travels as its own multipart part studentCard_1..3, then the
+// identity card of the head of delegation and of the driver as
+// delegationHeadIdCard / driverIdCard. The identity cards are the only files
+// that are not the applicant's own school documents, and they only ever go to
+// this site's own registration endpoint.
 export function buildSubmission(state) {
   return {
     payload: buildRegistrationPayloadV4(state),
-    files: state.students
-      .filter((student) => student.studentCard)
-      .map((student) => ({ field: studentCardField(student.position), position: student.position, file: student.studentCard })),
+    files: [
+      ...state.students
+        .filter((student) => student.studentCard)
+        .map((student) => ({ field: studentCardField(student.position), position: student.position, file: student.studentCard })),
+      ...IDENTITY_CARD_SUBJECTS
+        .filter((subject) => state[subject].idCard)
+        .map((subject) => ({ field: identityCardField(subject), subject, file: state[subject].idCard })),
+    ],
   }
 }
 
@@ -167,7 +209,9 @@ export function buildSummary({ team, activityOfficial, delegationHead, driver, s
     `Activity administration contact: ${text(activityOfficial.fullName) || '-'} (${roleLabel(activityOfficial.role) || '-'})`,
     `   ${text(activityOfficial.email) || '-'} · ${text(activityOfficial.phone) || '-'}`,
     `Head of delegation: ${text(delegationHead.fullName) || '-'} · ${text(delegationHead.phone) || '-'}`,
+    `   Identity card: ${delegationHead.idCard ? 'attached' : 'missing'}`,
     `Driver: ${text(driver.fullName) || '-'} · ${text(driver.phone) || '-'}`,
+    `   Identity card: ${driver.idCard ? 'attached' : 'missing'}`,
     '(RFID numbers are provided in the form only.)',
     '',
     ...students.map((student) => [

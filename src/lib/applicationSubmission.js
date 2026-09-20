@@ -20,7 +20,7 @@ const STATUS_FALLBACKS = {
   403: 'This submission was refused. Please try again from the official site page.',
   409: 'This application already seems to have been received. Please check your reference or contact the club.',
   413: 'The attached files are too large to send. Please use smaller photos.',
-  415: 'One of the attached files is not a supported image (JPG, PNG or WEBP).',
+  415: 'One of the attached files is not a supported image (JPG or PNG; WEBP for student cards only).',
   429: 'Too many attempts. Please wait a moment, then try again.',
 }
 
@@ -121,8 +121,11 @@ export async function submitApplication(kind, answers, { files = [], version = 1
 }
 
 // AIVEX registration (form v4). multipart/form-data: `payload` is the
-// canonical v4 JSON (shared contract), the three cards travel as
-// studentCard_1..3 with derived file names — never as base64 in the JSON.
+// canonical v4 JSON (shared contract), the five images — three student cards
+// (studentCard_1..3) and the identity card of the head of delegation and of
+// the driver (delegationHeadIdCard, driverIdCard) — travel as their own parts
+// with derived file names, never as base64 in the JSON. They only ever go to
+// this site's own registration endpoint.
 // The reference only ever comes from the server: no client fallback. A
 // replay of the same submissionId answers 200 { alreadyProcessed: true }.
 export async function submitAivexRegistrationV4({ payload, files, website }) {

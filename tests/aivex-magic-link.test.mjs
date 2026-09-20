@@ -175,8 +175,8 @@ const syntheticPayload = (submissionId, teamName) => ({
   formVersion: 4,
   team: { name: teamName, wilaya: { code: '34', name: 'x' }, institution: { id: 'univ-bba', name: 'x', custom: false } },
   activityOfficial: { role: 'activities_officer', fullName: 'Phase5A Test Official', email: 'phase5a-test@example.invalid', phone: '0555000000' },
-  delegationHead: { fullName: 'Phase5A Test Head', phone: '0555000001', rfid: 'TEST-HEAD-0001' },
-  driver: { fullName: 'Phase5A Test Driver', phone: '0555000002', rfid: 'TEST-DRIVER-0001' },
+  delegationHead: { fullName: 'Phase5A Test Head', phone: '0555000001', rfid: 'TEST-HEAD-0001', idCard: 'delegationHeadIdCard' },
+  driver: { fullName: 'Phase5A Test Driver', phone: '0555000002', rfid: 'TEST-DRIVER-0001', idCard: 'driverIdCard' },
   students: [1, 2, 3].map((position) => ({
     position, fullName: `Phase5A Test Student ${position}`, phone: `055500000${position + 2}`,
     bacYear: 2021, rfid: `TEST-STUDENT-000${position}`, studentCard: `studentCard_${position}`,
@@ -188,7 +188,7 @@ const syntheticPayload = (submissionId, teamName) => ({
 // verify, document) — exactly the shape a single Supabase project gives
 // each of them in production, just kept in memory here.
 function createSharedBackend() {
-  const db = { registrations: [], students: [], cards: new Map(), documents: new Map(), files: new Map(), magicLinks: new Map() }
+  const db = { registrations: [], students: [], cards: new Map(), identityCards: new Map(), documents: new Map(), files: new Map(), magicLinks: new Map() }
   let nextRegId = 0
   let nextLinkId = 0
   const find = (id) => db.registrations.find((entry) => entry.id === id)
@@ -200,19 +200,23 @@ function createSharedBackend() {
       return {
         id: row.id, reference: row.reference, fingerprint: row.submission_fingerprint, createdAt: row.created_at,
         studentCount: db.students.filter((entry) => entry.registration_id === row.id).length,
+        identityCardPaths: [row.delegation_head_id_card_path, row.driver_id_card_path].filter(Boolean),
       }
     },
     async insertRegistration(row) {
       if (db.registrations.some((entry) => entry.submission_id === row.submission_id || entry.reference === row.reference)) {
         return { ok: false, duplicate: true, code: '23505' }
       }
-      const id = `00000000-0000-4000-8000-${String(++nextRegId).padStart(12, '0')}`
+      // The API generates the registration id (the identity card paths name it).
+      const id = row.id || `00000000-0000-4000-8000-${String(++nextRegId).padStart(12, '0')}`
       db.registrations.push({ ...row, id, created_at: row.submitted_at })
       return { ok: true, id, reference: row.reference }
     },
     async uploadCard(path, buffer, mime) { db.cards.set(path, { size: buffer.length, mime }) },
+    async uploadIdentityCard(path, buffer, mime) { db.identityCards.set(path, { size: buffer.length, mime }) },
     async insertStudents(rows) { db.students.push(...rows) },
     async removeCards(paths) { paths.forEach((path) => db.cards.delete(path)) },
+    async removeIdentityCards(paths) { paths.forEach((path) => db.identityCards.delete(path)) },
     async deleteRegistration(id) {
       db.registrations.splice(db.registrations.findIndex((entry) => entry.id === id), 1)
       db.students = db.students.filter((entry) => entry.registration_id !== id)
@@ -287,6 +291,7 @@ async function postMultipart(handler, payload) {
   const form = new FormData()
   form.append('payload', JSON.stringify(payload))
   for (const position of [1, 2, 3]) form.append(`studentCard_${position}`, new Blob([PNG], { type: 'image/png' }), `studentCard_${position}.png`)
+  for (const field of ['delegationHeadIdCard', 'driverIdCard']) form.append(field, new Blob([PNG], { type: 'image/png' }), `${field}.png`)
   const response = new Response(form)
   const req = Readable.from([Buffer.from(await response.arrayBuffer())])
   e2eIp += 1

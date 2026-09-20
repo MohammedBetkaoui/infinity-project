@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useReducer, useRef } from 'react'
 import { isApplicationDeliveryConfigured, submitAivexRegistrationV4 } from '../../../lib/applicationSubmission'
 import { OTHER_INSTITUTION_ID, findInstitution, findWilaya } from '../../../data/algeriaHigherEducation'
-import { createRegistrationStateV4, isUuidV4, studentCardUploadName } from '../../../../shared/aivex/contract-v4.js'
+import {
+  IDENTITY_CARD_SUBJECTS, createRegistrationStateV4, identityCardUploadName, isUuidV4, studentCardUploadName,
+} from '../../../../shared/aivex/contract-v4.js'
 import {
   DRAFT_KEY, LEGACY_DRAFT_KEYS, SECTIONS, SECTION_ISSUES, STEP, STUDENT_COUNT, STUDENT_FIELDS, STUDENT_TEXT_FIELDS,
   buildSubmission, buildSummary, studentIssues,
@@ -24,6 +26,9 @@ export const CONSENT_ID = 'axr-consent'
 const initialState = () => ({
   step: STEP.institution,
   ...createRegistrationStateV4(),
+  // Which identity card was attached before a reload (a bare yes/no: unlike
+  // the student cards, the file name is NOT kept, it is often a person's name).
+  droppedIdCards: { delegationHead: false, driver: false },
   touched: {},
   attempted: {},
   website: '',
@@ -59,16 +64,22 @@ function restore() {
       droppedCard: typeof draft.students[index]?.droppedCard === 'string' ? draft.students[index].droppedCard : null,
     }))
     const lostCards = students.some((student) => student.droppedCard)
+    const droppedIdCards = Object.fromEntries(IDENTITY_CARD_SUBJECTS.map((subject) => [subject, draft.droppedIdCards?.[subject] === true]))
+    const lostIdCards = Object.values(droppedIdCards).some(Boolean)
+    // The earliest step that has a file to attach again is where the form reopens.
+    const lastStep = lostIdCards ? STEP.delegation : lostCards ? STEP.students : STEP.review
     return {
       ...base,
       // Same attempt after a reload: it keeps its idempotency key.
       ...(isUuidV4(draft.submissionId) ? { submissionId: draft.submissionId } : {}),
       team,
       activityOfficial: pick(draft.activityOfficial, BLANK.activityOfficial),
+      // pick() keeps text only: idCard stays null (a file never enters a draft).
       delegationHead: pick(draft.delegationHead, BLANK.delegationHead),
       driver: pick(draft.driver, BLANK.driver),
+      droppedIdCards,
       students,
-      step: Math.min(Number(draft.step) || 0, lostCards ? STEP.students : STEP.review),
+      step: Math.min(Number(draft.step) || 0, lastStep),
       hasDraft: true,
     }
   } catch {
@@ -113,6 +124,15 @@ function reducer(state, action) {
           ...(action.field === 'studentCard' ? { droppedCard: null } : {}),
         })),
       }
+    // The identity card image of the head of delegation / the driver (a File
+    // or null). Attaching one also settles the "was not kept" reminder.
+    case 'identityCard':
+      return {
+        ...state,
+        status: idle(state.status),
+        [action.subject]: { ...state[action.subject], idCard: action.file },
+        droppedIdCards: { ...state.droppedIdCards, [action.subject]: false },
+      }
     case 'touch':
       return state.touched[action.key] ? state : { ...state, touched: { ...state.touched, [action.key]: true } }
     case 'go':
@@ -143,16 +163,23 @@ const toUserMessage = (error, L) => {
 
 const hasText = (record) => Object.values(record).some((value) => typeof value === 'string' && value.trim())
 const studentText = (student) => Object.fromEntries(STUDENT_TEXT_FIELDS.map((field) => [field, student[field]]))
+// A person of the delegation as the draft keeps it: typed answers only, never the identity card file.
+const personText = (person) => ({ fullName: person.fullName, phone: person.phone, rfid: person.rfid })
 
-// Canonical v4 payload carrying the attempt's submissionId, plus the three
-// cards. Card parts are named after their position and final type
-// (prepareCardUploads may re-encode a large photo as JPEG).
+// Canonical v4 payload carrying the attempt's submissionId, plus the five
+// image files (three student cards, two identity cards). Each part is named
+// after its field and final type (prepareCardUploads may re-encode a large
+// photo as JPEG) — never after the applicant's own file name.
 async function deliver(state) {
   const { payload, files } = buildSubmission(state)
   const uploads = await prepareCardUploads(files)
   return submitAivexRegistrationV4({
     payload,
-    files: uploads.map(({ field, position, file }) => ({ field, file, filename: studentCardUploadName(position, file.type) })),
+    files: uploads.map(({ field, position, file }) => ({
+      field,
+      file,
+      filename: position ? studentCardUploadName(position, file.type) : identityCardUploadName(field, file.type),
+    })),
     website: state.website,
   })
 }
@@ -161,7 +188,7 @@ export default function useCompetitionRegistration(lang = 'en') {
   const [state, dispatch] = useReducer(reducer, undefined, restore)
   const submitting = useRef(false)
   const {
-    step, submissionId, team, activityOfficial, delegationHead, driver, students, touched, attempted, consent, status, focus,
+    step, submissionId, team, activityOfficial, delegationHead, driver, droppedIdCards, students, touched, attempted, consent, status, focus,
   } = state
   const L = typeof lang === 'string' ? getRegistrationStrings(lang) : (lang || getRegistrationStrings('en'))
 
@@ -171,6 +198,7 @@ export default function useCompetitionRegistration(lang = 'en') {
       activityOfficial: SECTION_ISSUES.activityOfficial(activityOfficial, L),
       delegationHead: SECTION_ISSUES.delegationHead(delegationHead, L),
       driver: SECTION_ISSUES.driver(driver, L),
+      identityDocuments: SECTION_ISSUES.identityDocuments({ delegationHead: delegationHead.idCard, driver: driver.idCard }, L),
     }
     const studentErrors = Object.fromEntries(students.map((student) => [student.id, studentIssues(student, students, L)]))
     const completeCount = students.filter((student) => !Object.keys(studentErrors[student.id]).length).length
@@ -191,11 +219,17 @@ export default function useCompetitionRegistration(lang = 'en') {
           submissionId,
           team,
           activityOfficial,
-          delegationHead,
-          driver,
+          delegationHead: personText(delegationHead),
+          driver: personText(driver),
+          // Only WHETHER a card was attached: so the form can ask for it again after a reload.
+          droppedIdCards: {
+            delegationHead: Boolean(delegationHead.idCard) || droppedIdCards.delegationHead,
+            driver: Boolean(driver.idCard) || droppedIdCards.driver,
+          },
           students: students.map(({ studentCard, ...student }) => ({ ...student, droppedCard: studentCard?.name || student.droppedCard || null })),
         }
         const hasAnswers = [team, activityOfficial, delegationHead, driver].some(hasText)
+          || Boolean(delegationHead.idCard || driver.idCard)
           || students.some((student) => hasText(studentText(student)) || student.studentCard)
         if (hasAnswers) window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify(snapshot))
         else window.sessionStorage.removeItem(DRAFT_KEY)
@@ -204,7 +238,7 @@ export default function useCompetitionRegistration(lang = 'en') {
       }
     }, 320)
     return () => window.clearTimeout(timer)
-  }, [status, step, submissionId, team, activityOfficial, delegationHead, driver, students])
+  }, [status, step, submissionId, team, activityOfficial, delegationHead, driver, droppedIdCards, students])
 
   // Steps swap inside AnimatePresence, so a target can mount a few frames late.
   useEffect(() => {
@@ -303,6 +337,7 @@ export default function useCompetitionRegistration(lang = 'en') {
     consentError: attempted[STEP.review] && !consent ? (L.errConsent || 'Confirm the statement above before submitting.') : '',
     setField: (section, field, value) => dispatch({ type: 'field', section, field, value }),
     setStudent: (id, field, value) => dispatch({ type: 'student', id, field, value }),
+    setIdentityCard: (subject, file) => dispatch({ type: 'identityCard', subject, file }),
     touch: (key) => dispatch({ type: 'touch', key }),
     setConsent: (value) => dispatch({ type: 'consent', value }),
     setWebsite: (value) => dispatch({ type: 'website', value }),

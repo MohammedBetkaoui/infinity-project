@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { OTHER_INSTITUTION_ID } from '../../../data/algeriaHigherEducation'
-import { STEP, institutionLabel, wilayaLabel } from './registrationModel'
+import { IDENTITY_CARD_POLICY } from '../../../../shared/aivex/contract-v4.js'
+import { STEP, describeCardFile, institutionLabel, wilayaLabel } from './registrationModel'
 import { getRoleLabel } from './registrationI18n'
 import PrivacyNotice from './PrivacyNotice'
 import StepHeading from './StepHeading'
@@ -27,6 +28,15 @@ function ReviewPerson({ label, person, onEdit, editText, t }) {
       <dl className="axr-review-record-grid axr-review-person-grid">
         <ReviewItem label={t.revPhone} value={person.phone.trim()} t={t} />
         <ReviewItem label={t.revRfid} value={person.rfid.trim()} t={t} />
+        {/* Confirmed, never shown: an identity document is not drawn back on screen. */}
+        <div className="axr-review-item">
+          <dt>{t.revIdCard}</dt>
+          <dd>
+            {person.idCard
+              ? <span className="axr-review-attached">{t.uploadedCheck}<small>{describeCardFile(person.idCard, IDENTITY_CARD_POLICY)}</small></span>
+              : <span className="axr-review-missing">{t.missing}</span>}
+          </dd>
+        </div>
       </dl>
     </li>
   )

@@ -1,5 +1,6 @@
 import ApplicationField from '../../../components/forms/ApplicationField'
 import { sectionFieldProps } from './fieldProps'
+import IdentityDocuments from './IdentityDocuments'
 import RecordCard from './RecordCard'
 import StepHeading from './StepHeading'
 import { recordId } from './useCompetitionRegistration'
@@ -30,6 +31,7 @@ export default function DelegationStep({ registration, reduced, t }) {
             </div>
           </RecordCard>
         ))}
+        <IdentityDocuments registration={registration} order={people.length} reduced={reduced} t={t} />
       </div>
     </>
   )

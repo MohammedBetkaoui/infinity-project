@@ -7,8 +7,10 @@
 //
 // A registration carries two classes of data:
 //   OFFICIAL DATA               -> PostgreSQL, Word/PDF, admin views
-//   INTERNAL VERIFICATION DATA  -> the three student card photos: private
-//                                  Storage bucket, path/mime/size in
+//   INTERNAL VERIFICATION DATA  -> the three student card photos, and the
+//                                  identity card image of the head of
+//                                  delegation and of the driver: private
+//                                  Storage buckets, path/mime/size/sha256 in
 //                                  PostgreSQL, never printed, never public.
 //
 // Pure: no React, window, document, Supabase, process.env or network, so it
@@ -63,7 +65,7 @@ export const V4_FIELDS = Object.freeze({
   wilaya: frozen(['code', 'name']),
   institution: frozen(['id', 'name', 'custom']),
   activityOfficial: frozen(['role', 'fullName', 'email', 'phone']),
-  person: frozen(['fullName', 'phone', 'rfid']),
+  person: frozen(['fullName', 'phone', 'rfid', 'idCard']),
   student: frozen(['position', 'fullName', 'phone', 'bacYear', 'rfid', 'studentCard']),
 })
 
@@ -83,7 +85,7 @@ export const LEGACY_V3_FIELDS = frozen([
 const HONEYPOT_FIELD = 'website'
 
 export const DATA_CLASSES = Object.freeze({
-  internalVerification: frozen(['students[].studentCard']),
+  internalVerification: frozen(['students[].studentCard', 'delegationHead.idCard', 'driver.idCard']),
 })
 
 // --- Student card (INTERNAL VERIFICATION DATA) ---------------------------
@@ -115,22 +117,76 @@ export const canonicalCardMime = (mime) => {
 }
 
 // The checks the form runs on a picked file and the API runs again on the
-// received part (from the declared type and the real byte count). Returns ''
-// or 'missing' | 'type' | 'empty' | 'size'. The API then also reads the
-// file's magic bytes, which a browser cannot do reliably.
-export function studentCardFileIssue(file) {
+// received part (from the declared type and the real byte count), for ANY
+// image policy (student card, identity card). Returns '' or 'missing' |
+// 'type' | 'empty' | 'size'. The API then also reads the file's magic bytes,
+// which a browser cannot do reliably.
+export function imageFileIssue(policy, file) {
   if (!file) return 'missing'
-  if (!STUDENT_CARD_POLICY.types[canonicalCardMime(file.type)]) return 'type'
+  if (!policy.types[canonicalCardMime(file.type)]) return 'type'
   if (!(file.size > 0)) return 'empty'
-  if (file.size > STUDENT_CARD_POLICY.maxBytes) return 'size'
+  if (file.size > policy.maxBytes) return 'size'
   return ''
 }
+
+export const studentCardFileIssue = (file) => imageFileIssue(STUDENT_CARD_POLICY, file)
 
 // Multipart file name for a card: derived from the position and type, so the
 // applicant's own file name (which may contain a name) never leaves the device.
 export function studentCardUploadName(position, mime) {
   const type = STUDENT_CARD_POLICY.types[canonicalCardMime(mime)]
   return type ? `${studentCardField(position)}.${type.extension}` : studentCardField(position)
+}
+
+// --- Identity cards (INTERNAL VERIFICATION DATA) --------------------------
+//
+// One national identity card image for the head of delegation and one for
+// the driver, sent with the registration. Same class of data as the student
+// cards, but kept in its OWN private bucket so that access can be granted
+// (and audited) separately. Never printed, never public, never reachable
+// through the candidate Magic Link.
+//
+// Only JPEG and PNG: the bytes are still checked server-side. The student
+// cards additionally accept WEBP; identity documents deliberately do not.
+
+// subject (key of the person in the payload) -> multipart part name.
+export const IDENTITY_CARD_FIELDS_BY_SUBJECT = Object.freeze({
+  delegationHead: 'delegationHeadIdCard',
+  driver: 'driverIdCard',
+})
+export const IDENTITY_CARD_SUBJECTS = frozen(Object.keys(IDENTITY_CARD_FIELDS_BY_SUBJECT))
+export const IDENTITY_CARD_FIELDS = frozen(Object.values(IDENTITY_CARD_FIELDS_BY_SUBJECT))
+export const identityCardField = (subject) => IDENTITY_CARD_FIELDS_BY_SUBJECT[subject]
+
+// Every file part of a registration request, and how many there can be.
+export const REGISTRATION_FILE_FIELDS = frozen([...STUDENT_CARD_FIELDS, ...IDENTITY_CARD_FIELDS])
+export const REGISTRATION_MAX_FILES = REGISTRATION_FILE_FIELDS.length
+export const REGISTRATION_FILE_FIELD_PATTERN = new RegExp(`^(${REGISTRATION_FILE_FIELDS.join('|')})$`)
+
+export const IDENTITY_CARD_POLICY = Object.freeze({
+  classification: 'internal_verification',
+  required: true,
+  printable: false,
+  bucket: 'aivex-id-cards',
+  publicBucket: false,
+  maxBytes: 5 * 1024 * 1024,
+  types: Object.freeze({
+    'image/jpeg': STUDENT_CARD_POLICY.types['image/jpeg'],
+    'image/png': STUDENT_CARD_POLICY.types['image/png'],
+  }),
+  mimeAliases: STUDENT_CARD_POLICY.mimeAliases,
+  // Folder of each subject inside the bucket path (see identityCardStoragePath).
+  folders: Object.freeze({ delegationHead: 'delegation-head', driver: 'driver' }),
+})
+
+export const identityCardFileIssue = (file) => imageFileIssue(IDENTITY_CARD_POLICY, file)
+
+// Multipart file name of an identity card: derived from the part name and the
+// final type, so the applicant's own file name (often a name) never leaves the
+// device.
+export function identityCardUploadName(field, mime) {
+  const type = IDENTITY_CARD_POLICY.types[canonicalCardMime(mime)]
+  return type ? `${field}.${type.extension}` : field
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -147,6 +203,24 @@ export function studentCardStoragePath(registrationId, position, mime, edition =
     throw new TypeError('Invalid student card storage path input.')
   }
   return `edition-${edition}/${registrationId.toLowerCase()}/student-${position}.${type.extension}`
+}
+
+// Private path inside the identity card bucket, without personal data:
+// edition-{edition}/{registrationId}/{delegation-head|driver}/{randomId}.{ext}
+//
+// Both ids are generated by the SERVER (the registration's UUID, and one fresh
+// random UUID per file): nothing the client sends ever reaches a path, and
+// the path cannot be guessed from the registration alone. The random id is a
+// parameter so this module stays pure (no crypto import). Never a public URL.
+export function identityCardStoragePath(registrationId, subject, mime, randomId, edition = AIVEX_EDITION) {
+  const type = IDENTITY_CARD_POLICY.types[mime]
+  const folder = IDENTITY_CARD_POLICY.folders[subject]
+  if (typeof registrationId !== 'string' || !UUID_RE.test(registrationId)
+    || typeof randomId !== 'string' || !UUID_RE.test(randomId)
+    || !folder || !type || !Number.isInteger(edition) || edition < 1) {
+    throw new TypeError('Invalid identity card storage path input.')
+  }
+  return `edition-${edition}/${registrationId.toLowerCase()}/${folder}/${randomId.toLowerCase()}.${type.extension}`
 }
 
 // --- Limits -------------------------------------------------------------
@@ -331,8 +405,10 @@ function readActivityOfficial(raw) {
 }
 
 // Head of delegation and driver: same record, identified by RFID (v4 never
-// collects national ID numbers).
-function readPerson(raw, path, label) {
+// collects national ID numbers). Each also names the multipart part that
+// carries their identity card IMAGE; the bytes travel separately and are
+// checked by api/_lib/aivex-validation-v4.js (the number is never read).
+function readPerson(raw, path, label, cardField) {
   if (!isObject(raw)) return fail(`${label}: invalid data.`, path)
   const extra = unexpectedKey(raw, V4_FIELDS.person, path)
   if (extra) return extra
@@ -343,8 +419,11 @@ function readPerson(raw, path, label) {
   if (!phone.ok) return phone
   const rfid = readRfid(raw.rfid, label, `${path}.rfid`)
   if (!rfid.ok) return rfid
+  if (raw.idCard !== cardField) {
+    return fail(`${label}: the identity card image is required and must be sent as "${cardField}". Please reload the page.`, `${path}.idCard`)
+  }
 
-  return pass({ fullName: fullName.value, phone: phone.value, rfid: rfid.value })
+  return pass({ fullName: fullName.value, phone: phone.value, rfid: rfid.value, idCard: cardField })
 }
 
 function readStudents(raw, now) {
@@ -412,9 +491,9 @@ export function validateRegistrationV4(body, { now = new Date() } = {}) {
   if (!team.ok) return team
   const activityOfficial = readActivityOfficial(body.activityOfficial)
   if (!activityOfficial.ok) return activityOfficial
-  const delegationHead = readPerson(body.delegationHead, 'delegationHead', 'Head of delegation')
+  const delegationHead = readPerson(body.delegationHead, 'delegationHead', 'Head of delegation', identityCardField('delegationHead'))
   if (!delegationHead.ok) return delegationHead
-  const driver = readPerson(body.driver, 'driver', 'Driver')
+  const driver = readPerson(body.driver, 'driver', 'Driver', identityCardField('driver'))
   if (!driver.ok) return driver
   const students = readStudents(body.students, now)
   if (!students.ok) return students
@@ -437,7 +516,7 @@ export function validateRegistrationV4(body, { now = new Date() } = {}) {
 
 // 201 new registration, 200 idempotent replay of the same submissionId,
 // 400 validation (with `field`), 409 conflict or still processing, 413/415
-// card file, 429 rate limit, 500 server error. Bodies never carry SQL,
+// card or identity card file, 429 rate limit, 500 server error. Bodies never carry SQL,
 // Supabase, Storage paths or stack details.
 export const registrationResponsesV4 = Object.freeze({
   created: (reference) => ({ status: 201, body: { success: true, reference } }),
@@ -478,8 +557,9 @@ export function createRegistrationStateV4({ submissionId = createSubmissionId() 
     submissionId,
     team: { name: '', wilaya: '', institution: '', customInstitution: '' },
     activityOfficial: { role: '', fullName: '', email: '', phone: '' },
-    delegationHead: { fullName: '', phone: '', rfid: '' },
-    driver: { fullName: '', phone: '', rfid: '' },
+    // idCard: the picked File (or null). Like studentCard, it never enters a draft.
+    delegationHead: { fullName: '', phone: '', rfid: '', idCard: null },
+    driver: { fullName: '', phone: '', rfid: '', idCard: null },
     students: STUDENT_POSITIONS.map(createStudentStateV4),
     consent: false,
   }
@@ -492,10 +572,11 @@ export function buildRegistrationPayloadV4(state) {
   const wilaya = findWilaya(team.wilaya)
   const custom = team.institution === OTHER_INSTITUTION_ID
   const listed = custom ? null : findInstitution(team.wilaya, team.institution)
-  const person = (record) => ({
+  const person = (record, subject) => ({
     fullName: normalizeText(record.fullName),
     phone: normalizePhone(record.phone),
     rfid: normalizeRfid(record.rfid),
+    idCard: identityCardField(subject),
   })
 
   return {
@@ -515,8 +596,8 @@ export function buildRegistrationPayloadV4(state) {
       email: normalizeEmail(activityOfficial.email),
       phone: normalizePhone(activityOfficial.phone),
     },
-    delegationHead: person(delegationHead),
-    driver: person(driver),
+    delegationHead: person(delegationHead, 'delegationHead'),
+    driver: person(driver, 'driver'),
     students: students.map((student) => ({
       position: student.position,
       fullName: normalizeText(student.fullName),

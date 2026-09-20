@@ -210,6 +210,19 @@ html[data-page='aivex']::-webkit-scrollbar-thumb { border: 2px solid #1a1114; bo
 .axr-upload-info strong { max-width: 100%; overflow: hidden; font-size: 12px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .axr-upload-info small { color: var(--af-muted); font-family: ui-monospace, monospace; font-size: 9px; }
 .axr-upload-actions { display: flex; gap: 16px; margin-top: 8px; }
+
+/* Identity documents (head of delegation, driver): the same picker without an
+   image preview — a card icon, the file name, type and size. */
+.axr-identity-body { gap: 14px; padding-bottom: 20px; }
+.axr-form-paper .axr-identity-intro { margin: 0; font-size: 12px; font-weight: 650; line-height: 1.6; }
+.axr-form-paper .axr-identity-privacy { display: flex; align-items: flex-start; gap: 9px; margin: 0; padding: 10px 12px; border: 1px solid var(--af-line); background: #fbfaf7; color: var(--af-muted); font-size: 10px; line-height: 1.7; }
+.axr-identity-privacy svg { flex-shrink: 0; margin-top: 3px; color: var(--af-accent); }
+.axr-identity-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 18px; margin-top: 4px; }
+.axr-id-upload .axr-upload-head { align-items: flex-start; min-height: 30px; }
+.axr-id-upload .axr-upload-head label { line-height: 1.45; }
+.axr-id-upload .axr-upload-drop { min-height: 132px; }
+.axr-id-file { grid-template-columns: 44px minmax(0, 1fr); align-items: start; gap: 14px; }
+.axr-id-file-icon { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--af-line-strong); background: #efece5; color: var(--af-accent); }
 .axr-upload-actions button { min-height: 28px; border-bottom: 1px solid currentColor; color: var(--af-muted); font-size: 10px; font-weight: 650; transition: color .2s; }
 .axr-upload-actions button:hover { color: var(--af-ink); }
 
@@ -235,7 +248,8 @@ html[data-page='aivex']::-webkit-scrollbar-thumb { border: 2px solid #1a1114; bo
 .axr-review-record-head .axr-review-edit { margin-left: auto; }
 .axr-review-record-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(150px, 1.15fr); column-gap: 16px; }
 .axr-review-record-grid .axr-review-item { grid-template-columns: 1fr; gap: 3px; }
-.axr-review-record-grid.axr-review-person-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.axr-review-record-grid.axr-review-person-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.axr-review-attached small { display: block; color: var(--af-muted); font-family: ui-monospace, monospace; font-size: 9px; font-weight: 500; }
 .axr-review-card-toggle { display: inline-flex; align-items: center; gap: 8px; min-height: 28px; font-size: 12px; font-weight: 650; white-space: nowrap; }
 .axr-review-card-toggle img { width: 38px; aspect-ratio: 85.6 / 53.98; object-fit: cover; border: 1px solid var(--af-line); }
 .axr-review-card-toggle small { border-bottom: 1px solid currentColor; color: var(--ax-wine); font-size: 9px; }
@@ -354,6 +368,9 @@ html[data-page='aivex']::-webkit-scrollbar-thumb { border: 2px solid #1a1114; bo
   .axr-record-head { flex-direction: column; align-items: flex-start; gap: 10px; padding: 15px 15px 12px; }
   .axr-record-body { padding: 16px 15px 6px; }
   .axr-upload-file { grid-template-columns: 1fr; gap: 12px; }
+  .axr-id-file { grid-template-columns: 44px minmax(0, 1fr); }
+  .axr-identity-grid { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  .axr-review-record-grid.axr-review-person-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .axr-upload-preview { max-width: 300px; }
   .axr-upload-drop { min-height: 140px; }
   .axr-review-item, .axr-success-record > div { grid-template-columns: 95px minmax(0, 1fr); }

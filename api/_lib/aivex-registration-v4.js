@@ -2,22 +2,39 @@
 // Storage, idempotent on submissionId.
 //
 //   1. look up submission_id (idempotency)
-//   2. INSERT aivex_registrations (server reference, statuses, edition)
-//   3. upload the three cards to the private bucket
+//   2. INSERT aivex_registrations (server reference, statuses, edition) —
+//      with the server-generated registration id and the metadata of the two
+//      identity cards (private path, mime, size, sha256), so the row already
+//      says which files this attempt is about to create
+//   3. upload the three student cards, then the two identity cards, each to
+//      its own private bucket
 //   4. INSERT the three aivex_students rows in ONE statement
 //   5. 201 { success, reference }
 //
+// Step 4 is the completion marker, and it is deliberately LAST: a registration
+// is complete only when its three students exist, and they are only inserted
+// once all five files are safely stored. So a registration can never look
+// finished while a required document is missing.
+//
 // Storage and PostgreSQL share no transaction: a failure after step 2 is
-// compensated (uploaded cards removed, registration deleted — students
-// follow by ON DELETE CASCADE). A registration row therefore has 0 students
-// only while an attempt is running, or if that attempt died between steps;
-// the deferred trigger aivex_students_team_size forbids 1, 2 or 4.
+// compensated (uploaded files removed, registration deleted — students
+// follow by ON DELETE CASCADE). If a file could NOT be removed, the
+// registration row is kept (incomplete) instead: it still records where the
+// identity cards are, so the next attempt or an operator can remove them
+// rather than leave sensitive files orphaned with nothing pointing at them.
+// A registration row therefore has 0 students only while an attempt is
+// running, or if that attempt died between steps; the deferred trigger
+// aivex_students_team_size forbids 1, 2 or 4.
 //
 // A same submissionId arriving again:
 //   complete + same answers      -> 200, same reference, nothing created
+//                                   (no file is stored a second time)
 //   complete + other answers     -> 409 (the reference is given back)
 //   incomplete, recent           -> 409, still processing (Retry-After)
-//   incomplete, older than STALE_AFTER_MS (attempt died) -> discarded, redone
+//   incomplete, older than STALE_AFTER_MS (attempt died) -> its files
+//                                   (student cards by rule, identity cards by
+//                                   the paths recorded in the row) and the
+//                                   row are discarded, then redone
 // The UNIQUE index on submission_id is the final guard against races.
 //
 // registerV4() only talks to a small `store` interface, implemented over
@@ -30,10 +47,10 @@
 // (api/_lib/aivex-document-generation.js). It is never part of `body`, so it
 // never reaches the HTTP response.
 
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import {
-  AIVEX_STUDENT_COUNT, DEFAULT_DOCUMENT_STATUS, DEFAULT_REGISTRATION_STATUS, STUDENT_CARD_POLICY, STUDENT_POSITIONS,
-  registrationResponsesV4, studentCardStoragePath,
+  AIVEX_STUDENT_COUNT, DEFAULT_DOCUMENT_STATUS, DEFAULT_REGISTRATION_STATUS, IDENTITY_CARD_POLICY, IDENTITY_CARD_SUBJECTS,
+  STUDENT_CARD_POLICY, STUDENT_POSITIONS, identityCardStoragePath, registrationResponsesV4, studentCardStoragePath,
 } from '../../shared/aivex/contract-v4.js'
 import { generateRegistrationReference } from './aivex-reference.js'
 
@@ -47,6 +64,7 @@ const RETRY_AFTER_SECONDS = 15
 
 export const MESSAGES = {
   saveFailed: 'We could not save your registration. Please try again.',
+  identityMissing: 'The identity card images of the head of delegation and of the driver are required.',
   inProgress: 'This registration is still being processed. Please wait a moment, then try again.',
   conflict: (reference) => `This registration was already received (reference ${reference}) with different details. Please contact the organisers to change it.`,
 }
@@ -70,9 +88,31 @@ export const registrationFingerprint = (registration) => createHash('sha256').up
 
 // --- V4 application model -> database contract ------------------------------
 
-export function toRegistrationRow(registration, { reference, fingerprint, source, now }) {
+// subject -> column prefix. The four columns of a card: _path, _mime, _size,
+// _sha256 — metadata only, never the image, a URL, or anything read from it.
+const IDENTITY_COLUMN_PREFIX = { delegationHead: 'delegation_head_id_card', driver: 'driver_id_card' }
+
+// `identityCards` = planned cards: [{ subject, path, mime, size, sha256 }].
+function identityCardColumns(identityCards) {
+  const columns = {}
+  for (const card of identityCards) {
+    const prefix = IDENTITY_COLUMN_PREFIX[card.subject]
+    columns[`${prefix}_path`] = card.path
+    columns[`${prefix}_mime`] = card.mime
+    columns[`${prefix}_size`] = card.size
+    columns[`${prefix}_sha256`] = card.sha256
+  }
+  return columns
+}
+
+// `id` (the registration's UUID, generated by the server so the identity card
+// paths can name it) and `identityCards` are given by registerV4; without
+// them the row is the plain v4 row of before (the database default assigns
+// the id and the identity columns stay NULL).
+export function toRegistrationRow(registration, { reference, fingerprint, source, now, id, identityCards }) {
   const { team, activityOfficial, delegationHead, driver } = registration
   return {
+    ...(id ? { id } : {}),
     submission_id: registration.submissionId,
     submission_fingerprint: fingerprint,
     reference,
@@ -101,6 +141,7 @@ export function toRegistrationRow(registration, { reference, fingerprint, source
     current_form_revision: 0,
     source,
     submitted_at: now.toISOString(),
+    ...(identityCards ? identityCardColumns(identityCards) : {}),
   }
 }
 
@@ -132,17 +173,48 @@ const possibleCardPaths = (registrationId, edition) => STUDENT_POSITIONS.flatMap
 
 const failed = (status, message) => registrationResponsesV4.failed(status, message)
 
-// Best effort: every step is attempted, only codes are logged.
-async function discardRegistration(store, registrationId, paths) {
+const SHA256_RE = /^[0-9a-f]{64}$/
+
+// Exactly one validated identity card per subject (validateIdentityCardsV4):
+// a registration is never written without both.
+const hasIdentityCards = (identityCards) => Array.isArray(identityCards)
+  && identityCards.length === IDENTITY_CARD_SUBJECTS.length
+  && IDENTITY_CARD_SUBJECTS.every((subject) => identityCards.some((card) => card.subject === subject
+    && Buffer.isBuffer(card.buffer) && card.buffer.length > 0 && card.size === card.buffer.length
+    && Boolean(IDENTITY_CARD_POLICY.types[card.mime]) && SHA256_RE.test(card.sha256)))
+
+// The private path of every identity card, generated NOW, by the server:
+// nothing the client sent is part of it. Returns the cards with their `path`.
+const planIdentityCards = (registrationId, edition, identityCards, createId) => identityCards.map((card) => ({
+  ...card,
+  path: identityCardStoragePath(registrationId, card.subject, card.mime, createId(), edition),
+}))
+
+// Best effort: every removal is attempted, only codes are logged. Returns
+// true when the registration row is gone. If a FILE could not be removed the
+// row is kept: it is the only thing that still records where the identity
+// cards are (see the header), and deleting it would orphan them.
+async function discardRegistration(store, registrationId, { cardPaths = [], identityPaths = [] } = {}) {
+  let filesRemoved = true
   try {
-    await store.removeCards(paths)
+    await store.removeCards(cardPaths)
   } catch (error) {
+    filesRemoved = false
     logFailure('cleanup-storage', error)
   }
   try {
+    await store.removeIdentityCards(identityPaths)
+  } catch (error) {
+    filesRemoved = false
+    logFailure('cleanup-identity-storage', error)
+  }
+  if (!filesRemoved) return false
+  try {
     await store.deleteRegistration(registrationId)
+    return true
   } catch (error) {
     logFailure('cleanup-registration', error)
+    return false
   }
 }
 
@@ -156,11 +228,14 @@ async function settleExisting(store, existing, { fingerprint, edition, now }) {
   }
   const age = now.getTime() - new Date(existing.createdAt).getTime()
   if (!(age >= STALE_AFTER_MS)) return { ...failed(409, MESSAGES.inProgress), retryAfterSeconds: RETRY_AFTER_SECONDS }
-  await discardRegistration(store, existing.id, possibleCardPaths(existing.id, edition))
+  await discardRegistration(store, existing.id, {
+    cardPaths: possibleCardPaths(existing.id, edition),
+    identityPaths: existing.identityCardPaths || [],
+  })
   return null
 }
 
-async function completeRegistration(store, { id, reference }, registration, cards) {
+async function completeRegistration(store, { id, reference }, registration, cards, identityCards) {
   const stored = []
   try {
     for (const card of cards) {
@@ -168,21 +243,35 @@ async function completeRegistration(store, { id, reference }, registration, card
       await store.uploadCard(path, card.buffer, card.mime)
       stored.push({ position: card.position, path, mime: card.mime, size: card.size })
     }
+    for (const card of identityCards) await store.uploadIdentityCard(card.path, card.buffer, card.mime)
+    // The completion marker: nothing above may be missing when this succeeds.
     await store.insertStudents(toStudentRows(id, registration, stored))
   } catch (error) {
     logFailure('students', error)
-    await discardRegistration(store, id, stored.map((entry) => entry.path))
+    // Every planned identity path is removed, uploaded or not: an upload that
+    // timed out on our side may still have landed (removing a path that does
+    // not exist is a no-op).
+    await discardRegistration(store, id, {
+      cardPaths: stored.map((entry) => entry.path),
+      identityPaths: identityCards.map((card) => card.path),
+    })
     return failed(500, MESSAGES.saveFailed)
   }
   return { ...registrationResponsesV4.created(reference), registrationId: id }
 }
 
-// `registration` is the value returned by validateRegistrationV4, `cards`
-// the value returned by validateStudentCardsV4. Returns { status, body }
-// (+ retryAfterSeconds for a 409 still processing).
+// `registration` is the value returned by validateRegistrationV4; `cards` and
+// `identityCards` come from validateRegistrationFilesV4 (student cards, and
+// the identity card of the head of delegation and of the driver). Returns
+// { status, body } (+ retryAfterSeconds for a 409 still processing).
 export async function registerV4({
-  store, registration, cards, source = null, now = new Date(), generateReference = generateRegistrationReference,
+  store, registration, cards, identityCards, source = null, now = new Date(),
+  generateReference = generateRegistrationReference, createId = randomUUID,
 }) {
+  if (!hasIdentityCards(identityCards)) {
+    logFailure('identity', { code: 'IDENTITY_CARDS_MISSING' })
+    return failed(400, MESSAGES.identityMissing)
+  }
   const fingerprint = registrationFingerprint(registration)
   try {
     let existing = await store.findBySubmissionId(registration.submissionId)
@@ -192,8 +281,21 @@ export async function registerV4({
         if (outcome) return outcome
       }
       const reference = generateReference(registration.edition)
-      const inserted = await store.insertRegistration(toRegistrationRow(registration, { reference, fingerprint, source, now }))
-      if (inserted.ok) return await completeRegistration(store, inserted, registration, cards)
+      const registrationId = createId()
+      const planned = planIdentityCards(registrationId, registration.edition, identityCards, createId)
+      const inserted = await store.insertRegistration(toRegistrationRow(registration, {
+        reference, fingerprint, source, now, id: registrationId, identityCards: planned,
+      }))
+      if (inserted.ok) {
+        if (inserted.id !== registrationId) {
+          // The identity card paths name the id this attempt generated: a
+          // store that stored another one would break that link.
+          logFailure('registration', { code: 'ID_MISMATCH' })
+          await discardRegistration(store, inserted.id, { identityPaths: planned.map((card) => card.path) })
+          return failed(500, MESSAGES.saveFailed)
+        }
+        return await completeRegistration(store, inserted, registration, cards, planned)
+      }
       if (!inserted.duplicate) {
         logFailure('registration', inserted)
         return failed(500, MESSAGES.saveFailed)
@@ -213,11 +315,14 @@ export async function registerV4({
 
 export function createSupabaseRegistrationStore(supabase) {
   const bucket = () => supabase.storage.from(STUDENT_CARD_POLICY.bucket)
+  // A different, private bucket: access to identity documents is granted
+  // (and audited) separately from the student cards.
+  const identityBucket = () => supabase.storage.from(IDENTITY_CARD_POLICY.bucket)
   return {
     async findBySubmissionId(submissionId) {
       const { data, error } = await supabase
         .from(REGISTRATIONS)
-        .select('id, reference, submission_fingerprint, created_at')
+        .select('id, reference, submission_fingerprint, created_at, delegation_head_id_card_path, driver_id_card_path')
         .eq('submission_id', submissionId)
         .maybeSingle()
       if (error) throw new StoreError('lookup', error)
@@ -233,6 +338,9 @@ export function createSupabaseRegistrationStore(supabase) {
         fingerprint: data.submission_fingerprint,
         createdAt: data.created_at,
         studentCount: count ?? 0,
+        // Where the identity cards of an unfinished attempt were going: what
+        // its cleanup has to remove. Paths stay server-side, never in a response.
+        identityCardPaths: [data.delegation_head_id_card_path, data.driver_id_card_path].filter(Boolean),
       }
     },
     // The stored reference is read back: it is the one given to the applicant.
@@ -245,6 +353,10 @@ export function createSupabaseRegistrationStore(supabase) {
       const { error } = await bucket().upload(path, buffer, { contentType: mime, upsert: false })
       if (error) throw new StoreError('upload', error)
     },
+    async uploadIdentityCard(path, buffer, mime) {
+      const { error } = await identityBucket().upload(path, buffer, { contentType: mime, upsert: false })
+      if (error) throw new StoreError('upload-identity', error)
+    },
     // The three rows in one INSERT: the deferred team-size trigger needs them together.
     async insertStudents(rows) {
       const { error } = await supabase.from(STUDENTS).insert(rows)
@@ -254,6 +366,11 @@ export function createSupabaseRegistrationStore(supabase) {
       if (!paths.length) return
       const { error } = await bucket().remove(paths)
       if (error) throw new StoreError('cleanup-storage', error)
+    },
+    async removeIdentityCards(paths) {
+      if (!paths.length) return
+      const { error } = await identityBucket().remove(paths)
+      if (error) throw new StoreError('cleanup-identity-storage', error)
     },
     async deleteRegistration(registrationId) {
       const { error } = await supabase.from(REGISTRATIONS).delete().eq('id', registrationId)

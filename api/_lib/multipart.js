@@ -8,9 +8,12 @@
 import busboy from 'busboy'
 
 export class MultipartError extends Error {
-  constructor(status, message) {
+  // `field` (optional): the multipart part the problem is about, when there is
+  // one (an oversized file), so a caller can point the applicant at it.
+  constructor(status, message, field) {
     super(message)
     this.status = status
+    if (field) this.field = field
   }
 }
 
@@ -27,9 +30,12 @@ export function parseMultipart(req, limits) {
     fileFieldPattern,
     maxFieldBytes = 64 * 1024,
     // Both messages default to their original, exact wording so every
-    // existing caller (api/aivex/register.js) is unaffected — only a
-    // caller with a different file policy (api/aivex/magic-link/upload.js,
-    // whose limit is 10 MB, not 5) needs to override either of these.
+    // existing caller is unaffected — only a caller with a different file
+    // policy (api/aivex/magic-link/upload.js, whose limit is 10 MB, not 5)
+    // needs to override either of these. `fileSizeMessage` may also be a
+    // function of the offending part's name, for a request that carries
+    // several kinds of file (api/aivex/register.js: student cards and
+    // identity cards).
     contentTypeMessage = 'Registrations must be sent as multipart/form-data.',
     fileSizeMessage = 'Each student card must be 5 MB or smaller.',
   } = limits
@@ -67,13 +73,16 @@ export function parseMultipart(req, limits) {
     let received = 0
     let settled = false
 
-    const fail = (status, message) => {
+    const fail = (status, message, field) => {
       if (settled) return
       settled = true
       req.unpipe(parser)
       // Drain the rest so the client gets the response instead of a reset.
+      // Nothing more is buffered: the promise is already rejected and the
+      // remaining bytes are discarded, so a rejected upload never costs more
+      // memory than the limit that rejected it.
       req.resume()
-      reject(new MultipartError(status, message))
+      reject(new MultipartError(status, message, field))
     }
 
     req.on('data', (chunk) => {
@@ -103,9 +112,11 @@ export function parseMultipart(req, limits) {
         size += chunk.length
         if (!truncated) chunks.push(chunk)
       })
+      // busboy stops at limits.fileSize: the request is refused here, while
+      // the file is still arriving, not after it has been read to the end.
       stream.on('limit', () => {
         truncated = true
-        fail(413, fileSizeMessage)
+        fail(413, typeof fileSizeMessage === 'function' ? fileSizeMessage(name) : fileSizeMessage, name)
       })
       stream.on('close', () => {
         if (settled || truncated) return

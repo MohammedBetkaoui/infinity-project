@@ -6,8 +6,10 @@
 // from. It does not load, fill or convert any document: generation is a
 // later phase, and the template itself is not part of this repository.
 //
-// The student card photos are INTERNAL VERIFICATION DATA: they have no
-// variable here and must never get one (see STUDENT_CARD_POLICY.printable).
+// The student card photos and the identity card images of the head of
+// delegation and the driver are INTERNAL VERIFICATION DATA: they have no
+// variable here and must never get one (see STUDENT_CARD_POLICY.printable and
+// IDENTITY_CARD_POLICY.printable).
 
 import { STUDENT_POSITIONS } from './contract-v4.js'
 
@@ -71,6 +73,8 @@ export const WORD_EXCLUDED_FIELDS_V4 = Object.freeze([
   'student_card_path',
   'student_card_mime',
   'student_card_size_bytes',
+  'idCard',
+  ...['delegation_head', 'driver'].flatMap((subject) => ['path', 'mime', 'size', 'sha256'].map((suffix) => `${subject}_id_card_${suffix}`)),
 ])
 
 // Resolves the variables from database rows (aivex_settings row,

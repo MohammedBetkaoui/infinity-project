@@ -2,14 +2,18 @@
 //
 // AIVEX registration, form v4 only (shared/aivex/contract-v4.js):
 //
-// Browser (multipart: payload = canonical v4 JSON, studentCard_1..3 = files)
-//   -> origin / rate-limit checks -> streaming multipart parse -> honeypot
+// Browser (multipart: payload = canonical v4 JSON, studentCard_1..3 = the
+// student cards, delegationHeadIdCard + driverIdCard = the identity cards)
+//   -> origin / rate-limit checks -> streaming multipart parse (five files at
+//      most, 5 MB each, refused WHILE they stream) -> honeypot
 //   -> validateRegistrationV4 (team, institution, activity contact,
 //      delegation, exactly three students, BAC years, RFIDs, consent,
 //      submissionId, edition, formVersion)
-//   -> validateStudentCardsV4 (presence, type, size, real image bytes)
+//   -> validateRegistrationFilesV4 (all five images: presence, type, size,
+//      real image bytes, SHA-256 of the identity cards)
 //   -> registerV4: idempotent on submissionId, aivex_registrations,
-//      private Storage, aivex_students (api/_lib/aivex-registration-v4.js)
+//      two private Storage buckets, aivex_students
+//      (api/_lib/aivex-registration-v4.js)
 //   -> generateOfficialDocuments: best-effort official DOCX generation
 //      (api/_lib/aivex-document-generation.js) — never changes the response;
 //      the browser then downloads it through api/aivex/document.js
@@ -27,7 +31,8 @@
 
 import { createClient } from '@supabase/supabase-js'
 import {
-  AIVEX_EDITION, AIVEX_STUDENT_COUNT, LIMITS, STUDENT_CARD_FIELD_PATTERN, STUDENT_CARD_POLICY, registrationResponsesV4, validateRegistrationV4,
+  AIVEX_EDITION, IDENTITY_CARD_FIELDS, IDENTITY_CARD_POLICY, LIMITS, REGISTRATION_FILE_FIELD_PATTERN, REGISTRATION_MAX_FILES,
+  STUDENT_CARD_POLICY, registrationResponsesV4, validateRegistrationV4,
 } from '../../shared/aivex/contract-v4.js'
 import { generateOfficialDocuments } from '../_lib/aivex-document-generation.js'
 import { createSupabaseDocumentStore } from '../_lib/aivex-document-store.js'
@@ -35,7 +40,7 @@ import { issueMagicLink } from '../_lib/aivex-magic-link.js'
 import { createSupabaseMagicLinkStore } from '../_lib/aivex-magic-link-store.js'
 import { generateRegistrationReference } from '../_lib/aivex-reference.js'
 import { createSupabaseRegistrationStore, registerV4 } from '../_lib/aivex-registration-v4.js'
-import { validateStudentCardsV4 } from '../_lib/aivex-validation-v4.js'
+import { validateRegistrationFilesV4 } from '../_lib/aivex-validation-v4.js'
 import { isFilled, sendJson as send } from '../_lib/http.js'
 import { MultipartError, parseMultipart } from '../_lib/multipart.js'
 import { consumeRateLimit, getClientIp, isTrustedOrigin } from '../_lib/security.js'
@@ -43,12 +48,20 @@ import { consumeRateLimit, getClientIp, isTrustedOrigin } from '../_lib/security
 // Several images per attempt: stricter than the text-only join form.
 const RATE_LIMIT = { max: 5, windowMs: 15 * 60 * 1000 }
 const MULTIPART_LIMITS = {
-  maxFileBytes: STUDENT_CARD_POLICY.maxBytes,
-  maxFiles: AIVEX_STUDENT_COUNT,
-  // Memory guard for one request. Vercel itself rejects bodies above 4.5 MB.
+  // The most permissive of the two file policies: the parser stops a file at
+  // this size WHILE it streams; validateRegistrationFilesV4 then applies each
+  // kind's own rule.
+  maxFileBytes: Math.max(STUDENT_CARD_POLICY.maxBytes, IDENTITY_CARD_POLICY.maxBytes),
+  // Three student cards + the two identity cards, and nothing else.
+  maxFiles: REGISTRATION_MAX_FILES,
+  // Memory guard for one request (five files of 5 MB and the payload). Vercel
+  // itself rejects bodies above 4.5 MB.
   maxRequestBytes: 30 * 1024 * 1024,
   allowedFields: new Set(['payload']),
-  fileFieldPattern: STUDENT_CARD_FIELD_PATTERN,
+  fileFieldPattern: REGISTRATION_FILE_FIELD_PATTERN,
+  fileSizeMessage: (field) => (IDENTITY_CARD_FIELDS.includes(field)
+    ? 'Each identity card image must be 5 MB or smaller.'
+    : 'Each student card must be 5 MB or smaller.'),
 }
 
 const reply = (res, { status, body, retryAfterSeconds }) => {
@@ -116,7 +129,7 @@ export function createRegisterHandler({
     try {
       parsed = await parseMultipart(req, MULTIPART_LIMITS)
     } catch (error) {
-      if (error instanceof MultipartError) refuse(res, error.status, error.message)
+      if (error instanceof MultipartError) refuse(res, error.status, error.message, error.field)
       else refuse(res, 400, 'Invalid registration data.')
       return
     }
@@ -143,9 +156,11 @@ export function createRegisterHandler({
       return
     }
 
-    const cardCheck = await validateStudentCardsV4(registration.value.students, parsed.files)
-    if (!cardCheck.ok) {
-      refuse(res, cardCheck.status, cardCheck.message, cardCheck.field)
+    // Nothing is stored before every image has passed: a request that fails
+    // here leaves no file and no row behind.
+    const fileCheck = await validateRegistrationFilesV4(registration.value.students, parsed.files)
+    if (!fileCheck.ok) {
+      refuse(res, fileCheck.status, fileCheck.message, fileCheck.field)
       return
     }
 
@@ -159,7 +174,8 @@ export function createRegisterHandler({
     const outcome = await registerV4({
       store,
       registration: registration.value,
-      cards: cardCheck.cards,
+      cards: fileCheck.cards,
+      identityCards: fileCheck.identityCards,
       source: requestSource(req),
       now: clock,
       generateReference,
