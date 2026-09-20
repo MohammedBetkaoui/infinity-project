@@ -8,8 +8,12 @@ import { formatFileSize, isImageFile } from './statusModel'
 // only; the server re-validates all of it, including the magic bytes a
 // browser cannot read (Phase 5B brief, §18). The token, the per-file
 // uploadId and the request itself live in useAivexStatus.js.
+//
+// showSuccess: the panel that hosts a second dropzone (ReceivedPanel) already
+// confirms a successful upload where the candidate is looking; it turns this
+// off so the same message is not shown twice.
 export default function SignedDocumentDropzone({
-  upload, hasExisting, selectSignedDocument, clearSignedDocument, submitSignedDocument, t,
+  upload, hasExisting, showSuccess = true, selectSignedDocument, clearSignedDocument, submitSignedDocument, t,
 }) {
   const [dragging, setDragging] = useState(false)
   const busy = upload.status === 'uploading'
@@ -83,7 +87,7 @@ export default function SignedDocumentDropzone({
       )}
 
       {upload.status === 'error' && <p className="axs-inline-error" role="alert">{t.uploadErrors[upload.message] || t.uploadErrors.error}</p>}
-      {upload.status === 'success' && (
+      {showSuccess && upload.status === 'success' && (
         <p className="axs-inline-success" role="status"><CircleCheck size={16} aria-hidden="true" />{t.uploadSuccessTitle}</p>
       )}
     </div>

@@ -117,6 +117,8 @@
 .axs-panel[data-tone='pending'], .axs-panel[data-tone='neutral'] { --axs-tone: var(--axs-gray); }
 .axs-paper .axs-panel-title { font-family: Rajdhani, sans-serif; font-size: 25px; font-weight: 600; letter-spacing: -.01em; line-height: 1.1; }
 .axs-paper[dir='rtl'] .axs-panel-title { letter-spacing: 0; line-height: 1.3; }
+/* Focused by script after an upload (ReceivedPanel), not a control: no ring. */
+.axs-paper .axs-panel-title:focus { outline: none; }
 .axs-paper .axs-panel-head { display: flex; align-items: center; gap: 13px; }
 .axs-panel-icon { display: grid; place-items: center; flex: none; inline-size: 38px; block-size: 38px; border-radius: 50%; background: color-mix(in srgb, var(--axs-tone) 16%, transparent); color: var(--axs-tone); }
 .axs-panel[data-tone='pending'] .axs-panel-icon, .axs-panel[data-tone='neutral'] .axs-panel-icon { color: var(--axs-gray-ink); }
