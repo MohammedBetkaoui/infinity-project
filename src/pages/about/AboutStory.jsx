@@ -1,3 +1,5 @@
+import FmiLogo from '../../components/FmiLogo'
+
 const principles = [
   ['Learn by making', 'A workshop becomes useful when everyone leaves with something tested, not only something heard.'],
   ['Ask without pretending', 'Beginners and experienced members can work at the same table when questions are treated with respect.'],
@@ -9,7 +11,7 @@ export default function AboutStory() {
     <section id="about-story" className="about-story" aria-labelledby="about-story-title">
       <div className="page-container about-story-layout">
         <aside className="about-story-margin">
-          <span className="about-story-monogram" aria-hidden="true">MI</span>
+          <span className="about-story-brand" aria-hidden="true"><FmiLogo /></span>
           <p>Rooted in our faculty.<br />Open to what comes next.</p>
           <span className="about-story-rule" aria-hidden="true" />
           <p className="about-story-location">Bordj Bou Arreridj<br />Algeria</p>

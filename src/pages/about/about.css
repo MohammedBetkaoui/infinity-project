@@ -19,9 +19,10 @@
 .about-page-hero .page-hero-layout h1 { font-size: clamp(72px, 9.3vw, 145px); }
 
 .about-story { padding-block: var(--about-space); background: #e7dfcf; color: var(--about-ink); }
-.about-story-layout { display: grid; grid-template-columns: .7fr 1.5fr; gap: clamp(38px, 8vw, 120px); align-items: start; }
+.about-story-layout { display: grid; grid-template-columns: .9fr 1.3fr; gap: clamp(38px, 8vw, 120px); align-items: start; }
 .about-story-margin { position: sticky; top: 128px; padding-right: 16px; }
-.about-story-monogram { display: block; color: #094a36; font-family: Rajdhani, sans-serif; font-size: clamp(100px, 12vw, 172px); letter-spacing: -.09em; font-weight: 600; line-height: .75; margin-bottom: 29px; }
+.about-story-brand { display: block; color: #172f49; margin-bottom: 29px; }
+.about-story-brand .fmi-logo { display: block; width: 100%; height: auto; }
 .about-story-margin p { font-size: 12px; color: #315f4f; line-height: 1.7; }
 .about-story-rule { display: block; width: 56px; height: 1px; margin-block: 24px; background: #094a3660; }
 .about-story-location { font-size: 11px !important; }
@@ -97,7 +98,7 @@
 @media (max-width: 1023px) {
   .about-page-hero .page-hero-layout { grid-template-columns: 1.25fr 1fr; gap: 26px; }
   .about-page-hero .page-hero-layout h1 { font-size: 9.5vw; }
-  .about-story-layout { grid-template-columns: .6fr 1.4fr; gap: 45px; }
+  .about-story-layout { grid-template-columns: .75fr 1.25fr; gap: 45px; }
   .about-story-prose { grid-template-columns: 1fr; gap: 16px; }
   .about-principle-ledger article { grid-template-columns: 1fr; gap: 10px; }
   .about-process-header, .about-fields-heading, .about-closing-layout { column-gap: 38px; }
@@ -111,8 +112,8 @@
   .about-page-hero .page-hero-layout { grid-template-columns: 1fr; gap: 22px; }
   .about-page-hero .page-hero-layout h1 { font-size: clamp(56px, 17.5vw, 120px); }
   .about-story-layout { grid-template-columns: 1fr; gap: 32px; }
-  .about-story-margin { position: static; display: grid; grid-template-columns: 78px 1fr; gap: 24px; align-items: center; padding: 0 0 26px; border-bottom: 1px solid #094a3638; }
-  .about-story-monogram { font-size: 78px; margin: 0; }
+  .about-story-margin { position: static; display: grid; grid-template-columns: 1fr; gap: 18px; align-items: center; padding: 0 0 26px; border-bottom: 1px solid #094a3638; }
+  .about-story-brand { grid-column: 1 / -1; max-width: 320px; margin: 0; }
   .about-story-rule, .about-story-location { display: none; }
   .about-story-copy > h2 { max-width: 18ch; }
   .about-story-prose { margin-top: 26px; }
