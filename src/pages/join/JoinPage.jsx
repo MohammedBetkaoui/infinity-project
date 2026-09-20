@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { CheckCircle2, Copy, RotateCcw } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ArrowUpRight, Check, CheckCircle2, Clock3, Copy, LockKeyhole, RotateCcw } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import ApplicationChoice from '../../components/forms/ApplicationChoice'
 import ApplicationConsent from '../../components/forms/ApplicationConsent'
 import ApplicationField from '../../components/forms/ApplicationField'
 import ApplicationProgress from '../../components/forms/ApplicationProgress'
-import InfinityMark from '../../components/InfinityMark'
+import InfinityClubMark from '../../components/InfinityClubMark'
 import useApplicationForm from '../../hooks/useApplicationForm'
 import useMotionPreference from '../../hooks/useMotionPreference'
 import { MOTION_EASE } from '../../lib/motion'
@@ -32,6 +32,7 @@ export default function JoinPage() {
   const [copied, setCopied] = useState(false)
   const copyTimer = useRef(null)
   const form = useApplicationForm({ kind: 'membership', storageKey: STORAGE_KEY, initialValues, steps, validators, serialize, version: 2 })
+  const lastPresentedStep = useRef(form.step)
   const { joinType } = form.values
 
   // Switching path drops the answer that belongs only to the other path.
@@ -70,31 +71,43 @@ export default function JoinPage() {
   return (
     <div id="join-page" className="join-page">
       <section className="join-application" aria-labelledby="join-title">
+        <div className="page-container join-page-topline">
+          <Link to="/" className="join-back-link"><ArrowLeft size={14} aria-hidden="true" /> Back to Infinity</Link>
+          <span>THE COMMUNITY STARTS WITH YOU</span>
+        </div>
         <div className="page-container join-layout">
           <motion.aside className="join-context"
             initial={reduced ? false : { opacity: 0, x: -24 }} animate={{ opacity: 1, x: 0 }}
             transition={{ duration: .62, ease: MOTION_EASE.smooth }}>
-            <div className="join-context-line"><span>Member &amp; staff application</span><span>MI Faculty / BBA</span></div>
-            <div className="join-mark" aria-hidden="true"><InfinityMark /></div>
-            <p className="join-intro">No perfect portfolio required.</p>
-            <h1 id="join-title">Start curious.<br /><span>Grow together.</span></h1>
+            <div className="join-context-line">
+              <span className="join-emblem" aria-hidden="true"><InfinityClubMark /></span>
+              <span>Different minds.<br /><strong>One Infinity.</strong></span>
+            </div>
+            <h1 id="join-title">Become an<br /><span>Infiniter.</span></h1>
             <p className="join-lead">
-              Whether you want to learn with the community or help build the club, there is a place for you at Infinity.
-              Choose how you want to participate and tell us a little about yourself.
+              The people you build with make all the difference.
+              Find yours at Infinity — a community to learn, create, and make things happen together.
             </p>
+            <figure className="join-community-photo">
+              <img src="/infinity/IMG_0199.JPG" alt="Infinity Club members gathered for a group photo." width="720" height="480" />
+              <figcaption>
+                <span><span className="join-photo-eyebrow">THIS IS INFINITY</span><strong>Good ideas. Better company.</strong></span>
+                <Link to="/community" aria-label="Meet the Infinity community"><ArrowUpRight size={20} aria-hidden="true" /></Link>
+              </figcaption>
+            </figure>
             <ul className="join-notes">
-              <li><i aria-hidden="true" /><span><strong>Open to students</strong>Different levels and backgrounds can find a place in the club.</span></li>
-              <li><i aria-hidden="true" /><span><strong>Beginner-friendly</strong>You do not need to already be an expert to join the community.</span></li>
-              <li><i aria-hidden="true" /><span><strong>Two ways to contribute</strong>Join as a Member, or take a more active role as Staff.</span></li>
+              <li><Check size={14} aria-hidden="true" /><span>No experience required</span></li>
+              <li><Check size={14} aria-hidden="true" /><span>All study levels welcome</span></li>
             </ul>
+            <p className="join-context-footnote">Bring your curiosity. We will figure out the rest together.</p>
           </motion.aside>
 
           <motion.div className="join-form-paper"
             initial={reduced ? false : { opacity: 0, x: 28 }} animate={{ opacity: 1, x: 0 }}
             transition={{ duration: .68, delay: reduced ? 0 : .08, ease: MOTION_EASE.smooth }}>
             <header className="join-form-header">
-              <div><span>Infinity Club</span><strong>Application desk</strong></div>
-              <p>{form.hasDraft ? 'Draft restored from this tab' : 'Your progress stays in this tab'}</p>
+              <div><span>YOUR NEXT CHAPTER</span><strong>Join the club</strong></div>
+              <span className="join-time"><Clock3 size={14} aria-hidden="true" /> About 3 min</span>
             </header>
 
             {form.status === 'success' ? (
@@ -107,7 +120,7 @@ export default function JoinPage() {
                 <button type="button" className="af-button af-button-secondary" onClick={form.reset}><RotateCcw size={14} /> Start another application</button>
               </motion.div>
             ) : (
-              <form onSubmit={form.submit} noValidate aria-label="Infinity Club membership application">
+              <form onSubmit={form.submit} noValidate aria-label="Infinity Club membership application" aria-busy={form.status === 'submitting'}>
                 <ApplicationProgress steps={steps} current={form.step} onStep={form.editStep} />
                 <div className="af-trap" aria-hidden="true">
                   <label htmlFor={`${FORM_ID}-website`}>Website</label>
@@ -118,13 +131,20 @@ export default function JoinPage() {
                 <AnimatePresence mode="wait" initial={false}>
                   <motion.div key={form.step} className="join-form-step"
                     initial={reduced ? false : { opacity: 0, x: 18 }} animate={{ opacity: 1, x: 0 }}
-                    exit={reduced ? { opacity: 0 } : { opacity: 0, x: -12 }} transition={stepMotion}>
+                    exit={reduced ? { opacity: 0 } : { opacity: 0, x: -12 }} transition={stepMotion}
+                    onAnimationComplete={() => {
+                      if (lastPresentedStep.current === form.step) return
+                      lastPresentedStep.current = form.step
+                      const heading = document.querySelector('#join-page [data-form-step-heading]')
+                      heading?.focus({ preventScroll: true })
+                      heading?.scrollIntoView({ block: 'nearest', behavior: 'instant' })
+                    }}>
                     {form.step === 0 ? (
                       <>
                         <div className="af-step-heading" tabIndex={-1} data-form-step-heading>
-                          <span>Let us begin with the essentials</span>
-                          <h2>Who are we meeting?</h2>
-                          <p>Use the details where the club can genuinely reach you. Optional information can be left blank.</p>
+                          <span>STEP 01 / A LITTLE INTRODUCTION</span>
+                          <h2>Let’s start with you.</h2>
+                          <p>A few details so we can get to know you and stay in touch.</p>
                         </div>
                         <div className="af-fields">
                           <ApplicationField formId={FORM_ID} name="fullName" label="Full name" value={form.values.fullName}
@@ -139,16 +159,16 @@ export default function JoinPage() {
                             <ApplicationField formId={FORM_ID} name="studyYear" label="Study level" as="select" options={studyLevels}
                               value={form.values.studyYear} onChange={form.setField} error={form.errors.studyYear} />
                             <ApplicationField formId={FORM_ID} name="department" label="Department or speciality" value={form.values.department}
-                              onChange={form.setField} error={form.errors.department} autoComplete="organization-title" placeholder="Computer Science, Mathematics..." />
+                              onChange={form.setField} error={form.errors.department} autoComplete="organization-title" placeholder="e.g. Computer Science" />
                           </div>
                         </div>
                       </>
                     ) : (
                       <>
                         <div className="af-step-heading" tabIndex={-1} data-form-step-heading>
-                          <span>Find your place in Infinity</span>
-                          <h2>How would you like to join?</h2>
-                          <p>There are two ways to be part of Infinity. Choose the one that best matches how involved you want to be this season.</p>
+                          <span>STEP 02 / MAKE IT YOURS</span>
+                          <h2>Find your place.</h2>
+                          <p>Here to explore, or ready to help run the club? Choose how you would like to be involved.</p>
                         </div>
                         <div className="af-fields">
                           <JoinPanelChoice formId={FORM_ID} name="joinType" legend="How would you like to join?" legendHidden variant="role"
@@ -218,21 +238,27 @@ export default function JoinPage() {
                 )}
 
                 <div className="af-actions">
-                  {form.step > 0 ? <button type="button" className="af-button af-button-secondary" onClick={form.back}>Back</button> : <span className="af-submit-note">Two short steps. About three minutes.</span>}
+                  {form.step > 0 ? <button type="button" className="af-button af-button-secondary" onClick={form.back}><ArrowLeft size={16} aria-hidden="true" /> Back</button> : <span className="af-submit-note">Next up: your place in the club</span>}
                   {form.step < steps.length - 1 ? (
-                    <button type="button" className="af-button af-button-primary" onClick={form.advance}>Continue</button>
+                    <button type="button" className="af-button af-button-primary" onClick={form.advance}>Continue <ArrowRight size={16} aria-hidden="true" /></button>
                   ) : (
                     <button type="submit" className="af-button af-button-primary" disabled={form.status === 'submitting'}>
                       {form.status === 'submitting' ? 'Sending application...' : form.endpointConfigured ? 'Send application' : 'Prepare application'}
+                      <ArrowUpRight size={16} aria-hidden="true" />
                     </button>
                   )}
                 </div>
+                <p className="join-form-reassurance"><LockKeyhole size={12} aria-hidden="true" />{form.hasDraft ? 'Your saved progress has been restored.' : 'Your progress is saved in this tab.'}</p>
               </form>
             )}
           </motion.div>
         </div>
       </section>
-      <div className="join-page-note page-container"><span>No Limits For Infiniters</span><Link to="/contact">Need to ask something first?</Link></div>
+      <div className="join-page-note page-container">
+        <span className="join-signature"><span aria-hidden="true"><InfinityClubMark /></span> No Limits For Infiniters</span>
+        <span className="join-location">MI Faculty · Bordj Bou Arreridj</span>
+        <Link to="/contact">A question before you join? <ArrowUpRight size={14} aria-hidden="true" /></Link>
+      </div>
     </div>
   )
 }

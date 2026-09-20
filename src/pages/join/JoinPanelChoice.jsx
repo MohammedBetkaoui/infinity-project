@@ -1,7 +1,8 @@
-import { Check } from 'lucide-react'
+import { CalendarDays, Check, Code2, Palette, UsersRound, Wrench } from 'lucide-react'
 
-// A radio group presented as numbered dossier panels: same native radio
-// semantics and keyboard behaviour as ApplicationChoice, more room to explain.
+const panelIcons = { member: UsersRound, staff: Wrench, 'dev-tech': Code2, 'design-content': Palette, 'management-logistics': CalendarDays }
+
+// Keep native radio semantics and keyboard behaviour for the visual choices.
 export default function JoinPanelChoice({ formId, name, legend, legendHidden = false, description, options, value, onChange, error, variant }) {
   const errorId = `${formId}-${name}-error`
   const descriptionId = description ? `${formId}-${name}-description` : undefined
@@ -14,14 +15,13 @@ export default function JoinPanelChoice({ formId, name, legend, legendHidden = f
       <div className="join-panels-grid">
         {options.map((option) => {
           const checked = value === option.value
+          const Icon = panelIcons[option.value]
           return (
             <label className="join-panel" key={option.value} data-checked={checked ? '' : undefined}>
-              <input type="radio" name={name} value={option.value} checked={checked} onChange={() => onChange(name, option.value)} />
+              <input type="radio" name={name} value={option.value} checked={checked} aria-invalid={Boolean(error)} onChange={() => onChange(name, option.value)} />
               <span className="join-panel-surface">
                 <span className="join-panel-top">
-                  <span className="join-panel-index">
-                    {option.index}{option.eyebrow && <> / <span>{option.eyebrow}</span></>}
-                  </span>
+                  <span className="join-panel-icon" aria-hidden="true">{Icon && <Icon size={21} strokeWidth={1.6} />}</span>
                   <span className="join-panel-check" aria-hidden="true"><Check size={12} strokeWidth={2.4} /></span>
                 </span>
                 <strong>{option.label}</strong>
