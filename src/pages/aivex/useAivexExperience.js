@@ -60,7 +60,7 @@ export default function useAivexExperience(pageRef, ready) {
     root.querySelectorAll([
       '.ax-preparation-copy span[id^="ax-prep-note-"]',
       '.ax-bba-signature small',
-      '.ax-university strong', '.ax-university span',
+      '.ax-university strong',
       '.ax-footer-contact > span',
     ].join(',')).forEach((copy) => motion.revealText(copy, { type: 'lines' }))
     motion.revealSection('.ax-document-study', { mode: 'wipe', color: '#efede8' })

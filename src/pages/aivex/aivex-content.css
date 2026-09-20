@@ -55,7 +55,8 @@
 .ax-university > svg { color: #f59e0b; margin-bottom: 18px; }
 .ax-university > strong { display: block; font-weight: 500; font-size: 13px; line-height: 1.7; }
 .ax-university > p { font-size: 11px; color: #c9a6b2; line-height: 1.85; margin-top: 10px; }
-.ax-university > span { display: block; font-size: 10px; color: #c9a6b2; margin-top: 17px; }
+.ax-university-mark { display: block; margin-top: 20px; padding-top: 18px; border-top: 1px solid #b7738c35; color: #d2d2d2; }
+.ax-university-mark .fmi-logo { display: block; width: 100%; max-width: 250px; height: auto; }
 
 .ax-faq { padding-block: 82px 89px; background: #111111; }
 .ax-faq-layout { display: grid; grid-template-columns: .66fr 1.34fr; gap: 82px; }
@@ -128,7 +129,8 @@
   .ax-organisation-copy h2 { font-size: 37px; }
   .ax-university { border-left: 0; border-top: 1px solid #b7738c54; padding: 23px 0 0; }
   .ax-university > svg { float: left; margin: 3px 17px 0 0; }
-  .ax-university > p, .ax-university > span { margin-left: 38px; }
+  .ax-university > p, .ax-university-mark { margin-left: 38px; }
+  .ax-university-mark .fmi-logo { max-width: 230px; }
   .ax-faq { padding-block: 58px 59px; }
   .ax-faq-layout { grid-template-columns: 1fr; gap: 28px; }
   .ax-faq-intro > p { max-width: 53ch; margin-top: 17px; }
