@@ -11,13 +11,11 @@ export default function EventsPage() {
 
   useEffect(() => {
     const html = document.documentElement
-    const previousTitle = document.title
     const previousPage = html.dataset.page
-    document.title = 'Events | Infinity Club'
     // Scopes the compact sticky header (events.css) to this page only.
+    // The document title belongs to src/seo/RouteSeo.jsx.
     html.dataset.page = 'events'
     return () => {
-      document.title = previousTitle
       if (previousPage) html.dataset.page = previousPage
       else delete html.dataset.page
     }

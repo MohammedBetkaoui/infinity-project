@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useRef } from 'react'
 import PageHero from '../../components/PageHero'
 import TeamCarousel from './TeamCarousel'
 import CommunityLife from './CommunityLife'
@@ -9,12 +9,6 @@ import './community.css'
 export default function CommunityPage() {
   const pageRef = useRef(null)
   useCommunityScrollMotion(pageRef)
-
-  useEffect(() => {
-    const previousTitle = document.title
-    document.title = 'Community | Infinity Club'
-    return () => { document.title = previousTitle }
-  }, [])
 
   return (
     <div id="community-page" ref={pageRef} className="community-page">

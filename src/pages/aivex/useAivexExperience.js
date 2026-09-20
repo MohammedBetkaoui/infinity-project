@@ -112,14 +112,15 @@ export default function useAivexExperience(pageRef, ready) {
   useLayoutEffect(() => {
     const root = pageRef.current
     const html = document.documentElement
-    const description = document.querySelector('meta[name="description"]')
     const theme = document.querySelector('meta[name="theme-color"]')
     const favicon = document.querySelector('#site-favicon')
-    const previous = { title: document.title, description: description?.content, theme: theme?.content, favicon: favicon?.getAttribute('href'), page: html.dataset.page }
-    document.title = 'AIVEX | National AI Competition, Second Edition'
-    if (description) description.content = 'AIVEX, the second edition of the national artificial intelligence application programming competition, organised by Infinity Club in BBA.'
+    const previous = { theme: theme?.content, favicon: favicon?.getAttribute('href'), page: html.dataset.page }
+    // Title and description belong to src/seo/RouteSeo.jsx, so the page and
+    // the crawler-facing static document can never disagree. This effect
+    // keeps what is purely visual: the dark theme colour and the AIVEX icon.
     if (theme) theme.content = '#111111'
-    if (favicon) favicon.setAttribute('href', '/aivex-favicon.svg')
+    // /aivex-favicon.svg does not exist; the file lives under /assets.
+    if (favicon) favicon.setAttribute('href', '/assets/aivex-favicon.svg')
     html.dataset.page = 'aivex'
     const context = gsap.context(() => {
       gsap.to('.ax-scroll-progress', {
@@ -129,8 +130,6 @@ export default function useAivexExperience(pageRef, ready) {
     }, root)
     return () => {
       context.revert()
-      document.title = previous.title
-      if (description) description.content = previous.description
       if (theme) theme.content = previous.theme
       if (favicon && previous.favicon) favicon.setAttribute('href', previous.favicon)
       if (previous.page === undefined) delete html.dataset.page

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useRef } from 'react'
 import AboutClosing from './AboutClosing'
 import AboutFields from './AboutFields'
 import AboutHero from './AboutHero'
@@ -10,12 +10,6 @@ import './about.css'
 export default function AboutPage() {
   const pageRef = useRef(null)
   useAboutPageMotion(pageRef)
-
-  useEffect(() => {
-    const previousTitle = document.title
-    document.title = 'About | Infinity Club'
-    return () => { document.title = previousTitle }
-  }, [])
 
   return (
     <div id="about-page" ref={pageRef} className="about-page">

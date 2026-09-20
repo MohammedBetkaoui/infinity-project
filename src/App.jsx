@@ -5,6 +5,7 @@ import AnimationProvider from './components/AnimationProvider'
 import Navbar from './components/Navbar'
 import ScrollExperience from './components/ScrollExperience'
 import RouteScrollReset from './components/RouteScrollReset'
+import RouteSeo from './seo/RouteSeo'
 import Contact from './sections/Contact'
 import Events from './sections/Events'
 import ClubLife from './sections/ClubLife'
@@ -100,15 +101,22 @@ export default function App() {
   // away from the back-office, where they would fight dense tables.
   if (pathname.startsWith('/admin')) {
     return (
-      <Suspense fallback={null}>
-        <AdminApp />
-      </Suspense>
+      <>
+        {/* Back-office sub-paths (/admin/...) have no static document of
+            their own and fall back to the SPA entry, so the noindex has to
+            be set here as well as in robots.txt. */}
+        <RouteSeo />
+        <Suspense fallback={null}>
+          <AdminApp />
+        </Suspense>
+      </>
     )
   }
 
   return (
     <AnimationProvider>
       <RouteScrollReset />
+      <RouteSeo />
       <Routes>
         <Route path="/aivex/register" element={<Suspense fallback={null}><AivexRegisterPage /></Suspense>} />
         <Route path="/aivex/status" element={<Suspense fallback={null}><AivexStatusPage /></Suspense>} />

@@ -11,16 +11,14 @@ export default function AivexRegisterPage() {
   useEffect(() => {
     const html = document.documentElement
     const previousPage = html.dataset.page
-    const previousTitle = document.title
     const favicon = document.querySelector('link[rel="icon"]')
     const previousIcon = favicon?.getAttribute('href')
     html.dataset.page = 'aivex'
-    document.title = 'Register your team | AIVEX, second edition'
+    // The document title belongs to src/seo/RouteSeo.jsx.
     favicon?.setAttribute('href', '/assets/aivex-favicon.svg')
     return () => {
       if (previousPage) html.dataset.page = previousPage
       else delete html.dataset.page
-      document.title = previousTitle
       if (favicon && previousIcon) favicon.setAttribute('href', previousIcon)
     }
   }, [])

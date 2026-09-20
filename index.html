@@ -9,6 +9,21 @@
       name="description"
       content="Infinity Club, the science and technology club of the Faculty of Mathematics and Computer Science at the University of Bordj Bou Arreridj."
     />
+    <!--
+      Base head for the SPA entry. scripts/seo-build.mjs rewrites the title,
+      description and social tags per public route at build time (from
+      src/seo/seoConfig.js) and writes one static document per route, so
+      crawlers that do not run JavaScript still read the right metadata.
+      These defaults are the homepage's, and are what any route without its
+      own generated document falls back to.
+    -->
+    <link rel="canonical" href="https://www.infinty-bba.com/" />
+    <meta property="og:site_name" content="Infinity Club" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://www.infinty-bba.com/" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://www.infinty-bba.com/assets/og-infinity-club.png" />
+    <meta name="twitter:card" content="summary_large_image" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "vite",
     "dev:api": "node scripts/dev-api.mjs",
-    "build": "vite build",
+    "build": "vite build && node scripts/seo-build.mjs",
     "preview": "vite preview",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "test": "node --test \"tests/**/*.test.mjs\"",
