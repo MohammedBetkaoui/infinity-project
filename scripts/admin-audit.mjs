@@ -115,12 +115,70 @@ try {
 
   await navigate('/admin/members')
   assert(await evaluate(`JSON.parse(localStorage.getItem('infinity-administration-demo-v3')).members.some((record) => record.name === 'Lina Bensaid')`))
+  await waitFor('document.querySelectorAll(".adm-people-card").length > 0')
+  report.memberCards = await evaluate(`({
+    cards: document.querySelectorAll('.adm-people-card').length,
+    columns: getComputedStyle(document.querySelector('.adm-people-card-grid')).gridTemplateColumns.split(' ').length,
+    quickFilters: document.querySelectorAll('.adm-quick-filter').length,
+    defaultView: document.querySelector('.adm-view-toggle button[aria-label="Card view"]').getAttribute('aria-pressed'),
+    pageOverflow: document.documentElement.scrollWidth > innerWidth
+  })`)
+  assert.deepEqual(report.memberCards, { cards: 6, columns: 3, quickFilters: 3, defaultView: 'true', pageOverflow: false })
+  await screenshot('members-cards-desktop', true)
+  await evaluate(`document.querySelector('.adm-view-toggle button[aria-label="Table view"]').click()`)
+  await waitFor('document.querySelectorAll(".adm-people-table-view tbody tr").length > 0')
+  assert(await evaluate('Boolean(document.querySelector(".adm-directory-register-head"))'))
+  await screenshot('members-table-desktop', true)
   await navigate('/admin/staff')
   assert(await evaluate('document.querySelectorAll(".adm-department-map article").length === 3'))
+  await waitFor('document.querySelectorAll(".adm-people-card").length > 0')
+  report.staffCards = await evaluate(`({
+    cards: document.querySelectorAll('.adm-people-card').length,
+    columns: getComputedStyle(document.querySelector('.adm-people-card-grid')).gridTemplateColumns.split(' ').length,
+    assignments: document.querySelectorAll('.adm-staff-assignment').length,
+    quickFilters: document.querySelectorAll('.adm-quick-filter').length,
+    pageOverflow: document.documentElement.scrollWidth > innerWidth
+  })`)
+  assert.deepEqual(report.staffCards, { cards: 6, columns: 3, assignments: 6, quickFilters: 3, pageOverflow: false })
+  await screenshot('staff-cards-desktop', true)
+  await evaluate(`(() => { const select = document.querySelector('.adm-quick-filter select[aria-label="Status"]'); select.value = 'Active'; select.dispatchEvent(new Event('change', { bubbles: true })); return true })()`)
+  await waitFor('document.querySelectorAll(".adm-filter-chips button").length === 1')
+  assert(await evaluate('document.querySelector(".adm-active-filters").innerText.includes("Active")'))
+  await evaluate('document.querySelector(".adm-clear-filters").click()')
+  await evaluate(`document.querySelector('.adm-view-toggle button[aria-label="Table view"]').click()`)
+  await waitFor('document.querySelectorAll(".adm-people-table-view tbody tr").length > 0')
+  await screenshot('staff-table-desktop', true)
   await navigate('/admin/activity')
   assert(await evaluate('document.body.innerText.includes("Accept as member")'))
   await navigate('/admin/settings')
   assert(await evaluate('document.body.innerText.includes("Workspace essentials")'))
+
+  await navigate('/admin/aivex')
+  await waitFor('document.querySelectorAll(".adm-aivex-card").length > 0')
+  report.aivexCards = await evaluate(`({
+    cards: document.querySelectorAll('.adm-aivex-card').length,
+    columns: getComputedStyle(document.querySelector('.adm-aivex-card-grid')).gridTemplateColumns.split(' ').length,
+    stages: document.querySelectorAll('.adm-aivex-card:first-child .adm-aivex-card__journey > div').length,
+    checkpoints: document.querySelectorAll('.adm-aivex-card__checkpoint').length,
+    defaultView: document.querySelector('.adm-view-toggle button[aria-label="Card view"]').getAttribute('aria-pressed'),
+    overflow: document.documentElement.scrollWidth > innerWidth
+  })`)
+  assert.deepEqual(report.aivexCards, { cards: 6, columns: 2, stages: 5, checkpoints: 6, defaultView: 'true', overflow: false })
+  await screenshot('aivex-cards-desktop', true)
+  await evaluate(`document.querySelector('.adm-view-toggle button[aria-label="Table view"]').click()`)
+  await waitFor('document.querySelectorAll(".adm-aivex-table-view tbody tr").length > 0')
+  report.aivexTable = await evaluate(`(() => {
+    const wrap = document.querySelector('.adm-aivex-table-view')
+    return {
+      rows: document.querySelectorAll('.adm-aivex-table-view tbody tr').length,
+      columns: document.querySelectorAll('.adm-aivex-table-view thead th').length,
+      registerHead: Boolean(document.querySelector('.adm-aivex-register-head')),
+      internalOverflow: wrap.scrollWidth > wrap.clientWidth,
+      pageOverflow: document.documentElement.scrollWidth > innerWidth
+    }
+  })()`)
+  assert(report.aivexTable.rows === 6 && report.aivexTable.columns === 10 && report.aivexTable.registerHead && !report.aivexTable.pageOverflow)
+  await screenshot('aivex-table-desktop', true)
 
   await navigate('/admin/aivex/nova')
   assert(await evaluate('document.querySelectorAll(".adm-team-timeline button").length === 5'))
@@ -165,9 +223,46 @@ try {
   await clickText('AIVEX')
   await waitFor('location.pathname === "/admin/aivex"')
   await pause(300)
-  report.mobileAivex = await evaluate('({overflow: document.documentElement.scrollWidth > innerWidth, cards: document.querySelectorAll(".adm-table tbody tr").length})')
-  assert(!report.mobileAivex.overflow && report.mobileAivex.cards > 0)
-  await screenshot('aivex-mobile')
+  await waitFor('document.querySelectorAll(".adm-aivex-card").length > 0')
+  report.mobileAivex = await evaluate(`({
+    overflow: document.documentElement.scrollWidth > innerWidth,
+    cards: document.querySelectorAll('.adm-aivex-card').length,
+    columns: getComputedStyle(document.querySelector('.adm-aivex-card-grid')).gridTemplateColumns.split(' ').length,
+    searchHeight: Math.round(document.querySelector('.adm-toolbar > .adm-search').getBoundingClientRect().height),
+    tableRows: document.querySelectorAll('.adm-aivex-table-view tbody tr').length,
+    viewToggle: Boolean(document.querySelector('.adm-view-toggle')),
+    actionTargets: [...document.querySelectorAll('.adm-aivex-card > footer button')].every((button) => button.getBoundingClientRect().height >= 44)
+  })`)
+  assert(!report.mobileAivex.overflow && report.mobileAivex.cards > 0 && report.mobileAivex.columns === 1 && report.mobileAivex.searchHeight <= 48 && report.mobileAivex.tableRows === 0 && !report.mobileAivex.viewToggle && report.mobileAivex.actionTargets)
+  await screenshot('aivex-cards-mobile', true)
+
+  await navigate('/admin/members')
+  await waitFor('document.querySelectorAll(".adm-people-card").length > 0')
+  report.mobileMembers = await evaluate(`({
+    overflow: document.documentElement.scrollWidth > innerWidth,
+    cards: document.querySelectorAll('.adm-people-card').length,
+    columns: getComputedStyle(document.querySelector('.adm-people-card-grid')).gridTemplateColumns.split(' ').length,
+    searchHeight: Math.round(document.querySelector('.adm-toolbar > .adm-search').getBoundingClientRect().height),
+    tableRows: document.querySelectorAll('.adm-people-table-view tbody tr').length,
+    viewToggle: Boolean(document.querySelector('.adm-view-toggle')),
+    actionTargets: [...document.querySelectorAll('.adm-people-card > footer button')].every((button) => button.getBoundingClientRect().height >= 44)
+  })`)
+  assert(!report.mobileMembers.overflow && report.mobileMembers.cards > 0 && report.mobileMembers.columns === 1 && report.mobileMembers.searchHeight <= 48 && report.mobileMembers.tableRows === 0 && !report.mobileMembers.viewToggle && report.mobileMembers.actionTargets)
+  await screenshot('members-cards-mobile', true)
+
+  await navigate('/admin/staff')
+  await waitFor('document.querySelectorAll(".adm-people-card").length > 0')
+  report.mobileStaff = await evaluate(`({
+    overflow: document.documentElement.scrollWidth > innerWidth,
+    cards: document.querySelectorAll('.adm-people-card').length,
+    columns: getComputedStyle(document.querySelector('.adm-people-card-grid')).gridTemplateColumns.split(' ').length,
+    searchHeight: Math.round(document.querySelector('.adm-toolbar > .adm-search').getBoundingClientRect().height),
+    assignments: document.querySelectorAll('.adm-staff-assignment').length,
+    tableRows: document.querySelectorAll('.adm-people-table-view tbody tr').length,
+    viewToggle: Boolean(document.querySelector('.adm-view-toggle'))
+  })`)
+  assert(!report.mobileStaff.overflow && report.mobileStaff.cards > 0 && report.mobileStaff.columns === 1 && report.mobileStaff.searchHeight <= 48 && report.mobileStaff.assignments > 0 && report.mobileStaff.tableRows === 0 && !report.mobileStaff.viewToggle)
+  await screenshot('staff-cards-mobile', true)
 
   report.errors = errors
   assert.deepEqual(errors, [])

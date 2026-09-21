@@ -1,29 +1,63 @@
-import { useState } from 'react'
-import { Activity, CalendarDays, Plus, UserCheck } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Activity, ArrowRight, CalendarDays, Plus, UserCheck } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { useAdmin } from './AdminStore'
 import { AVAILABILITY, APPLICATION_STATUSES, DEPARTMENTS, EXPERIENCE, LEVELS, POLES, dateLabel, filterRecords, initialsOf } from './adminModel'
-import { Avatar, Button, Drawer, PageHeader, StatusBadge, Tabs } from './AdminUI'
+import { Avatar, BulkBar, Button, Drawer, EmptyState, PageHeader, Pagination, StatusBadge, Tabs } from './AdminUI'
 import { ActionDialog, Facts, History, RecordTable, RecordToolbar, SummaryStrip } from './AdminRecords'
 
 const titles = { applications: ['People · Join intake', 'Join applications', 'Every new connection starts here. Review, meet and welcome the next Infinity members.'], members: ['Community · Member directory', 'Members', 'The people who make Infinity. Follow their journey, participation and interests.'], staff: ['Operations · Team structure', 'Staff operations', 'Three departments. One shared direction. Keep your team coordinated.'] }
 const unique = (items, key) => [...new Set(items.map((item) => item[key]))].filter(Boolean)
 const Person = ({ record }) => <div className="adm-person-cell"><Avatar initials={record.initials} small/><span><b>{record.name}</b><small>{record.email || record.id}</small></span>{record.status === 'New' && <i title="New application"/>}</div>
 
+function PeopleCardGrid({ records, isStaff, selected, onSelect, onBulk, onOpen }) {
+  const [page, setPage] = useState(1)
+  const [order, setOrder] = useState('name')
+  const sorted = [...records].sort((a, b) => String(order === 'structure' ? (isStaff ? a.department : a.pole) : a[order] || '').localeCompare(String(order === 'structure' ? (isStaff ? b.department : b.pole) : b[order] || ''), 'en', { numeric: true }))
+  const pageSize = 6
+  const current = Math.min(page, Math.max(1, Math.ceil(sorted.length / pageSize)))
+  const visible = sorted.slice((current - 1) * pageSize, current * pageSize)
+  const selectAll = visible.length > 0 && visible.every((record) => selected.includes(record.id))
+  const toggle = (id) => onSelect(selected.includes(id) ? selected.filter((value) => value !== id) : [...selected, id])
+  const togglePage = () => onSelect(selectAll ? selected.filter((id) => !visible.some((record) => record.id === id)) : [...new Set([...selected, ...visible.map((record) => record.id)])])
+
+  return <section className={`adm-people-board ${isStaff ? 'is-staff' : 'is-members'}`} aria-label={isStaff ? 'Staff cards' : 'Member cards'}>
+    <BulkBar count={selected.length} onClear={() => onSelect([])} onStatus={onBulk}/>
+    <header className="adm-people-board__head"><div><span>{isStaff ? 'Operational roster' : 'Community directory'}</span><b>{records.length} {isStaff ? 'staff profiles' : 'member profiles'}</b></div><div><label className="adm-card-select-all"><input type="checkbox" checked={selectAll} onChange={togglePage}/><span>Select this page</span></label><label className="adm-people-board__order"><span>Order by</span><select value={order} onChange={(event) => { setOrder(event.target.value); setPage(1) }}><option value="name">Name</option><option value="status">Status</option><option value="structure">{isStaff ? 'Department' : 'Primary pole'}</option></select></label></div></header>
+    {visible.length ? <div className="adm-people-card-grid">{visible.map((record, index) => <article key={record.id} className={`adm-people-card ${selected.includes(record.id) ? 'is-selected' : ''} ${record.status !== 'Active' ? 'is-muted' : ''}`}>
+      <div className="adm-people-card__rail"><code>{record.id}</code><span>{isStaff ? `STAFF / ${String((current - 1) * pageSize + index + 1).padStart(2, '0')}` : `MEMBER / ${record.cohort}`}</span><label><input type="checkbox" checked={selected.includes(record.id)} onChange={() => toggle(record.id)}/><span className="sr-only">Select {record.name}</span></label></div>
+      <header className="adm-people-card__identity"><Avatar initials={record.initials}/><div><span>{isStaff ? 'Operational profile' : 'Infinity member'}</span><h3>{record.name}</h3><p>{isStaff ? record.role : `${record.level} · ${record.speciality}`}</p></div><StatusBadge>{record.status}</StatusBadge></header>
+      {isStaff ? <div className="adm-staff-assignment"><div><span>Requested</span><b>{record.requested}</b></div><i><ArrowRight size={14}/></i><div><span>Current department</span><b>{record.department}</b></div></div> : <div className="adm-member-pole"><span>Primary pole</span><b>{record.pole}</b><small>{record.skills || 'Collaborative projects and peer learning'}</small></div>}
+      <dl className="adm-people-card__facts">{isStaff ? <><div><dt>Study level</dt><dd>{record.level}</dd></div><div><dt>Availability</dt><dd>{record.availability}</dd></div><div><dt>Active projects</dt><dd>{record.assignedProjects?.length || 0}</dd></div><div><dt>Contact</dt><dd>{record.email}</dd></div></> : <><div><dt>Joined</dt><dd>{record.joined}</dd></div><div><dt>Last activity</dt><dd>{record.last}</dd></div><div><dt>Cohort</dt><dd>{record.cohort}</dd></div><div><dt>Events attended</dt><dd>{record.events?.length || 0}</dd></div></>}</dl>
+      <footer><button onClick={() => onOpen(record)}><span>{isStaff ? 'Open operational profile' : 'Open member profile'}</span><ArrowRight size={16}/></button></footer>
+    </article>)}</div> : <EmptyState title={isStaff ? 'No staff profiles match this view' : 'No members match this view'} copy="Adjust the search or remove one of the active filters."/>}
+    {records.length > 0 && <Pagination current={current} count={records.length} pageSize={pageSize} onChange={setPage}/>} 
+  </section>
+}
+
 export default function PeoplePage({ collection, globalQuery }) {
   const { state, update, addRecord, addToast } = useAdmin()
   const records = state[collection]
+  const application = collection === 'applications'
+  const isStaff = collection === 'staff'
   const [params] = useSearchParams()
   const [tab, setTab] = useState(params.get('stage') || 'New')
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState({})
-  const [view, setView] = useState('table')
+  const [view, setView] = useState(application ? 'table' : 'cards')
+  const [mobileCardsOnly, setMobileCardsOnly] = useState(false)
   const [selected, setSelected] = useState([])
   const [detailId, setDetailId] = useState(params.get('record'))
   const [action, setAction] = useState(null)
   const [note, setNote] = useState('')
-  const application = collection === 'applications'
-  const isStaff = collection === 'staff'
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 767px)')
+    const syncView = () => setMobileCardsOnly(query.matches)
+    syncView()
+    query.addEventListener('change', syncView)
+    return () => query.removeEventListener('change', syncView)
+  }, [])
+  const activeView = !application && mobileCardsOnly ? 'cards' : view
   const detail = records.find((record) => record.id === detailId)
   const [eyebrow, title, description] = titles[collection]
   const open = (record) => { setDetailId(record.id); setNote(record.note || '') }
@@ -46,10 +80,20 @@ export default function PeoplePage({ collection, globalQuery }) {
     ] : isStaff ? [
       { key: 'department', label: 'Department' }, { key: 'role', label: 'Internal role' }, { key: 'level', label: 'Level', secondary: true }, { key: 'availability', label: 'Availability' }, { key: 'projects', label: 'Projects', render: (r) => <span className="adm-project-count">{r.assignedProjects?.length || 0}</span> },
     ] : [
-      { key: 'level', label: 'Level' }, { key: 'speciality', label: 'Speciality', secondary: true }, { key: 'pole', label: 'Primary pole' }, { key: 'joined', label: 'Entry date', secondary: true }, { key: 'last', label: 'Last activity', secondary: true },
+      { key: 'level', label: 'Academic profile', render: (r) => <span className="adm-member-academic"><b>{r.level}</b><small>{r.speciality}</small></span> }, { key: 'pole', label: 'Primary pole' }, { key: 'cohort', label: 'Cohort', secondary: true }, { key: 'joined', label: 'Entry date' }, { key: 'last', label: 'Last activity', secondary: true },
     ]),
     { key: 'status', label: 'Status', render: (r) => <StatusBadge>{r.status}</StatusBadge> },
   ]
+  const quickFields = application ? [] : isStaff ? [
+    { key: 'department', label: 'Current department', shortLabel: 'Department', allLabel: 'All departments', options: DEPARTMENTS },
+    { key: 'status', label: 'Status', allLabel: 'All statuses', options: ['Active', 'On pause', 'Inactive', 'Archived'] },
+    { key: 'availability', label: 'Availability', allLabel: 'Any availability', options: unique(records, 'availability') },
+  ] : [
+    { key: 'pole', label: 'Primary pole', shortLabel: 'Pole', allLabel: 'All poles', options: ['Unassigned', ...POLES] },
+    { key: 'status', label: 'Status', allLabel: 'All statuses', options: ['Active', 'On pause', 'Inactive', 'Alumni', 'Archived'] },
+    { key: 'level', label: 'Study level', shortLabel: 'Level', allLabel: 'All levels', options: LEVELS },
+  ]
+  const openBulkAction = () => setAction({ title: `Update ${selected.length} selected records`, ids: selected, fields: [{ name: 'status', label: 'New status', options: application ? ['In review', 'Interview', 'Declined', 'Archived'] : ['Active', 'On pause', 'Inactive', 'Archived'] }] })
   const request = (title, patch, extra = {}) => setAction({ title, patch, ids: detail.id, ...extra })
   const submit = (values) => {
     if (action.newRecord) {
@@ -74,13 +118,16 @@ export default function PeoplePage({ collection, globalQuery }) {
     { name: 'name', label: 'Full name', required: true }, { name: 'email', label: 'Demo email', type: 'email', required: true, placeholder: 'name@example.dz' }, { name: 'level', label: 'Study level', options: LEVELS }, { name: 'speciality', label: 'Department / speciality', required: true },
     ...(application ? [{ name: 'type', label: 'Application type', options: ['Member', 'Staff'] }, { name: 'memberTrack', label: 'Member interest (Member only)', options: POLES }, { name: 'staffTrack', label: 'Requested department (Staff only)', options: DEPARTMENTS }] : isStaff ? [{ name: 'department', label: 'Department', options: DEPARTMENTS }, { name: 'role', label: 'Internal role', required: true }] : [{ name: 'pole', label: 'Primary pole', options: ['Unassigned', ...POLES] }]),
   ] })
-  return <div className="adm-page">
+  return <div className={`adm-page adm-people-page adm-${collection}-page`}>
     <PageHeader eyebrow={eyebrow} title={title} description={description} actions={<Button onClick={newAction} icon={<Plus size={16}/>}>{application ? 'Add application' : isStaff ? 'Add staff member' : 'New member'}</Button>}/>
     {application ? <div className="adm-intake-banner"><div><UserCheck size={20}/><p><b>Autumn intake is open</b><span>Applications from the Infinity Join form · Campaign 2026/27</span></p></div><span className="adm-mono">{records.length} DEMO APPLICATIONS</span></div> : isStaff ? <div className="adm-department-map"><svg viewBox="0 0 1000 92" preserveAspectRatio="none" aria-hidden="true"><path d="M6 48 C170 4 242 88 391 47 S642 7 726 47 S882 88 994 43"/></svg>{DEPARTMENTS.map((name, index) => { const people = records.filter((r) => r.department === name && r.status === 'Active'); return <article key={name}><header><span>0{index + 1}</span><StatusBadge tone="success">Operational</StatusBadge></header><h2>{name}</h2><p>Department lead <b>{state.staff[index]?.name}</b></p><dl><div><dt>People</dt><dd>{people.length}</dd></div><div><dt>Capacity</dt><dd>08</dd></div><div><dt>Projects</dt><dd>{new Set(people.flatMap((p) => p.assignedProjects)).size}</dd></div><div><dt>Waiting</dt><dd>{state.applications.filter((a) => a.track === name && ['New', 'In review'].includes(a.status)).length}</dd></div></dl><div className="adm-dept-capacity"><span style={{ width: `${people.length / 8 * 100}%` }}/></div></article> })}</div> : <SummaryStrip items={[{ value: records.filter((r) => r.status === 'Active').length, label: 'Active members', meta: 'Current directory' }, { value: records.filter((r) => r.joined.includes('Sep 2026')).length, label: 'New this month' }, { value: records.filter((r) => r.pole === 'Unassigned').length, label: 'Without assigned pole' }, { value: records.filter((r) => r.status === 'Inactive').length, label: 'Inactive members' }]}/>}
     {isStaff && <div className="adm-operational-note"><Activity size={16}/><p>The <b>requested department</b> comes from Join. The <b>internal role</b> is assigned by administration after acceptance.</p></div>}
     <div className="adm-work-panel">
-      {application && <Tabs items={APPLICATION_STATUSES} value={tab} counts={counts} onChange={(value) => { setTab(value); setSelected([]) }}/>}<RecordToolbar search={search} onSearch={setSearch} placeholder="Search name, speciality or reference…" filters={filters} onFilters={setFilters} definitions={fields} view={view} onView={application ? undefined : setView}/>
-      <RecordTable records={visible} columns={columns} selected={selected} onSelect={setSelected} onOpen={open} cards={view === 'cards'} onBulk={() => setAction({ title: `Update ${selected.length} selected records`, ids: selected, fields: [{ name: 'status', label: 'New status', options: application ? ['In review', 'Interview', 'Declined', 'Archived'] : ['Active', 'On pause', 'Inactive', 'Archived'] }] })}/>
+      {application && <Tabs items={APPLICATION_STATUSES} value={tab} counts={counts} onChange={(value) => { setTab(value); setSelected([]) }}/>}<RecordToolbar search={search} onSearch={setSearch} placeholder="Search name, speciality or reference…" filters={filters} onFilters={setFilters} definitions={fields} quickDefinitions={quickFields} resultCount={application ? undefined : visible.length} filterLabel={application ? 'Filters' : 'All filters'} view={activeView} onView={application || mobileCardsOnly ? undefined : setView}/>
+      {application ? <RecordTable records={visible} columns={columns} selected={selected} onSelect={setSelected} onOpen={open} onBulk={openBulkAction}/> : activeView === 'cards' ? <PeopleCardGrid records={visible} isStaff={isStaff} selected={selected} onSelect={setSelected} onOpen={open} onBulk={openBulkAction}/> : <>
+        <div className="adm-directory-register-head"><div><code>{isStaff ? 'STAFF / OPERATIONS' : 'MEMBERS / DIRECTORY'}</code><b>{visible.length}</b><span>{isStaff ? 'profiles in the operational roster' : 'profiles in the community register'}</span></div><div><span><i className="is-active"/>Active</span><span><i className="is-followup"/>Follow-up</span></div></div>
+        <RecordTable className={`adm-people-table-view ${isStaff ? 'is-staff' : 'is-members'}`} records={visible} columns={columns} selected={selected} onSelect={setSelected} onOpen={open} rowClassName={(record) => record.status === 'Active' ? 'is-profile-active' : 'is-profile-followup'} onBulk={openBulkAction}/>
+      </>}
     </div>
     {detail && <Drawer title={application ? 'Candidate file' : isStaff ? 'Operational profile' : 'Member profile'} eyebrow={detail.id} onClose={() => setDetailId(null)} footer={<>
       {application ? <><Button onClick={() => request(detail.type === 'Staff' ? 'Accept into staff' : 'Accept as member', { status: 'Accepted' })} disabled={detail.status === 'Accepted'}>Accept {detail.type === 'Staff' ? 'into staff' : 'as member'}</Button><Button variant="secondary" onClick={() => request('Schedule interview', null, { fields: [{ name: 'interviewAt', label: 'Interview date and time', type: 'datetime-local', required: true }, { name: 'interviewLocation', label: 'Location / meeting room', required: true }], patch: undefined, schedule: true })}><CalendarDays size={15}/>Schedule interview</Button><div><button onClick={() => request('Request more information', null, { fields: [{ name: 'requestMessage', label: 'Message to the candidate (demo)', type: 'textarea', required: true }] })}>Request information</button>{detail.type === 'Staff' && <button onClick={() => request('Change requested department', null, { fields: [{ name: 'track', label: 'Department', options: DEPARTMENTS, value: detail.track }] })}>Move department</button>}<button className="is-danger" onClick={() => request('Decline application', { status: 'Declined' }, { danger: true })}>Decline</button><button onClick={() => request('Archive application', { status: 'Archived' }, { danger: true })}>Archive</button></div></> : <><Button onClick={() => request(isStaff ? 'Assign internal role' : 'Edit member profile', null, { fields: isStaff ? [{ name: 'role', label: 'Internal role', value: detail.role, required: true }] : [{ name: 'name', label: 'Name', value: detail.name, required: true }, { name: 'email', label: 'Email', type: 'email', value: detail.email, required: true }, { name: 'level', label: 'Level', options: LEVELS, value: detail.level }, { name: 'status', label: 'Status', options: ['Active', 'On pause', 'Inactive', 'Alumni'], value: detail.status }] })}>{isStaff ? 'Assign a role' : 'Edit profile'}</Button><Button variant="secondary" onClick={() => request(isStaff ? 'Move department' : 'Change primary pole', null, { fields: [{ name: isStaff ? 'department' : 'pole', label: isStaff ? 'Current department' : 'Primary pole', options: isStaff ? DEPARTMENTS : ['Unassigned', ...POLES], value: isStaff ? detail.department : detail.pole }] })}>{isStaff ? 'Move department' : 'Change pole'}</Button><div>{isStaff ? <><button onClick={() => request('Assign project', null, { project: true, fields: [{ name: 'project', label: 'Project', options: ['AIVEX operations', 'Autumn workshops', 'Infinity website', 'Integration day'] }] })}>Add to project</button><button onClick={() => request('Change availability', null, { fields: [{ name: 'availability', label: 'Availability', options: AVAILABILITY }] })}>Availability</button></> : <button onClick={() => request('Convert member to staff', null, { convert: true, fields: [{ name: 'department', label: 'Department', options: DEPARTMENTS }, { name: 'role', label: 'Assigned role', required: true }] })}>Convert to staff</button>}<button className="is-danger" onClick={() => request('Deactivate profile', { status: 'Inactive' }, { danger: true })}>Deactivate</button><button onClick={() => request('Archive profile', { status: 'Archived' }, { danger: true })}>Archive</button></div></>}

@@ -141,22 +141,55 @@ export function ToastStack({ toasts }) {
 function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) {
   const navigate = useNavigate()
   const { state, log } = useAdmin()
+  const renderNavItem = (item) => {
+    const Icon = icons[item.icon]
+    const count = item.icon === 'applications'
+      ? state.applications.filter((application) => application.status === 'New').length
+      : item.icon === 'aivex'
+        ? state.teams.filter((team) => ['Signed document received', 'Under review', 'Corrections needed'].includes(team.document)).length
+        : 0
+    return (
+      <NavLink
+        key={item.path}
+        to={item.path}
+        onClick={() => setMobileOpen(false)}
+        className={({ isActive }) => `${isActive ? 'is-active' : ''} ${item.icon === 'aivex' ? 'is-aivex' : ''}`}
+        title={collapsed ? item.label : undefined}
+      >
+        <span className="adm-nav-index">{item.index}</span>
+        <span className="adm-nav-node" aria-hidden="true" />
+        <Icon size={17} />
+        <span className="adm-nav-label">{item.label}</span>
+        {count > 0 && <em>{String(count).padStart(2, '0')}</em>}
+      </NavLink>
+    )
+  }
   return (
     <aside className={`adm-sidebar ${collapsed ? 'is-collapsed' : ''} ${mobileOpen ? 'is-mobile-open' : ''}`}>
       <div className="adm-brand">
         <div className="adm-brand__mark"><InfinityMark /></div>
         <div className="adm-brand__copy"><strong>INFINITY</strong><span>Club administration</span></div>
+        <code className="adm-brand__unit">CTRL<br/>02</code>
         <IconButton label="Close menu" className="adm-sidebar-mobile-close" onClick={() => setMobileOpen(false)}><X size={18} /></IconButton>
       </div>
-      <div className="adm-sidebar__campaign"><span>ACTIVE CAMPAIGN</span><b>2026 / 27</b><i /></div>
+      <div className="adm-sidebar__campaign"><span>ACADEMIC CYCLE</span><b>2026—27</b><small>AUTUMN INTAKE · ACTIVE</small><i /></div>
       <nav aria-label="Administration">
-        {navItems.map((item) => {
-          const Icon = icons[item.icon]
-          const count = item.icon === 'applications' ? state.applications.filter((a) => a.status === 'New').length : item.icon === 'aivex' ? state.teams.filter((a) => ['Signed document received', 'Under review', 'Corrections needed'].includes(a.document)).length : 0
-          return <NavLink key={item.path} to={item.path} onClick={() => setMobileOpen(false)} className={({ isActive }) => isActive ? 'is-active' : ''} title={collapsed ? item.label : undefined}><span className="adm-nav-index">{item.index}</span><Icon size={18} /><span className="adm-nav-label">{item.label}</span>{count > 0 && <em>{count}</em>}</NavLink>
-        })}
+        <div className="adm-nav-group">
+          <div className="adm-nav-group__label"><span>Club workspace</span><code>04</code></div>
+          {navItems.slice(0, 4).map(renderNavItem)}
+        </div>
+        <div className="adm-nav-group">
+          <div className="adm-nav-group__label"><span>Operations</span><code>02</code></div>
+          {navItems.slice(4, 6).map(renderNavItem)}
+        </div>
+        <div className="adm-nav-group adm-nav-group--system">
+          <div className="adm-nav-group__label"><span>System</span><code>01</code></div>
+          {navItems.slice(6).map(renderNavItem)}
+        </div>
       </nav>
+      <div className="adm-sidebar__signal"><span><i />Operations online</span><code>LOCAL / DEMO</code></div>
       <div className="adm-sidebar__foot">
+        <span className="adm-sidebar__operator-label">SESSION HOLDER · ADMIN.01</span>
         <button className="adm-admin-profile" onClick={() => navigate('/admin/settings')}>
           <Avatar initials="NB" small />
           <span><b>{state.settings.name}</b><small>{state.settings.role}</small></span>

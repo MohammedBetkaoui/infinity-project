@@ -4,8 +4,79 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import InfinityMark from '../components/InfinityMark'
 import { useAdmin } from './AdminStore'
 import { CHECKLIST, DOCUMENT_STATUSES, REGISTRATION_STATUSES, dateLabel, filterRecords, timeLabel } from './adminModel'
-import { Button, ConfidentialNotice, CriticalNotice, EmptyState, IconButton, Modal, PageHeader, Progress, SectionHeading, StatusBadge, Tabs } from './AdminUI'
+import { Button, ConfidentialNotice, CriticalNotice, EmptyState, IconButton, Modal, PageHeader, Pagination, Progress, SectionHeading, StatusBadge, Tabs } from './AdminUI'
 import { ActionDialog, Facts, History, RecordTable, RecordToolbar, SummaryStrip } from './AdminRecords'
+
+const AIVEX_CARD_STAGES = ['Recorded', 'Form ready', 'Signed', 'Review', 'Validated']
+
+function cardStageState(team) {
+  const generated = team.docs.find((document) => document.id === 'official')?.status === 'Generated'
+  return [
+    true,
+    generated,
+    team.signed,
+    ['Under review', 'Corrections needed', 'Validated'].includes(team.document),
+    team.document === 'Validated',
+  ]
+}
+
+function nextCheckpoint(team) {
+  const checkpoints = {
+    'Not generated': 'Generate the official form',
+    Generating: 'Wait for form generation',
+    'Awaiting signature': 'Receive the signed form',
+    'Signed document received': 'Start document review',
+    'Under review': 'Complete administrative checks',
+    'Corrections needed': 'Follow up on requested corrections',
+    Validated: 'No action required',
+    'Generation issue': 'Resolve the generation issue',
+    Expired: 'Review the expired file',
+  }
+  return checkpoints[team.document] || 'Review the administrative file'
+}
+
+function AivexCardGrid({ records, onOpen }) {
+  const [page, setPage] = useState(1)
+  const [order, setOrder] = useState('attention')
+  const priority = { 'Generation issue': 0, 'Corrections needed': 1, 'Signed document received': 2, 'Under review': 3, 'Awaiting signature': 4, 'Not generated': 5, Generating: 6, Expired: 7, Validated: 8 }
+  const sorted = [...records].sort((a, b) => {
+    if (order === 'completion') return a.completeness - b.completeness
+    if (order === 'team') return a.name.localeCompare(b.name)
+    return (priority[a.document] ?? 9) - (priority[b.document] ?? 9)
+  })
+  const pageSize = 6
+  const current = Math.min(page, Math.max(1, Math.ceil(sorted.length / pageSize)))
+  const visible = sorted.slice((current - 1) * pageSize, current * pageSize)
+
+  return <section className="adm-aivex-board" aria-label="AIVEX file cards">
+    <header className="adm-aivex-board__head">
+      <div><span>Operational case board</span><b>{records.length} team file{records.length !== 1 ? 's' : ''} in this view</b></div>
+      <label><span>Order by</span><select value={order} onChange={(event) => { setOrder(event.target.value); setPage(1) }}><option value="attention">Action priority</option><option value="completion">Lowest completion</option><option value="team">Team name</option></select></label>
+    </header>
+    {visible.length ? <div className="adm-aivex-card-grid">{visible.map((team, index) => {
+      const stages = cardStageState(team)
+      const attention = ['Generation issue', 'Corrections needed', 'Expired'].includes(team.document)
+      return <article key={team.id} className={`adm-aivex-card ${attention ? 'is-attention' : ''} ${team.document === 'Validated' ? 'is-validated' : ''}`}>
+        <div className="adm-aivex-card__rail"><code>{team.ref}</code><span>ED.02 / CASE {String((current - 1) * pageSize + index + 1).padStart(2, '0')}</span></div>
+        <header className="adm-aivex-card__identity">
+          <div><span>Team dossier</span><h3>{team.name}</h3><p>{team.institution}<small>{team.wilaya}</small></p></div>
+          <div className="adm-aivex-card__completion" style={{ '--adm-progress-angle': `${team.completeness * 3.6}deg` }} aria-label={`File completion: ${team.completeness}%`}><span><strong>{team.completeness}</strong><small>%</small></span></div>
+        </header>
+        <div className="adm-aivex-card__statuses"><StatusBadge>{team.registration}</StatusBadge><StatusBadge>{team.document}</StatusBadge></div>
+        <div className="adm-aivex-card__journey" aria-label="Administrative progress">{AIVEX_CARD_STAGES.map((label, stage) => <div key={label} className={stages[stage] ? 'is-complete' : ''}><i>{stages[stage] ? <Check size={11}/> : stage + 1}</i><span>{label}</span></div>)}</div>
+        <dl className="adm-aivex-card__facts">
+          <div><dt>Activities manager</dt><dd>{team.manager}</dd></div>
+          <div><dt>Submitted</dt><dd>{team.submitted}</dd></div>
+          <div><dt>Last update</dt><dd>{team.updated}</dd></div>
+          <div><dt>Signed file</dt><dd className={team.signed ? 'is-present' : 'is-missing'}><LockKeyhole size={12}/>{team.signed ? 'Secure copy received' : 'Not received'}</dd></div>
+        </dl>
+        <div className={`adm-aivex-card__checkpoint ${attention ? 'is-attention' : ''}`}><span>{attention ? 'Attention required' : team.document === 'Validated' ? 'Administrative outcome' : 'Next checkpoint'}</span><b>{nextCheckpoint(team)}</b></div>
+        <footer><button onClick={() => onOpen(team)}><span>Open administrative file</span><ArrowRight size={16}/></button></footer>
+      </article>
+    })}</div> : <EmptyState title="No AIVEX files match this view" copy="Adjust the search or remove one of the active filters."/>}
+    {records.length > 0 && <Pagination current={current} count={records.length} pageSize={pageSize} onChange={setPage}/>} 
+  </section>
+}
 
 export function AivexListPage({ globalQuery }) {
   const { state } = useAdmin()
@@ -13,7 +84,16 @@ export function AivexListPage({ globalQuery }) {
   const [params] = useSearchParams()
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState(params.get('document') ? { document: params.get('document') } : {})
-  const [view, setView] = useState('table')
+  const [view, setView] = useState('cards')
+  const [mobileCardsOnly, setMobileCardsOnly] = useState(false)
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 767px)')
+    const syncView = () => setMobileCardsOnly(query.matches)
+    syncView()
+    query.addEventListener('change', syncView)
+    return () => query.removeEventListener('change', syncView)
+  }, [])
+  const activeView = mobileCardsOnly ? 'cards' : view
   const teams = state.teams.map((team) => ({ ...team, complete: team.completeness === 100 ? 'Complete' : 'Incomplete', signedLabel: team.signed ? 'Present' : 'Absent' }))
   const visible = filterRecords(teams, `${search} ${globalQuery}`.trim(), filters)
   const counts = DOCUMENT_STATUSES.map((status) => ({ status, count: teams.filter((t) => t.document === status).length }))
@@ -21,17 +101,26 @@ export function AivexListPage({ globalQuery }) {
     <PageHeader eyebrow="Competition operations · Edition 02" title="AIVEX files" description="Administrative tracking for every team. From registration to the final green light." actions={<span className="adm-edition"><i/>AIVEX / SECOND EDITION</span>}/>
     <SummaryStrip items={[{ label: 'Registered teams', value: teams.length }, { label: 'Complete files', value: teams.filter((t) => t.completeness === 100).length }, { label: 'Awaiting signature', value: teams.filter((t) => t.document === 'Awaiting signature').length }, { label: 'Signed received', value: teams.filter((t) => t.signed).length }, { label: 'Under review', value: teams.filter((t) => t.document === 'Under review').length }, { label: 'Corrections', value: teams.filter((t) => t.document === 'Corrections needed').length }, { label: 'Validated', value: teams.filter((t) => t.document === 'Validated').length }]}/>
     <div className="adm-status-pipeline" aria-label="Filter by document stage"><button className={!filters.document ? 'is-active' : ''} onClick={() => setFilters({ ...filters, document: '' })}><span>All files</span><b>{teams.length}</b></button>{counts.map(({ status, count }) => <button key={status} className={filters.document === status ? 'is-active' : ''} onClick={() => setFilters({ ...filters, document: status })}><span>{status}</span><b>{count}</b></button>)}</div>
-    <div className="adm-work-panel"><RecordToolbar search={search} onSearch={setSearch} placeholder="Search reference, team, institution or person…" filters={filters} onFilters={setFilters} view={view} onView={setView} definitions={[
+    <div className="adm-work-panel"><RecordToolbar search={search} onSearch={setSearch} placeholder="Search reference, team, institution or person…" filters={filters} onFilters={setFilters} resultCount={visible.length} filterLabel="All filters" quickDefinitions={[
+      { key: 'document', label: 'Document stage', shortLabel: 'Stage', allLabel: 'All stages', options: DOCUMENT_STATUSES },
+      { key: 'registration', label: 'Registration status', shortLabel: 'Registration', allLabel: 'All registrations', options: REGISTRATION_STATUSES },
+      { key: 'complete', label: 'Completeness', shortLabel: 'File state', allLabel: 'All files', options: ['Complete', 'Incomplete'] },
+    ]} view={activeView} onView={mobileCardsOnly ? undefined : setView} definitions={[
       { key: 'registration', label: 'Registration status', options: REGISTRATION_STATUSES }, { key: 'document', label: 'Document status', options: DOCUMENT_STATUSES }, { key: 'wilaya', label: 'Wilaya', options: [...new Set(teams.map((t) => t.wilaya))] }, { key: 'institution', label: 'Institution', options: [...new Set(teams.map((t) => t.institution))] }, { key: 'complete', label: 'Completeness', options: ['Complete', 'Incomplete'] }, { key: 'signedLabel', label: 'Signed document', options: ['Present', 'Absent'] }, { key: 'submitted', label: 'Submission date', options: [...new Set(teams.map((t) => t.submitted))] }, { key: 'edition', label: 'Edition', options: ['Second edition'] },
-    ]}/><RecordTable records={visible} cards={view === 'cards'} onOpen={(team) => navigate(`/admin/aivex/${team.id}`)} columns={[
-      { key: 'name', label: 'Team / reference', render: (t) => <span className="adm-team-cell"><b>{t.name}</b><code>{t.ref}</code></span> },
-      { key: 'institution', label: 'Institution', render: (t) => <span className="adm-institution-cell">{t.institution}<small>{t.wilaya}</small></span> },
-      { key: 'manager', label: 'Activities manager', secondary: true },
-      { key: 'registration', label: 'Registration', render: (t) => <StatusBadge>{t.registration}</StatusBadge> },
-      { key: 'document', label: 'Document', render: (t) => <StatusBadge>{t.document}</StatusBadge> },
-      { key: 'completeness', label: 'Complete', render: (t) => <Progress value={t.completeness}/> },
-      { key: 'submitted', label: 'Submitted', secondary: true }, { key: 'updated', label: 'Updated', secondary: true },
-    ]}/></div>
+    ]}/>{activeView === 'cards' ? <AivexCardGrid records={visible} onOpen={(team) => navigate(`/admin/aivex/${team.id}`)}/> : <>
+      <div className="adm-aivex-register-head"><div><code>AIVEX / REGISTER-02</code><b>{visible.length}</b><span>team file{visible.length !== 1 ? 's' : ''} in the current register</span></div><div aria-label="Register row markers"><span><i className="is-action"/>Action required</span><span><i className="is-validated"/>Validated</span></div></div>
+      <RecordTable className="adm-aivex-table-view" records={visible} defaultSort="ref" rowClassName={(team) => ['Generation issue', 'Corrections needed', 'Expired'].includes(team.document) ? 'is-aivex-attention' : team.document === 'Validated' ? 'is-aivex-validated' : ''} onOpen={(team) => navigate(`/admin/aivex/${team.id}`)} columns={[
+        { key: 'ref', label: 'Reference', render: (t) => <span className="adm-aivex-ref-cell"><code>{t.ref}</code><small>Edition 02</small></span> },
+        { key: 'name', label: 'Team', render: (t) => <span className="adm-aivex-team-cell"><b>{t.name}</b><small>{t.completeness === 100 ? 'Administrative file complete' : `${10 - t.checklist.filter(Boolean).length} checks pending`}</small></span> },
+        { key: 'institution', label: 'Institution', render: (t) => <span className="adm-institution-cell"><b>{t.institution}</b><small>{t.wilaya}</small></span> },
+        { key: 'manager', label: 'Activities manager', secondary: true, render: (t) => <span className="adm-aivex-manager-cell"><b>{t.manager}</b><small>{t.managerRole}</small></span> },
+        { key: 'registration', label: 'Registration', render: (t) => <StatusBadge>{t.registration}</StatusBadge> },
+        { key: 'document', label: 'Document', render: (t) => <StatusBadge>{t.document}</StatusBadge> },
+        { key: 'completeness', label: 'Completeness', render: (t) => <span className="adm-aivex-table-progress"><Progress value={t.completeness}/><small className={t.signed ? 'is-present' : 'is-missing'}><FileCheck2 size={12}/>{t.signed ? 'Signed copy received' : 'Signed copy missing'}</small></span> },
+        { key: 'submitted', label: 'Submitted', render: (t) => <span className="adm-aivex-date-cell"><b>{t.submitted}</b><small>Initial record</small></span> },
+        { key: 'updated', label: 'Updated', secondary: true, render: (t) => <span className="adm-aivex-date-cell"><b>{t.updated}</b><small>Latest activity</small></span> },
+      ]}/>
+    </>}</div>
     <div className="adm-security-footnote"><LockKeyhole size={14}/><p>Identity documents are visible only inside the confidential viewer. Every consultation is logged.</p></div>
   </div>
 }

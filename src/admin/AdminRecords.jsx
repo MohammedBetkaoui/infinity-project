@@ -2,7 +2,7 @@ import { useId, useState } from 'react'
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, LayoutGrid, List, SlidersHorizontal } from 'lucide-react'
 import { Button, BulkBar, Drawer, EmptyState, Modal, Pagination, SearchField, StatusBadge } from './AdminUI'
 
-export function RecordTable({ records, columns, selected = [], onSelect, onBulk, onOpen, pageSize = 6, defaultSort = '', cards = false, emptyTitle }) {
+export function RecordTable({ records, columns, selected = [], onSelect, onBulk, onOpen, pageSize = 6, defaultSort = '', cards = false, emptyTitle, className = '', rowClassName }) {
   const [sort, setSort] = useState({ key: defaultSort, asc: true })
   const [page, setPage] = useState(1)
   const sorted = [...records].sort((a, b) => !sort.key ? 0 : String(a[sort.key] ?? '').localeCompare(String(b[sort.key] ?? ''), 'en', { numeric: true }) * (sort.asc ? 1 : -1))
@@ -12,10 +12,10 @@ export function RecordTable({ records, columns, selected = [], onSelect, onBulk,
   const toggle = (id) => onSelect(selected.includes(id) ? selected.filter((value) => value !== id) : [...selected, id])
   return <>
     <BulkBar count={selected.length} onClear={() => onSelect([])} onStatus={onBulk}/>
-    <div className={`adm-table-wrap ${cards ? 'is-card-view' : ''}`}>
+    <div className={`adm-table-wrap ${cards ? 'is-card-view' : ''} ${className}`}>
       <table className="adm-table">
         <thead><tr>{onSelect && <th className="is-checkbox"><input type="checkbox" checked={selectAll} onChange={() => onSelect(selectAll ? selected.filter((id) => !visible.some((r) => r.id === id)) : [...new Set([...selected, ...visible.map((r) => r.id)])])} aria-label="Select visible records"/></th>}{columns.map((column) => <th key={column.key} className={column.secondary ? 'adm-secondary-column' : ''} aria-sort={sort.key === column.key ? sort.asc ? 'ascending' : 'descending' : 'none'}><button onClick={() => setSort({ key: column.key, asc: sort.key === column.key ? !sort.asc : true })}>{column.label}{sort.key === column.key ? sort.asc ? <ArrowUp size={12}/> : <ArrowDown size={12}/> : <ArrowUpDown size={12}/>}</button></th>)}{onOpen && <th aria-label="Open record"/>}</tr></thead>
-        <tbody>{visible.map((record) => <tr key={record.id} className={`${selected.includes(record.id) ? 'is-selected' : ''} ${record.status === 'New' ? 'is-new' : ''}`}>
+        <tbody>{visible.map((record) => <tr key={record.id} className={`${selected.includes(record.id) ? 'is-selected' : ''} ${record.status === 'New' ? 'is-new' : ''} ${rowClassName?.(record) || ''}`}>
           {onSelect && <td className="is-checkbox"><input type="checkbox" checked={selected.includes(record.id)} onChange={() => toggle(record.id)} aria-label={`Select ${record.name}`}/></td>}
           {columns.map((column, index) => <td key={column.key} data-label={column.label} className={column.secondary ? 'adm-secondary-column' : ''}>{index === 0 && onOpen ? <button className="adm-record-link" onClick={() => onOpen(record)}>{column.render ? column.render(record) : record[column.key]}</button> : column.render ? column.render(record) : record[column.key] || '—'}</td>)}
           {onOpen && <td className="adm-row-action"><button onClick={() => onOpen(record)} aria-label={`Open ${record.name || record.entity || 'record'}`}><ChevronRight size={17}/><span>Open file</span></button></td>}
@@ -27,13 +27,30 @@ export function RecordTable({ records, columns, selected = [], onSelect, onBulk,
   </>
 }
 
-export function RecordToolbar({ search, onSearch, placeholder, filters = {}, onFilters, definitions = [], view, onView, extra }) {
+export function RecordToolbar({ search, onSearch, placeholder, filters = {}, onFilters, definitions = [], quickDefinitions = [], resultCount, filterLabel = 'Filters', view, onView, extra }) {
   const [open, setOpen] = useState(false)
-  const count = Object.values(filters).filter(Boolean).length
+  const activeFilters = Object.entries(filters).filter(([, value]) => value)
+  const count = activeFilters.length
+  const hasResultCount = Number.isFinite(resultCount)
   return <>
-    <div className="adm-toolbar"><SearchField value={search} onChange={onSearch} placeholder={placeholder}/><div className="adm-toolbar__filters">{extra}<Button variant="secondary" onClick={() => setOpen(true)} icon={<SlidersHorizontal size={15}/>}>Filters {count ? <span className="adm-filter-count">{count}</span> : null}</Button>{onView && <div className="adm-view-toggle" aria-label="Record view"><button aria-label="Table view" aria-pressed={view === 'table'} className={view === 'table' ? 'is-active' : ''} onClick={() => onView('table')}><List size={17}/></button><button aria-label="Card view" aria-pressed={view === 'cards'} className={view === 'cards' ? 'is-active' : ''} onClick={() => onView('cards')}><LayoutGrid size={17}/></button></div>}</div></div>
-    {count > 0 && <div className="adm-active-filters">{Object.entries(filters).filter(([,v]) => v).map(([key, value]) => <button key={key} onClick={() => onFilters({ ...filters, [key]: '' })}>{definitions.find((d) => d.key === key)?.label}: {value} ×</button>)}<button onClick={() => onFilters({})}>Clear filters</button></div>}
-    {open && <Drawer title="Refine records" eyebrow="Search & filters" onClose={() => setOpen(false)} footer={<><Button variant="secondary" onClick={() => onFilters({})}>Reset filters</Button><Button onClick={() => setOpen(false)}>Show results</Button></>}><div className="adm-filter-fields">{definitions.map((definition) => <label className="adm-form-field" key={definition.key}><span>{definition.label}</span>{definition.type === 'date' ? <input type="date" value={filters[definition.key] || ''} onChange={(event) => onFilters({ ...filters, [definition.key]: event.target.value })}/> : <select value={filters[definition.key] || ''} onChange={(event) => onFilters({ ...filters, [definition.key]: event.target.value })}><option value="">All</option>{definition.options.map((value) => <option key={value}>{value}</option>)}</select>}</label>)}</div></Drawer>}
+    <div className="adm-toolbar">
+      <SearchField value={search} onChange={onSearch} placeholder={placeholder}/>
+      <div className="adm-toolbar__filters">
+        {quickDefinitions.map((definition) => <label className="adm-quick-filter" key={definition.key}><span>{definition.shortLabel || definition.label}</span><select aria-label={definition.label} value={filters[definition.key] || ''} onChange={(event) => onFilters({ ...filters, [definition.key]: event.target.value })}><option value="">{definition.allLabel || 'All'}</option>{definition.options.map((value) => <option key={value}>{value}</option>)}</select></label>)}
+        {extra}
+        <Button variant="secondary" onClick={() => setOpen(true)} icon={<SlidersHorizontal size={15}/>}>{filterLabel} {count ? <span className="adm-filter-count">{count}</span> : null}</Button>
+        {onView && <div className="adm-view-toggle" aria-label="Record view"><button aria-label="Table view" aria-pressed={view === 'table'} className={view === 'table' ? 'is-active' : ''} onClick={() => onView('table')}><List size={17}/></button><button aria-label="Card view" aria-pressed={view === 'cards'} className={view === 'cards' ? 'is-active' : ''} onClick={() => onView('cards')}><LayoutGrid size={17}/></button></div>}
+      </div>
+    </div>
+    {(count > 0 || hasResultCount) && <div className="adm-active-filters">
+      {hasResultCount && <p><i/><span>Live scope</span><b>{resultCount} matching record{resultCount !== 1 ? 's' : ''}</b></p>}
+      {count > 0 ? <div className="adm-filter-chips">{activeFilters.map(([key, value]) => <button key={key} aria-label={`Remove ${definitions.find((definition) => definition.key === key)?.label || key} filter`} onClick={() => onFilters({ ...filters, [key]: '' })}><span>{definitions.find((definition) => definition.key === key)?.shortLabel || definitions.find((definition) => definition.key === key)?.label || key}</span><b>{value}</b><i aria-hidden="true">×</i></button>)}</div> : <span className="adm-filter-scope__idle">All records included</span>}
+      {count > 0 && <button className="adm-clear-filters" onClick={() => onFilters({})}>Clear all</button>}
+    </div>}
+    {open && <Drawer title="Refine records" eyebrow="Search & filters" onClose={() => setOpen(false)} footer={<><Button variant="secondary" onClick={() => onFilters({})}>Reset filters</Button><Button onClick={() => setOpen(false)}>Show {hasResultCount ? resultCount : ''} results</Button></>}>
+      {hasResultCount && <div className="adm-filter-drawer-summary"><b>{resultCount}</b><span>records match the current criteria. Changes are reflected immediately.</span></div>}
+      <div className="adm-filter-fields">{definitions.map((definition) => <label className="adm-form-field" key={definition.key}><span>{definition.label}</span>{definition.type === 'date' ? <input type="date" value={filters[definition.key] || ''} onChange={(event) => onFilters({ ...filters, [definition.key]: event.target.value })}/> : <select value={filters[definition.key] || ''} onChange={(event) => onFilters({ ...filters, [definition.key]: event.target.value })}><option value="">All</option>{definition.options.map((value) => <option key={value}>{value}</option>)}</select>}</label>)}</div>
+    </Drawer>}
   </>
 }
 
