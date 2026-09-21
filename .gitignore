@@ -2,6 +2,7 @@ node_modules/
 dist/
 .browser-motion-audit/
 .browser-about-profile/
+.browser-admin-audit/
 
 !.env.example
 .env

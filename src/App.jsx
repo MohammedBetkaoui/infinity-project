@@ -23,6 +23,7 @@ const JoinPage = lazy(() => import('./pages/join/JoinPage'))
 const AivexRegisterPage = lazy(() => import('./pages/aivex/register/AivexRegisterPage'))
 const AivexStatusPage = lazy(() => import('./pages/aivex/status/AivexStatusPage'))
 // Back-office: its own chunk, so none of it ships with the public site.
+const AdminApp = lazy(() => import('./admin/AdminApp'))
 
 function SitePage({ children, mainRef, motionTrigger }) {
   return (
