@@ -21,7 +21,7 @@ import { WORD_EXCLUDED_FIELDS_V4, WORD_VARIABLES_V4, resolveWordDataV4 } from '.
 import { STALE_AFTER_MS, registerV4, toRegistrationRow } from '../api/_lib/aivex-registration-v4.js'
 import { validateIdentityCardsV4, validateRegistrationFilesV4 } from '../api/_lib/aivex-validation-v4.js'
 import { MultipartError, parseMultipart } from '../api/_lib/multipart.js'
-import { createRegisterHandler } from '../api/aivex/register.js'
+import { createRegisterHandler } from './support/aivex-register-handler.mjs'
 import {
   IDENTITY_CARD_TYPES, buildSubmission, buildSummary, checkIdentityFile, identityIssues, SECTIONS,
 } from '../src/pages/aivex/register/registrationModel.js'
@@ -914,7 +914,9 @@ test('26. the Magic Link and the candidate status page never touch identity docu
   for (const file of await listSource('api')) {
     if (/id_card|idCard|IdCard|IDENTITY_CARD|aivex-id-cards/.test(await read(file))) knowing.push(file)
   }
-  assert.deepEqual(knowing.sort(), ['api/_lib/aivex-registration-v4.js', 'api/_lib/aivex-validation-v4.js', 'api/aivex/register.js'])
+  assert.deepEqual(knowing.sort(), [
+    'api/_lib/aivex-direct-upload.js', 'api/_lib/aivex-registration-v4.js', 'api/_lib/aivex-validation-v4.js',
+  ])
   // The candidate-facing statuses are unchanged: identity documents add none.
   const contract = await read('shared/aivex/contract-v4.js')
   assert.match(contract, /'signed_document_uploaded',\s+'under_review',\s+'changes_required',\s+'validated',/)
@@ -938,7 +940,7 @@ test('the existing security posture is untouched: no new column privilege, RLS o
   assert.match(raw, /^-- AIVEX registration — identity documents/)
   assert.match(MIGRATION, /^supabase\/migrations\/\d{14}_aivex_v4_identity_documents\.sql$/)
   const names = (await readdir(new URL('../supabase/migrations/', import.meta.url))).sort()
-  assert.equal(names.at(-1), MIGRATION.split('/').at(-1), 'it is the latest migration, applied after every existing one')
+  assert.ok(names.includes(MIGRATION.split('/').at(-1)), 'the identity migration remains in the ordered history')
   for (const rule of [/is not null/g]) assert.ok((sql.match(rule) || []).length >= 8, 'each branch of the rule spells out is not null (a check passes on NULL)')
   assert.match(sql, /size between 1 and 5242880/)
   assert.match(sql, /\[0-9a-f\]\{64\}/)

@@ -70,15 +70,16 @@ test('toneFor: action for the signature step, success only for received/validate
   for (const status of ['not_generated', 'generating', 'under_review', 'something_new']) assert.equal(toneFor(status), 'pending', status)
 })
 
-test('stageFor: the two upload stages are exactly the statuses the server accepts an upload for', () => {
+test('stageFor: upload stages are exactly the statuses the server accepts, including corrections', () => {
   const uploadStages = ALL_DOCUMENT_STATUSES.filter((status) => ['sign', 'received'].includes(stageFor(status)))
   assert.deepEqual([...uploadStages].sort(), [...UPLOAD_ELIGIBLE_DOCUMENT_STATUSES].sort())
   assert.equal(stageFor('awaiting_signature'), 'sign')
   assert.equal(stageFor('signed_document_uploaded'), 'received')
+  assert.equal(stageFor('changes_required'), 'sign')
   assert.equal(stageFor('not_generated'), 'preparing')
   assert.equal(stageFor('generating'), 'preparing')
   assert.equal(stageFor('generation_failed'), 'retry')
-  for (const status of ['under_review', 'changes_required', 'validated', 'expired', 'something_new']) assert.equal(stageFor(status), 'other', status)
+  for (const status of ['under_review', 'validated', 'expired', 'something_new']) assert.equal(stageFor(status), 'other', status)
 })
 
 test('formatFileSize: KB under a megabyte, one-decimal MB above, never empty', () => {
@@ -198,11 +199,13 @@ test('status page components never persist, log or beacon anything', async () =>
   assert.deepEqual(page.match(/\.setItem\([^)]*\)/g), ['.setItem(REGISTER_LANG_STORAGE_KEY, lang)'], 'the only write is the language preference')
 })
 
-test('the upload sends the file to this site\'s own endpoint only, with a per-file idempotency id', async () => {
+test('the upload uses same-origin init/finalize and direct signed Storage progress with a per-file idempotency id', async () => {
   const hook = withoutComments(await read('src/pages/aivex/status/useAivexStatus.js'))
-  assert.match(hook, /const UPLOAD_ENDPOINT = '\/api\/aivex\/magic-link\/upload'/)
-  assert.match(hook, /request\.open\('POST', UPLOAD_ENDPOINT\)/)
+  assert.match(hook, /UPLOAD_INIT_ENDPOINT = '\/api\/aivex\/magic-link\/upload\/init'/)
+  assert.match(hook, /UPLOAD_FINALIZE_ENDPOINT = '\/api\/aivex\/magic-link\/upload\/finalize'/)
   assert.doesNotMatch(hook, /https?:\/\//, 'no absolute URL: nothing leaves this origin')
   assert.match(hook, /createSubmissionId/, 'the uploadId is generated per picked file')
-  assert.match(hook, /upload\.onprogress/, 'progress is the real transfer, not a fake timer')
+  const direct = withoutComments(await read('src/lib/directStorageUpload.js'))
+  assert.match(direct, /request\.upload\.onprogress/, 'progress is the real direct transfer, not a fake timer')
+  assert.match(direct, /request\.open\('PUT', signedUrl\)/)
 })

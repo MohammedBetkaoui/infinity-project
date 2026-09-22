@@ -20,7 +20,7 @@ import {
 } from '../api/_lib/aivex-registration-v4.js'
 import { validateRegistrationFilesV4, validateStudentCardsV4 } from '../api/_lib/aivex-validation-v4.js'
 import { parseMultipart } from '../api/_lib/multipart.js'
-import { createRegisterHandler } from '../api/aivex/register.js'
+import { createRegisterHandler } from './support/aivex-register-handler.mjs'
 import {
   CARD_TYPES, DRAFT_KEY, FORM_VERSION, LEGACY_DRAFT_KEYS, SECTIONS, STUDENT_COUNT, STUDENT_FIELDS, STUDENT_TEXT_FIELDS,
   buildSubmission, checkCardFile, personIssues, studentIssues,

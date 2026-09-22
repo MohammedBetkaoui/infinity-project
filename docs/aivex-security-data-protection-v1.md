@@ -1,5 +1,11 @@
 # AIVEX Security & Data Protection
 
+> **Architecture update — 2026-09-24 (prepared, not deployed).** The candidate upload path has moved from multipart Vercel requests to private direct uploads: small JSON `init`, a Supabase signed upload capability scoped to one server-derived `staging/` object, then small JSON `finalize`. Finalize downloads the staged object through the server credential, validates real bytes/MIME/size/extension and SHA-256 where required, and copies it to the existing private permanent path. The browser receives no Supabase secret or broad credential. The legacy multipart endpoints return `410 direct_upload_required`.
+>
+> Signed upload capabilities are write-only, temporary and object-scoped. They are not public/read URLs. Private bucket settings, default-deny database access, V4 validation, idempotency, compensation, DOCX generation and Magic Link authorization remain. Registration and signed-document campaign gates are now checked server-side at both init and finalize. The sections below retain the 2026-09-19 audit evidence where unchanged; descriptions of multipart candidate uploads are historical and are superseded by this update and `docs/aivex-production-readiness.md`.
+>
+> **Retention update.** A configurable, approval-gated dry-run purge is prepared for head/driver identity cards only. It is unscheduled and disabled by default. See `docs/aivex-identity-document-retention-policy.md`. **AUTOMATIC PURGE REMAINS DISABLED UNTIL UNIVERSITY APPROVAL.**
+
 > **Status: Phase 4D audit — 2026-09-19. Audit only; the production DOCX workflow (registration → Supabase → private storage → DOCX → secure download) is unchanged.**
 >
 > This document records what the current, live implementation actually does. It does not make a legal determination — Algerian data-protection compliance is the university's/DPO's decision (§18).

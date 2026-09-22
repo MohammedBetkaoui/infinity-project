@@ -1,3 +1,5 @@
+import { postCandidateJson, uploadCapabilitySet } from './directStorageUpload'
+
 // Static reads only: Vite then inlines these variables and nothing else.
 // A dynamic import.meta.env[name] would ship every VITE_/INFINITY_/AIVEX_
 // variable of the build to the browser.
@@ -39,7 +41,7 @@ const pickServerMessage = (payload) => {
   if (typeof message !== 'string') return ''
   const trimmed = message.trim()
   if (!trimmed) return ''
-  if (/(stack trace|supabase|sb_secret|service_role|postgres|password|secret|api[_-]?key|select\s+.*\s+from\s+)/i.test(trimmed)) return ''
+  if (/(stack trace|supabase|sb_secret|service[_-]role|postgres|password|secret|api[_-]?key|select\s+.*\s+from\s+)/i.test(trimmed)) return ''
   return trimmed.slice(0, 300)
 }
 
@@ -128,20 +130,24 @@ export async function submitApplication(kind, answers, { files = [], version = 1
 // this site's own registration endpoint.
 // The reference only ever comes from the server: no client fallback. A
 // replay of the same submissionId answers 200 { alreadyProcessed: true }.
-export async function submitAivexRegistrationV4({ payload, files, website }) {
+export async function submitAivexRegistrationV4({ payload, files, website, onProgress }) {
   if (website) return { delivered: true, reference: null }
   const endpoint = ENDPOINTS.aivex
   if (!endpoint) return { delivered: false, reference: null }
-
-  const body = new FormData()
-  body.append('payload', JSON.stringify(payload))
-  files.forEach(({ field, file, filename }) => body.append(field, file, filename))
-
-  const result = await postToEndpoint(endpoint, {
-    body,
-    headers: { Accept: 'application/json' },
-    timeoutMs: REQUEST_TIMEOUT_MS * 4,
+  const base = endpoint.replace(/\/$/, '')
+  onProgress?.({ phase: 'preparing', progress: 0 })
+  const initialized = await postCandidateJson(`${base}/init`, {
+    payload,
+    files: files.map(({ field, file }) => ({ field, mime: file.type, size: file.size })),
   })
+  if (initialized.alreadyProcessed) {
+    return { delivered: true, reference: initialized.reference, alreadyProcessed: true, magicLink: null }
+  }
+  onProgress?.({ phase: 'uploading', progress: 0 })
+  await uploadCapabilitySet(initialized.uploads, files, (progress) => onProgress?.({ phase: 'uploading', progress }))
+  onProgress?.({ phase: 'verifying', progress: 100 })
+  const result = await postCandidateJson(`${base}/finalize`, { uploadSessionId: initialized.uploadSessionId, payload }, REQUEST_TIMEOUT_MS * 5)
+  onProgress?.({ phase: 'finalized', progress: 100 })
   return {
     delivered: true,
     reference: typeof result.reference === 'string' ? result.reference : null,

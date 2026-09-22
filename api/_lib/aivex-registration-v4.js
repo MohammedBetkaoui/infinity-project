@@ -180,7 +180,7 @@ const SHA256_RE = /^[0-9a-f]{64}$/
 const hasIdentityCards = (identityCards) => Array.isArray(identityCards)
   && identityCards.length === IDENTITY_CARD_SUBJECTS.length
   && IDENTITY_CARD_SUBJECTS.every((subject) => identityCards.some((card) => card.subject === subject
-    && Buffer.isBuffer(card.buffer) && card.buffer.length > 0 && card.size === card.buffer.length
+    && ((Buffer.isBuffer(card.buffer) && card.buffer.length > 0 && card.size === card.buffer.length) || typeof card.sourcePath === 'string')
     && Boolean(IDENTITY_CARD_POLICY.types[card.mime]) && SHA256_RE.test(card.sha256)))
 
 // The private path of every identity card, generated NOW, by the server:
@@ -240,10 +240,14 @@ async function completeRegistration(store, { id, reference }, registration, card
   try {
     for (const card of cards) {
       const path = studentCardStoragePath(id, card.position, card.mime, registration.edition)
-      await store.uploadCard(path, card.buffer, card.mime)
+      if (card.sourcePath && store.copyCard) await store.copyCard(card.sourcePath, path)
+      else await store.uploadCard(path, card.buffer, card.mime)
       stored.push({ position: card.position, path, mime: card.mime, size: card.size })
     }
-    for (const card of identityCards) await store.uploadIdentityCard(card.path, card.buffer, card.mime)
+    for (const card of identityCards) {
+      if (card.sourcePath && store.copyIdentityCard) await store.copyIdentityCard(card.sourcePath, card.path)
+      else await store.uploadIdentityCard(card.path, card.buffer, card.mime)
+    }
     // The completion marker: nothing above may be missing when this succeeds.
     await store.insertStudents(toStudentRows(id, registration, stored))
   } catch (error) {
@@ -353,9 +357,17 @@ export function createSupabaseRegistrationStore(supabase) {
       const { error } = await bucket().upload(path, buffer, { contentType: mime, upsert: false })
       if (error) throw new StoreError('upload', error)
     },
+    async copyCard(sourcePath, path) {
+      const { error } = await bucket().copy(sourcePath, path)
+      if (error) throw new StoreError('copy', error)
+    },
     async uploadIdentityCard(path, buffer, mime) {
       const { error } = await identityBucket().upload(path, buffer, { contentType: mime, upsert: false })
       if (error) throw new StoreError('upload-identity', error)
+    },
+    async copyIdentityCard(sourcePath, path) {
+      const { error } = await identityBucket().copy(sourcePath, path)
+      if (error) throw new StoreError('copy-identity', error)
     },
     // The three rows in one INSERT: the deferred team-size trigger needs them together.
     async insertStudents(rows) {

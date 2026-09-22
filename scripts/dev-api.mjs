@@ -42,10 +42,14 @@ const joinHandler = await load('join.js')
 // not consume the body before handing the request over.
 const streamingRoutes = {
   '/api/aivex/register': await load('aivex', 'register.js'),
+  '/api/aivex/register/init': await load('aivex', 'register', 'init.js'),
+  '/api/aivex/register/finalize': await load('aivex', 'register', 'finalize.js'),
   '/api/aivex/document': await load('aivex', 'document.js'),
   '/api/aivex/magic-link': await load('aivex', 'magic-link.js'),
   '/api/aivex/magic-link/verify': await load('aivex', 'magic-link', 'verify.js'),
   '/api/aivex/magic-link/upload': await load('aivex', 'magic-link', 'upload.js'),
+  '/api/aivex/magic-link/upload/init': await load('aivex', 'magic-link', 'upload', 'init.js'),
+  '/api/aivex/magic-link/upload/finalize': await load('aivex', 'magic-link', 'upload', 'finalize.js'),
   '/api/aivex/magic-link/document': await load('aivex', 'magic-link', 'document.js'),
 }
 

@@ -89,7 +89,9 @@ export async function uploadSignedDocument({ store, registrationId, uploadId, fi
     const version = (await store.highestVersion(registrationId)) + 1
     const path = signedDocumentPath(registrationId, registration.edition, version, file.extension)
 
-    const uploaded = await store.uploadFile(path, file.buffer, file.mime)
+    const uploaded = file.sourcePath && store.copyFile
+      ? await store.copyFile(file.sourcePath, path)
+      : await store.uploadFile(path, file.buffer, file.mime)
     if (!uploaded.ok) {
       const winner = uploadId && await store.findByUploadId(registrationId, uploadId)
       if (winner) return { ok: true, version: winner.version, replayed: true }

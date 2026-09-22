@@ -32,7 +32,7 @@ export default function CompetitionRegistration() {
   const [lang, setLang] = useState(readLang)
   const t = getRegistrationStrings(lang)
   const registration = useCompetitionRegistration(lang)
-  const { step, status, team, activityOfficial, result, sectionComplete, completeCount } = registration
+  const { step, status, transfer, team, activityOfficial, result, sectionComplete, completeCount } = registration
   const [copied, setCopied] = useState(false)
   const copyTimer = useRef(0)
   const done = status === 'success'
@@ -116,6 +116,19 @@ export default function CompetitionRegistration() {
                 <a href={INSTAGRAM_URL} target="_blank" rel="noreferrer">{t.contactTeam}</a>
               </div>
             </motion.div>
+          )}
+
+          {status === 'submitting' && (
+            <div className="axr-upload-progress" role="status" aria-live="polite">
+              <div className="axr-upload-progress-copy">
+                <strong>{t.uploadPhases?.[transfer.phase] || t.submitting}</strong>
+                <span>{transfer.phase === 'uploading' ? `${transfer.progress}%` : ''}</span>
+              </div>
+              <div className="axr-upload-progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={100}
+                aria-valuenow={transfer.progress} aria-label={t.uploadPhases?.[transfer.phase] || t.submitting}>
+                <span style={{ inlineSize: `${transfer.progress}%` }} />
+              </div>
+            </div>
           )}
 
           <div className="af-actions">

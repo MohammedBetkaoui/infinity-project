@@ -57,10 +57,11 @@ export function stageFor(documentStatus) {
   switch (documentStatus) {
     case 'awaiting_signature': return 'sign'
     case 'signed_document_uploaded': return 'received'
+    case 'changes_required': return 'sign'
     case 'not_generated':
     case 'generating': return 'preparing'
     case 'generation_failed': return 'retry'
-    default: return 'other' // under_review, changes_required, validated, expired
+    default: return 'other' // under_review, validated, expired
   }
 }
 

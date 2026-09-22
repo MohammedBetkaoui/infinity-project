@@ -27,7 +27,7 @@ import {
   validateRegistrationV4,
 } from '../shared/aivex/contract-v4.js'
 import { algerianWilayas } from '../src/data/algeriaHigherEducation.js'
-import { createRegisterHandler } from '../api/aivex/register.js'
+import { createRegisterHandler } from './support/aivex-register-handler.mjs'
 import { registerV4 } from '../api/_lib/aivex-registration-v4.js'
 import { officialIssues, personIssues, studentIssues, teamIssues } from '../src/pages/aivex/register/registrationModel.js'
 import { getBacYearOptions, getRegistrationStrings, registrationStrings } from '../src/pages/aivex/register/registrationI18n.js'
@@ -891,10 +891,10 @@ test('registerV4 still needs a validated registration: an unvalidated value is n
   assert.equal(validated.ok, true)
   assert.deepEqual(Object.keys(validated.value), ['submissionId', 'edition', 'formVersion', 'team', 'activityOfficial', 'delegationHead', 'driver', 'students', 'consent'])
   assert.equal(typeof registerV4, 'function')
-  const handlerSource = await read('api/aivex/register.js')
-  const validateAt = handlerSource.indexOf('validateRegistrationV4(body)')
-  const storeAt = handlerSource.indexOf('createStore()')
-  const filesAt = handlerSource.indexOf('validateRegistrationFilesV4(')
+  const handlerSource = await read('api/aivex/register/finalize.js')
+  const validateAt = handlerSource.indexOf('validateRegistrationV4(body?.payload)')
+  const filesAt = handlerSource.indexOf('verifyRegistrationStaging(')
+  const storeAt = handlerSource.indexOf('registerV4({')
   assert.ok(validateAt > 0 && filesAt > validateAt && storeAt > filesAt, 'validation, then the files, then — and only then — the backend')
 })
 
@@ -1035,7 +1035,8 @@ test('VALIDATION TIMING: errors show on blur, when leaving a step and on submit 
 test('SINGLE SOURCE: no phone, RFID, name or BAC rule is written anywhere but the shared contract', async () => {
   const files = [
     ...(await readdir(new URL(`../${registerDir}/`, import.meta.url))).filter((name) => /\.(js|jsx)$/.test(name) && name !== 'registrationI18n.js').map((name) => `${registerDir}/${name}`),
-    'src/lib/applicationSubmission.js', 'api/aivex/register.js', 'api/_lib/aivex-validation-v4.js', 'api/_lib/aivex-registration-v4.js', 'api/_lib/multipart.js',
+    'src/lib/applicationSubmission.js', 'api/aivex/register/init.js', 'api/aivex/register/finalize.js',
+    'api/_lib/aivex-validation-v4.js', 'api/_lib/aivex-registration-v4.js', 'api/_lib/multipart.js',
   ]
   const forbidden = [
     [/\[567\]/, 'the phone prefixes'], [/\[0-9\]\{8\}|\\d\{8\}/, 'the student RFID length'], [/\\p\{L\}|\\p\{M\}|\[a-zA-Z/, 'the name letters'],
@@ -1058,7 +1059,8 @@ test('SINGLE SOURCE: no phone, RFID, name or BAC rule is written anywhere but th
   for (const name of ['isValidPhoneInput', 'isValidStudentRfid', 'isValidDelegationRfid', 'isValidBacYear', 'personNameIssue', 'bacYearChoices']) {
     assert.match(model, new RegExp(`\\b${name}\\b`), `the form uses the shared ${name}`)
   }
-  assert.match(await read('api/aivex/register.js'), /validateRegistrationV4\(body\)/)
+  assert.match(await read('api/aivex/register/init.js'), /validateRegistrationV4\(body\?\.payload\)/)
+  assert.match(await read('api/aivex/register/finalize.js'), /validateRegistrationV4\(body\?\.payload\)/)
 })
 
 test('SINGLE SOURCE: the contract stays pure — no clock, no React, no network — and the validator takes no date', async () => {
@@ -1106,9 +1108,9 @@ test('DATABASE: phones and RFIDs are TEXT, the BAC year an integer, and the stri
   }
   assert.match(contractSql, /bac_year between 1990 and 2100/)
   for (const year of bacYearChoices()) assert.ok(year >= 1990 && year <= 2100, String(year))
-  // No migration is part of this change: the newest one is still the identity-documents one.
+  // Direct upload adds one ordered, additive migration after identity documents.
   const migrations = (await readdir(new URL('../supabase/migrations/', import.meta.url))).sort()
-  assert.equal(migrations.at(-1), '20260923120000_aivex_v4_identity_documents.sql')
+  assert.equal(migrations.at(-1), '20260924120000_aivex_direct_upload_sessions_and_retention.sql')
 })
 
 // ---------------------------------------------------------------------------------------

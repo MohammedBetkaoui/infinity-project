@@ -9,7 +9,7 @@ const pause = (duration) => new Promise((resolve) => window.setTimeout(resolve, 
 const toUserMessage = (error) => {
   if (error?.name === 'AbortError') return 'The request timed out. Please try again.'
   const raw = typeof error?.message === 'string' ? error.message.trim() : ''
-  if (raw && !/(stack trace|supabase|sb_secret|service_role|postgres|password|secret|api[_-]?key|select\s+.*\s+from\s+|at\s+https?:|node_modules)/i.test(raw)) {
+  if (raw && !/(stack trace|supabase|sb_secret|service[_-]role|postgres|password|secret|api[_-]?key|select\s+.*\s+from\s+|at\s+https?:|node_modules)/i.test(raw)) {
     return raw.slice(0, 300)
   }
   return 'We could not send the form. Your answers are still saved in this tab.'

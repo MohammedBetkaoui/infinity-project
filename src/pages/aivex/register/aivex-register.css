@@ -409,3 +409,31 @@ html[data-page='aivex']::-webkit-scrollbar-thumb { border: 2px solid #1a1114; bo
 @media (prefers-reduced-motion: reduce) {
   .ax-registration-page *, .ax-registration-page *::before, .ax-registration-page *::after { animation: none !important; transition-duration: .01ms !important; }
 }
+
+.axr-upload-progress {
+  margin-block: 1rem;
+  padding: .9rem 1rem;
+  border: 1px solid rgba(9, 74, 54, .22);
+  border-radius: 8px;
+  background: rgba(158, 215, 196, .12);
+}
+.axr-upload-progress-copy {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-block-end: .55rem;
+  color: #002a1e;
+  font-size: .82rem;
+}
+.axr-upload-progress-track {
+  overflow: hidden;
+  block-size: 6px;
+  border-radius: 3px;
+  background: rgba(0, 42, 30, .12);
+}
+.axr-upload-progress-track > span {
+  display: block;
+  block-size: 100%;
+  background: #0b7657;
+  transition: inline-size 180ms ease;
+}

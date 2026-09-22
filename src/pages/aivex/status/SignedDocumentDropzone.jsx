@@ -16,8 +16,8 @@ export default function SignedDocumentDropzone({
   upload, hasExisting, showSuccess = true, selectSignedDocument, clearSignedDocument, submitSignedDocument, t,
 }) {
   const [dragging, setDragging] = useState(false)
-  const busy = upload.status === 'uploading'
-  const processing = busy && upload.progress >= 100
+  const busy = ['preparing', 'uploading', 'verifying'].includes(upload.status)
+  const processing = upload.status === 'preparing' || upload.status === 'verifying'
 
   const pick = (file) => {
     if (file && !busy) selectSignedDocument(file)
@@ -76,7 +76,8 @@ export default function SignedDocumentDropzone({
             aria-valuenow={upload.progress} data-processing={processing ? '' : undefined}>
             <span style={{ inlineSize: `${upload.progress}%` }} />
           </div>
-          <p>{processing ? t.uploadProcessing : `${t.uploadSubmitting} ${upload.progress}%`}</p>
+          <p>{upload.status === 'preparing' ? (t.uploadPreparing || t.uploadProcessing)
+            : processing ? t.uploadProcessing : `${t.uploadSubmitting} ${upload.progress}%`}</p>
         </div>
       )}
 

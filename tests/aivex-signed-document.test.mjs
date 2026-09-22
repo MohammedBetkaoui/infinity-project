@@ -9,7 +9,7 @@ import { createHash } from 'node:crypto'
 import { readFile, readdir } from 'node:fs/promises'
 import { Readable } from 'node:stream'
 import { test } from 'node:test'
-import { createMagicLinkUploadHandler } from '../api/aivex/magic-link/upload.js'
+import { createMagicLinkUploadHandler } from './support/aivex-signed-upload-handler.mjs'
 import { sanitizeOriginalFileName, uploadSignedDocument } from '../api/_lib/aivex-signed-document-upload.js'
 import { signedDocumentPath } from '../api/_lib/aivex-signed-document-store.js'
 import { validateSignedDocumentUpload } from '../api/_lib/aivex-signed-document-validation.js'
@@ -274,7 +274,7 @@ test('G. a successful upload transitions awaiting_signature -> signed_document_u
 })
 
 test('G2. an ineligible document_status refuses the upload and leaves it untouched', async () => {
-  for (const status of ['not_generated', 'generating', 'generation_failed']) {
+  for (const status of ['not_generated', 'generating', 'generation_failed', 'under_review', 'validated', 'rejected', 'expired']) {
     const store = createMemoryStore()
     store.registrations.get(REGISTRATION_ID).document_status = status
     const result = await uploadSignedDocument({ store, registrationId: REGISTRATION_ID, uploadId: null, file: validPdf(), now: NOW })
@@ -282,7 +282,27 @@ test('G2. an ineligible document_status refuses the upload and leaves it untouch
     assert.equal(store.registrations.get(REGISTRATION_ID).document_status, status, 'status unchanged')
     assert.equal(store.rows.length, 0, 'no row was created')
   }
-  assert.deepEqual(UPLOAD_ELIGIBLE_DOCUMENT_STATUSES, ['awaiting_signature', 'signed_document_uploaded'])
+  assert.deepEqual(UPLOAD_ELIGIBLE_DOCUMENT_STATUSES, ['awaiting_signature', 'signed_document_uploaded', 'changes_required'])
+})
+
+test('G3. changes_required accepts a new immutable version and returns to signed_document_uploaded', async () => {
+  const store = createMemoryStore()
+  store.registrations.get(REGISTRATION_ID).document_status = 'changes_required'
+  await uploadSignedDocument({ store, registrationId: REGISTRATION_ID, uploadId: '33333333-3333-4333-8333-333333333333', file: validPdf(), now: NOW })
+  assert.equal(store.rows.length, 1)
+  assert.equal(store.rows[0].version, 1)
+  assert.equal(store.registrations.get(REGISTRATION_ID).document_status, 'signed_document_uploaded')
+})
+
+test('G4. concurrent correction uploads keep distinct versions and preserve every object', async () => {
+  const store = createMemoryStore()
+  store.registrations.get(REGISTRATION_ID).document_status = 'changes_required'
+  const outcomes = await Promise.all([1, 2, 3].map((number) => uploadSignedDocument({
+    store, registrationId: REGISTRATION_ID, uploadId: `44444444-4444-4444-8444-44444444444${number}`,
+    file: validPdf(), now: NOW,
+  })))
+  assert.deepEqual(outcomes.map((entry) => entry.version).sort(), [1, 2, 3])
+  assert.equal(store.objects.size, 3)
 })
 
 test('H. storage failure: no metadata row, no status change, nothing orphaned', async () => {

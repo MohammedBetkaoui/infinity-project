@@ -24,7 +24,8 @@ export class SignedDocumentStoreError extends Error {
 // "already exists"/"duplicate" message) and anything it doesn't recognise
 // falls through to a real, loud SignedDocumentStoreError instead of being
 // silently treated as a harmless race.
-const isAlreadyExists = (error) => error?.statusCode === '409' || /already exists|duplicate/i.test(error?.message || '')
+const isAlreadyExists = (error) => String(error?.statusCode || error?.status || '') === '409'
+  || /already exists|duplicate/i.test(error?.message || '')
 
 // Deterministic, private, namespaced by edition and registration — same
 // shape as generatedDocumentPath in api/_lib/aivex-document-generation.js.
@@ -90,6 +91,12 @@ export function createSupabaseSignedDocumentStore(supabase) {
       if (!error) return { ok: true }
       if (isAlreadyExists(error)) return { ok: false, duplicate: true }
       throw new SignedDocumentStoreError('upload', error)
+    },
+    async copyFile(sourcePath, path) {
+      const { error } = await bucket().copy(sourcePath, path)
+      if (!error) return { ok: true }
+      if (isAlreadyExists(error)) return { ok: false, duplicate: true }
+      throw new SignedDocumentStoreError('copy', error)
     },
     async removeFile(path) {
       if (!path) return

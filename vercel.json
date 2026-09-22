@@ -5,6 +5,10 @@
       "maxDuration": 60,
       "includeFiles": "public/word-form/**"
     },
+    "api/aivex/register/finalize.js": {
+      "maxDuration": 60,
+      "includeFiles": "public/word-form/**"
+    },
     "api/aivex/document.js": {
       "maxDuration": 60,
       "includeFiles": "public/word-form/**"
@@ -14,6 +18,9 @@
       "includeFiles": "public/word-form/**"
     },
     "api/aivex/magic-link/upload.js": {
+      "maxDuration": 60
+    },
+    "api/aivex/magic-link/upload/finalize.js": {
       "maxDuration": 60
     }
   },

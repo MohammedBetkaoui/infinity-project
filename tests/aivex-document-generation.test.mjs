@@ -10,7 +10,7 @@ import { Readable } from 'node:stream'
 import { test } from 'node:test'
 import JSZip from 'jszip'
 import { createDocumentHandler } from '../api/aivex/document.js'
-import { createRegisterHandler } from '../api/aivex/register.js'
+import { createRegisterHandler } from './support/aivex-register-handler.mjs'
 import { WORD_VARIABLES_V4, resolveWordDataV4 } from '../shared/aivex/word-mapping-v4.js'
 import {
   AIVEX_TEMPLATE_VERSION, DOCX_MIME, loadRegistrationTemplate, renderRegistrationDocx, resetTemplateCache,

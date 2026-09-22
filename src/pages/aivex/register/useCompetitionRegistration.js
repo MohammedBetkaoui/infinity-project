@@ -33,6 +33,7 @@ const initialState = () => ({
   attempted: {},
   website: '',
   status: 'idle',
+  transfer: { phase: 'idle', progress: 0 },
   result: null,
   focus: null,
   hasDraft: false,
@@ -153,6 +154,8 @@ function reducer(state, action) {
       return { ...state, website: action.value }
     case 'status':
       return { ...state, status: action.status, result: action.result ?? null }
+    case 'transfer':
+      return { ...state, transfer: action.transfer }
     case 'reset':
       return { ...initialState(), focus: { id: 'axr-step-heading' } }
     default:
@@ -162,8 +165,9 @@ function reducer(state, action) {
 
 const toUserMessage = (error, L) => {
   if (error?.name === 'AbortError') return L?.errTimeout || 'The request timed out. Your answers are still here — please try again.'
+  if (error?.status && L?.serverStates?.[error.status]) return L.serverStates[error.status]
   const raw = typeof error?.message === 'string' ? error.message.trim() : ''
-  if (raw && !/(stack trace|supabase|sb_secret|service_role|postgres|password|secret|api[_-]?key|node_modules|edition-\d+\/)/i.test(raw)) return raw.slice(0, 300)
+  if (raw && !/(stack trace|supabase|sb_secret|service[_-]role|postgres|password|secret|api[_-]?key|node_modules|edition-\d+\/)/i.test(raw)) return raw.slice(0, 300)
   return L?.errSendFail || 'We could not send the registration. Your answers are still saved in this tab.'
 }
 
@@ -176,7 +180,7 @@ const personText = (person) => ({ fullName: person.fullName, phone: person.phone
 // image files (three student cards, two identity cards). Each part is named
 // after its field and final type (prepareCardUploads may re-encode a large
 // photo as JPEG) — never after the applicant's own file name.
-async function deliver(state) {
+async function deliver(state, onProgress) {
   const { payload, files } = buildSubmission(state)
   const uploads = await prepareCardUploads(files)
   return submitAivexRegistrationV4({
@@ -187,6 +191,7 @@ async function deliver(state) {
       filename: position ? studentCardUploadName(position, file.type) : identityCardUploadName(field, file.type),
     })),
     website: state.website,
+    onProgress,
   })
 }
 
@@ -313,7 +318,7 @@ export default function useCompetitionRegistration(lang = 'en') {
     dispatch({ type: 'status', status: 'submitting' })
     try {
       const [result] = await Promise.all([
-        deliver(state),
+        deliver(state, (transfer) => dispatch({ type: 'transfer', transfer })),
         new Promise((resolve) => window.setTimeout(resolve, 460)),
       ])
       dispatch({ type: 'status', status: result.delivered ? 'success' : 'draft', result })

@@ -50,4 +50,4 @@ export function signedDocumentFileIssue(file) {
 // received and a newer version may replace it (signed_document_uploaded).
 // Any other status (no DOCX yet, or a future admin state this phase never
 // produces) refuses the upload — see api/_lib/aivex-signed-document-upload.js.
-export const UPLOAD_ELIGIBLE_DOCUMENT_STATUSES = frozen(['awaiting_signature', 'signed_document_uploaded'])
+export const UPLOAD_ELIGIBLE_DOCUMENT_STATUSES = frozen(['awaiting_signature', 'signed_document_uploaded', 'changes_required'])

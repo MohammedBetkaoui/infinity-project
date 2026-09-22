@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createSubmissionId } from '../../../../shared/aivex/contract-v4.js'
 import { signedDocumentFileIssue } from '../../../../shared/aivex/signed-document-policy.js'
+import { postCandidateJson, uploadToSignedStorage } from '../../../lib/directStorageUpload'
 
 // AIVEX candidate status page (Magic Link, Phase 5A/5B) — data layer.
 //
@@ -12,7 +13,8 @@ import { signedDocumentFileIssue } from '../../../../shared/aivex/signed-documen
 // to persist.
 const VERIFY_ENDPOINT = '/api/aivex/magic-link/verify'
 const DOCUMENT_ENDPOINT = '/api/aivex/magic-link/document'
-const UPLOAD_ENDPOINT = '/api/aivex/magic-link/upload'
+const UPLOAD_INIT_ENDPOINT = '/api/aivex/magic-link/upload/init'
+const UPLOAD_FINALIZE_ENDPOINT = '/api/aivex/magic-link/upload/finalize'
 const REQUEST_TIMEOUT_MS = 12000
 // A 10 MB file over a slow mobile connection needs far more headroom than
 // the short JSON calls above.
@@ -147,44 +149,45 @@ export default function useAivexStatus() {
   const selectSignedDocument = (file) => {
     setUpload({ ...BLANK_UPLOAD, file, uploadId: createSubmissionId(), issue: signedDocumentFileIssue(file) })
   }
-  const clearSignedDocument = () => setUpload((previous) => (previous.status === 'uploading' ? previous : BLANK_UPLOAD))
+  const clearSignedDocument = () => setUpload((previous) => (
+    ['preparing', 'uploading', 'verifying'].includes(previous.status) ? previous : BLANK_UPLOAD
+  ))
 
   // XMLHttpRequest rather than fetch, for one reason: it is the only browser
   // API that reports how much of the request body has actually left the
   // device, which is what makes a 10 MB upload on a phone feel trustworthy.
   // The request itself is the same multipart body as before (token, the
   // per-file uploadId, the file) to the same endpoint.
-  const submitSignedDocument = () => {
-    if (!token || !upload.file || upload.issue || upload.status === 'uploading') return
-    setUpload((previous) => ({ ...previous, status: 'uploading', message: '', progress: 0 }))
-
-    const body = new FormData()
-    body.append('token', token)
-    body.append('uploadId', upload.uploadId)
-    body.append('file', upload.file, upload.file.name)
-
-    const request = new XMLHttpRequest()
-    request.open('POST', UPLOAD_ENDPOINT)
-    request.responseType = 'json'
-    request.timeout = UPLOAD_TIMEOUT_MS
-    request.upload.onprogress = (event) => {
-      if (!event.lengthComputable) return
-      const progress = Math.min(100, Math.round((event.loaded / event.total) * 100))
-      setUpload((previous) => (previous.status === 'uploading' ? { ...previous, progress } : previous))
-    }
-    request.onload = () => {
-      const payload = request.response && typeof request.response === 'object' ? request.response : {}
-      if (request.status >= 200 && request.status < 300 && payload.success === true) {
-        setUpload({ ...BLANK_UPLOAD, status: 'success' })
-        setRefreshCount((count) => count + 1)
-        return
+  const submitSignedDocument = async () => {
+    if (!token || !upload.file || upload.issue || ['preparing', 'uploading', 'verifying'].includes(upload.status)) return
+    setUpload((previous) => ({ ...previous, status: 'preparing', message: '', progress: 0 }))
+    try {
+      const initialized = await postCandidateJson(UPLOAD_INIT_ENDPOINT, {
+        token,
+        uploadId: upload.uploadId,
+        file: { name: upload.file.name, mime: upload.file.type, size: upload.file.size },
+      })
+      if (!initialized.alreadyProcessed) {
+        setUpload((previous) => ({ ...previous, status: 'uploading', progress: 0 }))
+        if (!initialized.upload?.alreadyUploaded) {
+          await uploadToSignedStorage({
+            signedUrl: initialized.upload.signedUrl,
+            file: upload.file,
+            timeoutMs: UPLOAD_TIMEOUT_MS,
+            onProgress: (loaded, total) => {
+              const progress = total ? Math.min(99, Math.round((loaded / total) * 100)) : 0
+              setUpload((previous) => (previous.status === 'uploading' ? { ...previous, progress } : previous))
+            },
+          })
+        }
+        setUpload((previous) => ({ ...previous, status: 'verifying', progress: 100 }))
+        await postCandidateJson(UPLOAD_FINALIZE_ENDPOINT, { token, uploadSessionId: initialized.uploadSessionId }, UPLOAD_TIMEOUT_MS)
       }
-      setUpload((previous) => ({ ...previous, status: 'error', message: payload.status || 'error', progress: 0 }))
+      setUpload({ ...BLANK_UPLOAD, status: 'success' })
+      setRefreshCount((count) => count + 1)
+    } catch (error) {
+      setUpload((previous) => ({ ...previous, status: 'error', message: error?.status || 'error', progress: 0 }))
     }
-    const networkFailure = () => setUpload((previous) => ({ ...previous, status: 'error', message: 'network', progress: 0 }))
-    request.onerror = networkFailure
-    request.ontimeout = networkFailure
-    request.send(body)
   }
 
   return {
