@@ -62,7 +62,7 @@ function response() {
 
 test('campaign boundaries use exact Algeria-offset instants and fail closed', () => {
   const settings = openSettings()
-  assert.deepEqual(canRegister(settings, new Date('2026-09-30T23:59:59+01:00')), { ok: false, status: 'registration_not_open' })
+  assert.deepEqual(canRegister(settings, new Date('2026-09-20T23:59:59+01:00')), { ok: false, status: 'registration_not_open' })
   assert.deepEqual(canRegister(settings, new Date('2026-09-21T00:00:00+01:00')), { ok: true })
   assert.deepEqual(canRegister(settings, new Date('2026-10-25T23:59:59+01:00')), { ok: true })
   assert.deepEqual(canRegister(settings, new Date('2026-10-26T00:00:00+01:00')), { ok: false, status: 'registration_closed' })
@@ -146,7 +146,7 @@ test('registration init accepts valid JSON in-campaign and returns only five obj
 
 test('registration init refuses before opening and when administratively disabled without creating a session', async () => {
   for (const [clock, settings, status] of [
-    [new Date('2026-09-30T22:00:00Z'), openSettings(), 'registration_not_open'],
+    [new Date('2026-09-20T22:59:59Z'), openSettings(), 'registration_not_open'],
     [NOW, { ...openSettings(), registrationEnabled: false }, 'registration_disabled'],
   ]) {
     let writes = 0
