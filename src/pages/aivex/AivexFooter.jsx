@@ -6,8 +6,15 @@ import AivexLogoMark from './AivexLogoMark'
 import { INSTAGRAM_URL } from './aivexData'
 
 export default function AivexFooter() {
+  // data-motion-trigger="viewport": the footer sits outside <main> (which
+  // carries the viewport trigger), and it is the last block on the page —
+  // a scrubbed reveal (top 93% → top 58%) can never complete down there, so
+  // the logo row would stay at opacity 0 on desktop. Presence-based reveal
+  // instead (see useAivexExperience: the whole footer is the trigger host,
+  // as the logo row alone never clears the observer dead zone at max
+  // scroll): enter once a little way into view, hide only when fully out.
   return (
-    <footer className="ax-footer">
+    <footer className="ax-footer" data-motion-trigger="viewport">
       <div className="ax-container">
         <div className="ax-footer-callout">
           <div><p>A question about AIVEX?</p><h2>Let’s talk<br />about what’s next.</h2></div>

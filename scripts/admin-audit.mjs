@@ -102,7 +102,16 @@ try {
   assert(await evaluate('Boolean(document.querySelector(".adm-bulk"))'))
   await evaluate('document.querySelector(".adm-record-link").click()')
   await waitFor('Boolean(document.querySelector(".adm-drawer"))')
-  assert(await evaluate('document.querySelector(".adm-drawer").innerText.includes("Candidate file")'))
+  await pause(300)
+  report.candidateDrawer = await evaluate(`({
+    title: document.querySelector('.adm-drawer__head h2')?.innerText,
+    width: Math.round(document.querySelector('.adm-drawer').getBoundingClientRect().width),
+    steps: document.querySelectorAll('.adm-candidate-progress li').length,
+    sections: document.querySelectorAll('.adm-candidate-section').length,
+    actions: document.querySelectorAll('.adm-candidate-actionbar button').length,
+    overflow: document.querySelector('.adm-drawer').scrollWidth > document.querySelector('.adm-drawer').clientWidth
+  })`)
+  assert.deepEqual(report.candidateDrawer, { title: 'Application review', width: 710, steps: 4, sections: 6, actions: 6, overflow: false })
   await screenshot('application-drawer-desktop')
   await clickText('Accept as member')
   await waitFor('Boolean(document.querySelector(".adm-modal"))')
@@ -195,6 +204,106 @@ try {
   await waitFor('document.querySelectorAll(".adm-checklist label").length === 10')
   await screenshot('aivex-verification-desktop')
 
+  await navigate('/admin/aivex?lang=ar')
+  await waitFor('document.querySelectorAll(".adm-aivex-card").length > 0')
+  report.aivexArabicDesktop = await evaluate(`(() => {
+    const app = document.querySelector('.adm-app')
+    const page = document.querySelector('.adm-aivex-page')
+    const sidebar = document.querySelector('.adm-sidebar')
+    const workspace = document.querySelector('.adm-workspace')
+    const sidebarRect = sidebar.getBoundingClientRect()
+    const workspaceRect = workspace.getBoundingClientRect()
+    return {
+      appDir: app.getAttribute('dir'),
+      pageDir: page.getAttribute('dir'),
+      language: app.getAttribute('lang'),
+      heading: document.querySelector('h1')?.innerText,
+      activeLanguage: document.querySelector('.adm-aivex-language button[aria-pressed="true"]')?.innerText,
+      arabicPipeline: document.querySelector('.adm-status-pipeline')?.innerText.includes('قيد المراجعة'),
+      arabicSidebar: /[\u0600-\u06ff]/.test(sidebar.innerText),
+      sidebarX: Math.round(sidebarRect.x),
+      sidebarWidth: Math.round(sidebarRect.width),
+      sidebarRightGap: Math.round(innerWidth - sidebarRect.right),
+      workspaceRight: Math.round(workspaceRect.right),
+      overlap: workspaceRect.right > sidebarRect.left + 1,
+      cards: document.querySelectorAll('.adm-aivex-card').length,
+      overflow: document.documentElement.scrollWidth > innerWidth
+    }
+  })()`)
+  assert.equal(report.aivexArabicDesktop.appDir, 'rtl')
+  assert.equal(report.aivexArabicDesktop.pageDir, 'rtl')
+  assert.equal(report.aivexArabicDesktop.language, 'ar')
+  assert.equal(report.aivexArabicDesktop.heading, 'ملفات AIVEX')
+  assert.equal(report.aivexArabicDesktop.activeLanguage, 'ع')
+  assert(report.aivexArabicDesktop.arabicPipeline && report.aivexArabicDesktop.arabicSidebar)
+  assert(report.aivexArabicDesktop.cards > 0 && !report.aivexArabicDesktop.overflow && !report.aivexArabicDesktop.overlap)
+  assert.equal(report.aivexArabicDesktop.sidebarWidth, 260)
+  assert.equal(report.aivexArabicDesktop.sidebarRightGap, 0)
+  assert.equal(report.aivexArabicDesktop.sidebarX, 1180)
+  assert(report.aivexArabicDesktop.workspaceRight <= report.aivexArabicDesktop.sidebarX)
+  await screenshot('aivex-arabic-desktop', true)
+
+  await evaluate(`document.querySelector('.adm-aivex-card footer button').click()`)
+  await waitFor('location.pathname.startsWith("/admin/aivex/") && new URLSearchParams(location.search).get("lang") === "ar"')
+  report.aivexArabicNavigation = await evaluate(`({
+    path: location.pathname,
+    search: location.search,
+    dir: document.querySelector('.adm-app')?.getAttribute('dir'),
+    arabicTabs: document.querySelector('.adm-tabs')?.innerText.includes('التحقق') && document.querySelector('.adm-tabs')?.innerText.includes('الوثائق'),
+    backLink: document.querySelector('.adm-back-link')?.innerText
+  })`)
+  assert.equal(report.aivexArabicNavigation.search, '?lang=ar')
+  assert.equal(report.aivexArabicNavigation.dir, 'rtl')
+  assert(report.aivexArabicNavigation.arabicTabs)
+  assert.match(report.aivexArabicNavigation.backLink, /كل ملفات AIVEX/)
+
+  await navigate('/admin/aivex/nova?lang=ar')
+  await waitFor('document.querySelectorAll(".adm-team-timeline button").length === 5')
+  await clickText('التحقق')
+  await waitFor('document.querySelectorAll(".adm-checklist label").length === 10')
+  report.aivexArabicVerification = await evaluate(`({
+    title: document.querySelector('.adm-verification-layout .adm-section-heading h2')?.innerText,
+    checks: document.querySelectorAll('.adm-checklist label').length,
+    decision: document.querySelector('.adm-decision-panel')?.innerText.includes('قرار الملف'),
+    correctionAction: document.querySelector('.adm-decision-panel')?.innerText.includes('طلب تصحيحات'),
+    overflow: document.documentElement.scrollWidth > innerWidth
+  })`)
+  assert.deepEqual(report.aivexArabicVerification, { title: 'قائمة التحقق الإداري', checks: 10, decision: true, correctionAction: true, overflow: false })
+  await screenshot('aivex-arabic-verification-desktop', true)
+
+  await clickText('طلب تصحيحات')
+  await waitFor('Boolean(document.querySelector(".adm-modal"))')
+  report.aivexArabicCorrection = await evaluate(`({
+    title: document.querySelector('.adm-modal h2')?.innerText,
+    legend: document.querySelector('.adm-modal legend')?.innerText,
+    fields: document.querySelectorAll('.adm-modal textarea, .adm-modal input[type="date"]').length,
+    direction: getComputedStyle(document.querySelector('.adm-modal')).direction,
+    overflow: document.querySelector('.adm-modal').scrollWidth > document.querySelector('.adm-modal').clientWidth
+  })`)
+  assert.deepEqual(report.aivexArabicCorrection, { title: 'طلب تصحيحات', legend: 'العناصر المطلوب تصحيحها', fields: 3, direction: 'rtl', overflow: false })
+  await screenshot('aivex-arabic-correction-desktop')
+  await clickText('إلغاء')
+  await waitFor('!document.querySelector(".adm-modal")')
+
+  await clickText('الوثائق')
+  await waitFor('document.querySelectorAll(".adm-file-category").length === 4')
+  await clickText('فتح آمن')
+  await waitFor('Boolean(document.querySelector(".adm-document-specimen"))')
+  report.aivexArabicViewer = await evaluate(`({
+    title: document.querySelector('.adm-modal h2')?.innerText,
+    confidential: document.querySelector('.adm-viewer-heading')?.innerText.includes('سري'),
+    note: document.querySelector('.adm-modal textarea')?.getAttribute('placeholder'),
+    specimen: Boolean(document.querySelector('.adm-document-specimen')),
+    arabicContent: /[\u0600-\u06ff]/.test(document.querySelector('.adm-modal')?.innerText || ''),
+    overflow: document.querySelector('.adm-modal').scrollWidth > document.querySelector('.adm-modal').clientWidth
+  })`)
+  assert.equal(report.aivexArabicViewer.title, 'وثيقة سرية')
+  assert(report.aivexArabicViewer.confidential && report.aivexArabicViewer.specimen && report.aivexArabicViewer.arabicContent && !report.aivexArabicViewer.overflow)
+  assert.match(report.aivexArabicViewer.note, /سجّل|نتيجة|مراجعة/)
+  await screenshot('aivex-arabic-viewer-desktop')
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' })
+  await waitFor('!document.querySelector(".adm-document-specimen")')
+
   await viewport(1024, 900)
   await navigate('/admin/overview')
   report.tablet = await evaluate(`({ sidebar: Math.round(document.querySelector('.adm-sidebar').getBoundingClientRect().width), overflow: document.documentElement.scrollWidth > innerWidth, kpis: document.querySelectorAll('.adm-kpi').length })`)
@@ -212,6 +321,24 @@ try {
   })`)
   console.log('Mobile check:', JSON.stringify(report.mobile))
   assert(!report.mobile.overflow && report.mobile.menuButton !== 'none' && report.mobile.rows > 0 && report.mobile.rowDisplay === 'grid' && report.mobile.minButtons)
+  await evaluate('document.querySelector(".adm-record-link").click()')
+  await waitFor('Boolean(document.querySelector(".adm-candidate-dossier"))')
+  await pause(300)
+  report.mobileCandidate = await evaluate(`(() => {
+    const drawer = document.querySelector('.adm-drawer')
+    const actionButtons = [...document.querySelectorAll('.adm-candidate-actionbar button')].filter((button) => button.getClientRects().length)
+    return {
+      width: Math.round(drawer.getBoundingClientRect().width),
+      steps: document.querySelectorAll('.adm-candidate-progress li').length,
+      sections: document.querySelectorAll('.adm-candidate-section').length,
+      actionTargets: actionButtons.every((button) => button.getBoundingClientRect().height >= 44),
+      overflow: drawer.scrollWidth > drawer.clientWidth
+    }
+  })()`)
+  assert.deepEqual(report.mobileCandidate, { width: 390, steps: 4, sections: 6, actionTargets: true, overflow: false })
+  await screenshot('application-drawer-mobile')
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' })
+  await waitFor('!document.querySelector(".adm-drawer")')
   await evaluate('document.querySelector(".adm-menu-trigger").click()')
   await waitFor('document.querySelector(".adm-sidebar").classList.contains("is-mobile-open")')
   await pause(300)
@@ -235,6 +362,65 @@ try {
   })`)
   assert(!report.mobileAivex.overflow && report.mobileAivex.cards > 0 && report.mobileAivex.columns === 1 && report.mobileAivex.searchHeight <= 48 && report.mobileAivex.tableRows === 0 && !report.mobileAivex.viewToggle && report.mobileAivex.actionTargets)
   await screenshot('aivex-cards-mobile', true)
+
+  await navigate('/admin/aivex?lang=ar')
+  await waitFor('document.querySelectorAll(".adm-aivex-card").length > 0')
+  report.mobileAivexArabic = await evaluate(`(() => {
+    const sidebar = document.querySelector('.adm-sidebar')
+    const sidebarRect = sidebar.getBoundingClientRect()
+    const workspace = document.querySelector('.adm-workspace')
+    return {
+      dir: document.querySelector('.adm-app')?.getAttribute('dir'),
+      language: document.querySelector('.adm-app')?.getAttribute('lang'),
+      heading: document.querySelector('h1')?.innerText,
+      activeLanguage: document.querySelector('.adm-aivex-language button[aria-pressed="true"]')?.innerText,
+      overflow: document.documentElement.scrollWidth > innerWidth,
+      cards: document.querySelectorAll('.adm-aivex-card').length,
+      columns: getComputedStyle(document.querySelector('.adm-aivex-card-grid')).gridTemplateColumns.split(' ').length,
+      tableRows: document.querySelectorAll('.adm-aivex-table-view tbody tr').length,
+      viewToggle: Boolean(document.querySelector('.adm-view-toggle')),
+      workspaceMarginRight: Math.round(parseFloat(getComputedStyle(workspace).marginRight)),
+      sidebarClosedX: Math.round(sidebarRect.x),
+      sidebarWidth: Math.round(sidebarRect.width),
+      cardActions: [...document.querySelectorAll('.adm-aivex-card > footer button')].every((button) => button.getBoundingClientRect().height >= 44)
+    }
+  })()`)
+  assert.equal(report.mobileAivexArabic.dir, 'rtl')
+  assert.equal(report.mobileAivexArabic.language, 'ar')
+  assert.equal(report.mobileAivexArabic.heading, 'ملفات AIVEX')
+  assert.equal(report.mobileAivexArabic.activeLanguage, 'ع')
+  assert(!report.mobileAivexArabic.overflow && report.mobileAivexArabic.cards > 0 && report.mobileAivexArabic.columns === 1)
+  assert.equal(report.mobileAivexArabic.tableRows, 0)
+  assert.equal(report.mobileAivexArabic.viewToggle, false)
+  assert.equal(report.mobileAivexArabic.workspaceMarginRight, 0)
+  assert(report.mobileAivexArabic.sidebarClosedX >= 389 && report.mobileAivexArabic.sidebarWidth >= 280 && report.mobileAivexArabic.cardActions)
+  await screenshot('aivex-arabic-cards-mobile', true)
+
+  await evaluate('document.querySelector(".adm-menu-trigger").click()')
+  await waitFor('document.querySelector(".adm-sidebar").classList.contains("is-mobile-open")')
+  await pause(300)
+  report.mobileAivexArabicMenu = await evaluate(`(() => {
+    const sidebar = document.querySelector('.adm-sidebar')
+    const rect = sidebar.getBoundingClientRect()
+    return {
+      x: Math.round(rect.x),
+      rightGap: Math.round(innerWidth - rect.right),
+      width: Math.round(rect.width),
+      direction: getComputedStyle(sidebar).direction,
+      translated: sidebar.innerText.includes('مساحة النادي') && sidebar.innerText.includes('تسجيل الخروج'),
+      activeAivex: document.querySelector('.adm-sidebar a.is-aivex.is-active')?.innerText.includes('AIVEX'),
+      overflow: document.documentElement.scrollWidth > innerWidth
+    }
+  })()`)
+  assert.equal(report.mobileAivexArabicMenu.rightGap, 0)
+  assert.equal(report.mobileAivexArabicMenu.x + report.mobileAivexArabicMenu.width, 390)
+  assert.equal(report.mobileAivexArabicMenu.direction, 'rtl')
+  assert(report.mobileAivexArabicMenu.translated && report.mobileAivexArabicMenu.activeAivex && !report.mobileAivexArabicMenu.overflow)
+  await screenshot('aivex-arabic-sidebar-mobile')
+  await evaluate('document.querySelector(".adm-sidebar-mobile-close").click()')
+  await waitFor('!document.querySelector(".adm-sidebar").classList.contains("is-mobile-open")')
+  await pause(300)
+  assert(await evaluate('document.querySelector(".adm-sidebar").getBoundingClientRect().x >= innerWidth - 1'))
 
   await navigate('/admin/members')
   await waitFor('document.querySelectorAll(".adm-people-card").length > 0')

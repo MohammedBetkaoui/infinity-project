@@ -9,6 +9,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import InfinityMark from '../components/InfinityMark'
 import { navItems } from './adminData'
 import { useAdmin } from './AdminStore'
+import { aivexPath, translateAivex } from './AivexI18n'
 import { STATUS_TRANSLATIONS } from './adminModel'
 
 const icons = {
@@ -47,13 +48,13 @@ export function Button({ children, variant = 'primary', icon, className = '', ..
   return <button className={`adm-button adm-button--${variant} ${className}`} {...props}>{children}{icon}</button>
 }
 
-export function SearchField({ value, onChange, placeholder = 'Search', className = '' }) {
+export function SearchField({ value, onChange, placeholder = 'Search', className = '', label = 'Search', clearLabel = 'Clear search' }) {
   return (
     <label className={`adm-search ${className}`}>
       <Search size={17} aria-hidden="true" />
-      <span className="sr-only">Search</span>
+      <span className="sr-only">{label}</span>
       <input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
-      {value && <button type="button" onClick={() => onChange('')} aria-label="Clear search"><X size={14} /></button>}
+      {value && <button type="button" onClick={() => onChange('')} aria-label={clearLabel}><X size={14} /></button>}
     </label>
   )
 }
@@ -96,29 +97,31 @@ export function EmptyState({ title = 'No results found', copy = 'Try adjusting y
   return <div className="adm-empty"><Search size={22} /><h3>{title}</h3><p>{copy}</p></div>
 }
 
-export function Pagination({ current = 1, count = 0, pageSize = 6, onChange = () => {} }) {
+export function Pagination({ current = 1, count = 0, pageSize = 6, onChange = () => {}, labels = {} }) {
   const total = Math.max(1, Math.ceil(count / pageSize))
+  const start = count ? (current - 1) * pageSize + 1 : 0
+  const end = Math.min(current * pageSize, count)
   return (
-    <div className="adm-pagination" aria-label="Pagination">
-      <p>Showing <b>{count ? (current - 1) * pageSize + 1 : 0}–{Math.min(current * pageSize, count)}</b> of <b>{count}</b> records</p>
+    <div className="adm-pagination" aria-label={labels.aria || 'Pagination'}>
+      <p>{labels.summary ? labels.summary(start, end, count) : <>Showing <b>{start}–{end}</b> of <b>{count}</b> records</>}</p>
       <div>
-        <IconButton label="Previous page" disabled={current === 1} onClick={() => onChange(Math.max(1, current - 1))}><ChevronLeft size={16} /></IconButton>
+        <IconButton label={labels.previous || 'Previous page'} disabled={current === 1} onClick={() => onChange(Math.max(1, current - 1))}><ChevronLeft size={16} /></IconButton>
         {Array.from({ length: total }, (_, index) => index + 1).map((page) => <button key={page} className={page === current ? 'is-current' : ''} onClick={() => onChange(page)}>{page}</button>)}
-        <IconButton label="Next page" disabled={current === total} onClick={() => onChange(Math.min(total, current + 1))}><ChevronRight size={16} /></IconButton>
+        <IconButton label={labels.next || 'Next page'} disabled={current === total} onClick={() => onChange(Math.min(total, current + 1))}><ChevronRight size={16} /></IconButton>
       </div>
     </div>
   )
 }
 
-export function Tabs({ items, value, onChange, counts = {} }) {
+export function Tabs({ items, value, onChange, counts = {}, getLabel = (item) => item }) {
   return (
     <div className="adm-tabs" role="tablist">
-      {items.map((item) => <button role="tab" aria-selected={value === item} className={value === item ? 'is-active' : ''} key={item} onClick={() => onChange(item)}>{item}{counts[item] != null && <span>{counts[item]}</span>}</button>)}
+      {items.map((item) => <button role="tab" aria-selected={value === item} className={value === item ? 'is-active' : ''} key={item} onClick={() => onChange(item)}>{getLabel(item)}{counts[item] != null && <span>{counts[item]}</span>}</button>)}
     </div>
   )
 }
 
-export function Modal({ open, onClose, title, eyebrow = 'Confirmation', children, footer, wide = false }) {
+export function Modal({ open, onClose, title, eyebrow = 'Confirmation', children, footer, wide = false, closeLabel = 'Close' }) {
   const ref = useRef(null)
   const titleId = useId()
   useDialog(ref, open, onClose)
@@ -126,7 +129,7 @@ export function Modal({ open, onClose, title, eyebrow = 'Confirmation', children
   return (
     <div className="adm-modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <section ref={ref} tabIndex={-1} className={`adm-modal ${wide ? 'is-wide' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId}>
-        <header><div><p className="adm-eyebrow">{eyebrow}</p><h2 id={titleId}>{title}</h2></div><IconButton label="Close" onClick={onClose}><X size={19} /></IconButton></header>
+        <header><div><p className="adm-eyebrow">{eyebrow}</p><h2 id={titleId}>{title}</h2></div><IconButton label={closeLabel} onClick={onClose}><X size={19} /></IconButton></header>
         <div className="adm-modal__body">{children}</div>
         {footer && <footer>{footer}</footer>}
       </section>
@@ -138,9 +141,11 @@ export function ToastStack({ toasts }) {
   return <div className="adm-toasts" aria-live="polite">{toasts.map((toast) => <div className="adm-toast" key={toast.id}><CheckCircle2 size={18} /><div><b>{toast.title}</b><span>{toast.message}</span></div></div>)}</div>
 }
 
-function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) {
+function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen, language = 'en' }) {
   const navigate = useNavigate()
   const { state, log } = useAdmin()
+  const isArabic = language === 'ar'
+  const t = (value) => translateAivex(value, language)
   const renderNavItem = (item) => {
     const Icon = icons[item.icon]
     const count = item.icon === 'applications'
@@ -151,15 +156,15 @@ function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) {
     return (
       <NavLink
         key={item.path}
-        to={item.path}
+        to={item.icon === 'aivex' ? aivexPath(item.path, language) : item.path}
         onClick={() => setMobileOpen(false)}
         className={({ isActive }) => `${isActive ? 'is-active' : ''} ${item.icon === 'aivex' ? 'is-aivex' : ''}`}
-        title={collapsed ? item.label : undefined}
+        title={collapsed ? t(item.label) : undefined}
       >
         <span className="adm-nav-index">{item.index}</span>
         <span className="adm-nav-node" aria-hidden="true" />
         <Icon size={17} />
-        <span className="adm-nav-label">{item.label}</span>
+        <span className="adm-nav-label">{t(item.label)}</span>
         {count > 0 && <em>{String(count).padStart(2, '0')}</em>}
       </NavLink>
     )
@@ -168,73 +173,79 @@ function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) {
     <aside className={`adm-sidebar ${collapsed ? 'is-collapsed' : ''} ${mobileOpen ? 'is-mobile-open' : ''}`}>
       <div className="adm-brand">
         <div className="adm-brand__mark"><InfinityMark /></div>
-        <div className="adm-brand__copy"><strong>INFINITY</strong><span>Club administration</span></div>
+        <div className="adm-brand__copy"><strong>INFINITY</strong><span>{t('Club administration')}</span></div>
         <code className="adm-brand__unit">CTRL<br/>02</code>
-        <IconButton label="Close menu" className="adm-sidebar-mobile-close" onClick={() => setMobileOpen(false)}><X size={18} /></IconButton>
+        <IconButton label={t('Close navigation')} className="adm-sidebar-mobile-close" onClick={() => setMobileOpen(false)}><X size={18} /></IconButton>
       </div>
-      <div className="adm-sidebar__campaign"><span>ACADEMIC CYCLE</span><b>2026—27</b><small>AUTUMN INTAKE · ACTIVE</small><i /></div>
-      <nav aria-label="Administration">
+      <div className="adm-sidebar__campaign"><span>{t('Academic cycle')}</span><b>2026—27</b><small>{t('Autumn intake · Active')}</small><i /></div>
+      <nav aria-label={isArabic ? 'إدارة Infinity' : 'Administration'}>
         <div className="adm-nav-group">
-          <div className="adm-nav-group__label"><span>Club workspace</span><code>04</code></div>
+          <div className="adm-nav-group__label"><span>{t('Club workspace')}</span><code>04</code></div>
           {navItems.slice(0, 4).map(renderNavItem)}
         </div>
         <div className="adm-nav-group">
-          <div className="adm-nav-group__label"><span>Operations</span><code>02</code></div>
+          <div className="adm-nav-group__label"><span>{t('Operations')}</span><code>02</code></div>
           {navItems.slice(4, 6).map(renderNavItem)}
         </div>
         <div className="adm-nav-group adm-nav-group--system">
-          <div className="adm-nav-group__label"><span>System</span><code>01</code></div>
+          <div className="adm-nav-group__label"><span>{t('System')}</span><code>01</code></div>
           {navItems.slice(6).map(renderNavItem)}
         </div>
       </nav>
-      <div className="adm-sidebar__signal"><span><i />Operations online</span><code>LOCAL / DEMO</code></div>
+      <div className="adm-sidebar__signal"><span><i />{t('Operations online')}</span><code>LOCAL / DEMO</code></div>
       <div className="adm-sidebar__foot">
-        <span className="adm-sidebar__operator-label">SESSION HOLDER · ADMIN.01</span>
+        <span className="adm-sidebar__operator-label">{t('Session holder')} · ADMIN.01</span>
         <button className="adm-admin-profile" onClick={() => navigate('/admin/settings')}>
           <Avatar initials="NB" small />
-          <span><b>{state.settings.name}</b><small>{state.settings.role}</small></span>
+          <span><b>{state.settings.name}</b><small>{isArabic ? t('Lead administrator') : state.settings.role}</small></span>
           <MoreHorizontal size={17} />
         </button>
-        <button className="adm-signout" onClick={() => { log('Demo session ended', state.settings.name); navigate('/admin/login') }}><LogOut size={17} /><span>Sign out</span></button>
+        <button className="adm-signout" onClick={() => { log('Demo session ended', state.settings.name); navigate('/admin/login') }}><LogOut size={17} /><span>{t('Sign out')}</span></button>
       </div>
-      <button className="adm-collapse" onClick={() => setCollapsed(!collapsed)} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}><ChevronLeft size={16} /><span>{collapsed ? 'Expand' : 'Collapse navigation'}</span></button>
+      <button className="adm-collapse" onClick={() => setCollapsed(!collapsed)} aria-label={t(collapsed ? 'Expand sidebar' : 'Collapse navigation')}><ChevronLeft size={16} /><span>{t(collapsed ? 'Expand' : 'Collapse navigation')}</span></button>
     </aside>
   )
 }
 
 const breadcrumbNames = { overview: 'Overview', applications: 'Join applications', members: 'Members', staff: 'Staff', aivex: 'AIVEX files', activity: 'Activity log', settings: 'Settings' }
 
-function Topbar({ setMobileOpen, query, setQuery, notify, onNewAction }) {
+function Topbar({ setMobileOpen, query, setQuery, notify, onNewAction, language = 'en' }) {
   const { pathname } = useLocation()
   const navigate = useNavigate()
+  const isArabic = language === 'ar'
+  const t = (value) => translateAivex(value, language)
   const parts = pathname.split('/').filter(Boolean)
   const page = breadcrumbNames[parts[1]] || 'Administration'
   const teamDetail = parts[1] === 'aivex' && parts[2]
   return (
     <header className="adm-topbar">
       <div className="adm-topbar__left">
-        <IconButton label="Open navigation" className="adm-menu-trigger" onClick={() => setMobileOpen(true)}><Menu size={20} /></IconButton>
-        <div className="adm-breadcrumb"><span>Infinity administration</span><ChevronRight size={13} /><b>{page}</b>{teamDetail && <><ChevronRight size={13} /><b className="adm-breadcrumb__detail">Team file</b></>}</div>
+        <IconButton label={t('Open navigation')} className="adm-menu-trigger" onClick={() => setMobileOpen(true)}><Menu size={20} /></IconButton>
+        <div className="adm-breadcrumb"><span>{t('Infinity administration')}</span><ChevronRight size={13} /><b>{t(page)}</b>{teamDetail && <><ChevronRight size={13} /><b className="adm-breadcrumb__detail">{t('Team file')}</b></>}</div>
       </div>
       <div className="adm-topbar__right">
-        <SearchField value={query} onChange={setQuery} placeholder="Search anything…" className="adm-global-search" />
-        <IconButton label="Notifications" className="adm-notification" onClick={notify}><Bell size={18} /><i /></IconButton>
-        <Button onClick={onNewAction} icon={<Plus size={16} />}>New action</Button>
-        <button className="adm-top-profile" aria-label="Open profile" onClick={() => navigate('/admin/settings')}><Avatar initials="NB" small /><ChevronDown size={14} /></button>
+        <SearchField value={query} onChange={setQuery} placeholder={t('Search anything…')} label={t('Search anything…')} clearLabel={isArabic ? 'مسح البحث' : 'Clear search'} className="adm-global-search" />
+        <IconButton label={t('Notifications')} className="adm-notification" onClick={notify}><Bell size={18} /><i /></IconButton>
+        <Button onClick={onNewAction} icon={<Plus size={16} />}>{t('New action')}</Button>
+        <button className="adm-top-profile" aria-label={t('Open profile')} onClick={() => navigate('/admin/settings')}><Avatar initials="NB" small /><ChevronDown size={14} /></button>
       </div>
     </header>
   )
 }
 
 export function AdminShell({ children, collapsed, setCollapsed, mobileOpen, setMobileOpen, query, setQuery, onNotifications, onNewAction }) {
+  const { pathname, search } = useLocation()
+  const language = pathname.startsWith('/admin/aivex') && new URLSearchParams(search).get('lang') === 'ar' ? 'ar' : 'en'
+  const isArabic = language === 'ar'
+  const t = (value) => translateAivex(value, language)
   return (
-    <div className={`adm-app ${collapsed ? 'is-sidebar-collapsed' : ''}`}>
-      <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
-      {mobileOpen && <button className="adm-mobile-scrim" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />}
+    <div className={`adm-app ${collapsed ? 'is-sidebar-collapsed' : ''} ${isArabic ? 'is-aivex-ar' : ''}`} dir={isArabic ? 'rtl' : 'ltr'} lang={language}>
+      <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} language={language} />
+      {mobileOpen && <button className="adm-mobile-scrim" aria-label={t('Close navigation')} onClick={() => setMobileOpen(false)} />}
       <div className="adm-workspace">
-        <Topbar setMobileOpen={setMobileOpen} query={query} setQuery={setQuery} notify={onNotifications} onNewAction={onNewAction} />
+        <Topbar setMobileOpen={setMobileOpen} query={query} setQuery={setQuery} notify={onNotifications} onNewAction={onNewAction} language={language} />
         <main className="adm-main" id="admin-content">{children}</main>
-        <footer className="adm-global-footer"><span><i />Fictional demo data · Local prototype</span><code>INFINITY / ADMIN · 2026.09</code></footer>
+        <footer className="adm-global-footer"><span><i />{t('Fictional demo data · Local prototype')}</span><code>INFINITY / ADMIN · 2026.09</code></footer>
       </div>
     </div>
   )
@@ -253,8 +264,8 @@ export function CriticalNotice({ children }) {
   return <div className="adm-critical-notice"><AlertTriangle size={18} /><p>{children}</p></div>
 }
 
-export function ConfidentialNotice() {
-  return <div className="adm-confidential-notice"><ShieldCheck size={18} /><p><b>Internal verification data.</b> Access is logged. Do not copy, download or disclose personal documents outside the authorised review process.</p></div>
+export function ConfidentialNotice({ title = 'Internal verification data.', copy = 'Access is logged. Do not copy, download or disclose personal documents outside the authorised review process.' }) {
+  return <div className="adm-confidential-notice"><ShieldCheck size={18} /><p><b>{title}</b> {copy}</p></div>
 }
 
 export { ArrowRight, BriefcaseBusiness, Circle, LockKeyhole }
@@ -286,9 +297,9 @@ function useDialog(ref, open, onClose) {
   }, [open, ref])
 }
 
-export function Drawer({ title, eyebrow, children, onClose, footer }) {
+export function Drawer({ title, eyebrow, children, onClose, footer, className = '', closeLabel = 'Close details' }) {
   const ref = useRef(null)
   const titleId = useId()
   useDialog(ref, true, onClose)
-  return <div className="adm-drawer-layer"><button className="adm-drawer-scrim" onClick={onClose} tabIndex={-1} aria-label="Close detail panel" /><aside ref={ref} className="adm-drawer" role="dialog" aria-modal="true" aria-labelledby={titleId}><header className="adm-drawer__head"><div><p className="adm-eyebrow">{eyebrow}</p><h2 id={titleId}>{title}</h2></div><IconButton label="Close details" onClick={onClose}><X size={20}/></IconButton></header><div className="adm-drawer__scroll">{children}</div>{footer && <footer className="adm-drawer__actions">{footer}</footer>}</aside></div>
+  return <div className="adm-drawer-layer"><button className="adm-drawer-scrim" onClick={onClose} tabIndex={-1} aria-label={closeLabel} /><aside ref={ref} className={`adm-drawer ${className}`} role="dialog" aria-modal="true" aria-labelledby={titleId}><header className="adm-drawer__head"><div><p className="adm-eyebrow">{eyebrow}</p><h2 id={titleId}>{title}</h2></div><IconButton label={closeLabel} onClick={onClose}><X size={20}/></IconButton></header><div className="adm-drawer__scroll">{children}</div>{footer && <footer className="adm-drawer__actions">{footer}</footer>}</aside></div>
 }

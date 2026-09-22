@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Activity, ArrowRight, CalendarDays, Plus, UserCheck } from 'lucide-react'
+import { Activity, ArrowRight, CalendarDays, Check, ClipboardCheck, GraduationCap, Mail, Phone, Plus, UserCheck } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { useAdmin } from './AdminStore'
 import { AVAILABILITY, APPLICATION_STATUSES, DEPARTMENTS, EXPERIENCE, LEVELS, POLES, dateLabel, filterRecords, initialsOf } from './adminModel'
@@ -33,6 +33,81 @@ function PeopleCardGrid({ records, isStaff, selected, onSelect, onBulk, onOpen }
     </article>)}</div> : <EmptyState title={isStaff ? 'No staff profiles match this view' : 'No members match this view'} copy="Adjust the search or remove one of the active filters."/>}
     {records.length > 0 && <Pagination current={current} count={records.length} pageSize={pageSize} onChange={setPage}/>} 
   </section>
+}
+
+const CANDIDATE_STAGES = [
+  { label: 'Received', copy: 'Join form recorded' },
+  { label: 'Review', copy: 'Profile assessment' },
+  { label: 'Interview', copy: 'Conversation planned' },
+  { label: 'Decision', copy: 'Final outcome' },
+]
+
+function CandidateProgress({ status }) {
+  const current = { New: 0, 'In review': 1, Interview: 2, Accepted: 3, Declined: 3, Archived: 3 }[status] ?? 0
+  const terminal = ['Accepted', 'Declined', 'Archived'].includes(status)
+  return <section className="adm-candidate-progress" aria-labelledby="candidate-progress-title">
+    <header><div><span>Application route</span><h3 id="candidate-progress-title">Review progress</h3></div><StatusBadge>{status}</StatusBadge></header>
+    <ol>{CANDIDATE_STAGES.map((stage, index) => {
+      const complete = index < current || (index === current && terminal && status === 'Accepted')
+      const active = index === current
+      const negative = active && ['Declined', 'Archived'].includes(status)
+      return <li key={stage.label} className={`${complete ? 'is-complete' : ''} ${active ? 'is-current' : ''} ${negative ? 'is-negative' : ''}`} aria-current={active ? 'step' : undefined}>
+        <i aria-hidden="true">{complete ? <Check size={12}/> : String(index + 1).padStart(2, '0')}</i>
+        <div><b>{index === 3 && terminal ? status : stage.label}</b><small>{index === 3 && terminal ? 'Decision recorded' : stage.copy}</small></div>
+      </li>
+    })}</ol>
+  </section>
+}
+
+function CandidateSection({ index, title, copy, children }) {
+  return <section className="adm-candidate-section"><header><code>{index}</code><div><h3>{title}</h3><p>{copy}</p></div></header>{children}</section>
+}
+
+function CandidateDossier({ detail, note, setNote, onSave }) {
+  return <div className="adm-candidate-dossier">
+    <section className="adm-candidate-overview">
+      <div className="adm-candidate-overview__rail"><code>{detail.id}</code><span>JOIN INTAKE / {detail.form}</span></div>
+      <div className="adm-candidate-overview__identity"><Avatar initials={detail.initials}/><div><span>{detail.type} application</span><h3>{detail.name}</h3><p>{detail.level} · {detail.speciality}</p></div><StatusBadge>{detail.status}</StatusBadge></div>
+      <dl><div><dt>Submitted</dt><dd>{detail.date}</dd></div><div><dt>Source</dt><dd>{detail.source}</dd></div><div><dt>Consent</dt><dd><Check size={13}/>Recorded</dd></div></dl>
+    </section>
+
+    <CandidateProgress status={detail.status}/>
+
+    <CandidateSection index="01" title="Identity & contact" copy="Contact details supplied with the Join form.">
+      <div className="adm-candidate-contact-grid"><div><i><Mail size={16}/></i><span><small>Email address</small><b>{detail.email}</b></span></div><div><i><Phone size={16}/></i><span><small>Phone number</small><b>{detail.phone || 'Not provided'}</b></span></div></div>
+    </CandidateSection>
+
+    <CandidateSection index="02" title="Academic profile" copy="Current study path and declared speciality.">
+      <div className="adm-candidate-profile-grid"><div className="adm-candidate-feature"><i><GraduationCap size={18}/></i><span>Study level</span><strong>{detail.level}</strong></div><div><span>Department / speciality</span><b>{detail.speciality || 'Not provided'}</b></div></div>
+    </CandidateSection>
+
+    <CandidateSection index="03" title="Join profile" copy={detail.type === 'Staff' ? 'Requested department is kept separate from the internal role assigned after acceptance.' : 'Declared interest, experience and semester availability.'}>
+      <div className="adm-candidate-track"><span>{detail.type === 'Staff' ? 'Requested staff department' : 'Primary interest'}</span><strong>{detail.track}</strong><StatusBadge tone={detail.type === 'Staff' ? 'info' : 'neutral'}>{detail.type}</StatusBadge></div>
+      <Facts items={[["Experience level", detail.experience], ['Availability', detail.availability]]}/>
+      {detail.interviewAt && <div className="adm-candidate-callout is-interview"><CalendarDays size={17}/><div><span>Interview scheduled</span><b>{detail.interviewAt.replace('T', ' ')} · {detail.interviewLocation}</b></div></div>}
+      {detail.requestMessage && <div className="adm-candidate-callout"><ClipboardCheck size={17}/><div><span>Information requested</span><b>{detail.requestMessage}</b></div></div>}
+    </CandidateSection>
+
+    <CandidateSection index="04" title="Intake metadata" copy="Administrative traceability for this fictional application.">
+      <Facts items={[["Application type", detail.type], ['Submission date', detail.date], ['Source', detail.source], ['Form version', detail.form], ['Contact consent', 'Recorded']]}/>
+    </CandidateSection>
+
+    <CandidateSection index="05" title="Internal notes" copy="Visible to Infinity administrators only.">
+      <label className="sr-only" htmlFor="candidate-note">Administrative note</label><textarea id="candidate-note" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add review context for your colleagues…"/><button className="adm-save-note" onClick={onSave}>Save internal note</button>
+    </CandidateSection>
+
+    <CandidateSection index="06" title="Application history" copy="Decisions and follow-ups recorded by the administration."><History items={detail.history}/></CandidateSection>
+  </div>
+}
+
+function CandidateActionBar({ detail, request }) {
+  const closed = ['Accepted', 'Declined', 'Archived'].includes(detail.status)
+  return <div className="adm-candidate-actionbar">
+    <header><div><span>Decision workspace</span><b>Choose the next administrative step</b></div><code>{detail.id}</code></header>
+    <div className="adm-candidate-actionbar__primary"><Button onClick={() => request(detail.type === 'Staff' ? 'Accept into staff' : 'Accept as member', { status: 'Accepted' })} disabled={detail.status === 'Accepted' || detail.status === 'Archived'} icon={<Check size={15}/>}>Accept {detail.type === 'Staff' ? 'into staff' : 'as member'}</Button><Button variant="secondary" onClick={() => request('Schedule interview', null, { fields: [{ name: 'interviewAt', label: 'Interview date and time', type: 'datetime-local', required: true }, { name: 'interviewLocation', label: 'Location / meeting room', required: true }], patch: undefined, schedule: true })} disabled={closed}><CalendarDays size={15}/>Schedule interview</Button></div>
+    <div className="adm-candidate-actionbar__workflow"><span>Workflow</span><button onClick={() => request('Move application to review', { status: 'In review' })} disabled={detail.status === 'In review' || detail.status === 'Accepted' || detail.status === 'Archived'}>Move to review</button><button onClick={() => request('Request more information', null, { fields: [{ name: 'requestMessage', label: 'Message to the candidate (demo)', type: 'textarea', required: true }] })} disabled={detail.status === 'Archived'}>Request information</button>{detail.type === 'Staff' && <button onClick={() => request('Change requested department', null, { fields: [{ name: 'track', label: 'Department', options: DEPARTMENTS, value: detail.track }] })} disabled={detail.status === 'Archived'}>Change department</button>}</div>
+    <div className="adm-candidate-actionbar__critical"><span>Close application</span><button className="is-danger" onClick={() => request('Decline application', { status: 'Declined' }, { danger: true })} disabled={detail.status === 'Declined' || detail.status === 'Archived'}>Decline</button><button onClick={() => request('Archive application', { status: 'Archived' }, { danger: true })} disabled={detail.status === 'Archived'}>Archive</button></div>
+  </div>
 }
 
 export default function PeoplePage({ collection, globalQuery }) {
@@ -129,14 +204,14 @@ export default function PeoplePage({ collection, globalQuery }) {
         <RecordTable className={`adm-people-table-view ${isStaff ? 'is-staff' : 'is-members'}`} records={visible} columns={columns} selected={selected} onSelect={setSelected} onOpen={open} rowClassName={(record) => record.status === 'Active' ? 'is-profile-active' : 'is-profile-followup'} onBulk={openBulkAction}/>
       </>}
     </div>
-    {detail && <Drawer title={application ? 'Candidate file' : isStaff ? 'Operational profile' : 'Member profile'} eyebrow={detail.id} onClose={() => setDetailId(null)} footer={<>
-      {application ? <><Button onClick={() => request(detail.type === 'Staff' ? 'Accept into staff' : 'Accept as member', { status: 'Accepted' })} disabled={detail.status === 'Accepted'}>Accept {detail.type === 'Staff' ? 'into staff' : 'as member'}</Button><Button variant="secondary" onClick={() => request('Schedule interview', null, { fields: [{ name: 'interviewAt', label: 'Interview date and time', type: 'datetime-local', required: true }, { name: 'interviewLocation', label: 'Location / meeting room', required: true }], patch: undefined, schedule: true })}><CalendarDays size={15}/>Schedule interview</Button><div><button onClick={() => request('Request more information', null, { fields: [{ name: 'requestMessage', label: 'Message to the candidate (demo)', type: 'textarea', required: true }] })}>Request information</button>{detail.type === 'Staff' && <button onClick={() => request('Change requested department', null, { fields: [{ name: 'track', label: 'Department', options: DEPARTMENTS, value: detail.track }] })}>Move department</button>}<button className="is-danger" onClick={() => request('Decline application', { status: 'Declined' }, { danger: true })}>Decline</button><button onClick={() => request('Archive application', { status: 'Archived' }, { danger: true })}>Archive</button></div></> : <><Button onClick={() => request(isStaff ? 'Assign internal role' : 'Edit member profile', null, { fields: isStaff ? [{ name: 'role', label: 'Internal role', value: detail.role, required: true }] : [{ name: 'name', label: 'Name', value: detail.name, required: true }, { name: 'email', label: 'Email', type: 'email', value: detail.email, required: true }, { name: 'level', label: 'Level', options: LEVELS, value: detail.level }, { name: 'status', label: 'Status', options: ['Active', 'On pause', 'Inactive', 'Alumni'], value: detail.status }] })}>{isStaff ? 'Assign a role' : 'Edit profile'}</Button><Button variant="secondary" onClick={() => request(isStaff ? 'Move department' : 'Change primary pole', null, { fields: [{ name: isStaff ? 'department' : 'pole', label: isStaff ? 'Current department' : 'Primary pole', options: isStaff ? DEPARTMENTS : ['Unassigned', ...POLES], value: isStaff ? detail.department : detail.pole }] })}>{isStaff ? 'Move department' : 'Change pole'}</Button><div>{isStaff ? <><button onClick={() => request('Assign project', null, { project: true, fields: [{ name: 'project', label: 'Project', options: ['AIVEX operations', 'Autumn workshops', 'Infinity website', 'Integration day'] }] })}>Add to project</button><button onClick={() => request('Change availability', null, { fields: [{ name: 'availability', label: 'Availability', options: AVAILABILITY }] })}>Availability</button></> : <button onClick={() => request('Convert member to staff', null, { convert: true, fields: [{ name: 'department', label: 'Department', options: DEPARTMENTS }, { name: 'role', label: 'Assigned role', required: true }] })}>Convert to staff</button>}<button className="is-danger" onClick={() => request('Deactivate profile', { status: 'Inactive' }, { danger: true })}>Deactivate</button><button onClick={() => request('Archive profile', { status: 'Archived' }, { danger: true })}>Archive</button></div></>}
-    </>}><div className="adm-candidate-identity"><Avatar initials={detail.initials}/><div><h3>{detail.name}</h3><p>{detail.type || detail.role || detail.pole}</p></div><StatusBadge>{detail.status}</StatusBadge></div>
+    {detail && <Drawer className={application ? 'is-candidate-drawer' : ''} title={application ? 'Application review' : isStaff ? 'Operational profile' : 'Member profile'} eyebrow={detail.id} onClose={() => setDetailId(null)} footer={application ? <CandidateActionBar detail={detail} request={request}/> : <>
+      <Button onClick={() => request(isStaff ? 'Assign internal role' : 'Edit member profile', null, { fields: isStaff ? [{ name: 'role', label: 'Internal role', value: detail.role, required: true }] : [{ name: 'name', label: 'Name', value: detail.name, required: true }, { name: 'email', label: 'Email', type: 'email', value: detail.email, required: true }, { name: 'level', label: 'Level', options: LEVELS, value: detail.level }, { name: 'status', label: 'Status', options: ['Active', 'On pause', 'Inactive', 'Alumni'], value: detail.status }] })}>{isStaff ? 'Assign a role' : 'Edit profile'}</Button><Button variant="secondary" onClick={() => request(isStaff ? 'Move department' : 'Change primary pole', null, { fields: [{ name: isStaff ? 'department' : 'pole', label: isStaff ? 'Current department' : 'Primary pole', options: isStaff ? DEPARTMENTS : ['Unassigned', ...POLES], value: isStaff ? detail.department : detail.pole }] })}>{isStaff ? 'Move department' : 'Change pole'}</Button><div>{isStaff ? <><button onClick={() => request('Assign project', null, { project: true, fields: [{ name: 'project', label: 'Project', options: ['AIVEX operations', 'Autumn workshops', 'Infinity website', 'Integration day'] }] })}>Add to project</button><button onClick={() => request('Change availability', null, { fields: [{ name: 'availability', label: 'Availability', options: AVAILABILITY }] })}>Availability</button></> : <button onClick={() => request('Convert member to staff', null, { convert: true, fields: [{ name: 'department', label: 'Department', options: DEPARTMENTS }, { name: 'role', label: 'Assigned role', required: true }] })}>Convert to staff</button>}<button className="is-danger" onClick={() => request('Deactivate profile', { status: 'Inactive' }, { danger: true })}>Deactivate</button><button onClick={() => request('Archive profile', { status: 'Archived' }, { danger: true })}>Archive</button></div>
+    </>}>{application ? <CandidateDossier detail={detail} note={note} setNote={setNote} onSave={() => { if (!note.trim()) { addToast('Note is empty', 'Write a note before saving.'); return } update(collection, detail.id, { note }, 'Internal note saved') }}/> : <><div className="adm-candidate-identity"><Avatar initials={detail.initials}/><div><h3>{detail.name}</h3><p>{detail.role || detail.pole}</p></div><StatusBadge>{detail.status}</StatusBadge></div>
       <section className="adm-detail-section"><h4><span>01</span>Identity & academic path</h4><Facts items={[["Email", detail.email], ['Phone', detail.phone], ['Study level', detail.level], ['Speciality', detail.speciality || 'Information systems']]}/></section>
-      <section className="adm-detail-section"><h4><span>02</span>{application ? 'Join profile' : isStaff ? 'Operational assignment' : 'Membership'}</h4><Facts items={application ? [['Application type', detail.type], [detail.type === 'Staff' ? 'Requested department' : 'Interest track', detail.track], ['Experience', detail.experience], ['Availability', detail.availability], ['Submitted', detail.date], ['Source', detail.source], ['Form version', detail.form], ['Consent', 'Contact consent recorded'], ...(detail.interviewAt ? [['Interview', detail.interviewAt.replace('T', ' ')], ['Meeting location', detail.interviewLocation]] : []), ...(detail.requestMessage ? [['Information requested', detail.requestMessage]] : [])] : isStaff ? [['Requested at registration', detail.requested], ['Current department', detail.department], ['Current internal role', detail.role], ['Availability', detail.availability]] : [['Primary pole', detail.pole], ['Cohort', detail.cohort], ['Entry date', detail.joined], ['Initial interests / skills', detail.skills || detail.track]]}/></section>
-      {!application && <section className="adm-detail-section"><h4><span>03</span>{isStaff ? 'Assigned projects' : 'Event participation'}</h4>{(isStaff ? detail.assignedProjects : detail.events)?.length ? <div className="adm-project-list">{(isStaff ? detail.assignedProjects : detail.events).map((item) => <p key={item}><span>{item}</span><StatusBadge tone="success">{isStaff ? 'Assigned' : 'Attended'}</StatusBadge></p>)}</div> : <p className="adm-muted">No {isStaff ? 'projects assigned' : 'participation recorded'} yet.</p>}{!isStaff && <p className="adm-muted">Internal documents: none attached to this demo member.</p>}</section>}
+      <section className="adm-detail-section"><h4><span>02</span>{isStaff ? 'Operational assignment' : 'Membership'}</h4><Facts items={isStaff ? [['Requested at registration', detail.requested], ['Current department', detail.department], ['Current internal role', detail.role], ['Availability', detail.availability]] : [['Primary pole', detail.pole], ['Cohort', detail.cohort], ['Entry date', detail.joined], ['Initial interests / skills', detail.skills || detail.track]]}/></section>
+      <section className="adm-detail-section"><h4><span>03</span>{isStaff ? 'Assigned projects' : 'Event participation'}</h4>{(isStaff ? detail.assignedProjects : detail.events)?.length ? <div className="adm-project-list">{(isStaff ? detail.assignedProjects : detail.events).map((item) => <p key={item}><span>{item}</span><StatusBadge tone="success">{isStaff ? 'Assigned' : 'Attended'}</StatusBadge></p>)}</div> : <p className="adm-muted">No {isStaff ? 'projects assigned' : 'participation recorded'} yet.</p>}{!isStaff && <p className="adm-muted">Internal documents: none attached to this demo member.</p>}</section>
       <section className="adm-detail-section"><h4><span>04</span>Internal notes</h4><label className="sr-only" htmlFor="record-note">Administrative note</label><textarea id="record-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add context for your colleagues…"/><button className="adm-save-note" onClick={() => { if (!note.trim()) { addToast('Note is empty', 'Write a note before saving.'); return } update(collection, detail.id, { note }, 'Internal note saved') }}>Save note</button></section>
-      <section className="adm-detail-section"><h4><span>05</span>History</h4><History items={detail.history}/></section>
+      <section className="adm-detail-section"><h4><span>05</span>History</h4><History items={detail.history}/></section></>}
     </Drawer>}
     {action && <ActionDialog key={action.title} action={action} onClose={() => setAction(null)} onSubmit={(values) => { if (action.schedule) { update(collection, action.ids, { status: 'Interview', ...values }, action.title, values.reason); return } return submit(values) }}/>} 
   </div>

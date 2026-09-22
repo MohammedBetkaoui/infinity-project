@@ -104,7 +104,11 @@ export default function useAivexExperience(pageRef, ready) {
     motion.revealSection('.ax-fact', { mode: 'depth', trigger: '.ax-facts', stagger: .08 })
     motion.revealSection('.ax-preparation-item', { mode: 'depth', trigger: '.ax-preparation-list', stagger: .06 })
     motion.revealSection('.ax-faq-item', { mode: 'depth', trigger: '.ax-faq-list', stagger: .06 })
-    motion.revealSection('.ax-footer-home', { mode: 'depth' })
+    // Footer stamp: the logo row is the last block on the page, so it can
+    // never scroll 6% into view itself (the show-observer dead zone) — watch
+    // the whole footer as host instead; it is tall enough to enter reliably
+    // on every viewport, desktop included.
+    motion.revealSection('.ax-footer-home', { mode: 'depth', trigger: '.ax-footer' })
     motion.revealAllText()
     motion.parallaxElement('.ax-footer-cross', -.16, { rotation: 9 })
   }, { enabled: ready })
