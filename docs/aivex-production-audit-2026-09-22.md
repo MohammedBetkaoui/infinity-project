@@ -40,7 +40,7 @@ Local migrations enable RLS and revoke `anon`/`authenticated` access for AIVEX t
 | Setting | Production value | Desired launch value | Result |
 |---|---|---|---|
 | `registration_enabled` | false | true | DIFFERENT |
-| `registration_open_at` | null | `2026-10-01T00:00:00+01:00` | MISSING |
+| `registration_open_at` | null | `2026-09-21T00:00:00+01:00` | MISSING |
 | `registration_close_at` | null | `2026-10-25T23:59:59+01:00` | MISSING |
 | `document_upload_enabled` | false | true | DIFFERENT |
 | `signed_document_deadline` | null | `2026-10-25T23:59:59+01:00` | MISSING |

@@ -20,7 +20,7 @@ The Magic Link resolves the registration at init and finalize; candidate-supplie
 
 Target manual values for edition 2, subject to production review:
 
-- `registration_open_at = 2026-10-01T00:00:00+01:00`
+- `registration_open_at = 2026-09-21T00:00:00+01:00`
 - `registration_close_at = 2026-10-25T23:59:59+01:00`
 - `signed_document_deadline = 2026-10-25T23:59:59+01:00`
 - `registration_enabled = true`

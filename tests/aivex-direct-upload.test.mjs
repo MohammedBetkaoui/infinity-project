@@ -39,7 +39,7 @@ const validPayload = () => ({
 
 const hints = () => REGISTRATION_FILE_FIELDS.map((field) => ({ field, mime: 'image/png', size: PNG.length }))
 const openSettings = () => normalizeOperationalSettings({
-  edition: 2, registration_enabled: true, registration_open_at: '2026-10-01T00:00:00+01:00',
+  edition: 2, registration_enabled: true, registration_open_at: '2026-09-21T00:00:00+01:00',
   registration_close_at: '2026-10-25T23:59:59+01:00', document_upload_enabled: true,
   signed_document_deadline: '2026-10-25T23:59:59+01:00',
 })
@@ -63,7 +63,7 @@ function response() {
 test('campaign boundaries use exact Algeria-offset instants and fail closed', () => {
   const settings = openSettings()
   assert.deepEqual(canRegister(settings, new Date('2026-09-30T23:59:59+01:00')), { ok: false, status: 'registration_not_open' })
-  assert.deepEqual(canRegister(settings, new Date('2026-10-01T00:00:00+01:00')), { ok: true })
+  assert.deepEqual(canRegister(settings, new Date('2026-09-21T00:00:00+01:00')), { ok: true })
   assert.deepEqual(canRegister(settings, new Date('2026-10-25T23:59:59+01:00')), { ok: true })
   assert.deepEqual(canRegister(settings, new Date('2026-10-26T00:00:00+01:00')), { ok: false, status: 'registration_closed' })
   assert.deepEqual(canRegister({ ...settings, registrationEnabled: false }, NOW), { ok: false, status: 'registration_disabled' })
