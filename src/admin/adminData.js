@@ -34,7 +34,7 @@ export const teams = [
 ]
 
 export const recentActivity = [
-  { kind: 'application', title: 'Application accepted', subject: 'Meriem Saadi · Staff', actor: 'Nadia Belkacem', time: '11:32', tone: 'success' },
+  { kind: 'application', title: 'Application ', subject: 'Meriem Saadi · Staff', actor: 'Nadia Belkacem', time: '11:32', tone: 'success' },
   { kind: 'document', title: 'Confidential document opened', subject: 'Nova Circuit · Student card 02', actor: 'Karim Amari', time: '11:08', tone: 'sensitive' },
   { kind: 'interview', title: 'Interview scheduled', subject: 'Nassim Boudiaf · 23 Sep at 14:30', actor: 'Nadia Belkacem', time: '10:54', tone: 'info' },
   { kind: 'upload', title: 'Signed document received', subject: 'Sirius Lab · version 2', actor: 'Team tracking link', time: '09:48', tone: 'success' },
