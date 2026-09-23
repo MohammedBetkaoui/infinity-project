@@ -50,24 +50,24 @@ export default function AivexPreparation() {
   ))
 
   const statusMessage = useMemo(() => {
-    if (count === TOTAL) return 'All items checked. The official rules will refine the details — your groundwork already stands.'
-    if (count === 0) return `${TOTAL} signals to work through. Nothing here is submitted: this stays on your device.`
-    return `${count} of ${TOTAL} signals locked. Nothing is submitted here — this stays with you.`
+    if (count === TOTAL) return 'All skill areas covered. Your team can now turn this map into a focused AI challenge response.'
+    if (count === 0) return `${TOTAL} skill areas to explore. Nothing here is submitted: this stays on your device.`
+    return `${count} of ${TOTAL} skill areas mapped. Nothing is submitted here — this stays with you.`
   }, [count])
 
   return (
     <section className="ax-preparation" id="preparation" aria-labelledby="ax-preparation-title" tabIndex={-1}>
       <div className="ax-container ax-preparation-layout">
         <div className="ax-preparation-intro">
-          <p className="ax-preparation-eyebrow">Before the doors open</p>
-          <h2 id="ax-preparation-title">Five signals.<br />One working prototype.</h2>
-          <p>The official rules are still on their way. That is not a reason to wait — work through these five signals now, at your own pace, and arrive with something real to show.</p>
+          <p className="ax-preparation-eyebrow">BE READY FOR THE CHALLENGE</p>
+          <h2 id="ax-preparation-title">Five skills.<br />One AI challenge.</h2>
+          <p>AIVEX challenges participants to tackle a problem proposed by the jury. The nature of the challenge may vary from one edition to another, requiring teams to adapt, explore the problem, make relevant technical choices and develop a well-founded AI-based solution.</p>
 
           <aside className="ax-preparation-tracker" aria-label="Personal preparation progress">
-            <div className="ax-tracker-heading"><Radar size={18} strokeWidth={1.6} aria-hidden="true" /><span>Preparation signal</span></div>
+            <div className="ax-tracker-heading"><Radar size={18} strokeWidth={1.6} aria-hidden="true" /><span>Team readiness</span></div>
             <div className="ax-tracker-count">
               <SignalCount value={count} reduced={reduced} />
-              <span>/ {TOTAL}<small>signals locked</small></span>
+              <span>/ {TOTAL}<small>skill areas</small></span>
             </div>
             <div className="ax-tracker-line" aria-hidden="true">
               <motion.span animate={{ scaleX: count / TOTAL }} initial={false}
@@ -75,7 +75,7 @@ export default function AivexPreparation() {
             </div>
             <p role="status" aria-live="polite">{statusMessage}</p>
             <button type="button" className="ax-tracker-reset" disabled={!count} onClick={() => setChecked([])}>
-              <RotateCcw size={12} strokeWidth={2} aria-hidden="true" />Reset signals
+              <RotateCcw size={12} strokeWidth={2} aria-hidden="true" />Reset skills
             </button>
           </aside>
         </div>
@@ -97,7 +97,7 @@ export default function AivexPreparation() {
               </label>
             ))}
           </fieldset>
-          <p className="ax-preparation-disclaimer">A thinking tool, not a submission checklist or an evaluation rubric. Saved on this device only — it is never sent anywhere, and clearing your browser data clears it too.</p>
+          <p className="ax-preparation-disclaimer">These skill areas are guidance only. They are not registration requirements or judging criteria. Team members may cover several areas, and the exact domain, dataset, objectives and technical constraints will be defined by the jury.</p>
         </div>
       </div>
     </section>

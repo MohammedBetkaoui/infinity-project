@@ -52,11 +52,31 @@ export const projectDirections = [
 ]
 
 export const preparationItems = [
-  { id: 'problem', title: 'Lock a real problem', detail: 'Name who you are building for and the friction they actually feel. One concrete situation beats a broad ambition.' },
-  { id: 'data', title: 'Map your data', detail: 'List what you can realistically use, what is missing, and how you will fill the gap. Never with real personal data.' },
-  { id: 'prototype', title: 'Sketch the smallest working version', detail: 'One input, one process, one visible result. A rough flow that proves the idea beats a polished slide that does not.' },
-  { id: 'reasoning', title: 'Know why you built it this way', detail: 'Be ready to justify every choice, including the approaches you tried and dropped along the way.' },
-  { id: 'stress-test', title: 'Push it until it breaks', detail: "Find your prototype's edge cases yourself. Knowing its limits is worth more than pretending it has none." },
+  {
+    id: 'problem-understanding',
+    title: 'Problem Understanding & Domain Analysis',
+    detail: 'Understand the challenge, study its context and identify exactly what the AI system is expected to solve.',
+  },
+  {
+    id: 'data-preparation',
+    title: 'Data Preparation & Engineering',
+    detail: 'Explore, clean, organise and transform the available data into a reliable dataset for training and evaluation.',
+  },
+  {
+    id: 'ai-model-development',
+    title: 'AI & Model Development',
+    detail: 'Select an appropriate AI approach, design the model or pipeline and make technical choices suited to the problem.',
+  },
+  {
+    id: 'training-experimentation',
+    title: 'Training & Experimentation',
+    detail: 'Train, tune and compare different approaches, analyse the results and improve the solution through experimentation.',
+  },
+  {
+    id: 'evaluation-teamwork-presentation',
+    title: 'Evaluation, Teamwork & Presentation',
+    detail: 'Measure performance, identify limitations, work efficiently as a team and clearly explain your methodology, results and technical choices to the jury.',
+  },
 ]
 
 export const aivexFaqs = [
