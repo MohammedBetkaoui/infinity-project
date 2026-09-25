@@ -230,10 +230,13 @@ test('Join workflow migration is service-role only, audited, and contains no cre
 })
 
 test('the real Applications page does not persist Join records in browser storage', async () => {
-  const source = `${await read('src/admin/ApplicationsPage.jsx')}\n${await read('src/admin/useAdminApplications.js')}`
+  const page = await read('src/admin/ApplicationsPage.jsx')
+  const source = `${page}\n${await read('src/admin/useAdminApplications.js')}`
   assert.match(source, /\/api\/admin\/applications/)
   assert.doesNotMatch(source, /localStorage|sessionStorage|SUPABASE_SECRET_KEY|createClient\(/)
   assert.doesNotMatch(source, /Internal reason|Message to the candidate|requestMessage|values\.reason/)
   assert.match(source, /reason:\s*false/)
+  assert.doesNotMatch(page, /saveNote|setNote|noteSaving|onSave=/)
+  assert.match(page, /description:\s*false/)
   assert.match(await read('src/admin/AdminApp.jsx'), /<ApplicationsPage/)
 })

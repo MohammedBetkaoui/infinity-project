@@ -54,8 +54,6 @@ export default function ApplicationsPage() {
   const [detailLoading, setDetailLoading] = useState(Boolean(requestedRecordId))
   const [detailError, setDetailError] = useState('')
   const [action, setAction] = useState(null)
-  const [note, setNote] = useState('')
-  const [noteSaving, setNoteSaving] = useState(false)
   const sortValue = `${SORT_KEYS[sort.key] || 'submitted'}_${sort.asc ? 'asc' : 'desc'}`
   const { records, pagination, counts: rawCounts, facets, loading, error, refresh } = useAdminApplications({
     page,
@@ -102,7 +100,6 @@ export default function ApplicationsPage() {
     try {
       const next = await loadDetail(id)
       setDetail(next)
-      setNote('')
     } catch (loadError) {
       setDetailError(loadError.message)
       addToast('Application unavailable', loadError.message)
@@ -118,7 +115,6 @@ export default function ApplicationsPage() {
       .then((next) => {
         if (!active) return
         setDetail(next)
-        setNote('')
         setDetailError('')
       })
       .catch((loadError) => {
@@ -136,7 +132,7 @@ export default function ApplicationsPage() {
     fields: extra.fields,
     danger: extra.danger,
     reason: false,
-    description: 'This action changes the real Join application and records the authenticated administrator in its history.',
+    description: false,
   })
 
   const actionPayload = (actionName, values) => {
@@ -169,30 +165,9 @@ export default function ApplicationsPage() {
     })
     if (!result.ok) return result.message
     setDetail(result.application)
-    setNote('')
     refresh()
     addToast(action.title, 'The application and its administrative history were updated.')
     return undefined
-  }
-
-  const saveNote = async () => {
-    if (!note.trim()) {
-      addToast('Note is empty', 'Write a note before saving.')
-      return
-    }
-    setNoteSaving(true)
-    const result = await act(detail.id, {
-      action: 'add_note', expectedUpdatedAt: detail.updatedAt, reason: '', payload: { note },
-    })
-    setNoteSaving(false)
-    if (!result.ok) {
-      addToast('Note not saved', result.message)
-      return
-    }
-    setDetail(result.application)
-    setNote('')
-    refresh()
-    addToast('Internal note saved', 'The note is now part of the protected application history.')
   }
 
   const openBulkAction = () => setAction({
@@ -200,7 +175,7 @@ export default function ApplicationsPage() {
     bulk: true,
     reason: false,
     fields: [{ name: 'status', label: 'New status', options: Object.keys(BULK_ACTIONS) }],
-    description: 'Only valid transitions will be applied. Conflicting or closed applications will be reported as skipped.',
+    description: false,
   })
 
   return <div className="adm-page adm-people-page adm-applications-page">
@@ -240,7 +215,7 @@ export default function ApplicationsPage() {
     {detailError && !detailLoading && <div className="adm-inline-application-error" role="alert"><span>{detailError}</span><button onClick={() => setDetailError('')}>Dismiss</button></div>}
 
     {detail && <Drawer className="is-candidate-drawer" title="Application review" eyebrow={detail.ref} onClose={() => setDetail(null)} footer={<CandidateActionBar detail={detail} request={requestAction}/> }>
-      <CandidateDossier detail={detail} note={note} setNote={setNote} onSave={saveNote} noteSaving={noteSaving}/>
+      <CandidateDossier detail={detail}/>
     </Drawer>}
 
     {action && <ActionDialog key={action.title} action={action} onClose={() => setAction(null)} onSubmit={submitAction}/>} 

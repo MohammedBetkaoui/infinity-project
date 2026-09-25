@@ -63,7 +63,7 @@ function CandidateSection({ index, title, copy, children }) {
   return <section className="adm-candidate-section"><header><code>{index}</code><div><h3>{title}</h3><p>{copy}</p></div></header>{children}</section>
 }
 
-export function CandidateDossier({ detail, note, setNote, onSave, noteSaving = false }) {
+export function CandidateDossier({ detail, note = '', setNote, onSave, noteSaving = false }) {
   return <div className="adm-candidate-dossier">
     <section className="adm-candidate-overview">
       <div className="adm-candidate-overview__rail"><code>{detail.ref || detail.id}</code><span>JOIN INTAKE / {detail.form}</span></div>
@@ -92,11 +92,11 @@ export function CandidateDossier({ detail, note, setNote, onSave, noteSaving = f
       <Facts items={[["Application type", detail.type], ['Submission date', detail.date], ['Source', detail.source], ['Form version', detail.form], ['Contact consent', 'Recorded']]}/>
     </CandidateSection>
 
-    <CandidateSection index="05" title="Internal notes" copy="Visible to Infinity administrators only.">
+    {onSave && setNote && <CandidateSection index="05" title="Internal notes" copy="Visible to Infinity administrators only.">
       <label className="sr-only" htmlFor="candidate-note">Administrative note</label><textarea id="candidate-note" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add review context for your colleagues…"/><button className="adm-save-note" onClick={onSave} disabled={noteSaving}>{noteSaving ? 'Saving note…' : 'Save internal note'}</button>
-    </CandidateSection>
+    </CandidateSection>}
 
-    <CandidateSection index="06" title="Application history" copy="Decisions and follow-ups recorded by the administration."><History items={detail.history}/></CandidateSection>
+    <CandidateSection index={onSave && setNote ? '06' : '05'} title="Application history" copy="Decisions and follow-ups recorded by the administration."><History items={detail.history}/></CandidateSection>
   </div>
 }
 
