@@ -133,6 +133,16 @@ test('reviewers can review but cannot decide; administrator actions use the auth
     action: 'start_review', expectedUpdatedAt: store.record.updated_at, reason: '', payload: {},
   }, administrator)
   assert.equal(store.calls.find(([kind]) => kind === 'action')[1].reason, 'Application moved to review')
+
+  store.record = row()
+  store.calls = []
+  await service.act(APP_ID, {
+    action: 'request_information', expectedUpdatedAt: store.record.updated_at, reason: '', payload: {},
+  }, administrator)
+  assert.equal(
+    store.calls.find(([kind]) => kind === 'action')[1].payload.message,
+    'Please review your application details. Infinity Club administration will contact you if further information is needed.',
+  )
 })
 
 test('applications API fails closed without session and never calls the data service', async () => {
@@ -223,7 +233,7 @@ test('the real Applications page does not persist Join records in browser storag
   const source = `${await read('src/admin/ApplicationsPage.jsx')}\n${await read('src/admin/useAdminApplications.js')}`
   assert.match(source, /\/api\/admin\/applications/)
   assert.doesNotMatch(source, /localStorage|sessionStorage|SUPABASE_SECRET_KEY|createClient\(/)
-  assert.doesNotMatch(source, /Internal reason|values\.reason/)
+  assert.doesNotMatch(source, /Internal reason|Message to the candidate|requestMessage|values\.reason/)
   assert.match(source, /reason:\s*false/)
   assert.match(await read('src/admin/AdminApp.jsx'), /<ApplicationsPage/)
 })

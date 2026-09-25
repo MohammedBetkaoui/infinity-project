@@ -141,7 +141,6 @@ export default function ApplicationsPage() {
 
   const actionPayload = (actionName, values) => {
     if (actionName === 'schedule_interview') return { scheduledAt: new Date(values.interviewAt).toISOString(), location: values.interviewLocation }
-    if (actionName === 'request_information') return { message: values.requestMessage }
     if (actionName === 'change_staff_department') return { department: values.track }
     return {}
   }

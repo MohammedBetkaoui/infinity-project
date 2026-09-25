@@ -33,6 +33,7 @@ const ACTION_TITLES = Object.freeze({
   archive: 'Application archived',
   add_note: 'Internal note added',
 })
+const STANDARD_INFORMATION_REQUEST = 'Please review your application details. Infinity Club administration will contact you if further information is needed.'
 
 const administrativeReason = (action, reason) => {
   const supplied = typeof reason === 'string' ? reason.trim() : ''
@@ -43,6 +44,9 @@ const administrativeReason = (action, reason) => {
 const initials = (name) => String(name || '').split(' ').filter(Boolean).map((part) => part[0]).slice(0, 2).join('').toUpperCase()
 
 function normalizePayload(action, payload) {
+  if (action === 'request_information') {
+    return { ...payload, message: String(payload?.message || '').trim() || STANDARD_INFORMATION_REQUEST }
+  }
   if (action === 'change_staff_department') {
     return { ...payload, department: DEPARTMENT_SLUGS[payload.department] || payload.department }
   }
