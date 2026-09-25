@@ -135,6 +135,7 @@ export default function ApplicationsPage() {
     applicationAction: extra.action,
     fields: extra.fields,
     danger: extra.danger,
+    reason: false,
     description: 'This action changes the real Join application and records the authenticated administrator in its history.',
   })
 
@@ -151,7 +152,7 @@ export default function ApplicationsPage() {
       const selectedRecords = records.filter((record) => selected.includes(record.id))
       const result = await bulk({
         action: actionName,
-        reason: values.reason,
+        reason: '',
         records: selectedRecords.map((record) => ({ id: record.id, expectedUpdatedAt: record.updatedAt })),
       })
       if (!result.ok) return result.message
@@ -164,7 +165,7 @@ export default function ApplicationsPage() {
     const result = await act(detail.id, {
       action: action.applicationAction,
       expectedUpdatedAt: detail.updatedAt,
-      reason: values.reason,
+      reason: '',
       payload: actionPayload(action.applicationAction, values),
     })
     if (!result.ok) return result.message
@@ -198,6 +199,7 @@ export default function ApplicationsPage() {
   const openBulkAction = () => setAction({
     title: `Update ${selected.length} selected applications`,
     bulk: true,
+    reason: false,
     fields: [{ name: 'status', label: 'New status', options: Object.keys(BULK_ACTIONS) }],
     description: 'Only valid transitions will be applied. Conflicting or closed applications will be reported as skipped.',
   })

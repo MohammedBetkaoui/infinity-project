@@ -102,7 +102,7 @@ test('Join mutation validation requires optimistic concurrency and bounds bulk o
     action: 'archive', reason: 'Campaign closed', records: [{ id: APP_ID, expectedUpdatedAt: NOW }],
   }).ok, true)
   assert.equal(validateApplicationBulkBody({ action: 'accept_member', reason: 'Unsafe bulk', records: [{ id: APP_ID, expectedUpdatedAt: NOW }] }).ok, false)
-  assert.equal(validateApplicationBulkBody({ action: 'archive', reason: '', records: [{ id: APP_ID, expectedUpdatedAt: NOW }] }).ok, false)
+  assert.equal(validateApplicationBulkBody({ action: 'archive', reason: '', records: [{ id: APP_ID, expectedUpdatedAt: NOW }] }).ok, true)
 })
 
 test('reviewers can review but cannot decide; administrator actions use the authenticated actor', async () => {
@@ -126,6 +126,13 @@ test('reviewers can review but cannot decide; administrator actions use the auth
   assert.equal(call.adminUserId, ADMIN_ID)
   assert.equal(call.action, 'accept_member')
   assert.equal(call.expectedUpdatedAt, '2026-09-25T08:30:00.000Z')
+
+  store.record = row()
+  store.calls = []
+  await service.act(APP_ID, {
+    action: 'start_review', expectedUpdatedAt: store.record.updated_at, reason: '', payload: {},
+  }, administrator)
+  assert.equal(store.calls.find(([kind]) => kind === 'action')[1].reason, 'Application moved to review')
 })
 
 test('applications API fails closed without session and never calls the data service', async () => {
@@ -216,6 +223,7 @@ test('the real Applications page does not persist Join records in browser storag
   const source = `${await read('src/admin/ApplicationsPage.jsx')}\n${await read('src/admin/useAdminApplications.js')}`
   assert.match(source, /\/api\/admin\/applications/)
   assert.doesNotMatch(source, /localStorage|sessionStorage|SUPABASE_SECRET_KEY|createClient\(/)
+  assert.doesNotMatch(source, /Internal reason|values\.reason/)
+  assert.match(source, /reason:\s*false/)
   assert.match(await read('src/admin/AdminApp.jsx'), /<ApplicationsPage/)
 })
-

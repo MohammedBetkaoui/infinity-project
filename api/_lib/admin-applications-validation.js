@@ -67,7 +67,7 @@ export function validateApplicationActionBody(body) {
 export function validateApplicationBulkBody(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return { ok: false }
   if (!['start_review', 'decline', 'archive'].includes(body.action)) return { ok: false }
-  if (!boundedText(body.reason || '', 2000) || !body.reason?.trim()) return { ok: false }
+  if (!boundedText(body.reason || '', 2000)) return { ok: false }
   if (!Array.isArray(body.records) || body.records.length < 1 || body.records.length > 50) return { ok: false }
   const records = body.records.map((record) => ({
     id: record?.id,
@@ -75,6 +75,5 @@ export function validateApplicationBulkBody(body) {
   }))
   if (records.some((record) => !isApplicationId(record.id) || !Number.isFinite(Date.parse(record.expectedUpdatedAt)))) return { ok: false }
   if (new Set(records.map((record) => record.id)).size !== records.length) return { ok: false }
-  return { ok: true, value: { action: body.action, reason: body.reason, records } }
+  return { ok: true, value: { action: body.action, reason: typeof body.reason === 'string' ? body.reason : '', records } }
 }
-

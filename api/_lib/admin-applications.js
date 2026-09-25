@@ -34,6 +34,12 @@ const ACTION_TITLES = Object.freeze({
   add_note: 'Internal note added',
 })
 
+const administrativeReason = (action, reason) => {
+  const supplied = typeof reason === 'string' ? reason.trim() : ''
+  if (supplied || action === 'add_note') return supplied
+  return ACTION_TITLES[action] || 'Application updated'
+}
+
 const initials = (name) => String(name || '').split(' ').filter(Boolean).map((part) => part[0]).slice(0, 2).join('').toUpperCase()
 
 function normalizePayload(action, payload) {
@@ -156,7 +162,7 @@ export function createAdminApplicationsService({ store, now = () => new Date() }
           adminUserId: user.id,
           action: input.action,
           expectedUpdatedAt: input.expectedUpdatedAt,
-          reason: input.reason,
+          reason: administrativeReason(input.action, input.reason),
           payload: normalizePayload(input.action, input.payload),
           now: now(),
         })
