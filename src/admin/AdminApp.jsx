@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, ArrowRight, FileText, Search, Users } from 'lucide-react'
-import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { ArrowLeft, ArrowRight, FileText, LockKeyhole, Search, Users } from 'lucide-react'
+import { Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import InfinityMark from '../components/InfinityMark'
+import { AdminAuthProvider, useAdminAuth } from './AdminAuth'
+import { adminLoginPathFor, safeAdminReturnTo } from './adminAuthPath'
 import { AdminProvider, useAdmin } from './AdminStore'
 import { AdminShell, Button, Modal, ToastStack } from './AdminUI'
 import { OverviewPage } from './AdminPages'
@@ -46,7 +49,7 @@ function Workspace() {
   const FlowArrow = isArabicAivex ? ArrowLeft : ArrowRight
   const wrapperClassName = ['adm-admin-root', state.settings.density === 'Compact' && 'adm-density-compact', isArabicAivex && 'is-aivex-ar'].filter(Boolean).join(' ')
   useEffect(() => {
-    document.title = isArabicAivex ? 'إدارة Infinity Club · نموذج تجريبي' : 'Infinity Club Administration · Demo'
+    document.title = isArabicAivex ? 'إدارة Infinity Club' : 'Infinity Club Administration'
     window.scrollTo(0, 0)
   }, [pathname, isArabicAivex])
   useEffect(() => {
@@ -56,7 +59,6 @@ function Workspace() {
   }, [])
   const searchResults = query.trim() ? ['applications', 'members', 'staff', 'teams'].flatMap((collection) => state[collection].filter((r) => `${r.name} ${r.ref || ''} ${r.email || ''}`.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 4).map((record) => ({ collection, record }))).slice(0, 8) : []
   const pending = state.teams.filter((t) => ['Signed document received', 'Corrections needed', 'Generation issue'].includes(t.document))
-  if (pathname === '/admin/login') return <><LoginPage/><ToastStack toasts={toasts}/></>
   return <div className={wrapperClassName} dir={isArabicAivex ? 'rtl' : 'ltr'} lang={language}><a href="#admin-content" className="adm-skip-link">{t('Skip to workspace')}</a><AdminShell collapsed={collapsed} setCollapsed={setCollapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} query={query} setQuery={setQuery} onNotifications={() => setNotifications(true)} onNewAction={() => setNewAction(true)}>
     <Routes><Route index element={<Navigate to="/admin/overview" replace/>}/><Route path="overview" element={<OverviewPage/>}/><Route path="applications" element={<PeoplePage key={`applications-${routeSearch}`} collection="applications" globalQuery=""/>}/><Route path="members" element={<PeoplePage key={`members-${routeSearch}`} collection="members" globalQuery=""/>}/><Route path="staff" element={<PeoplePage key={`staff-${routeSearch}`} collection="staff" globalQuery=""/>}/><Route path="aivex" element={<AivexListPage key={routeSearch} globalQuery=""/>}/><Route path="aivex/:teamId" element={<AivexDetailPage key={pathname}/>}/><Route path="activity" element={<ActivityPage key={routeSearch} globalQuery=""/>}/><Route path="settings" element={<SettingsPage/>}/><Route path="*" element={<Navigate to="/admin/overview" replace/>}/></Routes>
   </AdminShell>
@@ -66,4 +68,30 @@ function Workspace() {
   <ToastStack toasts={toasts}/></div>
 }
 
-export default function AdminApp() { return <AdminProvider><Routes><Route path="/admin/*" element={<Workspace/>}/></Routes></AdminProvider> }
+function SecureLoadingState() {
+  return <div className="adm-auth-loading adm-app" role="status" aria-live="polite"><InfinityMark/><LockKeyhole size={20}/><div><b>Verifying administrative access</b><span>Infinity Administration · Secure session</span></div></div>
+}
+
+function ProtectedWorkspace() {
+  const { status } = useAdminAuth()
+  const location = useLocation()
+  if (status === 'loading') return <SecureLoadingState/>
+  if (status !== 'authenticated') {
+    return <Navigate to={adminLoginPathFor(`${location.pathname}${location.search}${location.hash}`)} replace/>
+  }
+  return <AdminProvider><Workspace/></AdminProvider>
+}
+
+function LoginRoute() {
+  const { status } = useAdminAuth()
+  const [params] = useSearchParams()
+  if (status === 'loading') return <SecureLoadingState/>
+  if (status === 'authenticated') return <Navigate to={safeAdminReturnTo(params.get('returnTo'))} replace/>
+  return <LoginPage/>
+}
+
+function AdminRoutes() {
+  return <Routes><Route path="/admin/login" element={<LoginRoute/>}/><Route path="/admin/*" element={<ProtectedWorkspace/>}/></Routes>
+}
+
+export default function AdminApp() { return <AdminAuthProvider><AdminRoutes/></AdminAuthProvider> }

@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import {
   AlertTriangle, ArrowRight, Bell, BriefcaseBusiness, Check, CheckCircle2,
   ChevronDown, ChevronLeft, ChevronRight, Circle, FileClock, FileText,
@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import InfinityMark from '../components/InfinityMark'
+import { useAdminAuth } from './AdminAuth'
 import { navItems } from './adminData'
 import { useAdmin } from './AdminStore'
 import { aivexPath, translateAivex } from './AivexI18n'
@@ -21,6 +22,9 @@ const icons = {
   activity: FileClock,
   settings: Settings,
 }
+
+const initialsFor = (name = '') => name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'IA'
+const roleLabel = (role = '') => role.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
 
 export function IconButton({ label, children, className = '', ...props }) {
   return <button className={`adm-icon-button ${className}`} aria-label={label} title={label} {...props}>{children}</button>
@@ -143,9 +147,17 @@ export function ToastStack({ toasts }) {
 
 function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen, language = 'en' }) {
   const navigate = useNavigate()
-  const { state, log } = useAdmin()
+  const { state } = useAdmin()
+  const { user, logout } = useAdminAuth()
+  const [signingOut, setSigningOut] = useState(false)
   const isArabic = language === 'ar'
   const t = (value) => translateAivex(value, language)
+  const signOut = async () => {
+    if (signingOut) return
+    setSigningOut(true)
+    await logout()
+    navigate('/admin/login', { replace: true })
+  }
   const renderNavItem = (item) => {
     const Icon = icons[item.icon]
     const count = item.icon === 'applications'
@@ -192,15 +204,15 @@ function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen, language 
           {navItems.slice(6).map(renderNavItem)}
         </div>
       </nav>
-      <div className="adm-sidebar__signal"><span><i />{t('Operations online')}</span><code>LOCAL / DEMO</code></div>
+      <div className="adm-sidebar__signal"><span><i />{t('Operations online')}</span><code>SECURE / DB</code></div>
       <div className="adm-sidebar__foot">
-        <span className="adm-sidebar__operator-label">{t('Session holder')} · ADMIN.01</span>
+        <span className="adm-sidebar__operator-label">{t('Session holder')} · @{user.username}</span>
         <button className="adm-admin-profile" onClick={() => navigate('/admin/settings')}>
-          <Avatar initials="NB" small />
-          <span><b>{state.settings.name}</b><small>{isArabic ? t('Lead administrator') : state.settings.role}</small></span>
+          <Avatar initials={initialsFor(user.displayName)} small />
+          <span><b>{user.displayName}</b><small>@{user.username}</small><em>{roleLabel(user.role)}</em></span>
           <MoreHorizontal size={17} />
         </button>
-        <button className="adm-signout" onClick={() => { log('Demo session ended', state.settings.name); navigate('/admin/login') }}><LogOut size={17} /><span>{t('Sign out')}</span></button>
+        <button className="adm-signout" onClick={signOut} disabled={signingOut}><LogOut size={17} /><span>{signingOut ? t('Signing out…') : t('Sign out')}</span></button>
       </div>
       <button className="adm-collapse" onClick={() => setCollapsed(!collapsed)} aria-label={t(collapsed ? 'Expand sidebar' : 'Collapse navigation')}><ChevronLeft size={16} /><span>{t(collapsed ? 'Expand' : 'Collapse navigation')}</span></button>
     </aside>
@@ -212,6 +224,7 @@ const breadcrumbNames = { overview: 'Overview', applications: 'Join applications
 function Topbar({ setMobileOpen, query, setQuery, notify, onNewAction, language = 'en' }) {
   const { pathname } = useLocation()
   const navigate = useNavigate()
+  const { user } = useAdminAuth()
   const isArabic = language === 'ar'
   const t = (value) => translateAivex(value, language)
   const parts = pathname.split('/').filter(Boolean)
@@ -227,7 +240,7 @@ function Topbar({ setMobileOpen, query, setQuery, notify, onNewAction, language 
         <SearchField value={query} onChange={setQuery} placeholder={t('Search anything…')} label={t('Search anything…')} clearLabel={isArabic ? 'مسح البحث' : 'Clear search'} className="adm-global-search" />
         <IconButton label={t('Notifications')} className="adm-notification" onClick={notify}><Bell size={18} /><i /></IconButton>
         <Button onClick={onNewAction} icon={<Plus size={16} />}>{t('New action')}</Button>
-        <button className="adm-top-profile" aria-label={t('Open profile')} onClick={() => navigate('/admin/settings')}><Avatar initials="NB" small /><ChevronDown size={14} /></button>
+        <button className="adm-top-profile" aria-label={`${t('Open profile')}: ${user.displayName}`} onClick={() => navigate('/admin/settings')}><Avatar initials={initialsFor(user.displayName)} small /><span><b>{user.displayName}</b><small>@{user.username} · {roleLabel(user.role)}</small></span><ChevronDown size={14} /></button>
       </div>
     </header>
   )

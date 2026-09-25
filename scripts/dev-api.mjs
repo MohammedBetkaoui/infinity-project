@@ -6,7 +6,7 @@
 // Usage (two terminals):
 //   npm run dev:api   -> http://localhost:3001  (/api/join, /api/aivex/register, /api/aivex/document,
 //                        /api/aivex/magic-link, /api/aivex/magic-link/verify, /api/aivex/magic-link/document,
-//                        /api/aivex/magic-link/upload)
+//                        /api/aivex/magic-link/upload, /api/admin/auth/*)
 //   npm run dev       -> http://localhost:5173 (proxies /api to the above)
 //
 // Only Node builtins are used. .env.local is loaded server-side and is
@@ -51,6 +51,10 @@ const streamingRoutes = {
   '/api/aivex/magic-link/upload/init': await load('aivex', 'magic-link', 'upload', 'init.js'),
   '/api/aivex/magic-link/upload/finalize': await load('aivex', 'magic-link', 'upload', 'finalize.js'),
   '/api/aivex/magic-link/document': await load('aivex', 'magic-link', 'document.js'),
+  '/api/admin/auth/login': await load('admin', 'auth', 'login.js'),
+  '/api/admin/auth/session': await load('admin', 'auth', 'session.js'),
+  '/api/admin/auth/logout': await load('admin', 'auth', 'logout.js'),
+  '/api/admin/auth/change-password': await load('admin', 'auth', 'change-password.js'),
 }
 
 const json = (res, status, payload) => {

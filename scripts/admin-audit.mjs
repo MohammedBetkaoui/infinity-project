@@ -9,6 +9,7 @@ const socket = new WebSocket(page.webSocketDebuggerUrl)
 const pending = new Map()
 const errors = []
 let sequence = 0
+let auditAuthenticated = false
 socket.addEventListener('message', ({ data }) => {
   const message = JSON.parse(data)
   if (pending.has(message.id)) {
@@ -20,6 +21,42 @@ socket.addEventListener('message', ({ data }) => {
   }
   if (message.method === 'Runtime.exceptionThrown') errors.push(message.params.exceptionDetails.exception?.description || message.params.exceptionDetails.text)
   if (message.method === 'Runtime.consoleAPICalled' && message.params.type === 'error') errors.push(message.params.args.map((arg) => arg.value || arg.description).join(' '))
+  if (message.method === 'Fetch.requestPaused') {
+    const { requestId, request } = message.params
+    const path = new URL(request.url).pathname
+    let statusCode = 404
+    let payload = { success: false }
+    if (path === '/api/admin/auth/session') {
+      statusCode = auditAuthenticated ? 200 : 401
+      payload = auditAuthenticated
+        ? { authenticated: true, user: { id: 'audit-user', username: 'audit.admin', displayName: 'Audit Administrator', role: 'super_admin' } }
+        : { authenticated: false }
+    } else if (path === '/api/admin/auth/login' && request.method === 'POST') {
+      auditAuthenticated = true
+      statusCode = 200
+      payload = { success: true, user: { id: 'audit-user', username: 'audit.admin', displayName: 'Audit Administrator', role: 'super_admin' } }
+    } else if (path === '/api/admin/auth/logout' && request.method === 'POST') {
+      auditAuthenticated = false
+      statusCode = 200
+      payload = { success: true }
+    } else if (path === '/api/admin/auth/change-password' && request.method === 'POST') {
+      statusCode = auditAuthenticated ? 200 : 401
+      payload = auditAuthenticated ? { success: true } : { success: false }
+    }
+    socket.send(JSON.stringify({
+      id: ++sequence,
+      method: 'Fetch.fulfillRequest',
+      params: {
+        requestId,
+        responseCode: statusCode,
+        responseHeaders: [
+          { name: 'Content-Type', value: 'application/json' },
+          { name: 'Cache-Control', value: 'no-store' },
+        ],
+        body: Buffer.from(JSON.stringify(payload)).toString('base64'),
+      },
+    }))
+  }
 })
 await new Promise((resolve, reject) => {
   socket.addEventListener('open', resolve, { once: true })
@@ -67,23 +104,46 @@ try {
   await mkdir(output, { recursive: true })
   await send('Runtime.enable')
   await send('Page.enable')
+  await send('Fetch.enable', { patterns: [{ urlPattern: '*://*/api/admin/auth/*', requestStage: 'Request' }] })
   await viewport(1440, 1000)
+  await navigate('/admin/overview')
+  await waitFor('location.pathname === "/admin/login" && Boolean(document.querySelector(".adm-login-form"))')
+  report.unauthenticatedGuard = await evaluate(`({
+    path: location.pathname,
+    returnTo: new URLSearchParams(location.search).get('returnTo'),
+    dashboardVisible: Boolean(document.querySelector('.adm-kpi-grid'))
+  })`)
+  assert.deepEqual(report.unauthenticatedGuard, { path: '/admin/login', returnTo: '/admin/overview', dashboardVisible: false })
   await navigate('/admin/login')
   await evaluate(`localStorage.removeItem('infinity-administration-demo-v3')`)
   await send('Page.reload')
-  await waitFor('document.readyState === "complete" && Boolean(document.querySelector(".adm-login"))')
+  await waitFor('document.readyState === "complete" && Boolean(document.querySelector(".adm-login-form"))')
   report.login = await evaluate(`({
     title: document.title,
     heading: document.querySelector('h1')?.innerText,
+    usernameAutocomplete: document.querySelector('input[name="username"]')?.autocomplete,
+    passwordAutocomplete: document.querySelector('input[name="password"]')?.autocomplete,
     content: document.body.innerText.length,
     overflow: document.documentElement.scrollWidth > innerWidth,
     errorOverlay: Boolean(document.querySelector('vite-error-overlay'))
   })`)
   assert.match(report.login.heading, /people/i)
+  assert.equal(report.login.usernameAutocomplete, 'username')
+  assert.equal(report.login.passwordAutocomplete, 'current-password')
   assert(!report.login.overflow && !report.login.errorOverlay)
   await screenshot('login-desktop')
 
-  await clickText('Enter demo workspace')
+  await evaluate(`(() => {
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
+    const username = document.querySelector('input[name="username"]')
+    const password = document.querySelector('input[name="password"]')
+    setValue.call(username, 'audit.admin')
+    username.dispatchEvent(new Event('input', { bubbles: true }))
+    setValue.call(password, 'audit-only-not-a-real-password')
+    password.dispatchEvent(new Event('input', { bubbles: true }))
+    document.querySelector('.adm-login-form').requestSubmit()
+    return true
+  })()`)
   await waitFor('location.pathname === "/admin/overview" && Boolean(document.querySelector(".adm-kpi-grid"))')
   report.overview = await evaluate(`({
     heading: document.querySelector('h1')?.textContent,
@@ -453,7 +513,7 @@ try {
   report.errors = errors
   assert.deepEqual(errors, [])
   console.log(JSON.stringify(report, null, 2))
-  console.log('PASS: admin login, overview, applications, AIVEX viewer, desktop, tablet and mobile')
+  console.log('PASS: protected admin login, overview, applications, AIVEX viewer, desktop, tablet and mobile')
 } finally {
   socket.close()
 }

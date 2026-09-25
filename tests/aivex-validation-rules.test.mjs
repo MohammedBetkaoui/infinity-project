@@ -1110,7 +1110,8 @@ test('DATABASE: phones and RFIDs are TEXT, the BAC year an integer, and the stri
   for (const year of bacYearChoices()) assert.ok(year >= 1990 && year <= 2100, String(year))
   // Direct upload adds one ordered, additive migration after identity documents.
   const migrations = (await readdir(new URL('../supabase/migrations/', import.meta.url))).sort()
-  assert.equal(migrations.at(-1), '20260924120000_aivex_direct_upload_sessions_and_retention.sql')
+  const aivexMigrations = migrations.filter((name) => name.includes('_aivex_'))
+  assert.equal(aivexMigrations.at(-1), '20260924120000_aivex_direct_upload_sessions_and_retention.sql')
 })
 
 // ---------------------------------------------------------------------------------------
