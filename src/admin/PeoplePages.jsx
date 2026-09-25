@@ -63,12 +63,12 @@ function CandidateSection({ index, title, copy, children }) {
   return <section className="adm-candidate-section"><header><code>{index}</code><div><h3>{title}</h3><p>{copy}</p></div></header>{children}</section>
 }
 
-function CandidateDossier({ detail, note, setNote, onSave }) {
+export function CandidateDossier({ detail, note, setNote, onSave, noteSaving = false }) {
   return <div className="adm-candidate-dossier">
     <section className="adm-candidate-overview">
-      <div className="adm-candidate-overview__rail"><code>{detail.id}</code><span>JOIN INTAKE / {detail.form}</span></div>
+      <div className="adm-candidate-overview__rail"><code>{detail.ref || detail.id}</code><span>JOIN INTAKE / {detail.form}</span></div>
       <div className="adm-candidate-overview__identity"><Avatar initials={detail.initials}/><div><span>{detail.type} application</span><h3>{detail.name}</h3><p>{detail.level} · {detail.speciality}</p></div><StatusBadge>{detail.status}</StatusBadge></div>
-      <dl><div><dt>Submitted</dt><dd>{detail.date}</dd></div><div><dt>Source</dt><dd>{detail.source}</dd></div><div><dt>Consent</dt><dd><Check size={13}/>Recorded</dd></div></dl>
+      <dl><div><dt>Submitted</dt><dd>{detail.date}</dd></div><div><dt>Source</dt><dd>{detail.source}</dd></div><div><dt>Consent</dt><dd><Check size={13}/>{detail.consent === false ? 'Not recorded' : 'Recorded'}</dd></div></dl>
     </section>
 
     <CandidateProgress status={detail.status}/>
@@ -88,25 +88,26 @@ function CandidateDossier({ detail, note, setNote, onSave }) {
       {detail.requestMessage && <div className="adm-candidate-callout"><ClipboardCheck size={17}/><div><span>Information requested</span><b>{detail.requestMessage}</b></div></div>}
     </CandidateSection>
 
-    <CandidateSection index="04" title="Intake metadata" copy="Administrative traceability for this fictional application.">
+    <CandidateSection index="04" title="Intake metadata" copy="Administrative traceability for this Join application.">
       <Facts items={[["Application type", detail.type], ['Submission date', detail.date], ['Source', detail.source], ['Form version', detail.form], ['Contact consent', 'Recorded']]}/>
     </CandidateSection>
 
     <CandidateSection index="05" title="Internal notes" copy="Visible to Infinity administrators only.">
-      <label className="sr-only" htmlFor="candidate-note">Administrative note</label><textarea id="candidate-note" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add review context for your colleagues…"/><button className="adm-save-note" onClick={onSave}>Save internal note</button>
+      <label className="sr-only" htmlFor="candidate-note">Administrative note</label><textarea id="candidate-note" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add review context for your colleagues…"/><button className="adm-save-note" onClick={onSave} disabled={noteSaving}>{noteSaving ? 'Saving note…' : 'Save internal note'}</button>
     </CandidateSection>
 
     <CandidateSection index="06" title="Application history" copy="Decisions and follow-ups recorded by the administration."><History items={detail.history}/></CandidateSection>
   </div>
 }
 
-function CandidateActionBar({ detail, request }) {
+export function CandidateActionBar({ detail, request }) {
   const closed = ['Accepted', 'Declined', 'Archived'].includes(detail.status)
+  const can = (action) => !detail.allowedActions || detail.allowedActions.includes(action)
   return <div className="adm-candidate-actionbar">
-    <header><div><span>Decision workspace</span><b>Choose the next administrative step</b></div><code>{detail.id}</code></header>
-    <div className="adm-candidate-actionbar__primary"><Button onClick={() => request(detail.type === 'Staff' ? 'Accept into staff' : 'Accept as member', { status: 'Accepted' })} disabled={detail.status === 'Accepted' || detail.status === 'Archived'} icon={<Check size={15}/>}>Accept {detail.type === 'Staff' ? 'into staff' : 'as member'}</Button><Button variant="secondary" onClick={() => request('Schedule interview', null, { fields: [{ name: 'interviewAt', label: 'Interview date and time', type: 'datetime-local', required: true }, { name: 'interviewLocation', label: 'Location / meeting room', required: true }], patch: undefined, schedule: true })} disabled={closed}><CalendarDays size={15}/>Schedule interview</Button></div>
-    <div className="adm-candidate-actionbar__workflow"><span>Workflow</span><button onClick={() => request('Move application to review', { status: 'In review' })} disabled={detail.status === 'In review' || detail.status === 'Accepted' || detail.status === 'Archived'}>Move to review</button><button onClick={() => request('Request more information', null, { fields: [{ name: 'requestMessage', label: 'Message to the candidate (demo)', type: 'textarea', required: true }] })} disabled={detail.status === 'Archived'}>Request information</button>{detail.type === 'Staff' && <button onClick={() => request('Change requested department', null, { fields: [{ name: 'track', label: 'Department', options: DEPARTMENTS, value: detail.track }] })} disabled={detail.status === 'Archived'}>Change department</button>}</div>
-    <div className="adm-candidate-actionbar__critical"><span>Close application</span><button className="is-danger" onClick={() => request('Decline application', { status: 'Declined' }, { danger: true })} disabled={detail.status === 'Declined' || detail.status === 'Archived'}>Decline</button><button onClick={() => request('Archive application', { status: 'Archived' }, { danger: true })} disabled={detail.status === 'Archived'}>Archive</button></div>
+    <header><div><span>Decision workspace</span><b>Choose the next administrative step</b></div><code>{detail.ref || detail.id}</code></header>
+    <div className="adm-candidate-actionbar__primary"><Button onClick={() => request(detail.type === 'Staff' ? 'Accept into staff' : 'Accept as member', { status: 'Accepted' }, { action: detail.type === 'Staff' ? 'accept_staff' : 'accept_member' })} disabled={!can(detail.type === 'Staff' ? 'accept_staff' : 'accept_member') || detail.status === 'Accepted' || detail.status === 'Archived'} icon={<Check size={15}/>}>Accept {detail.type === 'Staff' ? 'into staff' : 'as member'}</Button><Button variant="secondary" onClick={() => request('Schedule interview', null, { action: 'schedule_interview', fields: [{ name: 'interviewAt', label: 'Interview date and time', type: 'datetime-local', required: true }, { name: 'interviewLocation', label: 'Location / meeting room', required: true }], patch: undefined, schedule: true })} disabled={!can('schedule_interview') || closed}><CalendarDays size={15}/>Schedule interview</Button></div>
+    <div className="adm-candidate-actionbar__workflow"><span>Workflow</span><button onClick={() => request('Move application to review', { status: 'In review' }, { action: 'start_review' })} disabled={!can('start_review') || detail.status === 'In review' || detail.status === 'Accepted' || detail.status === 'Archived'}>Move to review</button><button onClick={() => request('Request more information', null, { action: 'request_information', fields: [{ name: 'requestMessage', label: 'Message to the candidate', type: 'textarea', required: true }] })} disabled={!can('request_information') || detail.status === 'Archived'}>Request information</button>{detail.type === 'Staff' && <button onClick={() => request('Change requested department', null, { action: 'change_staff_department', fields: [{ name: 'track', label: 'Department', options: DEPARTMENTS, value: detail.track }] })} disabled={!can('change_staff_department') || detail.status === 'Archived'}>Change department</button>}</div>
+    <div className="adm-candidate-actionbar__critical"><span>Close application</span><button className="is-danger" onClick={() => request('Decline application', { status: 'Declined' }, { action: 'decline', danger: true })} disabled={!can('decline') || detail.status === 'Declined' || detail.status === 'Archived'}>Decline</button><button onClick={() => request('Archive application', { status: 'Archived' }, { action: 'archive', danger: true })} disabled={!can('archive') || detail.status === 'Archived'}>Archive</button></div>
   </div>
 }
 

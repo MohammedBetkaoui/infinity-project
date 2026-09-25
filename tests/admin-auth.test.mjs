@@ -345,8 +345,8 @@ test('all public admin auth URLs dispatch through one Vercel Function', async ()
 
   const config = JSON.parse(await read('vercel.json'))
   assert(config.rewrites.some((rewrite) => (
-    rewrite.source === '/api/admin/auth/:action'
-      && rewrite.destination === '/api/admin-auth?__admin_auth_action=:action'
+    rewrite.source === '/api/admin/:path*'
+      && rewrite.destination === '/api/admin-auth?__admin_path=:path*'
   )))
 })
 

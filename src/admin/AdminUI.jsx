@@ -251,6 +251,7 @@ export function AdminShell({ children, collapsed, setCollapsed, mobileOpen, setM
   const language = pathname.startsWith('/admin/aivex') && new URLSearchParams(search).get('lang') === 'ar' ? 'ar' : 'en'
   const isArabic = language === 'ar'
   const t = (value) => translateAivex(value, language)
+  const liveJoinWorkspace = pathname === '/admin/applications'
   return (
     <div className={`adm-app ${collapsed ? 'is-sidebar-collapsed' : ''} ${isArabic ? 'is-aivex-ar' : ''}`} dir={isArabic ? 'rtl' : 'ltr'} lang={language}>
       <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} language={language} />
@@ -258,7 +259,7 @@ export function AdminShell({ children, collapsed, setCollapsed, mobileOpen, setM
       <div className="adm-workspace">
         <Topbar setMobileOpen={setMobileOpen} query={query} setQuery={setQuery} notify={onNotifications} onNewAction={onNewAction} language={language} />
         <main className="adm-main" id="admin-content">{children}</main>
-        <footer className="adm-global-footer"><span><i />{t('Fictional demo data · Local prototype')}</span><code>INFINITY / ADMIN · 2026.09</code></footer>
+        <footer className="adm-global-footer"><span><i />{liveJoinWorkspace ? 'Protected workspace · Live Join records' : t('Fictional demo data · Local prototype')}</span><code>INFINITY / ADMIN · 2026.09</code></footer>
       </div>
     </div>
   )
@@ -266,7 +267,7 @@ export function AdminShell({ children, collapsed, setCollapsed, mobileOpen, setM
 
 export function BulkBar({ count, onClear, onStatus }) {
   if (!count) return null
-  return <div className="adm-bulk"><span><Check size={15} />{count} selected</span><button onClick={onStatus}>Change status</button><button onClick={onClear}>Clear selection</button></div>
+  return <div className="adm-bulk"><span><Check size={15} />{count} selected</span>{onStatus && <button onClick={onStatus}>Change status</button>}<button onClick={onClear}>Clear selection</button></div>
 }
 
 export function FilterButton({ active, onClick }) {

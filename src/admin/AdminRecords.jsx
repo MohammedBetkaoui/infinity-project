@@ -2,19 +2,27 @@ import { useId, useState } from 'react'
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, LayoutGrid, List, SlidersHorizontal } from 'lucide-react'
 import { Button, BulkBar, Drawer, EmptyState, Modal, Pagination, SearchField, StatusBadge } from './AdminUI'
 
-export function RecordTable({ records, columns, selected = [], onSelect, onBulk, onOpen, pageSize = 6, defaultSort = '', cards = false, emptyTitle, className = '', rowClassName, labels = {}, locale = 'en' }) {
-  const [sort, setSort] = useState({ key: defaultSort, asc: true })
-  const [page, setPage] = useState(1)
-  const sorted = [...records].sort((a, b) => !sort.key ? 0 : String(a[sort.key] ?? '').localeCompare(String(b[sort.key] ?? ''), locale, { numeric: true }) * (sort.asc ? 1 : -1))
-  const current = Math.min(page, Math.max(1, Math.ceil(records.length / pageSize)))
-  const visible = sorted.slice((current - 1) * pageSize, current * pageSize)
+export function RecordTable({ records, columns, selected = [], onSelect, onBulk, onOpen, pageSize = 6, defaultSort = '', cards = false, emptyTitle, className = '', rowClassName, labels = {}, locale = 'en', pagination, onPageChange, controlledSort, onSortChange }) {
+  const [localSort, setLocalSort] = useState({ key: defaultSort, asc: true })
+  const [localPage, setLocalPage] = useState(1)
+  const sort = controlledSort || localSort
+  const remote = Boolean(pagination)
+  const sorted = remote ? records : [...records].sort((a, b) => !sort.key ? 0 : String(a[sort.key] ?? '').localeCompare(String(b[sort.key] ?? ''), locale, { numeric: true }) * (sort.asc ? 1 : -1))
+  const count = remote ? pagination.total : records.length
+  const current = remote ? pagination.page : Math.min(localPage, Math.max(1, Math.ceil(records.length / pageSize)))
+  const visible = remote ? sorted : sorted.slice((current - 1) * pageSize, current * pageSize)
+  const changeSort = (key) => {
+    const next = { key, asc: sort.key === key ? !sort.asc : true }
+    if (onSortChange) onSortChange(next)
+    else setLocalSort(next)
+  }
   const selectAll = visible.length > 0 && visible.every((r) => selected.includes(r.id))
   const toggle = (id) => onSelect(selected.includes(id) ? selected.filter((value) => value !== id) : [...selected, id])
   return <>
     <BulkBar count={selected.length} onClear={() => onSelect([])} onStatus={onBulk}/>
     <div className={`adm-table-wrap ${cards ? 'is-card-view' : ''} ${className}`}>
       <table className="adm-table">
-        <thead><tr>{onSelect && <th className="is-checkbox"><input type="checkbox" checked={selectAll} onChange={() => onSelect(selectAll ? selected.filter((id) => !visible.some((r) => r.id === id)) : [...new Set([...selected, ...visible.map((r) => r.id)])])} aria-label={labels.selectVisible || 'Select visible records'}/></th>}{columns.map((column) => <th key={column.key} className={column.secondary ? 'adm-secondary-column' : ''} aria-sort={sort.key === column.key ? sort.asc ? 'ascending' : 'descending' : 'none'}><button onClick={() => setSort({ key: column.key, asc: sort.key === column.key ? !sort.asc : true })}>{column.label}{sort.key === column.key ? sort.asc ? <ArrowUp size={12}/> : <ArrowDown size={12}/> : <ArrowUpDown size={12}/>}</button></th>)}{onOpen && <th aria-label={labels.openRecord || 'Open record'}/>}</tr></thead>
+        <thead><tr>{onSelect && <th className="is-checkbox"><input type="checkbox" checked={selectAll} onChange={() => onSelect(selectAll ? selected.filter((id) => !visible.some((r) => r.id === id)) : [...new Set([...selected, ...visible.map((r) => r.id)])])} aria-label={labels.selectVisible || 'Select visible records'}/></th>}{columns.map((column) => <th key={column.key} className={column.secondary ? 'adm-secondary-column' : ''} aria-sort={sort.key === column.key ? sort.asc ? 'ascending' : 'descending' : 'none'}><button onClick={() => changeSort(column.key)}>{column.label}{sort.key === column.key ? sort.asc ? <ArrowUp size={12}/> : <ArrowDown size={12}/> : <ArrowUpDown size={12}/>}</button></th>)}{onOpen && <th aria-label={labels.openRecord || 'Open record'}/>}</tr></thead>
         <tbody>{visible.map((record) => <tr key={record.id} className={`${selected.includes(record.id) ? 'is-selected' : ''} ${record.status === 'New' ? 'is-new' : ''} ${rowClassName?.(record) || ''}`}>
           {onSelect && <td className="is-checkbox"><input type="checkbox" checked={selected.includes(record.id)} onChange={() => toggle(record.id)} aria-label={`Select ${record.name}`}/></td>}
           {columns.map((column, index) => <td key={column.key} data-column={column.key} data-label={column.label} className={column.secondary ? 'adm-secondary-column' : ''}>{index === 0 && onOpen ? <button className="adm-record-link" onClick={() => onOpen(record)}>{column.render ? column.render(record) : record[column.key]}</button> : column.render ? column.render(record) : record[column.key] || '—'}</td>)}
@@ -23,7 +31,7 @@ export function RecordTable({ records, columns, selected = [], onSelect, onBulk,
       </table>
       {!records.length && <EmptyState title={emptyTitle || labels.empty || 'No matching records'} copy={labels.emptyCopy}/>} 
     </div>
-    <Pagination current={current} count={records.length} pageSize={pageSize} onChange={setPage} labels={labels.pagination}/>
+    <Pagination current={current} count={count} pageSize={remote ? pagination.limit : pageSize} onChange={onPageChange || setLocalPage} labels={labels.pagination}/>
   </>
 }
 
@@ -57,17 +65,27 @@ export function RecordToolbar({ search, onSearch, placeholder, filters = {}, onF
 export function ActionDialog({ action, onClose, onSubmit, labels = {}, getOptionLabel = (value) => value }) {
   const formId = useId()
   const [error, setError] = useState('')
+  const [pending, setPending] = useState(false)
   if (!action) return null
-  const submit = (event) => {
+  const submit = async (event) => {
     event.preventDefault()
+    if (pending) return
     const values = Object.fromEntries(new FormData(event.currentTarget))
     if (action.reason !== false && !values.reason?.trim()) { setError(labels.reasonError || 'Add an internal reason before confirming.'); return }
-    const issue = onSubmit(values)
-    if (issue) { setError(issue); return }
-    onClose()
+    setError('')
+    setPending(true)
+    try {
+      const issue = await onSubmit(values)
+      if (issue) { setError(issue); return }
+      onClose()
+    } catch {
+      setError(labels.submitError || 'The action could not be completed. Please try again.')
+    } finally {
+      setPending(false)
+    }
   }
-  return <Modal open onClose={onClose} closeLabel={labels.close || 'Close'} title={action.title} eyebrow={action.eyebrow || labels.eyebrow || 'Administrative action'} footer={<><Button variant="secondary" onClick={onClose}>{labels.cancel || 'Cancel'}</Button><Button type="submit" form={formId} variant={action.danger ? 'danger' : 'primary'}>{action.submit || labels.confirm || 'Confirm action'}</Button></>}>
-    <p>{action.description || labels.description || 'This decision will update the local demo record and be recorded in the activity log.'}</p>
+  return <Modal open onClose={pending ? () => {} : onClose} closeLabel={labels.close || 'Close'} title={action.title} eyebrow={action.eyebrow || labels.eyebrow || 'Administrative action'} footer={<><Button variant="secondary" onClick={onClose} disabled={pending}>{labels.cancel || 'Cancel'}</Button><Button type="submit" form={formId} variant={action.danger ? 'danger' : 'primary'} disabled={pending}>{pending ? (labels.pending || 'Saving…') : (action.submit || labels.confirm || 'Confirm action')}</Button></>}>
+    <p>{action.description || labels.description || 'This decision will be saved securely and recorded in the administrative history.'}</p>
     <form id={formId} onSubmit={submit} className="adm-action-form">{action.fields?.map((field) => <label className="adm-form-field" key={field.name}><span>{field.label}{field.required && <em>{labels.required || 'Required'}</em>}</span>{field.options ? <select name={field.name} required={field.required} defaultValue={field.value || field.options[0]}>{field.options.map((option) => <option key={option} value={option}>{getOptionLabel(option)}</option>)}</select> : field.type === 'textarea' ? <textarea name={field.name} defaultValue={field.value} required={field.required}/> : <input name={field.name} type={field.type || 'text'} defaultValue={field.value} required={field.required} min={field.min} max={field.max} placeholder={field.placeholder}/>}</label>)}{action.reason !== false && <label className="adm-form-field"><span>{labels.internalReason || 'Internal reason'} <em>{labels.required || 'Required'}</em></span><textarea name="reason" required placeholder={labels.reasonPlaceholder || 'Explain the decision for your colleagues…'}/></label>}{error && <p role="alert" className="adm-form-error">{error}</p>}</form>
   </Modal>
 }

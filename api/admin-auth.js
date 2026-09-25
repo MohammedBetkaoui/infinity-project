@@ -1,4 +1,9 @@
-import { createServerAdminAuthService } from './_lib/admin-auth.js'
+import { createServerAdminAuthService, requireAdminSession } from './_lib/admin-auth.js'
+import { createServerAdminApplicationsService } from './_lib/admin-applications.js'
+import {
+  isApplicationId, parseApplicationListOptions, validateApplicationActionBody,
+  validateApplicationBulkBody,
+} from './_lib/admin-applications-validation.js'
 import { readJsonBody } from './_lib/http.js'
 import { getClientIp } from './_lib/security.js'
 import {
@@ -12,6 +17,7 @@ import {
 } from './_lib/admin-security.js'
 
 const MAX_BODY_BYTES = 4 * 1024
+const MAX_APPLICATION_BODY_BYTES = 24 * 1024
 
 export function createAdminLoginHandler({
   createService = createServerAdminAuthService,
@@ -137,6 +143,8 @@ const actionFromRequest = (req) => {
   const url = new URL(req.url || '/', 'http://localhost')
   const rewrittenAction = url.searchParams.get('__admin_auth_action')
   if (rewrittenAction) return rewrittenAction
+  const rewrittenPath = url.searchParams.get('__admin_path')
+  if (rewrittenPath?.startsWith('auth/')) return rewrittenPath.slice('auth/'.length)
   const prefix = '/api/admin/auth/'
   return url.pathname.startsWith(prefix) ? url.pathname.slice(prefix.length) : ''
 }
@@ -156,4 +164,109 @@ export function createAdminAuthRouter(handlers = {}) {
   }
 }
 
-export default createAdminAuthRouter()
+const adminPathFromRequest = (req) => {
+  const url = new URL(req.url || '/', 'http://localhost')
+  const rewrittenPath = url.searchParams.get('__admin_path')
+  if (rewrittenPath) return rewrittenPath.replace(/^\/+|\/+$/g, '')
+  return url.pathname.replace(/^\/api\/admin\/?/, '').replace(/^\/+|\/+$/g, '')
+}
+
+const joinAdministrationEnabled = (env = process.env) => env.ADMIN_JOIN_API_ENABLED === 'true'
+
+export function createAdminApplicationsHandler({
+  createService = createServerAdminApplicationsService,
+  requireSession = requireAdminSession,
+  env = process.env,
+  enabled = joinAdministrationEnabled,
+  trustedOrigin = isStrictAdminOrigin,
+} = {}) {
+  return async function adminApplicationsHandler(req, res) {
+    if (!enabled(env)) {
+      return sendAdminJson(res, 503, { success: false, message: 'Join administration is not enabled yet.' })
+    }
+
+    let session
+    try {
+      session = await requireSession(req)
+    } catch (error) {
+      safeAdminAuthLog('applications_session', error)
+      return sendAdminJson(res, 503, { success: false, message: 'Administrative service unavailable.' })
+    }
+    if (!session) return sendAdminJson(res, 401, { success: false, message: 'Your session has expired.' })
+
+    const path = adminPathFromRequest(req)
+    const url = new URL(req.url || '/', 'http://localhost')
+    const detailMatch = path.match(/^applications\/([0-9a-f-]+)$/i)
+    const actionMatch = path.match(/^applications\/([0-9a-f-]+)\/actions$/i)
+    const isMutation = req.method === 'POST'
+
+    if (isMutation && !trustedOrigin(req, env)) {
+      return sendAdminJson(res, 403, { success: false, message: 'Request rejected.' })
+    }
+
+    try {
+      const service = createService()
+
+      if (path === 'applications' && req.method === 'GET') {
+        const parsed = parseApplicationListOptions(url.searchParams)
+        if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid application filters.' })
+        const result = await service.list(parsed.value, session.user)
+        return sendAdminJson(res, 200, { success: true, ...result })
+      }
+
+      if (detailMatch && req.method === 'GET') {
+        const applicationId = detailMatch[1]
+        if (!isApplicationId(applicationId)) return sendAdminJson(res, 404, { success: false, message: 'Application not found.' })
+        const application = await service.detail(applicationId, session.user)
+        if (!application) return sendAdminJson(res, 404, { success: false, message: 'Application not found.' })
+        return sendAdminJson(res, 200, { success: true, application })
+      }
+
+      if (actionMatch && req.method === 'POST') {
+        if (!String(req.headers?.['content-type'] || '').toLowerCase().startsWith('application/json')) {
+          return sendAdminJson(res, 415, { success: false, message: 'Unsupported request.' })
+        }
+        const applicationId = actionMatch[1]
+        if (!isApplicationId(applicationId)) return sendAdminJson(res, 404, { success: false, message: 'Application not found.' })
+        const parsed = validateApplicationActionBody(await readJsonBody(req, MAX_APPLICATION_BODY_BYTES))
+        if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid administrative action.' })
+        const result = await service.act(applicationId, parsed.value, session.user)
+        if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: result.message })
+        return sendAdminJson(res, 200, { success: true, application: result.application })
+      }
+
+      if (path === 'applications/bulk-actions' && req.method === 'POST') {
+        if (!String(req.headers?.['content-type'] || '').toLowerCase().startsWith('application/json')) {
+          return sendAdminJson(res, 415, { success: false, message: 'Unsupported request.' })
+        }
+        const parsed = validateApplicationBulkBody(await readJsonBody(req, MAX_APPLICATION_BODY_BYTES))
+        if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid bulk action.' })
+        const result = await service.bulk(parsed.value, session.user)
+        if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: result.message })
+        return sendAdminJson(res, 200, { success: true, succeeded: result.succeeded, failed: result.failed })
+      }
+
+      res.setHeader('Allow', path === 'applications' || detailMatch ? 'GET' : actionMatch || path === 'applications/bulk-actions' ? 'POST' : 'GET, POST')
+      return sendAdminJson(res, path.startsWith('applications') ? 405 : 404, {
+        success: false,
+        message: path.startsWith('applications') ? 'Method not allowed.' : 'Not found.',
+      })
+    } catch (error) {
+      safeAdminAuthLog('applications', error)
+      return sendAdminJson(res, 503, { success: false, message: 'Unable to load Join applications right now.' })
+    }
+  }
+}
+
+export function createAdminRouter(handlers = {}) {
+  const auth = handlers.auth || createAdminAuthRouter()
+  const applications = handlers.applications || createAdminApplicationsHandler()
+  return function adminRouter(req, res) {
+    const path = adminPathFromRequest(req)
+    if (path.startsWith('auth/')) return auth(req, res)
+    if (path === 'applications' || path.startsWith('applications/')) return applications(req, res)
+    return sendAdminJson(res, 404, { success: false, message: 'Not found.' })
+  }
+}
+
+export default createAdminRouter()

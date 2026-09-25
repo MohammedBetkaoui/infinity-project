@@ -25,7 +25,7 @@
     }
   },
   "rewrites": [
-    { "source": "/api/admin/auth/:action", "destination": "/api/admin-auth?__admin_auth_action=:action" },
+    { "source": "/api/admin/:path*", "destination": "/api/admin-auth?__admin_path=:path*" },
     { "source": "/aivex", "destination": "/aivex/index.html" },
     { "source": "/aivex/register", "destination": "/aivex/register/index.html" },
     { "source": "/aivex/status", "destination": "/aivex/status/index.html" },

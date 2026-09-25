@@ -18,9 +18,11 @@ switch.
 5. Every future `/api/admin/*` handler must call `requireAdminSession(req)`.
    React routing is UX protection, never API authorization.
 
-The four public `/api/admin/auth/*` URLs are dispatched by one
-`api/admin-auth.js` Vercel Function. This keeps the Vite deployment within the
-12-Function Hobby limit without changing the public API contract.
+All public `/api/admin/*` URLs are dispatched by one `api/admin-auth.js`
+Vercel Function. It currently serves authentication and the protected Join
+application workflow; its internal router can add the later AIVEX management
+routes without creating another Function. This keeps the Vite deployment
+within the 12-Function Hobby limit without changing the public API contract.
 
 Production cookie: `__Host-infinity_admin_session`; `HttpOnly`; `Secure`;
 `SameSite=Strict`; `Path=/`; no `Domain`. Local HTTP development uses the
@@ -77,6 +79,11 @@ trimmed, transformed, logged, sent to Supabase, or accepted as a CLI argument.
    process.
 7. Verify anonymous `/admin/overview` redirects to login, valid login works,
    logout revokes the session, and the security section can rotate a password.
+
+To enable the real Join administration page, additionally apply
+`supabase/migrations/20260926120000_admin_join_applications.sql`, set the
+server-only `ADMIN_JOIN_API_ENABLED=true`, and redeploy. Keep the flag false
+until that migration has completed successfully.
 
 `ADMIN_ALLOWED_ORIGINS` is normally empty in production because the browser and
 API are same-origin. Use it only for an explicitly reviewed reverse proxy,

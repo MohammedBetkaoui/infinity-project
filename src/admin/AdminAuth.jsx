@@ -124,7 +124,17 @@ export function AdminAuthProvider({ children }) {
     }
   }, [])
 
-  const value = useMemo(() => ({ status, user, login, logout, refreshSession, changePassword }), [changePassword, login, logout, refreshSession, status, user])
+  const request = useCallback(async (path, options = {}) => {
+    const result = await adminRequest(path, options)
+    if (result.response.status === 401) {
+      authEpoch.current += 1
+      setUser(null)
+      setStatus('unauthenticated')
+    }
+    return result
+  }, [])
+
+  const value = useMemo(() => ({ status, user, login, logout, refreshSession, changePassword, request }), [changePassword, login, logout, refreshSession, request, status, user])
   return <AdminAuthContext.Provider value={value}>{children}</AdminAuthContext.Provider>
 }
 
