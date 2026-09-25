@@ -1,9 +1,13 @@
 import { createServerAdminAuthService, requireAdminSession } from './_lib/admin-auth.js'
 import { createServerAdminApplicationsService } from './_lib/admin-applications.js'
+import { createServerAdminAivexService } from './_lib/admin-aivex.js'
 import {
   isApplicationId, parseApplicationListOptions, validateApplicationActionBody,
   validateApplicationBulkBody,
 } from './_lib/admin-applications-validation.js'
+import {
+  isAivexDocumentKey, isAivexReference, parseAivexListOptions, validateAivexActionBody,
+} from './_lib/admin-aivex-validation.js'
 import { readJsonBody } from './_lib/http.js'
 import { getClientIp } from './_lib/security.js'
 import {
@@ -18,6 +22,7 @@ import {
 
 const MAX_BODY_BYTES = 4 * 1024
 const MAX_APPLICATION_BODY_BYTES = 24 * 1024
+const MAX_AIVEX_BODY_BYTES = 24 * 1024
 
 export function createAdminLoginHandler({
   createService = createServerAdminAuthService,
@@ -258,13 +263,121 @@ export function createAdminApplicationsHandler({
   }
 }
 
+const aivexAdministrationEnabled = (env = process.env) => env.ADMIN_AIVEX_API_ENABLED === 'true'
+
+const safeDownloadName = (value) => String(value || 'document')
+  .normalize('NFKD')
+  .replace(/[^A-Za-z0-9._ -]/g, '_')
+  .replace(/\s+/g, ' ')
+  .trim()
+  .slice(0, 160) || 'document'
+
+function sendAdminDocument(res, document) {
+  const disposition = document.confidential ? 'inline' : 'attachment'
+  res.statusCode = 200
+  res.setHeader('Cache-Control', 'no-store, private')
+  res.setHeader('Pragma', 'no-cache')
+  res.setHeader('Vary', 'Cookie, Origin')
+  res.setHeader('Content-Type', document.mimeType || 'application/octet-stream')
+  res.setHeader('Content-Length', String(document.buffer.length))
+  res.setHeader('Content-Disposition', `${disposition}; filename="${safeDownloadName(document.name)}"`)
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  res.end(document.buffer)
+}
+
+export function createAdminAivexHandler({
+  createService = createServerAdminAivexService,
+  requireSession = requireAdminSession,
+  env = process.env,
+  enabled = aivexAdministrationEnabled,
+  trustedOrigin = isStrictAdminOrigin,
+} = {}) {
+  return async function adminAivexHandler(req, res) {
+    if (!enabled(env)) {
+      return sendAdminJson(res, 503, { success: false, message: 'AIVEX administration is not enabled yet.' })
+    }
+
+    let session
+    try {
+      session = await requireSession(req)
+    } catch (error) {
+      safeAdminAuthLog('aivex_session', error)
+      return sendAdminJson(res, 503, { success: false, message: 'Administrative service unavailable.' })
+    }
+    if (!session) return sendAdminJson(res, 401, { success: false, message: 'Your session has expired.' })
+
+    const path = adminPathFromRequest(req)
+    const url = new URL(req.url || '/', 'http://localhost')
+    const detailMatch = path.match(/^aivex\/(AIVEX[1-9][0-9]?-[0-9A-HJKMNP-TV-Z]{8})$/)
+    const actionMatch = path.match(/^aivex\/(AIVEX[1-9][0-9]?-[0-9A-HJKMNP-TV-Z]{8})\/actions$/)
+    const documentMatch = path.match(/^aivex\/(AIVEX[1-9][0-9]?-[0-9A-HJKMNP-TV-Z]{8})\/documents\/([A-Za-z0-9-]+)\/content$/)
+
+    if (req.method === 'POST' && !trustedOrigin(req, env)) {
+      return sendAdminJson(res, 403, { success: false, message: 'Request rejected.' })
+    }
+
+    try {
+      const service = createService()
+      if (path === 'aivex' && req.method === 'GET') {
+        const parsed = parseAivexListOptions(url.searchParams)
+        if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid AIVEX filters.' })
+        const result = await service.list(parsed.value, session.user)
+        return sendAdminJson(res, 200, { success: true, ...result })
+      }
+
+      if (detailMatch && req.method === 'GET') {
+        const reference = detailMatch[1]
+        if (!isAivexReference(reference)) return sendAdminJson(res, 404, { success: false, message: 'AIVEX file not found.' })
+        const team = await service.detail(reference, session.user)
+        if (!team) return sendAdminJson(res, 404, { success: false, message: 'AIVEX file not found.' })
+        return sendAdminJson(res, 200, { success: true, team })
+      }
+
+      if (actionMatch && req.method === 'POST') {
+        if (!String(req.headers?.['content-type'] || '').toLowerCase().startsWith('application/json')) {
+          return sendAdminJson(res, 415, { success: false, message: 'Unsupported request.' })
+        }
+        const reference = actionMatch[1]
+        const parsed = validateAivexActionBody(await readJsonBody(req, MAX_AIVEX_BODY_BYTES))
+        if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid administrative action.' })
+        const result = await service.act(reference, parsed.value, session.user)
+        if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: result.message })
+        return sendAdminJson(res, 200, { success: true, team: result.team })
+      }
+
+      if (documentMatch && req.method === 'GET') {
+        const [, reference, documentKey] = documentMatch
+        if (!isAivexReference(reference) || !isAivexDocumentKey(documentKey)) {
+          return sendAdminJson(res, 404, { success: false, message: 'Document not found.' })
+        }
+        const result = await service.document(reference, documentKey, session.user)
+        if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: result.message })
+        return sendAdminDocument(res, result)
+      }
+
+      const isAivexPath = path === 'aivex' || path.startsWith('aivex/')
+      res.setHeader('Allow', actionMatch ? 'POST' : 'GET')
+      return sendAdminJson(res, isAivexPath ? 405 : 404, {
+        success: false,
+        message: isAivexPath ? 'Method not allowed.' : 'Not found.',
+      })
+    } catch (error) {
+      safeAdminAuthLog('aivex', error)
+      return sendAdminJson(res, 503, { success: false, message: 'Unable to load AIVEX administration right now.' })
+    }
+  }
+}
+
 export function createAdminRouter(handlers = {}) {
   const auth = handlers.auth || createAdminAuthRouter()
   const applications = handlers.applications || createAdminApplicationsHandler()
+  const aivex = handlers.aivex || createAdminAivexHandler()
   return function adminRouter(req, res) {
     const path = adminPathFromRequest(req)
     if (path.startsWith('auth/')) return auth(req, res)
     if (path === 'applications' || path.startsWith('applications/')) return applications(req, res)
+    if (path === 'aivex' || path.startsWith('aivex/')) return aivex(req, res)
     return sendAdminJson(res, 404, { success: false, message: 'Not found.' })
   }
 }

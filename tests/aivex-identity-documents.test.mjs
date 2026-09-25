@@ -909,13 +909,16 @@ test('26. the Magic Link and the candidate status page never touch identity docu
   for (const file of files) {
     assert.doesNotMatch(await read(file), /id_card|idCard|IdCard|IDENTITY_CARD|identityCard|identity_card|aivex-id-cards/, `${file} must not reach the identity documents`)
   }
-  // Only the registration path (and the shared contract) know about them.
+  // Only the registration path and the server-only admin verification path
+  // know about them. Candidate-facing APIs and browser code still do not.
   const knowing = []
   for (const file of await listSource('api')) {
     if (/id_card|idCard|IdCard|IDENTITY_CARD|aivex-id-cards/.test(await read(file))) knowing.push(file)
   }
   assert.deepEqual(knowing.sort(), [
-    'api/_lib/aivex-direct-upload.js', 'api/_lib/aivex-registration-v4.js', 'api/_lib/aivex-validation-v4.js',
+    'api/_lib/admin-aivex-store.js', 'api/_lib/admin-aivex.js',
+    'api/_lib/aivex-direct-upload.js', 'api/_lib/aivex-registration-v4.js',
+    'api/_lib/aivex-validation-v4.js',
   ])
   // The candidate-facing statuses are unchanged: identity documents add none.
   const contract = await read('shared/aivex/contract-v4.js')

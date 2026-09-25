@@ -1,6 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
+    "api/admin-auth.js": {
+      "maxDuration": 60,
+      "includeFiles": "public/word-form/**"
+    },
     "api/aivex/register.js": {
       "maxDuration": 60,
       "includeFiles": "public/word-form/**"

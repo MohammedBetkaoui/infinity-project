@@ -85,6 +85,13 @@ To enable the real Join administration page, additionally apply
 server-only `ADMIN_JOIN_API_ENABLED=true`, and redeploy. Keep the flag false
 until that migration has completed successfully.
 
+To enable the real AIVEX administration page, then apply
+`supabase/migrations/20260927120000_admin_aivex_operations.sql`, set the
+server-only `ADMIN_AIVEX_API_ENABLED=true`, and redeploy. The AIVEX flag must
+remain false until the migration succeeds. The admin gateway proxies private
+documents directly from Supabase Storage; it never returns a Storage path or
+signed URL to the browser.
+
 `ADMIN_ALLOWED_ORIGINS` is normally empty in production because the browser and
 API are same-origin. Use it only for an explicitly reviewed reverse proxy,
 as a comma-separated list of exact origins.

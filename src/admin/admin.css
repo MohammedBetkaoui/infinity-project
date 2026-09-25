@@ -808,6 +808,8 @@
 .adm-verification-layout { display: grid; grid-template-columns: minmax(0,1fr) 320px; align-items: start; gap: 16px; }
 .adm-verification-layout > .adm-panel { padding: 20px; }
 .adm-checklist label { display: grid; grid-template-columns: 25px 1fr 24px; align-items: center; min-height: 59px; gap: 10px; border-top: 1px solid var(--adm-line); cursor: pointer; }
+.adm-checklist label.is-system-check { cursor: default; }
+.adm-checklist label.is-system-check input { opacity: .7; }
 .adm-checklist label > span { display: grid; }
 .adm-checklist label b { font-size: 10px; }
 .adm-checklist label small { color: var(--adm-muted); font-size: 8px; }
@@ -837,6 +839,13 @@
 .adm-viewer-controls > span { min-width: 38px; color: var(--adm-light-text); font-size: 8px; text-align: center; }
 .adm-viewer-controls .adm-mono { margin-left: auto; }
 .adm-viewer-canvas { display: grid; place-items: center; height: 390px; padding: 45px; background-color: #d8d4ca; background-image: linear-gradient(rgba(0,42,30,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(0,42,30,.035) 1px,transparent 1px); background-size: 18px 18px; overflow: auto; }
+.adm-viewer-canvas--real { min-height: 390px; height: min(58vh, 620px); align-items: start; }
+.adm-secure-document { width: min(100%, 780px); min-height: 320px; background: #fff; border: 1px solid #afa99e; box-shadow: 0 10px 22px rgba(0,39,27,.12); transform-origin: top center; transition: transform .15s; }
+.adm-secure-document img { display: block; width: 100%; height: auto; object-fit: contain; }
+.adm-secure-document iframe { display: block; width: 100%; height: min(52vh, 560px); border: 0; background: #fff; }
+.adm-file-preview-unavailable { display: grid; place-items: center; min-height: 320px; gap: 8px; padding: 32px; color: var(--adm-muted); text-align: center; }
+.adm-file-preview-unavailable b { color: var(--adm-ink); font: 600 20px Rajdhani, sans-serif; }
+.adm-file-preview-unavailable p { max-width: 420px; margin: 0; font-size: 11px; line-height: 1.6; }
 .adm-document-specimen { position: relative; width: 430px; min-height: 285px; padding: 25px; background: #fff; border: 1px solid #afa99e; box-shadow: 0 10px 22px rgba(0,39,27,.12); transition: transform .15s; transform-origin: center; }
 .adm-specimen-top { display: flex; align-items: center; gap: 10px; padding-bottom: 12px; border-bottom: 2px solid var(--adm-green); }
 .adm-specimen-top > svg { width: 50px; color: var(--adm-green); }
@@ -1174,6 +1183,9 @@
   .adm-checklist label { min-height: 68px; }
   .adm-correction-items { grid-template-columns: 1fr; }
   .adm-viewer-canvas { height: 300px; padding: 30px; }
+  .adm-viewer-canvas--real { min-height: 300px; height: 48vh; padding: 18px; }
+  .adm-secure-document { min-height: 260px; }
+  .adm-secure-document iframe { height: 43vh; }
   .adm-document-specimen { width: 330px; min-height: 245px; padding: 18px; }
   .adm-viewer-controls .adm-mono { display: none; }
   .adm-modal-backdrop { padding: 0; align-items: end; }

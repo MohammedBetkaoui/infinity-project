@@ -8,13 +8,17 @@ async function readResponse(response) {
   try { return await response.json() } catch { return {} }
 }
 
-async function adminRequest(path, options = {}) {
-  const response = await fetch(path, {
+async function adminFetch(path, options = {}) {
+  return fetch(path, {
     credentials: 'same-origin',
     cache: 'no-store',
     ...options,
     headers: options.body ? { 'Content-Type': 'application/json', ...(options.headers || {}) } : options.headers,
   })
+}
+
+async function adminRequest(path, options = {}) {
+  const response = await adminFetch(path, options)
   return { response, body: await readResponse(response) }
 }
 
@@ -134,7 +138,17 @@ export function AdminAuthProvider({ children }) {
     return result
   }, [])
 
-  const value = useMemo(() => ({ status, user, login, logout, refreshSession, changePassword, request }), [changePassword, login, logout, refreshSession, request, status, user])
+  const requestRaw = useCallback(async (path, options = {}) => {
+    const response = await adminFetch(path, options)
+    if (response.status === 401) {
+      authEpoch.current += 1
+      setUser(null)
+      setStatus('unauthenticated')
+    }
+    return response
+  }, [])
+
+  const value = useMemo(() => ({ status, user, login, logout, refreshSession, changePassword, request, requestRaw }), [changePassword, login, logout, refreshSession, request, requestRaw, status, user])
   return <AdminAuthContext.Provider value={value}>{children}</AdminAuthContext.Provider>
 }
 
