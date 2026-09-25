@@ -1,7 +1,6 @@
 export const ADMIN_APPLICATION_ACTIONS = Object.freeze([
   'start_review',
   'schedule_interview',
-  'request_information',
   'accept_member',
   'accept_staff',
   'change_staff_department',
@@ -13,7 +12,6 @@ export const ADMIN_APPLICATION_ACTIONS = Object.freeze([
 const REVIEWER_ACTIONS = new Set([
   'start_review',
   'schedule_interview',
-  'request_information',
   'add_note',
 ])
 
@@ -32,7 +30,7 @@ export function allowedApplicationActions(role, application) {
 
   if (!closed) {
     if (application.status !== 'in_review') actions.push('start_review')
-    actions.push('schedule_interview', 'request_information')
+    actions.push('schedule_interview')
     if (application.join_type === 'member') actions.push('accept_member')
     if (application.join_type === 'staff') actions.push('accept_staff', 'change_staff_department')
     actions.push('decline')
@@ -44,4 +42,3 @@ export function allowedApplicationActions(role, application) {
 export function canBulkManageApplications(role) {
   return role === 'super_admin' || role === 'administrator'
 }
-

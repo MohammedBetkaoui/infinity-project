@@ -136,13 +136,11 @@ test('reviewers can review but cannot decide; administrator actions use the auth
 
   store.record = row()
   store.calls = []
-  await service.act(APP_ID, {
+  const removedAction = await service.act(APP_ID, {
     action: 'request_information', expectedUpdatedAt: store.record.updated_at, reason: '', payload: {},
   }, administrator)
-  assert.equal(
-    store.calls.find(([kind]) => kind === 'action')[1].payload.message,
-    'Please review your application details. Infinity Club administration will contact you if further information is needed.',
-  )
+  assert.deepEqual({ ok: removedAction.ok, status: removedAction.status }, { ok: false, status: 403 })
+  assert.equal(store.calls.length, 0)
 })
 
 test('applications API fails closed without session and never calls the data service', async () => {

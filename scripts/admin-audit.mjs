@@ -31,8 +31,7 @@ const auditApplication = (id, name, reference) => ({
   form: 'JOIN-2',
   consent: true,
   updatedAt: '2026-09-25T08:30:00.000Z',
-  requestMessage: '',
-  allowedActions: ['start_review', 'schedule_interview', 'request_information', 'accept_member', 'decline', 'archive', 'add_note'],
+  allowedActions: ['start_review', 'schedule_interview', 'accept_member', 'decline', 'archive', 'add_note'],
   history: [{ title: 'Application received', actor: 'Infinity Join form', at: '2026-09-25T08:30:00.000Z', kind: 'Submission' }],
 })
 const auditApplications = [

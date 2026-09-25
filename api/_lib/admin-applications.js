@@ -25,7 +25,6 @@ const DEPARTMENT_SLUGS = Object.freeze({
 const ACTION_TITLES = Object.freeze({
   start_review: 'Application moved to review',
   schedule_interview: 'Interview scheduled',
-  request_information: 'More information requested',
   accept_member: 'Accepted as member',
   accept_staff: 'Accepted into staff',
   change_staff_department: 'Requested department changed',
@@ -33,8 +32,6 @@ const ACTION_TITLES = Object.freeze({
   archive: 'Application archived',
   add_note: 'Internal note added',
 })
-const STANDARD_INFORMATION_REQUEST = 'Please review your application details. Infinity Club administration will contact you if further information is needed.'
-
 const administrativeReason = (action, reason) => {
   const supplied = typeof reason === 'string' ? reason.trim() : ''
   if (supplied || action === 'add_note') return supplied
@@ -44,9 +41,6 @@ const administrativeReason = (action, reason) => {
 const initials = (name) => String(name || '').split(' ').filter(Boolean).map((part) => part[0]).slice(0, 2).join('').toUpperCase()
 
 function normalizePayload(action, payload) {
-  if (action === 'request_information') {
-    return { ...payload, message: String(payload?.message || '').trim() || STANDARD_INFORMATION_REQUEST }
-  }
   if (action === 'change_staff_department') {
     return { ...payload, department: DEPARTMENT_SLUGS[payload.department] || payload.department }
   }
@@ -95,7 +89,6 @@ function mapApplication(row, role, extras = {}) {
     source: row.source || 'Infinity Join form',
     form: `JOIN-${row.form_version || 1}`,
     consent: row.consent === true,
-    requestMessage: row.requested_information || '',
     decisionReason: row.decision_reason || '',
     acceptedAs: row.accepted_as || null,
     assignedStaffDepartment: row.assigned_staff_department || null,
