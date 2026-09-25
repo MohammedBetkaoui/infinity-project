@@ -18,6 +18,10 @@ switch.
 5. Every future `/api/admin/*` handler must call `requireAdminSession(req)`.
    React routing is UX protection, never API authorization.
 
+The four public `/api/admin/auth/*` URLs are dispatched by one
+`api/admin-auth.js` Vercel Function. This keeps the Vite deployment within the
+12-Function Hobby limit without changing the public API contract.
+
 Production cookie: `__Host-infinity_admin_session`; `HttpOnly`; `Secure`;
 `SameSite=Strict`; `Path=/`; no `Domain`. Local HTTP development uses the
 separate `infinity_admin_session_dev` cookie.

@@ -38,6 +38,7 @@ if (existsSync(join(root, '.env.local'))) {
 
 const load = async (...segments) => (await import(pathToFileURL(join(root, 'api', ...segments)).href)).default
 const joinHandler = await load('join.js')
+const adminAuthHandler = await load('admin-auth.js')
 // These routes read the raw request stream themselves: the runner must
 // not consume the body before handing the request over.
 const streamingRoutes = {
@@ -51,10 +52,10 @@ const streamingRoutes = {
   '/api/aivex/magic-link/upload/init': await load('aivex', 'magic-link', 'upload', 'init.js'),
   '/api/aivex/magic-link/upload/finalize': await load('aivex', 'magic-link', 'upload', 'finalize.js'),
   '/api/aivex/magic-link/document': await load('aivex', 'magic-link', 'document.js'),
-  '/api/admin/auth/login': await load('admin', 'auth', 'login.js'),
-  '/api/admin/auth/session': await load('admin', 'auth', 'session.js'),
-  '/api/admin/auth/logout': await load('admin', 'auth', 'logout.js'),
-  '/api/admin/auth/change-password': await load('admin', 'auth', 'change-password.js'),
+  '/api/admin/auth/login': adminAuthHandler,
+  '/api/admin/auth/session': adminAuthHandler,
+  '/api/admin/auth/logout': adminAuthHandler,
+  '/api/admin/auth/change-password': adminAuthHandler,
 }
 
 const json = (res, status, payload) => {

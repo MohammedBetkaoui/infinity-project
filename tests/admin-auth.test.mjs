@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
 import { Readable } from 'node:stream'
 import { test } from 'node:test'
 import { createAdminAuthService, ADMIN_INVALID_CREDENTIALS_MESSAGE } from '../api/_lib/admin-auth.js'
@@ -8,11 +8,25 @@ import { hashAdminSessionToken } from '../api/_lib/admin-session.js'
 import {
   ADMIN_DEVELOPMENT_COOKIE, ADMIN_PRODUCTION_COOKIE, createAdminSessionCookie,
 } from '../api/_lib/admin-security.js'
-import { createAdminLoginHandler } from '../api/admin/auth/login.js'
-import { createAdminLogoutHandler } from '../api/admin/auth/logout.js'
+import {
+  createAdminAuthRouter, createAdminLoginHandler, createAdminLogoutHandler,
+} from '../api/admin-auth.js'
 import { adminLoginPathFor, safeAdminReturnTo } from '../src/admin/adminAuthPath.js'
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8')
+const listVercelFunctions = async (directory = new URL('../api/', import.meta.url), prefix = '') => {
+  const files = []
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      if (!entry.name.startsWith('_')) {
+        files.push(...await listVercelFunctions(new URL(`${entry.name}/`, directory), `${prefix}${entry.name}/`))
+      }
+    } else if (/\.(?:js|mjs|ts)$/.test(entry.name)) {
+      files.push(`${prefix}${entry.name}`)
+    }
+  }
+  return files
+}
 const NOW = new Date('2026-09-25T10:00:00.000Z')
 const USER_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const SESSION_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
@@ -299,6 +313,41 @@ test('login endpoint never returns the raw token or password', async () => {
   assert.match(res.headers['set-cookie'], new RegExp(`^${ADMIN_PRODUCTION_COOKIE}=${RAW_TOKEN}`))
   assert.doesNotMatch(JSON.stringify(res.body), new RegExp(RAW_TOKEN))
   assert.doesNotMatch(JSON.stringify(res.body), new RegExp(CURRENT_PASSWORD.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+})
+
+test('all public admin auth URLs dispatch through one Vercel Function', async () => {
+  const called = []
+  const route = (name) => async (_req, res) => {
+    called.push(name)
+    res.statusCode = 204
+    res.end()
+  }
+  const handler = createAdminAuthRouter({
+    login: route('login'),
+    session: route('session'),
+    logout: route('logout'),
+    changePassword: route('change-password'),
+  })
+
+  for (const action of ['login', 'session', 'logout', 'change-password']) {
+    const req = request(action === 'session' ? 'GET' : 'POST')
+    req.url = `/api/admin-auth?__admin_auth_action=${action}`
+    const res = response()
+    await handler(req, res)
+    assert.equal(res.statusCode, 204)
+  }
+  assert.deepEqual(called, ['login', 'session', 'logout', 'change-password'])
+
+  const functions = await listVercelFunctions()
+  assert(functions.includes('admin-auth.js'))
+  assert.equal(functions.some((path) => path.startsWith('admin/auth/')), false)
+  assert(functions.length <= 12, `Hobby deployment has ${functions.length} Functions; maximum is 12`)
+
+  const config = JSON.parse(await read('vercel.json'))
+  assert(config.rewrites.some((rewrite) => (
+    rewrite.source === '/api/admin/auth/:action'
+      && rewrite.destination === '/api/admin-auth?__admin_auth_action=:action'
+  )))
 })
 
 test('route guard accepts only internal admin return paths and protects direct workspace access', async () => {
