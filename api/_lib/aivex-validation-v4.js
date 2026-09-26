@@ -142,7 +142,10 @@ export async function validateCorrectionCardV4(item, file) {
   const label = `Student card ${String(spec.position).padStart(2, '0')}`
   const checked = await checkImagePart({ file, policy: spec.policy, words: WORDS.studentCard, label, field: 'file' })
   if (!checked.ok) return checked
-  return { ok: true, ...checked, position: spec.position }
+  // The correction flow must copy the validated bytes from staging to the
+  // final private path. Keep the exact inspected buffer just like the fresh
+  // registration validator does for each student card.
+  return { ok: true, ...checked, buffer: file.buffer, position: spec.position }
 }
 
 // Everything a registration request may carry: exactly the five image parts

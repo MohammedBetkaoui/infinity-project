@@ -92,6 +92,9 @@ export function createSupabaseCorrectionStore(supabase) {
     // remove-then-copy dance, and no risk of a transient "card missing"
     // state between the two.
     async writeFinalFile(bucket, path, buffer, mimeType) {
+      if (!Buffer.isBuffer(buffer) || buffer.length < 1) {
+        throw new CorrectionStoreError('write-final-file', { code: 'invalid_file_buffer' })
+      }
       const { error } = await supabase.storage.from(bucket).upload(path, buffer, { contentType: mimeType, upsert: true })
       if (error) throw new CorrectionStoreError('write-final-file', error)
     },

@@ -12,11 +12,14 @@ import { readFile } from 'node:fs/promises'
 import { test } from 'node:test'
 import { canManageAivex } from '../api/_lib/admin-aivex-permissions.js'
 import { validateAivexActionBody } from '../api/_lib/admin-aivex-validation.js'
+import { uploadCorrectionDocument } from '../api/_lib/aivex-correction-upload.js'
+import { validateCorrectionCardV4 } from '../api/_lib/aivex-validation-v4.js'
 import { STUDENT_CARD_POLICY } from '../shared/aivex/contract-v4.js'
 import { CORRECTION_ITEMS, CORRECTION_ITEM_DOCUMENT_KEY, CORRECTION_ITEM_KIND, correctionCardSpec } from '../shared/aivex/correction-items.js'
 import { statusStrings } from '../src/pages/aivex/status/statusI18n.js'
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8')
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64')
 
 test('CORRECTION_ITEM_KIND: exactly the 8 items the admin dashboard offers, each classified field or document', () => {
   assert.deepEqual([...CORRECTION_ITEMS].sort(), [
@@ -45,6 +48,35 @@ test('correctionCardSpec: only a student card is self-serviceable via the Magic 
   assert.equal(correctionCardSpec('Signed and stamped form'), null)
   assert.equal(correctionCardSpec('Team information'), null)
   assert.equal(correctionCardSpec('not a real item'), null)
+})
+
+test('a corrected student card keeps its validated bytes through the final storage copy', async () => {
+  const validated = await validateCorrectionCardV4('Student card 01', {
+    buffer: PNG, size: PNG.length, mimeType: 'image/png', filename: 'student-1.png',
+  })
+  assert.equal(validated.ok, true)
+  assert.deepEqual(validated.buffer, PNG)
+
+  let stored
+  let submitted
+  const outcome = await uploadCorrectionDocument({
+    itemId: '11111111-1111-4111-8111-111111111111',
+    registrationId: '22222222-2222-4222-8222-222222222222',
+    file: { ...validated, bucket: 'aivex-student-cards' },
+    now: new Date('2026-09-26T12:00:00.000Z'),
+    store: {
+      async loadItem() { return { registration_id: '22222222-2222-4222-8222-222222222222', kind: 'document', status: 'open' } },
+      async loadRegistrationForUpload() { return { id: '22222222-2222-4222-8222-222222222222', edition: 2 } },
+      async writeFinalFile(bucket, path, buffer, mime) { stored = { bucket, path, buffer, mime } },
+      async submitStudentCardItem(...args) { submitted = args },
+    },
+  })
+
+  assert.deepEqual(stored.buffer, PNG)
+  assert.equal(stored.mime, 'image/png')
+  assert.match(stored.path, /student-1\.png$/)
+  assert.equal(submitted[2], 1)
+  assert.deepEqual(outcome, { ok: true, documentKey: 'student-1' })
 })
 
 test('CORRECTION_ITEM_DOCUMENT_KEY: matches the admin document_key vocabulary exactly', () => {
