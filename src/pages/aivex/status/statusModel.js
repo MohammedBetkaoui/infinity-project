@@ -50,6 +50,27 @@ const TONES = {
 }
 export const toneFor = (documentStatus) => TONES[documentStatus] || 'pending'
 
+// One candidate-facing dossier state, derived only from the two server-owned
+// statuses returned by the Magic Link endpoint. Closed decisions take
+// priority, and a team is called accepted only when both the registration and
+// the administrative document have reached their final states.
+export function dossierStateFor(registrationStatus, documentStatus) {
+  if (registrationStatus === 'rejected') return { key: 'rejected', tone: 'issue' }
+  if (registrationStatus === 'cancelled') return { key: 'cancelled', tone: 'issue' }
+  if (documentStatus === 'changes_required') return { key: 'changes_required', tone: 'issue' }
+  if (documentStatus === 'generation_failed') return { key: 'generation_issue', tone: 'issue' }
+  if (documentStatus === 'expired') return { key: 'expired', tone: 'issue' }
+  if (registrationStatus === 'approved' && documentStatus === 'validated') return { key: 'accepted', tone: 'success' }
+  if (documentStatus === 'awaiting_signature') return { key: 'action_required', tone: 'action' }
+  if (documentStatus === 'signed_document_uploaded') return { key: 'received', tone: 'success' }
+  if (documentStatus === 'under_review' || ['under_review', 'approved'].includes(registrationStatus)) {
+    return { key: 'under_review', tone: 'pending' }
+  }
+  if (['not_generated', 'generating'].includes(documentStatus)) return { key: 'preparing', tone: 'pending' }
+  if (registrationStatus === 'submitted') return { key: 'submitted', tone: 'pending' }
+  return { key: 'unknown', tone: 'pending' }
+}
+
 // Which panel the page leads with. 'sign' and 'received' are the two that
 // can upload (the same two statuses shared/aivex/signed-document-policy.js
 // lists); the rest are informational.

@@ -10,7 +10,7 @@ import { test } from 'node:test'
 import { UPLOAD_ELIGIBLE_DOCUMENT_STATUSES } from '../shared/aivex/signed-document-policy.js'
 import { statusStrings } from '../src/pages/aivex/status/statusI18n.js'
 import {
-  PROGRESS_STEPS, formatFileSize, formatReceivedAt, isImageFile, progressFor, stageFor, toneFor,
+  PROGRESS_STEPS, dossierStateFor, formatFileSize, formatReceivedAt, isImageFile, progressFor, stageFor, toneFor,
 } from '../src/pages/aivex/status/statusModel.js'
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8')
@@ -82,6 +82,25 @@ test('stageFor: upload stages are exactly the statuses the server accepts, inclu
   for (const status of ['under_review', 'validated', 'expired', 'something_new']) assert.equal(stageFor(status), 'other', status)
 })
 
+test('dossierStateFor: the team sees one truthful overall administrative state', () => {
+  assert.deepEqual(dossierStateFor('submitted', 'not_generated'), { key: 'preparing', tone: 'pending' })
+  assert.deepEqual(dossierStateFor('submitted', 'awaiting_signature'), { key: 'action_required', tone: 'action' })
+  assert.deepEqual(dossierStateFor('under_review', 'signed_document_uploaded'), { key: 'received', tone: 'success' })
+  assert.deepEqual(dossierStateFor('under_review', 'under_review'), { key: 'under_review', tone: 'pending' })
+  assert.deepEqual(dossierStateFor('approved', 'validated'), { key: 'accepted', tone: 'success' })
+  assert.deepEqual(dossierStateFor('approved', 'changes_required'), { key: 'changes_required', tone: 'issue' })
+  assert.deepEqual(dossierStateFor('rejected', 'validated'), { key: 'rejected', tone: 'issue' }, 'a closed registration takes priority')
+  assert.deepEqual(dossierStateFor('cancelled', 'under_review'), { key: 'cancelled', tone: 'issue' })
+  assert.deepEqual(dossierStateFor('submitted', 'future_status'), { key: 'submitted', tone: 'pending' })
+})
+
+test('dossierStateFor: receipt alone is never presented as final acceptance', () => {
+  for (const registration of ['submitted', 'under_review', 'approved']) {
+    assert.notEqual(dossierStateFor(registration, 'signed_document_uploaded').key, 'accepted')
+  }
+  assert.notEqual(dossierStateFor('under_review', 'validated').key, 'accepted')
+})
+
 test('formatFileSize: KB under a megabyte, one-decimal MB above, never empty', () => {
   const units = { sizeUnitKb: 'KB', sizeUnit: 'MB' }
   assert.equal(formatFileSize(0, units), '0 KB')
@@ -130,6 +149,7 @@ const STRING_KEYS = [
   'uploadDropTitle', 'uploadDropActive', 'uploadDropOr', 'uploadRemove', 'uploadProcessing',
   'newVersionTitle', 'newVersionHint', 'helpText', 'privateNote', 'fieldReference', 'fieldInstitution',
   'fieldWilaya', 'fieldStudents', 'fieldRegistrationStatus', 'validKicker',
+  'fieldDocumentStatus', 'currentStatusTitle', 'currentStatusAuto', 'currentStatusHint', 'refreshStatus',
 ]
 
 test('status strings: every new key exists, as a non-empty string, in EN, FR and AR', () => {
@@ -144,6 +164,10 @@ test('status strings: every new key exists, as a non-empty string, in EN, FR and
     }
     for (const id of PROGRESS_STEPS) assert.ok(strings.steps[id], `${lang}.steps.${id}`)
     for (const state of ['done', 'current', 'upcoming', 'attention']) assert.ok(strings.stepState[state], `${lang}.stepState.${state}`)
+    for (const state of ['submitted', 'preparing', 'action_required', 'received', 'under_review', 'changes_required', 'accepted', 'rejected', 'cancelled', 'expired', 'generation_issue', 'unknown']) {
+      assert.equal(typeof strings.dossierStatus[state]?.title, 'string', `${lang}.dossierStatus.${state}.title`)
+      assert.equal(typeof strings.dossierStatus[state]?.text, 'string', `${lang}.dossierStatus.${state}.text`)
+    }
   }
 })
 
@@ -160,6 +184,7 @@ test('status strings: "received" wording never claims the document was checked o
     const received = [
       strings.uploadSuccessTitle, strings.uploadReceivedTitle, strings.uploadReceivedNote, strings.uploadReceivedOn({ date: '' }),
       strings.documentStatus.signed_document_uploaded,
+      strings.dossierStatus.received.title, strings.dossierStatus.received.text,
     ].join(' ')
     assert.doesNotMatch(received, /valid[ée]|validated|approved|approuv|مصادَق|مقبول|تم التحقق/i, lang)
   }
@@ -184,7 +209,7 @@ const withoutComments = (source) => source
 
 test('status page components never persist, log or beacon anything', async () => {
   const files = [
-    'AivexStatusPage.jsx', 'DossierHeader.jsx', 'OfficialFormPanel.jsx', 'ProgressTracker.jsx', 'ReceivedPanel.jsx',
+    'AivexStatusPage.jsx', 'CurrentDossierStatus.jsx', 'DossierHeader.jsx', 'OfficialFormPanel.jsx', 'ProgressTracker.jsx', 'ReceivedPanel.jsx',
     'SignaturePanel.jsx', 'SignedDocumentDropzone.jsx', 'StatusNotices.jsx', 'statusModel.js', 'useAivexStatus.js',
   ]
   for (const file of files) {
@@ -197,6 +222,14 @@ test('status page components never persist, log or beacon anything', async () =>
   }
   const page = withoutComments(await read('src/pages/aivex/status/AivexStatusPage.jsx'))
   assert.deepEqual(page.match(/\.setItem\([^)]*\)/g), ['.setItem(REGISTER_LANG_STORAGE_KEY, lang)'], 'the only write is the language preference')
+})
+
+test('the open Magic Link page refreshes its candidate-safe status without a persistent connection', async () => {
+  const hook = await read('src/pages/aivex/status/useAivexStatus.js')
+  assert.match(hook, /AUTO_REFRESH_MS = 90 \* 1000/)
+  assert.match(hook, /window\.setInterval\(refreshIfDue, AUTO_REFRESH_MS\)/)
+  assert.match(hook, /document\.visibilityState !== 'visible'/)
+  assert.match(hook, /window\.removeEventListener\('focus', refreshIfDue\)/)
 })
 
 test('the upload uses same-origin init/finalize and direct signed Storage progress with a per-file idempotency id', async () => {

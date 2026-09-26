@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import InfinityClubMark from '../../../components/InfinityClubMark'
 import { UPLOAD_ELIGIBLE_DOCUMENT_STATUSES } from '../../../../shared/aivex/signed-document-policy.js'
 import AivexLogoMark from '../AivexLogoMark'
+import CurrentDossierStatus from './CurrentDossierStatus'
 import DossierHeader from './DossierHeader'
 import OfficialFormPanel from './OfficialFormPanel'
 import ProgressTracker from './ProgressTracker'
@@ -39,6 +40,7 @@ function Dossier({ data, lang, api, t }) {
   return (
     <article className="axs-dossier" aria-label={t.validTitle}>
       <DossierHeader data={data} t={t} />
+      <CurrentDossierStatus data={data} onRefresh={api.refresh} refreshing={api.refreshing} refreshFailed={api.refreshFailed} t={t}/>
       <ProgressTracker documentStatus={data.documentStatus} t={t} />
 
       {uploadEligible && stage === 'sign' && (
