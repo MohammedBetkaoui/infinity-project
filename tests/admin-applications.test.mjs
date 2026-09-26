@@ -4,7 +4,7 @@ import { Readable } from 'node:stream'
 import { test } from 'node:test'
 import { createAdminApplicationsHandler } from '../api/admin-auth.js'
 import { createAdminApplicationsService } from '../api/_lib/admin-applications.js'
-import { allowedApplicationActions, canManageApplication } from '../api/_lib/admin-applications-permissions.js'
+import { allowedApplicationActions, canAccessApplications, canManageApplication } from '../api/_lib/admin-applications-permissions.js'
 import {
   parseApplicationListOptions, validateApplicationActionBody, validateApplicationBulkBody,
 } from '../api/_lib/admin-applications-validation.js'
@@ -81,6 +81,7 @@ function response() {
 }
 
 const administrator = { id: ADMIN_ID, username: 'ali_admin', displayName: 'Ali Admin', role: 'administrator' }
+const superAdministrator = { ...administrator, role: 'super_admin' }
 const sameOrigin = { host: 'www.infinty-bba.com', origin: 'https://www.infinty-bba.com', 'content-type': 'application/json' }
 
 test('Join list validation accepts bounded server filters and rejects ambiguous or excessive input', () => {
@@ -105,8 +106,12 @@ test('Join mutation validation requires optimistic concurrency and bounds bulk o
   assert.equal(validateApplicationBulkBody({ action: 'archive', reason: '', records: [{ id: APP_ID, expectedUpdatedAt: NOW }] }).ok, true)
 })
 
-test('reviewers can review but cannot decide; administrator actions use the authenticated actor', async () => {
-  assert.equal(canManageApplication('reviewer', 'start_review'), true)
+test('Join workflows are restricted to super administrators and use the authenticated actor', async () => {
+  assert.equal(canAccessApplications('super_admin'), true)
+  assert.equal(canAccessApplications('administrator'), false)
+  assert.equal(canAccessApplications('reviewer'), false)
+  assert.equal(canManageApplication('reviewer', 'start_review'), false)
+  assert.equal(canManageApplication('administrator', 'start_review'), false)
   assert.equal(canManageApplication('reviewer', 'accept_member'), false)
   assert(!allowedApplicationActions('reviewer', row()).includes('decline'))
 
@@ -118,9 +123,15 @@ test('reviewers can review but cannot decide; administrator actions use the auth
   assert.deepEqual({ ok: refused.ok, status: refused.status }, { ok: false, status: 403 })
   assert.equal(store.calls.length, 0)
 
-  const accepted = await service.act(APP_ID, {
+  const administratorRefused = await service.act(APP_ID, {
     action: 'accept_member', expectedUpdatedAt: store.record.updated_at, reason: 'Profile approved', payload: {},
   }, administrator)
+  assert.deepEqual({ ok: administratorRefused.ok, status: administratorRefused.status }, { ok: false, status: 403 })
+  assert.equal(store.calls.length, 0)
+
+  const accepted = await service.act(APP_ID, {
+    action: 'accept_member', expectedUpdatedAt: store.record.updated_at, reason: 'Profile approved', payload: {},
+  }, superAdministrator)
   assert.equal(accepted.ok, true)
   const call = store.calls.find(([kind]) => kind === 'action')[1]
   assert.equal(call.adminUserId, ADMIN_ID)
@@ -131,14 +142,14 @@ test('reviewers can review but cannot decide; administrator actions use the auth
   store.calls = []
   await service.act(APP_ID, {
     action: 'start_review', expectedUpdatedAt: store.record.updated_at, reason: '', payload: {},
-  }, administrator)
+  }, superAdministrator)
   assert.equal(store.calls.find(([kind]) => kind === 'action')[1].reason, 'Application moved to review')
 
   store.record = row()
   store.calls = []
   const removedAction = await service.act(APP_ID, {
     action: 'request_information', expectedUpdatedAt: store.record.updated_at, reason: '', payload: {},
-  }, administrator)
+  }, superAdministrator)
   assert.deepEqual({ ok: removedAction.ok, status: removedAction.status }, { ok: false, status: 403 })
   assert.equal(store.calls.length, 0)
 })
@@ -162,7 +173,7 @@ test('applications API returns authenticated paginated records and no database-o
   const service = createAdminApplicationsService({ store, now: () => new Date(NOW) })
   const handler = createAdminApplicationsHandler({
     enabled: () => true,
-    requireSession: async () => ({ user: administrator, sessionId: 'session-id' }),
+    requireSession: async () => ({ user: superAdministrator, sessionId: 'session-id' }),
     createService: () => service,
   })
   const res = response()
@@ -176,11 +187,26 @@ test('applications API returns authenticated paginated records and no database-o
   assert.deepEqual(res.body.pagination, { page: 1, limit: 12, total: 1, pages: 1 })
 })
 
+test('applications API denies administrator and reviewer roles before creating the data service', async () => {
+  for (const role of ['administrator', 'reviewer']) {
+    let called = false
+    const handler = createAdminApplicationsHandler({
+      enabled: () => true,
+      requireSession: async () => ({ user: { ...administrator, role }, sessionId: 'session-id' }),
+      createService: () => { called = true; return {} },
+    })
+    const res = response()
+    await handler(request('GET', '/api/admin-auth?__admin_path=applications'), res)
+    assert.equal(res.statusCode, 403)
+    assert.equal(called, false)
+  }
+})
+
 test('cross-origin Join mutations are rejected before parsing or writing', async () => {
   let called = false
   const handler = createAdminApplicationsHandler({
     enabled: () => true,
-    requireSession: async () => ({ user: administrator, sessionId: 'session-id' }),
+    requireSession: async () => ({ user: superAdministrator, sessionId: 'session-id' }),
     trustedOrigin: () => false,
     createService: () => ({ act: async () => { called = true } }),
   })
@@ -196,7 +222,7 @@ test('authenticated mutation passes only the session identity to the workflow se
   let received
   const handler = createAdminApplicationsHandler({
     enabled: () => true,
-    requireSession: async () => ({ user: administrator, sessionId: 'session-id' }),
+    requireSession: async () => ({ user: superAdministrator, sessionId: 'session-id' }),
     trustedOrigin: () => true,
     createService: () => ({
       act: async (id, input, user) => {

@@ -112,6 +112,34 @@
 .adm-global-footer i { width: 6px; height: 6px; background: var(--adm-mint); border: 1px solid var(--adm-green); border-radius: 50%; }
 .adm-mobile-scrim { display: none; }
 
+/* Focused AIVEX workspace for operational administrator roles */
+.adm-aivex-standalone { --adm-topbar: 76px; }
+.adm-aivex-standalone .adm-workspace,
+.adm-app.adm-aivex-standalone.is-aivex-ar .adm-workspace { margin-inline: 0; }
+.adm-aivex-accessbar { position: sticky; z-index: 45; top: 0; display: flex; align-items: center; justify-content: space-between; min-height: var(--adm-topbar); gap: 24px; padding: 0 24px; color: var(--adm-cream); background-color: var(--adm-deep); background-image: linear-gradient(rgba(158,215,196,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(158,215,196,.028) 1px,transparent 1px); background-size: 24px 24px; border-bottom: 1px solid rgba(158,215,196,.28); box-shadow: 0 7px 24px rgba(0,39,27,.09); }
+.adm-aivex-accessbar::after { position: absolute; content: ''; right: 24px; bottom: -1px; left: 24px; border-bottom: 1px solid rgba(245,158,11,.22); pointer-events: none; }
+.adm-aivex-accessbar__brand { display: flex; align-items: center; min-width: 0; gap: 11px; }
+.adm-aivex-accessbar__mark { display: grid; place-items: center; width: 46px; height: 36px; padding-right: 11px; color: var(--adm-cream); border-right: 1px solid rgba(158,215,196,.25); }
+.adm-aivex-accessbar__mark svg { width: 38px; }
+.adm-aivex-accessbar__brand > span:nth-child(2) { display: grid; min-width: 0; }
+.adm-aivex-accessbar__brand b { font: 650 19px/.9 Rajdhani,sans-serif; letter-spacing: .15em; }
+.adm-aivex-accessbar__brand small { margin-top: 6px; color: var(--adm-light-text); font: 7px 'JetBrains Mono',monospace; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
+.adm-aivex-accessbar__brand code { margin-left: 9px; padding: 4px 7px; color: rgba(182,206,197,.55); border: 1px solid rgba(158,215,196,.16); font-size: 6px; letter-spacing: .11em; white-space: nowrap; }
+.adm-aivex-accessbar__session { display: flex; align-items: center; justify-content: flex-end; min-width: 0; gap: 10px; }
+.adm-aivex-accessbar__status { display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 0 10px; color: var(--adm-light-text); border: 1px solid rgba(158,215,196,.15); font: 7px 'JetBrains Mono',monospace; letter-spacing: .07em; text-transform: uppercase; white-space: nowrap; }
+.adm-aivex-accessbar__status i { width: 6px; height: 6px; background: var(--adm-mint); border-radius: 50%; box-shadow: 0 0 0 4px rgba(158,215,196,.08); }
+.adm-aivex-accessbar__identity { display: flex; align-items: center; min-width: 0; gap: 8px; padding-left: 10px; border-left: 1px solid rgba(158,215,196,.18); }
+.adm-aivex-accessbar__identity > span:last-child { display: grid; min-width: 0; max-width: 190px; }
+.adm-aivex-accessbar__identity b { overflow: hidden; color: var(--adm-cream); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.adm-aivex-accessbar__identity small { overflow: hidden; margin-top: 2px; color: var(--adm-light-text); font: 7px 'JetBrains Mono',monospace; text-overflow: ellipsis; white-space: nowrap; }
+.adm-aivex-accessbar__logout { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; gap: 8px; padding: 0 14px; color: var(--adm-deep); background: var(--adm-mint); border: 1px solid var(--adm-mint) !important; border-radius: 6px; font-size: 10px; font-weight: 800; white-space: nowrap; transition: background .15s,border-color .15s,transform .15s; }
+.adm-aivex-accessbar__logout:hover { background: var(--adm-cream); border-color: var(--adm-cream) !important; }
+.adm-aivex-accessbar__logout:not(:disabled):active { transform: translateY(1px); }
+.adm-aivex-standalone .adm-main { min-height: calc(100vh - var(--adm-topbar)); }
+.adm-aivex-standalone.is-aivex-ar .adm-aivex-accessbar__mark { padding-right: 0; padding-left: 11px; border-right: 0; border-left: 1px solid rgba(158,215,196,.25); }
+.adm-aivex-standalone.is-aivex-ar .adm-aivex-accessbar__brand code { margin-right: 9px; margin-left: 0; }
+.adm-aivex-standalone.is-aivex-ar .adm-aivex-accessbar__identity { padding-right: 10px; padding-left: 0; border-right: 1px solid rgba(158,215,196,.18); border-left: 0; }
+
 /* Shared controls */
 .adm-icon-button { display: inline-grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; color: var(--adm-secondary); background: transparent; border: 1px solid transparent !important; border-radius: 6px; }
 .adm-icon-button:hover { color: var(--adm-ink); background: rgba(9,74,54,.06); border-color: var(--adm-line) !important; }
@@ -1063,6 +1091,8 @@
 }
 
 @media (max-width: 1023px) {
+  .adm-aivex-accessbar { padding-inline: 18px; }
+  .adm-aivex-accessbar__status { display: none; }
   .adm-topbar { padding-inline: 18px; }
   .adm-main { padding: 25px 18px 48px; }
   .adm-global-footer { margin-inline: 18px; }
@@ -1095,6 +1125,21 @@
 
 @media (max-width: 767px) {
   :root { --adm-sidebar: 0px; --adm-topbar: 62px; }
+  .adm-aivex-standalone { --adm-topbar: 64px; }
+  .adm-aivex-accessbar { gap: 10px; padding-inline: 12px; }
+  .adm-aivex-accessbar::after { right: 12px; left: 12px; }
+  .adm-aivex-accessbar__brand { gap: 8px; }
+  .adm-aivex-accessbar__mark { width: 39px; padding-right: 8px; }
+  .adm-aivex-accessbar__mark svg { width: 32px; }
+  .adm-aivex-accessbar__brand b { font-size: 17px; }
+  .adm-aivex-accessbar__brand small { font-size: 6px; }
+  .adm-aivex-accessbar__brand code { display: none; }
+  .adm-aivex-accessbar__identity { padding-left: 0; border-left: 0; }
+  .adm-aivex-accessbar__identity > span:last-child { display: none; }
+  .adm-aivex-accessbar__logout { width: 44px; padding: 0; }
+  .adm-aivex-accessbar__logout span { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+  .adm-aivex-standalone.is-aivex-ar .adm-aivex-accessbar__mark { padding-left: 8px; }
+  .adm-aivex-standalone.is-aivex-ar .adm-aivex-accessbar__identity { padding-right: 0; border-right: 0; }
   .adm-sidebar { width: min(290px, 86vw); transform: translateX(-102%); box-shadow: 20px 0 50px rgba(0,39,27,.28); }
   .adm-sidebar.is-mobile-open { transform: translateX(0); }
   .adm-sidebar.is-mobile-open .adm-brand__copy, .adm-sidebar.is-mobile-open .adm-sidebar__campaign, .adm-sidebar.is-mobile-open .adm-nav-index, .adm-sidebar.is-mobile-open .adm-nav-node, .adm-sidebar.is-mobile-open .adm-nav-label, .adm-sidebar.is-mobile-open nav em, .adm-sidebar.is-mobile-open .adm-admin-profile > span:not(.adm-avatar), .adm-sidebar.is-mobile-open .adm-admin-profile > svg, .adm-sidebar.is-mobile-open .adm-signout span { display: grid; }

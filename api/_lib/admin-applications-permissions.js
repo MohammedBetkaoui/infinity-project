@@ -9,18 +9,15 @@ export const ADMIN_APPLICATION_ACTIONS = Object.freeze([
   'add_note',
 ])
 
-const REVIEWER_ACTIONS = new Set([
-  'start_review',
-  'schedule_interview',
-  'add_note',
-])
-
 const ADMINISTRATOR_ACTIONS = new Set(ADMIN_APPLICATION_ACTIONS)
+
+export function canAccessApplications(role) {
+  return role === 'super_admin'
+}
 
 export function canManageApplication(role, action) {
   if (!ADMIN_APPLICATION_ACTIONS.includes(action)) return false
-  if (role === 'super_admin' || role === 'administrator') return ADMINISTRATOR_ACTIONS.has(action)
-  return role === 'reviewer' && REVIEWER_ACTIONS.has(action)
+  return role === 'super_admin' && ADMINISTRATOR_ACTIONS.has(action)
 }
 
 export function allowedApplicationActions(role, application) {
@@ -40,5 +37,5 @@ export function allowedApplicationActions(role, application) {
 }
 
 export function canBulkManageApplications(role) {
-  return role === 'super_admin' || role === 'administrator'
+  return role === 'super_admin'
 }

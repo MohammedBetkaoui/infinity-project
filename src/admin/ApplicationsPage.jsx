@@ -63,7 +63,7 @@ export default function ApplicationsPage() {
     sort: sortValue,
   })
   const { loadDetail, act, bulk } = useAdminApplicationActions()
-  const canBulk = ['administrator', 'super_admin'].includes(user?.role)
+  const canBulk = user?.role === 'super_admin'
 
   const counts = useMemo(() => Object.fromEntries(APPLICATION_STATUSES.map((status) => [status, rawCounts[STATUS_KEYS[status]] || 0])), [rawCounts])
   const fields = useMemo(() => [

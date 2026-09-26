@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react'
 import { ArrowLeft, ArrowRight, FileText, LockKeyhole, Search, Users } from 'lucide-react'
 import { Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import InfinityMark from '../components/InfinityMark'
+import { adminHomePath, adminPathForRole, hasFullAdminWorkspace } from './adminAccess'
 import { AdminAuthProvider, useAdminAuth } from './AdminAuth'
-import { adminLoginPathFor, safeAdminReturnTo } from './adminAuthPath'
+import { adminLoginPathFor } from './adminAuthPath'
 import { AdminProvider, useAdmin } from './AdminStore'
-import { AdminShell, Button, Modal, ToastStack } from './AdminUI'
+import { AdminShell, AivexOnlyShell, Button, Modal, ToastStack } from './AdminUI'
 import ApplicationsPage from './ApplicationsPage'
 import { OverviewPage } from './AdminPages'
 import PeoplePage from './PeoplePages'
@@ -36,6 +37,7 @@ const AIVEX_GLOBAL_ARABIC = Object.freeze({
 
 function Workspace() {
   const { state, toasts } = useAdmin()
+  const { user } = useAdminAuth()
   const { pathname, search: routeSearch } = useLocation()
   const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState(false)
@@ -63,6 +65,20 @@ function Workspace() {
   // page until the global search receives its own authenticated endpoint.
   const searchResults = query.trim() ? ['members', 'staff', 'teams'].flatMap((collection) => state[collection].filter((r) => `${r.name} ${r.ref || ''} ${r.email || ''}`.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 4).map((record) => ({ collection, record }))).slice(0, 8) : []
   const pending = state.teams.filter((t) => ['Signed document received', 'Corrections needed', 'Generation issue'].includes(t.document))
+  if (!hasFullAdminWorkspace(user.role)) {
+    return <div className={wrapperClassName} dir={isArabicAivex ? 'rtl' : 'ltr'} lang={language}>
+      <a href="#admin-content" className="adm-skip-link">{t('Skip to workspace')}</a>
+      <AivexOnlyShell>
+        <Routes>
+          <Route index element={<Navigate to={adminHomePath(user.role)} replace/>}/>
+          <Route path="aivex" element={<AivexListPage key={routeSearch} globalQuery=""/>}/>
+          <Route path="aivex/:teamId" element={<AivexDetailPage key={pathname}/>}/>
+          <Route path="*" element={<Navigate to={adminHomePath(user.role)} replace/>}/>
+        </Routes>
+      </AivexOnlyShell>
+      <ToastStack toasts={toasts}/>
+    </div>
+  }
   return <div className={wrapperClassName} dir={isArabicAivex ? 'rtl' : 'ltr'} lang={language}><a href="#admin-content" className="adm-skip-link">{t('Skip to workspace')}</a><AdminShell collapsed={collapsed} setCollapsed={setCollapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} query={query} setQuery={setQuery} onNotifications={() => setNotifications(true)} onNewAction={() => setNewAction(true)}>
     <Routes><Route index element={<Navigate to="/admin/overview" replace/>}/><Route path="overview" element={<OverviewPage/>}/><Route path="applications" element={<ApplicationsPage key={`applications-${routeSearch}`}/>}/><Route path="members" element={<PeoplePage key={`members-${routeSearch}`} collection="members" globalQuery=""/>}/><Route path="staff" element={<PeoplePage key={`staff-${routeSearch}`} collection="staff" globalQuery=""/>}/><Route path="aivex" element={<AivexListPage key={routeSearch} globalQuery=""/>}/><Route path="aivex/:teamId" element={<AivexDetailPage key={pathname}/>}/><Route path="activity" element={<ActivityPage key={routeSearch} globalQuery=""/>}/><Route path="settings" element={<SettingsPage/>}/><Route path="*" element={<Navigate to="/admin/overview" replace/>}/></Routes>
   </AdminShell>
@@ -87,10 +103,10 @@ function ProtectedWorkspace() {
 }
 
 function LoginRoute() {
-  const { status } = useAdminAuth()
+  const { status, user } = useAdminAuth()
   const [params] = useSearchParams()
   if (status === 'loading') return <SecureLoadingState/>
-  if (status === 'authenticated') return <Navigate to={safeAdminReturnTo(params.get('returnTo'))} replace/>
+  if (status === 'authenticated') return <Navigate to={adminPathForRole(user.role, params.get('returnTo'))} replace/>
   return <LoginPage/>
 }
 

@@ -265,6 +265,45 @@ export function AdminShell({ children, collapsed, setCollapsed, mobileOpen, setM
   )
 }
 
+export function AivexOnlyShell({ children }) {
+  const { pathname, search } = useLocation()
+  const navigate = useNavigate()
+  const { user, logout } = useAdminAuth()
+  const [signingOut, setSigningOut] = useState(false)
+  const language = pathname.startsWith('/admin/aivex') && new URLSearchParams(search).get('lang') === 'ar' ? 'ar' : 'en'
+  const isArabic = language === 'ar'
+  const t = (value) => translateAivex(value, language)
+  const signOut = async () => {
+    if (signingOut) return
+    setSigningOut(true)
+    await logout()
+    navigate('/admin/login', { replace: true })
+  }
+
+  return (
+    <div className={`adm-app adm-aivex-standalone ${isArabic ? 'is-aivex-ar' : ''}`} dir={isArabic ? 'rtl' : 'ltr'} lang={language}>
+      <header className="adm-aivex-accessbar">
+        <div className="adm-aivex-accessbar__brand" aria-label="Infinity Club AIVEX administration">
+          <span className="adm-aivex-accessbar__mark"><InfinityMark/></span>
+          <span><b>INFINITY</b><small>{t('AIVEX administration')}</small></span>
+          <code>OPS / 02</code>
+        </div>
+        <div className="adm-aivex-accessbar__session">
+          <span className="adm-aivex-accessbar__status"><i/>{t('Secure AIVEX workspace')}</span>
+          <span className="adm-aivex-accessbar__identity"><Avatar initials={initialsFor(user.displayName)} small/><span><b>{user.displayName}</b><small>@{user.username} · {roleLabel(user.role)}</small></span></span>
+          <button className="adm-aivex-accessbar__logout" type="button" onClick={signOut} disabled={signingOut}>
+            <LogOut size={17}/><span>{signingOut ? t('Signing out…') : t('Sign out')}</span>
+          </button>
+        </div>
+      </header>
+      <div className="adm-workspace">
+        <main className="adm-main" id="admin-content">{children}</main>
+        <footer className="adm-global-footer"><span><i/>{t('Protected AIVEX administration · Live records')}</span><code>INFINITY / AIVEX · 2026.09</code></footer>
+      </div>
+    </div>
+  )
+}
+
 export function BulkBar({ count, onClear, onStatus }) {
   if (!count) return null
   return <div className="adm-bulk"><span><Check size={15} />{count} selected</span>{onStatus && <button onClick={onStatus}>Change status</button>}<button onClick={onClear}>Clear selection</button></div>

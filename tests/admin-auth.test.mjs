@@ -12,6 +12,7 @@ import {
   createAdminAuthRouter, createAdminLoginHandler, createAdminLogoutHandler,
 } from '../api/admin-auth.js'
 import { adminLoginPathFor, safeAdminReturnTo } from '../src/admin/adminAuthPath.js'
+import { adminHomePath, adminPathForRole, hasFullAdminWorkspace } from '../src/admin/adminAccess.js'
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8')
 const listVercelFunctions = async (directory = new URL('../api/', import.meta.url), prefix = '') => {
@@ -361,6 +362,25 @@ test('route guard accepts only internal admin return paths and protects direct w
   assert.match(app, /<Navigate to={adminLoginPathFor\(/)
   assert.match(app, /<AdminProvider><Workspace\/><\/AdminProvider>/)
   assert.match(app, /status === 'loading'.*SecureLoadingState/s)
+})
+
+test('workspace access is role-scoped and preserves only authorised return paths', async () => {
+  assert.equal(hasFullAdminWorkspace('super_admin'), true)
+  assert.equal(hasFullAdminWorkspace('administrator'), false)
+  assert.equal(adminHomePath('super_admin'), '/admin/overview')
+  assert.equal(adminHomePath('administrator'), '/admin/aivex')
+  assert.equal(adminPathForRole('super_admin', '/admin/settings'), '/admin/settings')
+  assert.equal(adminPathForRole('administrator', '/admin/overview'), '/admin/aivex')
+  assert.equal(adminPathForRole('administrator', '/admin/aivex/AIVEX2-7K9M2P4R?lang=ar'), '/admin/aivex/AIVEX2-7K9M2P4R?lang=ar')
+  assert.equal(adminPathForRole('reviewer', '/admin/applications'), '/admin/aivex')
+  assert.equal(adminPathForRole('unknown', '/admin/aivex'), '/admin/login')
+
+  const app = await read('src/admin/AdminApp.jsx')
+  const ui = await read('src/admin/AdminUI.jsx')
+  assert.match(app, /!hasFullAdminWorkspace\(user\.role\)/)
+  assert.match(app, /<AivexOnlyShell>/)
+  assert.match(ui, /adm-aivex-standalone/)
+  assert.match(ui, /await logout\(\)/)
 })
 
 test('browser auth code persists no token and imports no Supabase server client', async () => {

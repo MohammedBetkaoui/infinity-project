@@ -1,6 +1,7 @@
 import { createServerAdminAuthService, requireAdminSession } from './_lib/admin-auth.js'
 import { createServerAdminApplicationsService } from './_lib/admin-applications.js'
 import { createServerAdminAivexService } from './_lib/admin-aivex.js'
+import { canAccessApplications } from './_lib/admin-applications-permissions.js'
 import {
   isApplicationId, parseApplicationListOptions, validateApplicationActionBody,
   validateApplicationBulkBody,
@@ -198,6 +199,9 @@ export function createAdminApplicationsHandler({
       return sendAdminJson(res, 503, { success: false, message: 'Administrative service unavailable.' })
     }
     if (!session) return sendAdminJson(res, 401, { success: false, message: 'Your session has expired.' })
+    if (!canAccessApplications(session.user.role)) {
+      return sendAdminJson(res, 403, { success: false, message: 'This workspace is restricted to super administrators.' })
+    }
 
     const path = adminPathFromRequest(req)
     const url = new URL(req.url || '/', 'http://localhost')
