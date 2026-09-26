@@ -1,5 +1,5 @@
 import { useCallback, useDeferredValue, useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, Download, FileCheck2, FileText, FolderClosed, Languages, LockKeyhole, RefreshCw, RotateCw, ShieldCheck, TriangleAlert, ZoomIn, ZoomOut } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, Download, FileCheck2, FileText, FolderClosed, Languages, LockKeyhole, Maximize2, RefreshCw, RotateCw, ShieldCheck, TriangleAlert, ZoomIn, ZoomOut } from 'lucide-react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAdmin } from './AdminStore'
 import { useAivexLocale } from './AivexI18n'
@@ -22,6 +22,11 @@ const TABLE_SORT_KEYS = Object.freeze({
   submitted: 'submitted', updated: 'updated',
 })
 const CARD_SORTS = Object.freeze({ attention: 'attention_asc', completion: 'completion_asc', team: 'team_asc' })
+const IMAGE_ZOOM_MIN = .5
+const IMAGE_ZOOM_MAX = 4
+const clampImageZoom = (value) => Math.min(IMAGE_ZOOM_MAX, Math.max(IMAGE_ZOOM_MIN, value))
+const pointerDistance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y)
+const pointerCenter = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 })
 
 function AivexStatus({ value, t, tone }) {
   return <StatusBadge tone={tone || value}>{t(value)}</StatusBadge>
@@ -345,7 +350,15 @@ function SecureViewer({ team, document: file, onClose, onUpdated, onNeedsCorrect
   const [objectUrl, setObjectUrl] = useState('')
   const [mimeType, setMimeType] = useState('')
   const [saving, setSaving] = useState(false)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [imageSize, setImageSize] = useState({ width: 0, height: 0 })
+  const [viewport, setViewport] = useState({ width: 0, height: 0 })
   const closeRef = useRef(onClose)
+  const canvasRef = useRef(null)
+  const imageViewRef = useRef({ zoom: 1, pan: { x: 0, y: 0 } })
+  const gestureRef = useRef({ pointers: new Map() })
+  const isImage = mimeType.startsWith('image/')
+  const isPdf = mimeType === 'application/pdf'
   useEffect(() => { closeRef.current = onClose }, [onClose])
   useEffect(() => {
     let active = true
@@ -370,6 +383,21 @@ function SecureViewer({ team, document: file, onClose, onUpdated, onNeedsCorrect
     closeRef.current()
     addToast(isArabic ? 'تم إغلاق العارض تلقائياً' : 'Viewer closed automatically', isArabic ? 'انتهت جلسة المراجعة السرية.' : 'The confidential review session has expired.')
   }, [remaining, addToast, isArabic])
+  useEffect(() => {
+    if (!isImage || !canvasRef.current) return undefined
+    const canvas = canvasRef.current
+    const measure = () => {
+      const rect = canvas.getBoundingClientRect()
+      setViewport({ width: rect.width, height: rect.height })
+      imageViewRef.current = { zoom: 1, pan: { x: 0, y: 0 } }
+      setZoom(1)
+      setPan({ x: 0, y: 0 })
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(canvas)
+    return () => observer.disconnect()
+  }, [isImage])
   const submitReview = async (action) => {
     setSaving(true)
     const result = await act(team.ref, { action, expectedUpdatedAt: team.updatedAt, payload: { documentKey: file.id } })
@@ -380,8 +408,118 @@ function SecureViewer({ team, document: file, onClose, onUpdated, onNeedsCorrect
     onClose()
   }
   const accesses = team.documentAccess.filter((entry) => entry.documentKey === file.id)
-  const isImage = mimeType.startsWith('image/')
-  const isPdf = mimeType === 'application/pdf'
+  const normalizedRotation = ((rotation % 360) + 360) % 360
+  const swapsImageAxes = normalizedRotation === 90 || normalizedRotation === 270
+  const rotatedWidth = swapsImageAxes ? imageSize.height : imageSize.width
+  const rotatedHeight = swapsImageAxes ? imageSize.width : imageSize.height
+  const fitScale = rotatedWidth && rotatedHeight && viewport.width && viewport.height
+    ? Math.min((viewport.width - 40) / rotatedWidth, (viewport.height - 40) / rotatedHeight, 1)
+    : 1
+  const clampPan = (candidate, nextZoom = imageViewRef.current.zoom) => {
+    if (!rotatedWidth || !rotatedHeight || !viewport.width || !viewport.height) return { x: 0, y: 0 }
+    const displayedWidth = rotatedWidth * fitScale * nextZoom
+    const displayedHeight = rotatedHeight * fitScale * nextZoom
+    const maxX = Math.max(0, (displayedWidth - viewport.width) / 2 + 20)
+    const maxY = Math.max(0, (displayedHeight - viewport.height) / 2 + 20)
+    return {
+      x: Math.min(maxX, Math.max(-maxX, candidate.x)),
+      y: Math.min(maxY, Math.max(-maxY, candidate.y)),
+    }
+  }
+  const updateImageView = (nextZoom, candidatePan = imageViewRef.current.pan) => {
+    const boundedZoom = clampImageZoom(nextZoom)
+    const boundedPan = clampPan(candidatePan, boundedZoom)
+    imageViewRef.current = { zoom: boundedZoom, pan: boundedPan }
+    setZoom(boundedZoom)
+    setPan(boundedPan)
+  }
+  const resetImageView = () => {
+    imageViewRef.current = { zoom: 1, pan: { x: 0, y: 0 } }
+    setZoom(1)
+    setPan({ x: 0, y: 0 })
+  }
+  const rotateImage = () => {
+    resetImageView()
+    setRotation((value) => (value + 90) % 360)
+  }
+  const handleImageWheel = (event) => {
+    event.preventDefault()
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const current = imageViewRef.current
+    const nextZoom = clampImageZoom(current.zoom * Math.exp(-event.deltaY * .0015))
+    const ratio = nextZoom / current.zoom
+    const rect = canvas.getBoundingClientRect()
+    const cursor = { x: event.clientX - rect.left - rect.width / 2, y: event.clientY - rect.top - rect.height / 2 }
+    updateImageView(nextZoom, {
+      x: current.pan.x + (1 - ratio) * (cursor.x - current.pan.x),
+      y: current.pan.y + (1 - ratio) * (cursor.y - current.pan.y),
+    })
+  }
+  const beginImageGesture = (event) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return
+    event.currentTarget.setPointerCapture(event.pointerId)
+    const gesture = gestureRef.current
+    gesture.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
+    const points = [...gesture.pointers.values()]
+    if (points.length === 1) {
+      gesture.mode = 'pan'
+      gesture.startPoint = points[0]
+      gesture.startPan = { ...imageViewRef.current.pan }
+    } else if (points.length === 2) {
+      gesture.mode = 'pinch'
+      gesture.startDistance = Math.max(1, pointerDistance(points[0], points[1]))
+      gesture.startCenter = pointerCenter(points[0], points[1])
+      gesture.startZoom = imageViewRef.current.zoom
+      gesture.startPan = { ...imageViewRef.current.pan }
+    }
+  }
+  const moveImageGesture = (event) => {
+    const gesture = gestureRef.current
+    if (!gesture.pointers.has(event.pointerId)) return
+    gesture.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
+    const points = [...gesture.pointers.values()]
+    if (gesture.mode === 'pinch' && points.length >= 2) {
+      const center = pointerCenter(points[0], points[1])
+      const nextZoom = clampImageZoom(gesture.startZoom * pointerDistance(points[0], points[1]) / gesture.startDistance)
+      const ratio = nextZoom / gesture.startZoom
+      const rect = canvasRef.current.getBoundingClientRect()
+      const anchor = { x: gesture.startCenter.x - rect.left - rect.width / 2, y: gesture.startCenter.y - rect.top - rect.height / 2 }
+      updateImageView(nextZoom, {
+        x: gesture.startPan.x + center.x - gesture.startCenter.x + (1 - ratio) * (anchor.x - gesture.startPan.x),
+        y: gesture.startPan.y + center.y - gesture.startCenter.y + (1 - ratio) * (anchor.y - gesture.startPan.y),
+      })
+    } else if (gesture.mode === 'pan' && points.length === 1) {
+      updateImageView(imageViewRef.current.zoom, {
+        x: gesture.startPan.x + points[0].x - gesture.startPoint.x,
+        y: gesture.startPan.y + points[0].y - gesture.startPoint.y,
+      })
+    }
+  }
+  const endImageGesture = (event) => {
+    const gesture = gestureRef.current
+    gesture.pointers.delete(event.pointerId)
+    const points = [...gesture.pointers.values()]
+    if (points.length === 1) {
+      gesture.mode = 'pan'
+      gesture.startPoint = points[0]
+      gesture.startPan = { ...imageViewRef.current.pan }
+    } else if (!points.length) {
+      gesture.mode = null
+    }
+  }
+  const handleImageKeys = (event) => {
+    const step = 36
+    if (event.key === '+' || event.key === '=') updateImageView(imageViewRef.current.zoom + .25)
+    else if (event.key === '-') updateImageView(imageViewRef.current.zoom - .25)
+    else if (event.key === '0') resetImageView()
+    else if (event.key === 'ArrowLeft') updateImageView(imageViewRef.current.zoom, { ...imageViewRef.current.pan, x: imageViewRef.current.pan.x - step })
+    else if (event.key === 'ArrowRight') updateImageView(imageViewRef.current.zoom, { ...imageViewRef.current.pan, x: imageViewRef.current.pan.x + step })
+    else if (event.key === 'ArrowUp') updateImageView(imageViewRef.current.zoom, { ...imageViewRef.current.pan, y: imageViewRef.current.pan.y - step })
+    else if (event.key === 'ArrowDown') updateImageView(imageViewRef.current.zoom, { ...imageViewRef.current.pan, y: imageViewRef.current.pan.y + step })
+    else return
+    event.preventDefault()
+  }
   const reviewingCorrection = file.correctionStatus === 'submitted'
   const awaitingCandidateReplacement = file.correctionStatus === 'open' && ['student', 'signed'].includes(file.category)
   const replacementDisabled = saving || loading || (!reviewingCorrection && !team.canRequestCorrections)
@@ -394,10 +532,10 @@ function SecureViewer({ team, document: file, onClose, onUpdated, onNeedsCorrect
       <section className="adm-viewer-preview" aria-label={t('Confidential document')}>
         <div className="adm-viewer-controls">
           <span className="adm-viewer-controls-label"><LockKeyhole size={14}/>{t('SECURE SERVER VIEW')}</span>
-          {isImage && <div className="adm-viewer-control-actions"><IconButton label={t('Zoom out')} disabled={zoom <= .5} onClick={() => setZoom((value) => value - .25)}><ZoomOut size={18}/></IconButton><button type="button" className="adm-viewer-zoom" onClick={() => setZoom(1)} aria-label={t('Reset zoom')}>{Math.round(zoom * 100)}%</button><IconButton label={t('Zoom in')} disabled={zoom >= 2} onClick={() => setZoom((value) => value + .25)}><ZoomIn size={18}/></IconButton><IconButton label={t('Rotate document')} onClick={() => setRotation((value) => value + 90)}><RotateCw size={18}/></IconButton></div>}
+          {isImage && <div className="adm-viewer-control-actions"><IconButton label={t('Fit image to screen')} onClick={resetImageView}><Maximize2 size={18}/></IconButton><IconButton label={t('Zoom out')} disabled={zoom <= IMAGE_ZOOM_MIN} onClick={() => updateImageView(imageViewRef.current.zoom - .25)}><ZoomOut size={18}/></IconButton><button type="button" className="adm-viewer-zoom" onClick={resetImageView} aria-label={t('Reset zoom')}>{Math.round(zoom * 100)}%</button><IconButton label={t('Zoom in')} disabled={zoom >= IMAGE_ZOOM_MAX} onClick={() => updateImageView(imageViewRef.current.zoom + .25)}><ZoomIn size={18}/></IconButton><IconButton label={t('Rotate document')} onClick={rotateImage}><RotateCw size={18}/></IconButton></div>}
           {!isImage && <span className="adm-viewer-format">{isPdf ? 'PDF' : (mimeType.split('/')[1] || 'FILE').toUpperCase()}</span>}
         </div>
-        <div className={`adm-viewer-canvas adm-viewer-canvas--real ${isPdf ? 'is-pdf' : ''}`}>{loading ? <AivexSkeleton label={t('Opening secure document')}/> : error && !objectUrl ? <div className="adm-state-error" role="alert"><TriangleAlert size={22}/><p>{error}</p></div> : <div className={`adm-secure-document ${isPdf ? 'is-pdf' : ''}`} style={isImage ? { transform: `scale(${zoom}) rotate(${rotation}deg)` } : undefined}>{isImage ? <img src={objectUrl} alt={t(file.kind)}/> : isPdf ? <iframe title={t(file.kind)} src={objectUrl}/> : <div className="adm-file-preview-unavailable"><FileText size={28}/><b>{t('Preview unavailable')}</b><p>{t('This file type can only be downloaded through the secure administration endpoint.')}</p></div>}</div>}</div>
+        <div ref={canvasRef} className={`adm-viewer-canvas adm-viewer-canvas--real ${isPdf ? 'is-pdf' : ''} ${isImage ? 'is-image' : ''}`} tabIndex={isImage ? 0 : undefined} aria-label={isImage ? t('Interactive image viewer') : undefined} onWheel={isImage ? handleImageWheel : undefined} onPointerDown={isImage ? beginImageGesture : undefined} onPointerMove={isImage ? moveImageGesture : undefined} onPointerUp={isImage ? endImageGesture : undefined} onPointerCancel={isImage ? endImageGesture : undefined} onDoubleClick={isImage ? resetImageView : undefined} onKeyDown={isImage ? handleImageKeys : undefined}>{loading ? <AivexSkeleton label={t('Opening secure document')}/> : error && !objectUrl ? <div className="adm-state-error" role="alert"><TriangleAlert size={22}/><p>{error}</p></div> : isImage ? <><div className="adm-secure-document is-image" style={{ width: imageSize.width || undefined, height: imageSize.height || undefined, transform: `translate(-50%, -50%) translate3d(${pan.x}px, ${pan.y}px, 0) rotate(${rotation}deg) scale(${fitScale * zoom})` }}><img src={objectUrl} alt={t(file.kind)} draggable="false" onLoad={(event) => { setImageSize({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight }); resetImageView() }}/></div><span className="adm-viewer-image-help">{t('Drag to move · Mouse wheel to zoom · Pinch with two fingers on mobile')}</span></> : <div className={`adm-secure-document ${isPdf ? 'is-pdf' : ''}`}>{isPdf ? <iframe title={t(file.kind)} src={objectUrl}/> : <div className="adm-file-preview-unavailable"><FileText size={28}/><b>{t('Preview unavailable')}</b><p>{t('This file type can only be downloaded through the secure administration endpoint.')}</p></div>}</div>}</div>
       </section>
       <aside className="adm-viewer-sidebar">
         <div className="adm-viewer-security"><ShieldCheck size={20}/><div><b>{t('Internal verification data.')}</b><p>{t('Access is logged. Do not copy, download or disclose personal documents outside the authorised review process.')}</p></div></div>

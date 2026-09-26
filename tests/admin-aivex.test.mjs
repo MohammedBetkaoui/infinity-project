@@ -334,6 +334,7 @@ test('AIVEX final acceptance approves registration and validates the file atomic
 
 test('AIVEX React workspace uses the protected API and contains no demo document workflow', async () => {
   const page = await read('src/admin/AivexPages.jsx')
+  const css = await read('src/admin/admin.css')
   const hook = await read('src/admin/useAdminAivex.js')
   const auth = await read('src/admin/AdminAuth.jsx')
   assert.match(page, /useAdminAivex\(/)
@@ -349,6 +350,11 @@ test('AIVEX React workspace uses the protected API and contains no demo document
   assert.match(page, /Needs replacement/)
   assert.match(page, /className="is-document-viewer"/)
   assert.match(page, /isImage && <div className="adm-viewer-control-actions"/)
+  assert.match(page, /onWheel=\{isImage \? handleImageWheel/)
+  assert.match(page, /onPointerDown=\{isImage \? beginImageGesture/)
+  assert.match(page, /pointerDistance\(points\[0\], points\[1\]\)/)
+  assert.match(page, /IMAGE_ZOOM_MAX = 4/)
+  assert.match(css, /\.adm-viewer-canvas\.is-image[^}]*touch-action: none/)
   assert.match(page, /<details className="adm-viewer-log"/)
   assert.match(page, /window\.setInterval\(syncVerification, 12000\)/)
   assert.match(page, /Final team decision/)
