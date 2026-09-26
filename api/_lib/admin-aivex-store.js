@@ -183,15 +183,17 @@ export function createAdminAivexStore(supabase) {
     },
 
     async applyAction({ registrationId, adminUserId, action, expectedUpdatedAt, reason, payload, now }) {
-      const { data, error } = await supabase.rpc('admin_apply_aivex_action', {
+      const isFinalAcceptance = action === 'validate_file'
+      const procedure = isFinalAcceptance ? 'admin_accept_aivex_team' : 'admin_apply_aivex_action'
+      const parameters = {
         p_registration_id: registrationId,
         p_admin_user_id: adminUserId,
-        p_action: action,
         p_expected_updated_at: expectedUpdatedAt,
         p_reason: reason,
-        p_payload: payload || {},
         p_now: now.toISOString(),
-      })
+        ...(isFinalAcceptance ? {} : { p_action: action, p_payload: payload || {} }),
+      }
+      const { data, error } = await supabase.rpc(procedure, parameters)
       if (error) fail('aivex_action', error)
       return Array.isArray(data) ? data[0] : data
     },
@@ -273,4 +275,3 @@ export function createAdminAivexStore(supabase) {
     },
   }
 }
-

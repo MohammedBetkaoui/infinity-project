@@ -24,7 +24,7 @@ const ACTION_TITLES = Object.freeze({
   start_review: 'File moved to review',
   approve_registration: 'Registration approved',
   request_corrections: 'Corrections requested',
-  validate_file: 'AIVEX file validated',
+  validate_file: 'AIVEX team accepted',
   reject_registration: 'Registration rejected',
   cancel_registration: 'Registration cancelled',
   verify_activity_official: 'Activities manager verification updated',
@@ -38,7 +38,7 @@ const STANDARD_ACTION_REASONS = Object.freeze({
   start_review: 'File moved to administrative review',
   approve_registration: 'Registration approved by an authorised administrator',
   request_corrections: 'Corrections requested for the selected file elements',
-  validate_file: 'Administrative verification completed and file validated',
+  validate_file: 'Administrative verification completed and team accepted',
   reject_registration: 'Registration rejected by an authorised administrator',
   cancel_registration: 'Registration cancelled by an authorised administrator',
   verify_document: 'Document verified in the confidential viewer',
@@ -238,18 +238,14 @@ function buildReviewSummary(base, documents, documentsVerified) {
   if (activeSignedDocument && activeSignedDocument.status !== 'Verified') {
     blockers.push({ key: 'signed_form_review', tab: 'Documents' })
   }
-  if (base.registrationKey !== 'approved') blockers.push({ key: 'registration_approval', tab: 'Verification' })
-
-  const workflowBlockers = blockers.filter((blocker) => blocker.key !== 'registration_approval')
-  const readyForFinalValidation = base.registrationKey === 'approved'
+  const isClosed = ['rejected', 'cancelled'].includes(base.registrationKey)
+  const readyForFinalValidation = !isClosed
     && base.completeness === 100
     && documentsVerified
-  let nextAction = { key: 'review_required', tab: workflowBlockers[0]?.tab || 'Verification' }
+  let nextAction = { key: 'review_required', tab: blockers[0]?.tab || 'Verification' }
 
   if (base.documentKey === 'validated') nextAction = { key: 'complete', tab: 'History' }
-  else if (['rejected', 'cancelled'].includes(base.registrationKey)) nextAction = { key: 'closed', tab: 'History' }
-  else if (base.registrationKey === 'submitted') nextAction = { key: 'start_review', tab: 'Verification' }
-  else if (workflowBlockers.length === 0 && base.registrationKey !== 'approved') nextAction = { key: 'approve_registration', tab: 'Verification' }
+  else if (isClosed) nextAction = { key: 'closed', tab: 'History' }
   else if (readyForFinalValidation) nextAction = { key: 'validate_file', tab: 'Verification' }
 
   return {

@@ -171,9 +171,21 @@ test('AIVEX review summary turns technical checks into clear administrative bloc
     { key: 'documents', ready: false },
   ])
   assert.deepEqual(detail.reviewSummary.blockers.map((blocker) => blocker.key), [
-    'activities_manager', 'official_form', 'confidential_documents', 'signed_form_review', 'registration_approval',
+    'activities_manager', 'official_form', 'confidential_documents', 'signed_form_review',
   ])
   assert.equal(detail.reviewSummary.documents.verified, 1)
+})
+
+test('a fully reviewed team is ready for one final acceptance without a separate approval step', async () => {
+  class ReadyForAcceptanceStore extends MemoryAivexStore {
+    async overview() { return { ...overview, registration_status: 'under_review' } }
+  }
+  const service = createAdminAivexService({ store: new ReadyForAcceptanceStore(), now: () => NOW })
+  const detail = await service.detail(REFERENCE, ADMIN)
+  assert.equal(detail.registration, 'Under review')
+  assert.equal(detail.canValidate, true)
+  assert.deepEqual(detail.reviewSummary.blockers, [])
+  assert.equal(detail.reviewSummary.nextAction.key, 'validate_file')
 })
 
 test('confidential document access is proxied and audited without returning its Storage path', async () => {
@@ -279,6 +291,19 @@ test('AIVEX document-action fix removes the PL/pgSQL document_key ambiguity', as
   assert.match(migration, /grant execute on function public\.admin_apply_aivex_action[\s\S]*to service_role/)
 })
 
+test('AIVEX final acceptance approves registration and validates the file atomically', async () => {
+  const migration = (await read('supabase/migrations/20260927140000_admin_aivex_final_team_acceptance.sql')).toLowerCase()
+  const store = await read('api/_lib/admin-aivex-store.js')
+  assert.match(migration, /create or replace function public\.admin_accept_aivex_team/)
+  assert.match(migration, /overview\.completeness = 100/)
+  assert.match(migration, /overview\.student_cards_verified = true/)
+  assert.match(migration, /set registration_status = 'approved',[\s\S]*document_status = 'validated'/)
+  assert.match(migration, /insert into public\.admin_audit_events/)
+  assert.match(migration, /grant execute on function public\.admin_accept_aivex_team[\s\S]*to service_role/)
+  assert.match(store, /action === 'validate_file'/)
+  assert.match(store, /admin_accept_aivex_team/)
+})
+
 test('AIVEX React workspace uses the protected API and contains no demo document workflow', async () => {
   const page = await read('src/admin/AivexPages.jsx')
   const hook = await read('src/admin/useAdminAivex.js')
@@ -294,5 +319,9 @@ test('AIVEX React workspace uses the protected API and contains no demo document
   assert.match(page, /Administrative review/)
   assert.match(page, /Document is correct/)
   assert.match(page, /Needs replacement/)
+  assert.match(page, /window\.setInterval\(syncVerification, 12000\)/)
+  assert.match(page, /Final team decision/)
+  assert.match(page, /Accept team/)
+  assert.doesNotMatch(page, /'approve_registration'|'start_review'|'reject_registration'|'cancel_registration'/)
   assert.doesNotMatch(page, /CHECKLIST\.map/)
 })
