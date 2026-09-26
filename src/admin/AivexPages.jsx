@@ -201,6 +201,7 @@ const REVIEW_BLOCKER_LABELS = Object.freeze({
   signed_form_missing: 'Receive the signed and stamped form',
   confidential_documents: 'Review the required identity and student documents',
   signed_form_review: 'Review the active signed form',
+  correction_cycle: 'Complete the active correction cycle',
 })
 
 function documentOutcomeLabel(status) {
@@ -208,7 +209,23 @@ function documentOutcomeLabel(status) {
   if (status === 'Invalid') return 'Replacement needed'
   if (status === 'Absent') return 'Document missing'
   if (status === 'Expired') return 'Document no longer available'
+  if (status === 'Correction submitted') return 'Corrected file awaiting review'
+  if (status === 'Replacement requested') return 'Waiting for a replacement'
   return 'Waiting for review'
+}
+
+const CORRECTION_ITEM_BY_DOCUMENT = Object.freeze({
+  'delegation-leader': 'Delegation leader ID',
+  driver: 'Driver ID',
+  'student-1': 'Student card 01',
+  'student-2': 'Student card 02',
+  'student-3': 'Student card 03',
+})
+
+const tomorrowDate = () => {
+  const value = new Date()
+  value.setDate(value.getDate() + 1)
+  return value.toISOString().slice(0, 10)
 }
 
 const CORRECTION_ITEM_STATUS_TONE = { open: 'warning', submitted: 'info', verified: 'success' }
@@ -284,7 +301,7 @@ function AivexReviewSummary({ team, allowed, locale, syncStatus, onTab, onDecisi
     <div className={`adm-review-blockers ${outstanding === 0 ? 'is-ready' : ''}`}>
       <header>{outstanding === 0 ? <CheckCircle2 size={19}/> : <TriangleAlert size={19}/>}<div><b>{t(outstanding === 0 ? 'No blocking item remains' : 'Before final acceptance')}</b><small>{t(outstanding === 0 ? 'The administrative file is ready for its final decision.' : 'Complete only the items listed below. The system updates this list automatically.')}</small></div></header>
       {outstanding > 0 && <ul>{review.blockers.map((blocker) => <li key={blocker.key}><span><i/>{t(REVIEW_BLOCKER_LABELS[blocker.key])}</span><button type="button" onClick={() => onTab(blocker.tab)}>{t('Open')}<ArrowRight size={13}/></button></li>)}</ul>}
-      {outstanding > 0 && allowed.has('request_corrections') && <div className="adm-review-support"><Button variant="secondary" onClick={onCorrections}>{t('Request corrections')}</Button></div>}
+      {outstanding > 0 && allowed.has('request_corrections') && team.canRequestCorrections && <div className="adm-review-support"><Button variant="secondary" onClick={onCorrections}>{t('Request corrections')}</Button></div>}
     </div>
     {team.correctionRequest && <div className="adm-correction-summary"><b>{t('Current correction request')}</b><small>{t('Due')} <Ltr>{team.correctionRequest.deadline}</Ltr></small><ul className="adm-correction-items-list">{team.correctionRequest.itemStatuses.map((item) => <CorrectionItemRow key={item.id} item={item} allowed={allowed} onTab={onTab} onResolveItem={onResolveItem} resolving={resolvingItemId === item.id} t={t}/>)}</ul></div>}
   </section>
@@ -317,7 +334,7 @@ function AivexDecisionPanel({ team, allowed, locale, onDecision }) {
   </aside>
 }
 
-function SecureViewer({ team, document: file, onClose, onUpdated, locale, loadDocument, act }) {
+function SecureViewer({ team, document: file, onClose, onUpdated, onNeedsCorrection, locale, loadDocument, act }) {
   const { addToast, state } = useAdmin()
   const { isArabic, t } = locale
   const [remaining, setRemaining] = useState(Number(state.settings.viewerTimeout || 120))
@@ -365,7 +382,10 @@ function SecureViewer({ team, document: file, onClose, onUpdated, locale, loadDo
   const accesses = team.documentAccess.filter((entry) => entry.documentKey === file.id)
   const isImage = mimeType.startsWith('image/')
   const isPdf = mimeType === 'application/pdf'
-  return <Modal open wide onClose={saving ? () => {} : onClose} closeLabel={isArabic ? 'إغلاق' : 'Close'} title={t('Confidential document')} eyebrow={t('Restricted review · Access recorded')} footer={<><span className="adm-viewer-timer"><LockKeyhole size={14}/>{t('Auto-close in')} <Ltr>{Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, '0')}</Ltr></span><Button variant="secondary" onClick={onClose} disabled={saving}>{t('Close viewer')}</Button><Button variant="danger" onClick={() => submitReview('invalidate_document')} disabled={saving || loading}>{t('Needs replacement')}</Button><Button onClick={() => submitReview('verify_document')} disabled={saving || loading || file.status === 'Verified'} icon={<CheckCircle2 size={16}/>}>{t(file.status === 'Verified' ? 'Document accepted' : saving ? 'Saving…' : 'Document is correct')}</Button></>}>
+  const reviewingCorrection = file.correctionStatus === 'submitted'
+  const awaitingCandidateReplacement = file.correctionStatus === 'open' && ['student', 'signed'].includes(file.category)
+  const replacementDisabled = saving || loading || (!reviewingCorrection && !team.canRequestCorrections)
+  return <Modal open wide onClose={saving ? () => {} : onClose} closeLabel={isArabic ? 'إغلاق' : 'Close'} title={t('Confidential document')} eyebrow={t('Restricted review · Access recorded')} footer={<><span className="adm-viewer-timer"><LockKeyhole size={14}/>{t('Auto-close in')} <Ltr>{Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, '0')}</Ltr></span><Button variant="secondary" onClick={onClose} disabled={saving}>{t('Close viewer')}</Button><Button variant="danger" onClick={() => reviewingCorrection ? submitReview('invalidate_document') : onNeedsCorrection(file)} disabled={replacementDisabled}>{t(reviewingCorrection ? 'Needs another attempt' : team.correctionRequest ? 'Correction cycle already active' : 'Needs replacement')}</Button><Button onClick={() => submitReview('verify_document')} disabled={saving || loading || file.status === 'Verified' || awaitingCandidateReplacement} icon={<CheckCircle2 size={16}/>}>{t(file.status === 'Verified' ? 'Document accepted' : awaitingCandidateReplacement ? 'Waiting for the team' : saving ? 'Saving…' : 'Document is correct')}</Button></>}>
     <div className="adm-viewer-heading"><div><b>{file.person}</b><p>{t(file.kind)}</p></div><AivexStatus value="Confidential" tone="sensitive" t={t}/></div>
     <AivexConfidentialNotice t={t}/>
     <div className="adm-document-review-guide"><div><span>{t('Simple document review')}</span><b>{t('Is the document readable and consistent with the team information?')}</b><p>{t('Choose one clear result. No technical note is required.')}</p></div><div><span><CheckCircle2 size={16}/>{t('Correct document')}</span><span><TriangleAlert size={16}/>{t('Replacement required')}</span></div></div>
@@ -389,6 +409,7 @@ export function AivexDetailPage() {
   const [viewerId, setViewerId] = useState(null)
   const [action, setAction] = useState(null)
   const [corrections, setCorrections] = useState(false)
+  const [correctionDefaults, setCorrectionDefaults] = useState([])
   const [correctionError, setCorrectionError] = useState('')
   const [busy, setBusy] = useState(false)
   const [downloadBusy, setDownloadBusy] = useState(false)
@@ -462,6 +483,25 @@ export function AivexDetailPage() {
     setViewerId(document.id)
   }
   const closeViewer = () => { setViewerId(null); refreshDetail() }
+  const openCorrections = (items = []) => {
+    if (team.correctionRequest) {
+      addToast(t('Correction cycle already active'), t('Finish the current correction request before creating another one.'))
+      return
+    }
+    if (!team.canRequestCorrections) {
+      addToast(t('Correction request unavailable'), t('A correction request can be opened only after the signed file reaches administrative review.'))
+      return
+    }
+    setCorrectionDefaults(items)
+    setCorrectionError('')
+    setCorrections(true)
+  }
+  const requestDocumentCorrection = (document) => {
+    const item = CORRECTION_ITEM_BY_DOCUMENT[document.id]
+      || (document.category === 'signed' ? 'Signed and stamped form' : null)
+    setViewerId(null)
+    if (item) openCorrections([item])
+  }
   const decision = (title, actionName, danger = false, extra = {}) => setAction({ key: actionName, title: t(title), danger, reason: false, description: false, ...extra })
   const submitAction = async () => {
     const result = await act(team.ref, {
@@ -505,6 +545,7 @@ export function AivexDetailPage() {
     setTeam(result.team)
     setVerificationSync('current')
     setCorrections(false)
+    setCorrectionDefaults([])
     addToast(t('Corrections requested'), t('The request is saved in the protected AIVEX history.'))
   }
   const resolveCorrectionItem = async (itemId, decision) => {
@@ -540,11 +581,11 @@ export function AivexDetailPage() {
       ['student', 'C', 'Student cards', 'Exactly three files · JPG, PNG or WEBP · Maximum 5 MB each'],
       ['identity', 'D', 'Identity documents', 'Delegation leader & driver · JPG or PNG · Maximum 5 MB each'],
     ].map(([category, index, title, meta]) => <section className="adm-panel adm-file-category" key={category}><SectionHeading index={index} title={t(title)} meta={t(meta)}/>{team.docs.filter((document) => document.category === category).map((document) => <div className="adm-file-row" key={document.id}><span className={`adm-file-icon ${category !== 'official' ? 'is-locked' : ''}`}>{category === 'official' ? <FileText size={22}/> : <LockKeyhole size={20}/>}</span><div className="adm-file-name"><b><Ltr>{document.name}</Ltr></b><small><Ltr>{document.person}</Ltr> · <Ltr>{document.type}</Ltr> · <Ltr>{document.size}</Ltr></small>{category === 'official' && <code>{t('Template')} <Ltr>{document.template}</Ltr> · {t('Revision')} <Ltr>{document.revision}</Ltr></code>}</div><div className="adm-file-time"><span>{dateLabel(document.created)}</span><small><Ltr>{timeLabel(document.created)}</Ltr></small></div>{document.version && <span className="adm-version"><Ltr>v{document.version}</Ltr> · {t(document.active ? 'Active' : 'Previous')}</span>}{category === 'official' ? <AivexStatus value={document.status} t={t}/> : <div className="adm-file-review-state"><AivexStatus value={document.status} t={t}/><small>{t(documentOutcomeLabel(document.status))}</small></div>}{category === 'official' ? document.canOpen ? <IconButton label={t('Download secure DOCX')} disabled={downloadBusy} onClick={download}><Download size={18}/></IconButton> : allowed.has('retry_generation') ? <Button variant="secondary" onClick={regenerate}>{t(document.status === 'Generation issue' ? 'Retry generation' : 'Generate form')}</Button> : null : <Button variant="secondary" disabled={!document.canOpen} onClick={() => openFile(document)} icon={<LockKeyhole size={14}/>}>{t(document.status === 'Verified' ? 'Review again' : 'Review document')}</Button>}</div>)}{!team.docs.some((document) => document.category === category) && <div className="adm-file-absent"><FolderClosed size={23}/><div><b>{t('No signed document received')}</b><p>{t('The official form still needs to be signed and stamped by the institution.')}</p></div><AivexStatus value="Absent" tone="warning" t={t}/></div>}</section>)}</div>}
-    {tab === 'Verification' && <div className="adm-verification-layout"><AivexReviewSummary team={team} allowed={allowed} locale={locale} syncStatus={verificationSync} onTab={setTab} onDecision={decision} onCorrections={() => { setCorrectionError(''); setCorrections(true) }} onResolveItem={resolveCorrectionItem} resolvingItemId={resolvingItemId}/><AivexDecisionPanel team={team} allowed={allowed} locale={locale} onDecision={decision}/></div>}
+    {tab === 'Verification' && <div className="adm-verification-layout"><AivexReviewSummary team={team} allowed={allowed} locale={locale} syncStatus={verificationSync} onTab={setTab} onDecision={decision} onCorrections={() => openCorrections()} onResolveItem={resolveCorrectionItem} resolvingItemId={resolvingItemId}/><AivexDecisionPanel team={team} allowed={allowed} locale={locale} onDecision={decision}/></div>}
     {tab === 'History' && <section className="adm-panel adm-dossier-section"><SectionHeading index="07" title={t('Complete file history')} meta={t('Authors, timestamps & decisions')}/><History items={team.history} translate={t} locale={isArabic ? 'ar-DZ' : 'en-GB'} emptyTitle={t('Historical data incomplete')} emptyCopy={t('No earlier actions are available for this file. New actions will appear here.')}/><div className="adm-history-note"><LockKeyhole size={15}/><p>{t('Confidential document consultations are recorded separately in the')} <Link to="/admin/activity?sensitivity=Confidential">{t('global activity log')}</Link>.</p></div></section>}
-    {file && <SecureViewer key={file.id} team={team} document={file} onClose={closeViewer} onUpdated={setTeam} locale={locale} loadDocument={loadDocument} act={act}/>} 
+    {file && <SecureViewer key={file.id} team={team} document={file} onClose={closeViewer} onUpdated={setTeam} onNeedsCorrection={requestDocumentCorrection} locale={locale} loadDocument={loadDocument} act={act}/>}
     {action && <ActionDialog key={action.key} action={action} labels={actionDialogLabels(isArabic, t)} getOptionLabel={t} onClose={() => setAction(null)} onSubmit={submitAction}/>} 
-    <Modal open={corrections} onClose={() => busy ? undefined : setCorrections(false)} closeLabel={isArabic ? 'إغلاق' : 'Close'} title={t('Request corrections')} eyebrow={team.ref} footer={<><Button variant="secondary" onClick={() => setCorrections(false)} disabled={busy}>{t('Cancel')}</Button><Button form="correction-form" type="submit" disabled={busy}>{t(busy ? 'Saving…' : 'Save correction request')}</Button></>}><form id="correction-form" onSubmit={saveCorrections}><fieldset className="adm-correction-items"><legend>{t('Items requiring correction')}</legend>{['Team information', 'Activities manager', 'Delegation leader ID', 'Driver ID', 'Student card 01', 'Student card 02', 'Student card 03', 'Signed and stamped form'].map((item) => <label key={item}><input type="checkbox" name="items" value={item}/>{t(item)}</label>)}</fieldset><label className="adm-form-field"><span>{t('Correction deadline')} <em>{t('Required')}</em></span><input name="deadline" type="date" required min={new Date().toISOString().slice(0, 10)}/></label><p className="adm-muted">{t('The selected items and deadline are recorded directly in the protected case history.')}</p>{correctionError && <p className="adm-form-error" role="alert">{correctionError}</p>}</form></Modal>
+    <Modal open={corrections} onClose={() => busy ? undefined : setCorrections(false)} closeLabel={isArabic ? 'إغلاق' : 'Close'} title={t('Request corrections')} eyebrow={team.ref} footer={<><Button variant="secondary" onClick={() => setCorrections(false)} disabled={busy}>{t('Cancel')}</Button><Button form="correction-form" type="submit" disabled={busy}>{t(busy ? 'Saving…' : 'Save correction request')}</Button></>}><form id="correction-form" onSubmit={saveCorrections}><fieldset className="adm-correction-items"><legend>{t('Items requiring correction')}</legend>{['Team information', 'Activities manager', 'Delegation leader ID', 'Driver ID', 'Student card 01', 'Student card 02', 'Student card 03', 'Signed and stamped form'].map((item) => <label key={item}><input type="checkbox" name="items" value={item} defaultChecked={correctionDefaults.includes(item)}/>{t(item)}</label>)}</fieldset><label className="adm-form-field"><span>{t('Correction deadline')} <em>{t('Required')}</em></span><input name="deadline" type="date" required min={new Date().toISOString().slice(0, 10)} defaultValue={tomorrowDate()}/></label><p className="adm-muted">{t('The selected items and deadline are recorded directly in the protected case history.')}</p>{correctionError && <p className="adm-form-error" role="alert">{correctionError}</p>}</form></Modal>
     {generated.status === 'Generation issue' && tab !== 'Documents' && <div className="adm-inline-error"><CriticalNotice>{t('The official form could not be generated. The team data is saved.')}</CriticalNotice>{allowed.has('retry_generation') && <Button variant="secondary" onClick={regenerate}>{t('Retry generation')}</Button>}</div>}
   </div>
 }

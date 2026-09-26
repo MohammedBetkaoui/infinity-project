@@ -16,7 +16,6 @@
 
 const ITEMS = 'aivex_correction_items'
 const REGISTRATIONS = 'aivex_registrations'
-const STUDENTS = 'aivex_students'
 
 export class CorrectionStoreError extends Error {
   constructor(stage, cause) {
@@ -38,36 +37,44 @@ export function createSupabaseCorrectionStore(supabase) {
       if (error) throw new CorrectionStoreError('load-item', error)
       return data
     },
-    // 'Team information' or 'Activities manager' only — the patch is built
-    // by the caller from readTeam/readActivityOfficial's own validated
-    // output (shared/aivex/contract-v4.js), never from raw request fields.
-    async updateRegistrationFields(registrationId, patch) {
-      const { error } = await supabase.from(REGISTRATIONS).update(patch).eq('id', registrationId)
-      if (error) throw new CorrectionStoreError('update-registration', error)
-    },
-    async markFieldItemSubmitted(itemId, submittedFields, now) {
-      const { error } = await supabase.from(ITEMS)
-        .update({ status: 'submitted', submitted_fields: submittedFields, submitted_at: now.toISOString() })
-        .eq('id', itemId)
+    // Candidate-validated values stay pending on the correction item until
+    // an administrator explicitly accepts them.
+    async submitFieldItem(itemId, registrationId, submittedFields, now) {
+      const { data, error } = await supabase.rpc('candidate_submit_aivex_field_correction', {
+        p_item_id: itemId,
+        p_registration_id: registrationId,
+        p_submitted_fields: submittedFields,
+        p_now: now.toISOString(),
+      })
       if (error) throw new CorrectionStoreError('mark-submitted', error)
+      return data
     },
-    async markDocumentItemSubmitted(itemId, submittedDocumentKey, now) {
-      const { error } = await supabase.from(ITEMS)
-        .update({ status: 'submitted', submitted_document_key: submittedDocumentKey, submitted_at: now.toISOString() })
-        .eq('id', itemId)
+    async submitStudentCardItem(itemId, registrationId, position, file, submittedDocumentKey, now) {
+      const { data, error } = await supabase.rpc('candidate_submit_aivex_card_correction', {
+        p_item_id: itemId,
+        p_registration_id: registrationId,
+        p_position: position,
+        p_file_path: file.path,
+        p_file_mime: file.mime,
+        p_file_size: file.size,
+        p_document_key: submittedDocumentKey,
+        p_now: now.toISOString(),
+      })
       if (error) throw new CorrectionStoreError('mark-submitted', error)
+      return data
     },
     // Best-effort side effect of the EXISTING signed-document upload finalize
     // (api/aivex/magic-link/upload/finalize.js): if the team has an open
     // "Signed and stamped form" correction item, mark it submitted too. Never
     // throws — mirrors touchLastUsed's own "never fails the response" note.
     async markOpenItemSubmittedByLabel(registrationId, item, submittedDocumentKey, now) {
-      const { data, error } = await supabase.from(ITEMS)
-        .select('id').eq('registration_id', registrationId).eq('item', item).eq('status', 'open').maybeSingle()
-      if (error || !data) return
-      await supabase.from(ITEMS)
-        .update({ status: 'submitted', submitted_document_key: submittedDocumentKey, submitted_at: now.toISOString() })
-        .eq('id', data.id)
+      if (item !== 'Signed and stamped form') return
+      const { error } = await supabase.rpc('candidate_submit_aivex_signed_correction', {
+        p_registration_id: registrationId,
+        p_document_key: submittedDocumentKey,
+        p_now: now.toISOString(),
+      })
+      if (error) throw new CorrectionStoreError('mark-submitted', error)
     },
     // Just enough to place a replacement student card: the edition its
     // storage path is namespaced by.
@@ -78,14 +85,6 @@ export function createSupabaseCorrectionStore(supabase) {
         .maybeSingle()
       if (error) throw new CorrectionStoreError('load-registration', error)
       return data
-    },
-    async replaceStudentCard(registrationId, position, file) {
-      const { error } = await supabase.from(STUDENTS)
-        .update({
-          student_card_path: file.path, student_card_mime: file.mime, student_card_size_bytes: file.size,
-        })
-        .eq('registration_id', registrationId).eq('position', position)
-      if (error) throw new CorrectionStoreError('replace-student-card', error)
     },
     // A student card's final path is deterministic (shared/aivex/
     // contract-v4.js's studentCardStoragePath) and already holds the file it

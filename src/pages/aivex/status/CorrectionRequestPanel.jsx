@@ -49,11 +49,11 @@ function DocumentCorrectionForm({ itemId, item, correction, t }) {
   )
 }
 
-function TeamInformationForm({ itemId, correction, lang, t }) {
-  const { values, error, errorMessage, saving } = correction.fieldFor(itemId)
+function TeamInformationForm({ itemId, initialValues, correction, lang, t }) {
+  const { values, error, errorMessage, saving } = correction.fieldFor(itemId, initialValues)
   const wilaya = findWilaya(values.wilayaCode || '')
   const institutions = wilaya ? getInstitutionsByWilaya(values.wilayaCode) : []
-  const set = (key) => (event) => correction.updateFieldValue(itemId, key, event.target.value)
+  const set = (key) => (event) => correction.updateFieldValue(itemId, key, event.target.value, initialValues)
 
   const submit = (event) => {
     event.preventDefault()
@@ -98,10 +98,10 @@ function TeamInformationForm({ itemId, correction, lang, t }) {
   )
 }
 
-function ActivitiesManagerForm({ itemId, correction, lang, t }) {
-  const { values, error, errorMessage, saving } = correction.fieldFor(itemId)
+function ActivitiesManagerForm({ itemId, initialValues, correction, lang, t }) {
+  const { values, error, errorMessage, saving } = correction.fieldFor(itemId, initialValues)
   const roleOptions = getRoleOptions(getRegistrationStrings(lang))
-  const set = (key) => (event) => correction.updateFieldValue(itemId, key, event.target.value)
+  const set = (key) => (event) => correction.updateFieldValue(itemId, key, event.target.value, initialValues)
 
   const submit = (event) => {
     event.preventDefault()
@@ -177,7 +177,7 @@ export default function CorrectionRequestPanel({ correctionRequest, lang, token,
                   </p>
                 )}
                 {entry.status === 'open' && FieldForm && (
-                  <FieldForm itemId={entry.id} correction={correction} lang={lang} t={t} />
+                  <FieldForm itemId={entry.id} initialValues={entry.initialFields || {}} correction={correction} lang={lang} t={t} />
                 )}
               </li>
             )

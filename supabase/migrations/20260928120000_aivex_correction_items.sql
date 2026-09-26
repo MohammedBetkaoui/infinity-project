@@ -86,7 +86,7 @@ create index if not exists aivex_correction_items_request_idx
 comment on table public.aivex_correction_items is
   'One row per item of an aivex_correction_requests bundle, tracked independently: open (nothing resubmitted yet) -> submitted (candidate resubmitted, awaiting admin review) -> verified (admin accepted the fix). A rejected resubmission goes back to open for another attempt; the rejection itself is recorded in admin_audit_events (action resolve_correction_item), not as a fourth status here.';
 comment on column public.aivex_correction_items.submitted_fields is
-  'field-kind items only: the new team/activity-official values the candidate proposed, in the same shape as shared/aivex/contract-v4.js team/activityOfficial. Applied to aivex_registrations immediately on submission (see api/_lib/aivex-correction-store.js) — this column is a record of what was sent, not a pending patch.';
+  'field-kind items only: pending team/activity-official values proposed by the candidate in the validated shared contract shape. A later workflow migration applies them only after administrator verification.';
 comment on column public.aivex_correction_items.submitted_document_key is
   'document-kind items only: the document_key (api/_lib/admin-aivex-validation.js vocabulary) the resubmitted file now lives under, so the existing SecureViewer / verify_document review UI can open it directly.';
 

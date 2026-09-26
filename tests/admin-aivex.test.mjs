@@ -189,6 +189,33 @@ test('a fully reviewed team is ready for one final acceptance without a separate
   assert.equal(detail.reviewSummary.nextAction.key, 'validate_file')
 })
 
+test('an active correction cycle overrides stale document approval and blocks final acceptance', async () => {
+  const requestId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  class CorrectingAivexStore extends MemoryAivexStore {
+    async corrections() {
+      return [{
+        id: requestId, items: ['Student card 01'], team_message: 'Replace the first student card.',
+        internal_note: 'Requested from test', due_at: '2026-10-02', created_at: NOW.toISOString(),
+        resolved_at: null, requester: { display_name: 'AIVEX Administrator' },
+      }]
+    }
+    async correctionItems() {
+      return [{
+        id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', correction_request_id: requestId,
+        item: 'Student card 01', kind: 'document', status: 'open', submitted_fields: null,
+        submitted_document_key: null, submitted_at: null, reviewed_at: null, review_note: null,
+      }]
+    }
+  }
+  const service = createAdminAivexService({ store: new CorrectingAivexStore(), now: () => NOW })
+  const detail = await service.detail(REFERENCE, ADMIN)
+
+  assert.equal(detail.canValidate, false)
+  assert.equal(detail.docs.find((document) => document.id === 'student-1').status, 'Replacement requested')
+  assert(detail.reviewSummary.blockers.some((blocker) => blocker.key === 'correction_cycle'))
+  assert.equal(detail.reviewSummary.nextAction.key, 'review_required')
+})
+
 test('confidential document access is proxied and audited without returning its Storage path', async () => {
   const store = new MemoryAivexStore()
   const service = createAdminAivexService({ store, now: () => NOW })

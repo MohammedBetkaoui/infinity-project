@@ -44,7 +44,7 @@ export default function useCorrectionSubmission(token, onSubmitted) {
   const [fieldForms, setFieldForms] = useState({})
 
   const uploadFor = (itemId) => uploads[itemId] || BLANK_UPLOAD
-  const fieldFor = (itemId) => fieldForms[itemId] || { values: {}, error: '', errorMessage: '', saving: false }
+  const fieldFor = (itemId, initialValues = {}) => fieldForms[itemId] || { values: initialValues, error: '', errorMessage: '', saving: false }
 
   const selectFile = (itemId, item, file) => {
     setUploads((previous) => ({
@@ -88,10 +88,10 @@ export default function useCorrectionSubmission(token, onSubmitted) {
     }
   }
 
-  const updateFieldValue = (itemId, key, value) => {
+  const updateFieldValue = (itemId, key, value, initialValues = {}) => {
     setFieldForms((previous) => ({
       ...previous,
-      [itemId]: { ...fieldFor(itemId), values: { ...fieldFor(itemId).values, [key]: value }, error: '', errorMessage: '' },
+      [itemId]: { ...fieldFor(itemId, initialValues), values: { ...fieldFor(itemId, initialValues).values, [key]: value }, error: '', errorMessage: '' },
     }))
   }
 

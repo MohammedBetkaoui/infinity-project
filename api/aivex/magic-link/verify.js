@@ -78,29 +78,15 @@ function createDefaultCorrectionStore() {
   return createSupabaseCorrectionStore(createClient(supabaseUrl, supabaseSecret, { auth: { persistSession: false, autoRefreshToken: false } }))
 }
 
-// item -> { validate, toColumns }. Only the two field-kind items (shared/
+// item -> validator. Only the two field-kind items (shared/
 // aivex/correction-items.js's CORRECTION_ITEM_KIND) are handled; a
 // document-kind item's label falls through to the generic 'not_ready' reply.
 const FIELD_ITEMS = {
   'Team information': {
     validate: readTeam,
-    toColumns: (value) => ({
-      team_name: value.name,
-      wilaya_code: value.wilaya.code,
-      wilaya_name: value.wilaya.name,
-      institution_id: value.institution.id,
-      institution_name: value.institution.name,
-      institution_custom: value.institution.custom,
-    }),
   },
   'Activities manager': {
     validate: readActivityOfficial,
-    toColumns: (value) => ({
-      activity_official_role: value.role,
-      activity_official_name: value.fullName,
-      activity_official_email: value.email,
-      activity_official_phone: value.phone,
-    }),
   },
 }
 
@@ -174,9 +160,10 @@ export function createMagicLinkVerifyHandler({
         const validated = spec.validate(body.fields)
         if (!validated.ok) return refuse(res, 400, { success: false, status: 'invalid_field', message: validated.message, field: validated.field })
 
-        fieldStage = 'apply'
-        await corrections.updateRegistrationFields(resolved.registrationId, spec.toColumns(validated.value))
-        await corrections.markFieldItemSubmitted(item.id, validated.value, clock)
+        fieldStage = 'submit'
+        // Keep the candidate's edit pending. The live registration is
+        // changed atomically only when an administrator verifies this item.
+        await corrections.submitFieldItem(item.id, resolved.registrationId, validated.value, clock)
         await magicLinkStore.touchLastUsed(resolved.magicLinkId, clock).catch(() => {})
         send(res, 200, { success: true, status: 'submitted' })
       } catch (error) {
@@ -220,10 +207,35 @@ export function createMagicLinkVerifyHandler({
         if (latest) signedDocument = { version: latest.version, uploadedAt: latest.uploaded_at }
       }
 
-      let correctionRequest
-      if (registration.document_status === 'changes_required') {
-        stage = 'load-correction'
-        correctionRequest = await magicLinkStore.latestOpenCorrection(resolved.registrationId) || undefined
+      // Do not hide a live correction cycle if document_status is briefly
+      // out of sync (for example after an interrupted legacy action).
+      stage = 'load-correction'
+      const correctionRequest = typeof magicLinkStore.latestOpenCorrection === 'function'
+        ? await magicLinkStore.latestOpenCorrection(resolved.registrationId) || undefined
+        : undefined
+
+      if (correctionRequest) {
+        correctionRequest.items = correctionRequest.items.map((item) => {
+          if (item.item === 'Team information') return {
+            ...item,
+            initialFields: {
+              name: registration.team_name,
+              wilayaCode: registration.wilaya_code,
+              institutionId: registration.institution_custom ? 'other' : registration.institution_id,
+              customInstitution: registration.institution_custom ? registration.institution_name : '',
+            },
+          }
+          if (item.item === 'Activities manager') return {
+            ...item,
+            initialFields: {
+              role: registration.activity_official_role,
+              fullName: registration.activity_official_name,
+              email: registration.activity_official_email,
+              phone: registration.activity_official_phone,
+            },
+          }
+          return item
+        })
       }
 
       send(res, 200, {

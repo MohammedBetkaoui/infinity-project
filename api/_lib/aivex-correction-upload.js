@@ -59,8 +59,11 @@ export async function uploadCorrectionDocument({ store, itemId, registrationId, 
   }
 
   try {
-    await store.replaceStudentCard(registrationId, file.position, { path: finalPath, mime: file.mime, size: file.size })
-    await store.markDocumentItemSubmitted(itemId, documentKey, now)
+    await store.submitStudentCardItem(
+      itemId, registrationId, file.position,
+      { path: finalPath, mime: file.mime, size: file.size },
+      documentKey, now,
+    )
   } catch (error) {
     // The new file is already live (writeFinalFile succeeded); a failure
     // past this point never leaves the candidate believing nothing happened

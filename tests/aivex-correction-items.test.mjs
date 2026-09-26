@@ -97,3 +97,19 @@ test('security: the new candidate-facing correction files never mention an ident
     assert.doesNotMatch(code, /id_card|idCard|IdCard|IDENTITY_CARD|identityCard|identity_card|aivex-id-cards/, file)
   }
 })
+
+test('workflow guards keep candidate edits pending and final acceptance locked until resolution', async () => {
+  const migration = await read('supabase/migrations/20260928140000_aivex_correction_workflow_guards.sql')
+  const verify = await read('api/aivex/magic-link/verify.js')
+  const store = await read('api/_lib/aivex-correction-store.js')
+
+  assert.match(migration, /aivex_corrections_one_open_per_registration/)
+  assert.match(migration, /candidate_submit_aivex_field_correction/)
+  assert.match(migration, /old\.status <> 'submitted'.*new\.status <> 'verified'/s)
+  assert.match(migration, /aivex_correction_cycle_active/)
+  assert.match(migration, /aivex_correction_request_required/)
+  assert.match(migration, /document_status not in \('signed_document_uploaded', 'under_review'\)/)
+  assert.doesNotMatch(verify, /updateRegistrationFields|markFieldItemSubmitted/)
+  assert.match(store, /submitFieldItem[\s\S]*candidate_submit_aivex_field_correction/)
+  assert.match(store, /submitStudentCardItem[\s\S]*candidate_submit_aivex_card_correction/)
+})

@@ -5,6 +5,7 @@ import {
   allowedAivexActions, canAccessAivexDocuments, canManageAivex,
 } from './admin-aivex-permissions.js'
 import { createAdminAivexStore } from './admin-aivex-store.js'
+import { CORRECTION_ITEM_DOCUMENT_KEY } from '../../shared/aivex/correction-items.js'
 
 const REGISTRATION_LABELS = Object.freeze({
   submitted: 'Submitted', under_review: 'Under review', approved: 'Approved',
@@ -125,15 +126,22 @@ function mapOverview(row) {
 }
 
 const reviewMap = (reviews) => new Map(reviews.map((review) => [review.document_key, review]))
-const reviewStatus = (review, present, missing = 'Absent') => {
+const reviewStatus = (review, present, missing = 'Absent', correction) => {
   if (!present) return missing
+  if (correction?.status === 'submitted') return 'Correction submitted'
+  if (correction?.status === 'open') return 'Replacement requested'
   if (review?.review_status === 'verified') return 'Verified'
   if (review?.review_status === 'invalid') return 'Invalid'
   return 'Present'
 }
 
-function mapDocuments(registration, students, generatedDocuments, submittedDocuments, reviews) {
+function mapDocuments(registration, students, generatedDocuments, submittedDocuments, reviews, activeCorrectionItems = []) {
   const byKey = reviewMap(reviews)
+  const correctionFor = (key, category) => activeCorrectionItems.find((item) => (
+    item.submitted_document_key === key
+    || CORRECTION_ITEM_DOCUMENT_KEY[item.item] === key
+    || (category === 'signed' && item.item === 'Signed and stamped form')
+  ))
   const official = generatedDocuments.find((document) => document.document_type === 'docx')
   const generatedStatus = official?.generation_status === 'generated'
     ? 'Generated' : official?.generation_status === 'generating'
@@ -153,13 +161,15 @@ function mapDocuments(registration, students, generatedDocuments, submittedDocum
   for (const student of students) {
     const key = `student-${student.position}`
     const review = byKey.get(key)
+    const correction = correctionFor(key, 'student')
     const present = Boolean(student.student_card_path)
     documents.push({
       id: key, category: 'student',
       name: `student-card-${String(student.position).padStart(2, '0')}.${extensionFor(student.student_card_mime)}`,
       person: student.full_name, kind: 'Student card', type: fileType(student.student_card_mime),
-      size: formatBytes(student.student_card_size_bytes), status: reviewStatus(review, present),
+      size: formatBytes(student.student_card_size_bytes), status: reviewStatus(review, present, 'Absent', correction),
       created: student.created_at, canOpen: present, confidential: true,
+      correctionStatus: correction?.status || null,
       reviewedAt: review?.reviewed_at || null,
       reviewedBy: review?.reviewer?.display_name || null,
     })
@@ -170,6 +180,7 @@ function mapDocuments(registration, students, generatedDocuments, submittedDocum
     { id: 'driver', prefix: 'driver', person: registration.driver_name, kind: 'Driver · National identity card' },
   ]) {
     const review = byKey.get(identity.id)
+    const correction = correctionFor(identity.id, 'identity')
     const path = registration[`${identity.prefix}_id_card_path`]
     const mime = registration[`${identity.prefix}_id_card_mime`]
     const purgedAt = registration[`${identity.prefix}_id_card_purged_at`]
@@ -177,9 +188,10 @@ function mapDocuments(registration, students, generatedDocuments, submittedDocum
       id: identity.id, category: 'identity', name: `${identity.id}-id.${extensionFor(mime)}`,
       person: identity.person, kind: identity.kind, type: fileType(mime),
       size: formatBytes(registration[`${identity.prefix}_id_card_size`]),
-      status: purgedAt ? 'Expired' : reviewStatus(review, Boolean(path)),
+      status: purgedAt ? 'Expired' : reviewStatus(review, Boolean(path), 'Absent', correction),
       created: registration.submitted_at || registration.created_at,
       canOpen: Boolean(path), confidential: true,
+      correctionStatus: correction?.status || null,
       reviewedAt: review?.reviewed_at || null,
       reviewedBy: review?.reviewer?.display_name || null,
     })
@@ -189,13 +201,15 @@ function mapDocuments(registration, students, generatedDocuments, submittedDocum
   for (const document of submittedDocuments) {
     const key = `signed-v${document.version}`
     const review = byKey.get(key)
+    const correction = document.version === activeVersion ? correctionFor(key, 'signed') : null
     documents.push({
       id: key, category: 'signed', name: document.original_file_name,
       person: registration.team_name, kind: 'Signed participation form',
       type: fileType(document.mime_type), size: formatBytes(document.size_bytes),
-      status: reviewStatus(review, true), created: document.uploaded_at || document.created_at,
+      status: reviewStatus(review, true, 'Absent', correction), created: document.uploaded_at || document.created_at,
       version: document.version, active: document.version === activeVersion,
       canOpen: true, confidential: true,
+      correctionStatus: correction?.status || null,
       reviewedAt: review?.reviewed_at || null,
       reviewedBy: review?.reviewer?.display_name || null,
     })
@@ -203,7 +217,7 @@ function mapDocuments(registration, students, generatedDocuments, submittedDocum
   return documents
 }
 
-function buildReviewSummary(base, documents, documentsVerified) {
+function buildReviewSummary(base, documents, documentsVerified, activeCorrectionItems = []) {
   const confidentialDocuments = documents.filter((document) => (
     document.category === 'student' || document.category === 'identity'
   ))
@@ -230,7 +244,15 @@ function buildReviewSummary(base, documents, documentsVerified) {
       complete: [base.checklist[7], base.checklist[8], documentsVerified].filter(Boolean).length,
       total: 3,
     },
-  ].map((group) => ({ ...group, ready: group.complete === group.total }))
+  ].map((group) => {
+    const correctionBlocksGroup = activeCorrectionItems.some((item) => (
+      group.key === 'team' ? item.item === 'Team information'
+        : group.key === 'people' ? ['Activities manager', 'Delegation leader ID', 'Driver ID'].includes(item.item)
+          : item.kind === 'document'
+    ))
+    const complete = correctionBlocksGroup ? Math.min(group.complete, group.total - 1) : group.complete
+    return { ...group, complete, ready: complete === group.total }
+  })
 
   const blockers = []
   if (!base.checklist[0]) blockers.push({ key: 'team_information', tab: 'Team overview' })
@@ -244,10 +266,14 @@ function buildReviewSummary(base, documents, documentsVerified) {
   if (activeSignedDocument && activeSignedDocument.status !== 'Verified') {
     blockers.push({ key: 'signed_form_review', tab: 'Documents' })
   }
+  if (activeCorrectionItems.length > 0) {
+    blockers.push({ key: 'correction_cycle', count: activeCorrectionItems.length, tab: 'Verification' })
+  }
   const isClosed = ['rejected', 'cancelled'].includes(base.registrationKey)
   const readyForFinalValidation = !isClosed
     && base.completeness === 100
     && documentsVerified
+    && activeCorrectionItems.length === 0
   let nextAction = { key: 'review_required', tab: blockers[0]?.tab || 'Verification' }
 
   if (base.documentKey === 'validated') nextAction = { key: 'complete', tab: 'History' }
@@ -304,8 +330,11 @@ function publicActionError(error) {
   if (error?.code === '40001' || message.includes('aivex_registration_conflict')) {
     return { status: 409, message: 'This file was updated by another administrator. Refresh it before continuing.' }
   }
+  if (error?.code === '23505' || message.includes('aivex_correction_cycle_active')) {
+    return { status: 409, message: 'A correction cycle is already active for this team. Finish it before creating another one.' }
+  }
   if (error?.code === '22023') {
-    return { status: 409, message: message.includes('aivex_validation_incomplete')
+    return { status: 409, message: message.includes('aivex_validation_incomplete') || message.includes('aivex_correction_cycle_active')
       ? 'The file still contains unverified or missing information.'
       : 'This action is not available for the current AIVEX file.' }
   }
@@ -326,12 +355,15 @@ export function createAdminAivexService({ store, documentStore, now = () => new 
     ])
     if (!overview) return null
     const base = mapOverview(overview)
-    const docs = mapDocuments(registration, students, generated, submitted, reviews)
     const latestCorrection = corrections.find((correction) => !correction.resolved_at)
+    const activeCorrectionItems = latestCorrection
+      ? correctionItems.filter((item) => item.correction_request_id === latestCorrection.id && item.status !== 'verified')
+      : []
+    const docs = mapDocuments(registration, students, generated, submitted, reviews, activeCorrectionItems)
     const documentsVerified = docs
       .filter((document) => document.category === 'student' || document.category === 'identity' || (document.category === 'signed' && document.active))
       .every((document) => document.status === 'Verified')
-    const reviewSummary = buildReviewSummary(base, docs, documentsVerified)
+    const reviewSummary = buildReviewSummary(base, docs, documentsVerified, activeCorrectionItems)
     return {
       ...base,
       managerEmail: registration.activity_official_email,
@@ -353,6 +385,7 @@ export function createAdminAivexService({ store, documentStore, now = () => new 
       documentsVerified,
       reviewSummary,
       canValidate: reviewSummary.readyForFinalValidation,
+      canRequestCorrections: !latestCorrection && ['signed_document_uploaded', 'under_review'].includes(base.documentKey),
       allowedActions: allowedAivexActions(user.role),
       correctionRequest: latestCorrection ? {
         id: latestCorrection.id,

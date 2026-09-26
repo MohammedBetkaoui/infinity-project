@@ -75,7 +75,7 @@ export function createSupabaseMagicLinkStore(supabase) {
     // of the token, no student rows, no card paths, no other registration.
     async loadCandidateRegistration(registrationId) {
       const { data, error } = await supabase.from(REGISTRATIONS)
-        .select('reference, team_name, institution_name, wilaya_name, student_count, registration_status, document_status')
+        .select('reference, team_name, wilaya_code, wilaya_name, institution_id, institution_name, institution_custom, activity_official_role, activity_official_name, activity_official_email, activity_official_phone, student_count, registration_status, document_status')
         .eq('id', registrationId)
         .maybeSingle()
       if (error) throw new MagicLinkStoreError('load-registration', error)

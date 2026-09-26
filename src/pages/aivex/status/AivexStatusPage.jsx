@@ -55,7 +55,7 @@ function Dossier({ data, lang, api, t }) {
       <DossierHeader data={data} t={t} />
       <ProgressTracker documentStatus={data.documentStatus} context={stageContext} t={t} />
 
-      {data.documentStatus === 'changes_required' && data.correctionRequest && (
+      {data.correctionRequest && (
         <CorrectionRequestPanel correctionRequest={data.correctionRequest} lang={lang} token={api.token} onSubmitted={api.refresh} t={t} />
       )}
 
