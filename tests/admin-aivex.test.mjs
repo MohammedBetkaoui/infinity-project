@@ -130,10 +130,50 @@ test('list and detail expose public references and metadata, never database ids 
   assert.equal(detail.ref, REFERENCE)
   assert.equal(detail.students.length, 3)
   assert.equal(detail.canValidate, true)
+  assert.deepEqual(detail.reviewSummary.groups.map(({ key, ready }) => ({ key, ready })), [
+    { key: 'team', ready: true },
+    { key: 'people', ready: true },
+    { key: 'documents', ready: true },
+  ])
+  assert.deepEqual(detail.reviewSummary.blockers, [])
+  assert.deepEqual(detail.reviewSummary.documents, { verified: 6, total: 6 })
+  assert.equal(detail.reviewSummary.nextAction.key, 'validate_file')
   const serialized = JSON.stringify({ list, detail })
   assert.doesNotMatch(serialized, new RegExp(REGISTRATION_ID))
   assert.doesNotMatch(serialized, /private-leader|private-driver|student_card_path|checksum|sha256/i)
   assert(detail.docs.every((document) => !('path' in document)))
+})
+
+test('AIVEX review summary turns technical checks into clear administrative blockers', async () => {
+  class IncompleteAivexStore extends MemoryAivexStore {
+    async overview() {
+      return {
+        ...overview,
+        registration_status: 'under_review',
+        activity_official_verified: false,
+        official_form_generated: false,
+        signed_document_verified: false,
+        completeness: 70,
+      }
+    }
+    async generatedDocuments() { return [] }
+    async documentReviews() {
+      return [{ document_key: 'student-1', review_status: 'verified', reviewed_at: NOW.toISOString(), reviewer: { display_name: 'AIVEX Administrator' } }]
+    }
+  }
+  const service = createAdminAivexService({ store: new IncompleteAivexStore(), now: () => NOW })
+  const detail = await service.detail(REFERENCE, ADMIN)
+  assert.equal(detail.canValidate, false)
+  assert.equal(detail.reviewSummary.nextAction.key, 'review_required')
+  assert.deepEqual(detail.reviewSummary.groups.map(({ key, ready }) => ({ key, ready })), [
+    { key: 'team', ready: true },
+    { key: 'people', ready: false },
+    { key: 'documents', ready: false },
+  ])
+  assert.deepEqual(detail.reviewSummary.blockers.map((blocker) => blocker.key), [
+    'activities_manager', 'official_form', 'confidential_documents', 'signed_form_review', 'registration_approval',
+  ])
+  assert.equal(detail.reviewSummary.documents.verified, 1)
 })
 
 test('confidential document access is proxied and audited without returning its Storage path', async () => {
@@ -229,4 +269,8 @@ test('AIVEX React workspace uses the protected API and contains no demo document
   assert.doesNotMatch(`${page}\n${hook}\n${auth}`, /localStorage.*token|sessionStorage.*token|SUPABASE_SECRET_KEY/)
   assert.doesNotMatch(page, /Verification note|Message for the team|name="reason"|name="message"|Each decision requires an internal reason/)
   assert.match(page, /reason: false, description: false/)
+  assert.match(page, /Administrative review/)
+  assert.match(page, /Document is correct/)
+  assert.match(page, /Needs replacement/)
+  assert.doesNotMatch(page, /CHECKLIST\.map/)
 })

@@ -197,6 +197,70 @@ function mapDocuments(registration, students, generatedDocuments, submittedDocum
   return documents
 }
 
+function buildReviewSummary(base, documents, documentsVerified) {
+  const confidentialDocuments = documents.filter((document) => (
+    document.category === 'student' || document.category === 'identity'
+  ))
+  const activeSignedDocument = documents.find((document) => document.category === 'signed' && document.active)
+  const verifiedDocuments = [
+    ...confidentialDocuments,
+    ...(activeSignedDocument ? [activeSignedDocument] : []),
+  ].filter((document) => document.status === 'Verified').length
+  const pendingConfidentialDocuments = confidentialDocuments.filter((document) => document.status !== 'Verified').length
+
+  const groups = [
+    {
+      key: 'team',
+      complete: [base.checklist[0], base.checklist[4]].filter(Boolean).length,
+      total: 2,
+    },
+    {
+      key: 'people',
+      complete: [base.checklist[1], base.checklist[2], base.checklist[3]].filter(Boolean).length,
+      total: 3,
+    },
+    {
+      key: 'documents',
+      complete: [base.checklist[7], base.checklist[8], documentsVerified].filter(Boolean).length,
+      total: 3,
+    },
+  ].map((group) => ({ ...group, ready: group.complete === group.total }))
+
+  const blockers = []
+  if (!base.checklist[0]) blockers.push({ key: 'team_information', tab: 'Team overview' })
+  if (!base.checklist[4]) blockers.push({ key: 'student_roster', tab: 'Team overview' })
+  if (!base.checklist[1]) blockers.push({ key: 'activities_manager', tab: 'Verification' })
+  if (!base.checklist[7]) blockers.push({ key: 'official_form', tab: 'Documents' })
+  if (!base.checklist[8]) blockers.push({ key: 'signed_form_missing', tab: 'Documents' })
+  if (pendingConfidentialDocuments > 0) {
+    blockers.push({ key: 'confidential_documents', count: pendingConfidentialDocuments, tab: 'Documents' })
+  }
+  if (activeSignedDocument && activeSignedDocument.status !== 'Verified') {
+    blockers.push({ key: 'signed_form_review', tab: 'Documents' })
+  }
+  if (base.registrationKey !== 'approved') blockers.push({ key: 'registration_approval', tab: 'Verification' })
+
+  const workflowBlockers = blockers.filter((blocker) => blocker.key !== 'registration_approval')
+  const readyForFinalValidation = base.registrationKey === 'approved'
+    && base.completeness === 100
+    && documentsVerified
+  let nextAction = { key: 'review_required', tab: workflowBlockers[0]?.tab || 'Verification' }
+
+  if (base.documentKey === 'validated') nextAction = { key: 'complete', tab: 'History' }
+  else if (['rejected', 'cancelled'].includes(base.registrationKey)) nextAction = { key: 'closed', tab: 'History' }
+  else if (base.registrationKey === 'submitted') nextAction = { key: 'start_review', tab: 'Verification' }
+  else if (workflowBlockers.length === 0 && base.registrationKey !== 'approved') nextAction = { key: 'approve_registration', tab: 'Verification' }
+  else if (readyForFinalValidation) nextAction = { key: 'validate_file', tab: 'Verification' }
+
+  return {
+    groups,
+    blockers,
+    documents: { verified: verifiedDocuments, total: 6 },
+    readyForFinalValidation,
+    nextAction,
+  }
+}
+
 function mapHistory(registration, generated, submitted, corrections, audit) {
   return [
     {
@@ -264,6 +328,7 @@ export function createAdminAivexService({ store, documentStore, now = () => new 
     const documentsVerified = docs
       .filter((document) => document.category === 'student' || document.category === 'identity' || (document.category === 'signed' && document.active))
       .every((document) => document.status === 'Verified')
+    const reviewSummary = buildReviewSummary(base, docs, documentsVerified)
     return {
       ...base,
       managerEmail: registration.activity_official_email,
@@ -283,7 +348,8 @@ export function createAdminAivexService({ store, documentStore, now = () => new 
       })),
       docs,
       documentsVerified,
-      canValidate: base.registrationKey === 'approved' && base.completeness === 100 && documentsVerified,
+      reviewSummary,
+      canValidate: reviewSummary.readyForFinalValidation,
       allowedActions: allowedAivexActions(user.role),
       correctionRequest: latestCorrection ? {
         items: latestCorrection.items,
