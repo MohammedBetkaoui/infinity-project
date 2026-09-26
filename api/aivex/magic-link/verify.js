@@ -111,6 +111,13 @@ export function createMagicLinkVerifyHandler({
         if (latest) signedDocument = { version: latest.version, uploadedAt: latest.uploaded_at }
       }
 
+      let correctionRequest
+      if (registration.document_status === 'changes_required') {
+        stage = 'load-correction'
+        const correction = await magicLinkStore.latestOpenCorrection(resolved.registrationId)
+        if (correction) correctionRequest = { items: correction.items, message: correction.team_message, deadline: correction.due_at }
+      }
+
       send(res, 200, {
         success: true,
         status: 'valid',
@@ -122,6 +129,7 @@ export function createMagicLinkVerifyHandler({
         registrationStatus: registration.registration_status,
         documentStatus: registration.document_status,
         ...(signedDocument ? { signedDocument } : {}),
+        ...(correctionRequest ? { correctionRequest } : {}),
       })
     } catch (error) {
       console.error('[aivex] Magic link verification failed', { stage: error?.stage || stage, code: error?.code })

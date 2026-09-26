@@ -100,6 +100,18 @@ export function formatReceivedAt(value, lang) {
   }
 }
 
+// "21 septembre 2026", the correction deadline (a date, not a timestamp — no
+// time-of-day to show).
+export function formatCorrectionDeadline(value, lang) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  try {
+    return new Intl.DateTimeFormat(DATE_LOCALES[lang] || DATE_LOCALES.en, { dateStyle: 'long', timeZone: 'UTC' }).format(date)
+  } catch {
+    return date.toISOString().slice(0, 10)
+  }
+}
+
 // `units` = { sizeUnitKb, sizeUnit } from the language strings.
 export function formatFileSize(bytes, units) {
   if (!(bytes > 0)) return `0 ${units.sizeUnitKb}`

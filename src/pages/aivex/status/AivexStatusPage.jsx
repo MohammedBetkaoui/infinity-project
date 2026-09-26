@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import InfinityClubMark from '../../../components/InfinityClubMark'
 import { UPLOAD_ELIGIBLE_DOCUMENT_STATUSES } from '../../../../shared/aivex/signed-document-policy.js'
 import AivexLogoMark from '../AivexLogoMark'
+import CorrectionRequestPanel from './CorrectionRequestPanel'
 import CurrentDossierStatus from './CurrentDossierStatus'
 import DossierHeader from './DossierHeader'
 import OfficialFormPanel from './OfficialFormPanel'
@@ -42,6 +43,10 @@ function Dossier({ data, lang, api, t }) {
       <DossierHeader data={data} t={t} />
       <CurrentDossierStatus data={data} onRefresh={api.refresh} refreshing={api.refreshing} refreshFailed={api.refreshFailed} t={t}/>
       <ProgressTracker documentStatus={data.documentStatus} t={t} />
+
+      {data.documentStatus === 'changes_required' && data.correctionRequest && (
+        <CorrectionRequestPanel correctionRequest={data.correctionRequest} lang={lang} t={t} />
+      )}
 
       {uploadEligible && stage === 'sign' && (
         <SignaturePanel download={download} downloading={downloading} downloadError={downloadError} upload={upload}

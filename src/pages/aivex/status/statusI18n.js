@@ -79,6 +79,21 @@ const en = {
     unknown: { title: 'Status being updated', text: 'The current administrative state is being synchronised. Refresh this page in a moment.' },
   },
 
+  // Panel: the real, per-team correction the organisers recorded (as opposed
+  // to the generic dossierStatus.changes_required copy above).
+  correctionsTitle: 'Corrections requested',
+  correctionsDeadline: ({ date }) => `Please resubmit by ${date}.`,
+  correctionItemLabels: {
+    'Team information': 'Team information',
+    'Activities manager': 'Activities manager',
+    'Delegation leader ID': 'Delegation leader ID',
+    'Driver ID': 'Driver ID',
+    'Student card 01': 'Student card 01',
+    'Student card 02': 'Student card 02',
+    'Student card 03': 'Student card 03',
+    'Signed and stamped form': 'Signed and stamped form',
+  },
+
   // Progress.
   progressTitle: 'File progress',
   steps: {
@@ -230,6 +245,19 @@ const fr = {
     unknown: { title: 'Statut en cours de mise à jour', text: 'L’état administratif actuel est en cours de synchronisation. Actualisez cette page dans un instant.' },
   },
 
+  correctionsTitle: 'Corrections demandées',
+  correctionsDeadline: ({ date }) => `Merci de soumettre à nouveau avant le ${date}.`,
+  correctionItemLabels: {
+    'Team information': 'Informations de l’équipe',
+    'Activities manager': 'Responsable des activités',
+    'Delegation leader ID': 'Pièce d’identité du chef de délégation',
+    'Driver ID': 'Pièce d’identité du chauffeur',
+    'Student card 01': 'Carte étudiant 01',
+    'Student card 02': 'Carte étudiant 02',
+    'Student card 03': 'Carte étudiant 03',
+    'Signed and stamped form': 'Formulaire signé et cacheté',
+  },
+
   progressTitle: 'Avancement du dossier',
   steps: {
     registered: 'Inscription enregistrée',
@@ -373,6 +401,19 @@ const ar = {
     expired: { title: 'انتهت مهلة إيداع الوثيقة', text: 'انتهت فترة إيداع الوثيقة الموقعة. تواصلوا مع المنظمين مع ذكر مرجعكم.' },
     generation_issue: { title: 'مشكلة في تحضير الاستمارة الرسمية', text: 'تم إبلاغ المنظمين. حدّثوا الصفحة لاحقاً أو تواصلوا معهم مع ذكر المرجع إذا استمرت المشكلة.' },
     unknown: { title: 'يجري تحديث الحالة', text: 'تجري مزامنة الحالة الإدارية الحالية. حدّثوا هذه الصفحة بعد لحظات.' },
+  },
+
+  correctionsTitle: 'تصحيحات مطلوبة',
+  correctionsDeadline: ({ date }) => `يرجى إعادة الإيداع قبل ${date}.`,
+  correctionItemLabels: {
+    'Team information': 'معلومات الفريق',
+    'Activities manager': 'مسؤول النشاطات',
+    'Delegation leader ID': 'هوية رئيس الوفد',
+    'Driver ID': 'هوية السائق',
+    'Student card 01': 'بطاقة الطالب 01',
+    'Student card 02': 'بطاقة الطالب 02',
+    'Student card 03': 'بطاقة الطالب 03',
+    'Signed and stamped form': 'الاستمارة الموقعة والمختومة',
   },
 
   progressTitle: 'تقدّم الملف',

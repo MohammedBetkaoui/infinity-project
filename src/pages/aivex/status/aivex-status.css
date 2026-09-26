@@ -159,6 +159,14 @@
 .axs-paper .axs-panel .af-button { margin-top: 0; }
 .axs-paper .axs-panel [data-spinning] { animation: axs-spin .9s linear infinite; }
 
+/* The real, per-team correction list (CorrectionRequestPanel). */
+.axs-paper .axs-correction-list { display: grid; gap: 9px; margin: 16px 0 0; padding: 0; list-style: none; }
+.axs-correction-list > li { position: relative; padding-inline-start: 20px; color: var(--af-ink); font-size: 13px; font-weight: 650; line-height: 1.5; }
+.axs-correction-list > li::before { position: absolute; inset-inline-start: 0; top: 8px; inline-size: 7px; block-size: 7px; border-radius: 50%; content: ''; background: var(--axs-red); }
+.axs-paper[dir='rtl'] .axs-correction-list > li { padding-inline-start: 0; padding-inline-end: 20px; }
+.axs-paper[dir='rtl'] .axs-correction-list > li::before { inset-inline-start: auto; inset-inline-end: 0; }
+.axs-paper .axs-correction-deadline { margin-top: 14px; color: var(--axs-red-ink); font-size: 12px; font-weight: 750; line-height: 1.7; }
+
 /* The three gestures of the signature panel. */
 .axs-paper .axs-todo { display: grid; margin: 22px 0 0; padding: 0; list-style: none; }
 .axs-todo > li { position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 16px; padding-block-end: 26px; }
