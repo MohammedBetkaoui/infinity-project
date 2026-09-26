@@ -34,6 +34,31 @@ const ACTION_TITLES = Object.freeze({
   confidential_document_opened: 'Confidential document opened',
   official_document_downloaded: 'Official form downloaded',
 })
+const STANDARD_ACTION_REASONS = Object.freeze({
+  start_review: 'File moved to administrative review',
+  approve_registration: 'Registration approved by an authorised administrator',
+  request_corrections: 'Corrections requested for the selected file elements',
+  validate_file: 'Administrative verification completed and file validated',
+  reject_registration: 'Registration rejected by an authorised administrator',
+  cancel_registration: 'Registration cancelled by an authorised administrator',
+  verify_document: 'Document verified in the confidential viewer',
+  invalidate_document: 'Document marked invalid in the confidential viewer',
+  retry_generation: 'Official form generation retried by an authorised administrator',
+})
+
+function normalizeActionInput(input) {
+  const payload = { ...(input.payload || {}) }
+  let reason = STANDARD_ACTION_REASONS[input.action] || ACTION_TITLES[input.action] || 'AIVEX file updated'
+  if (input.action === 'verify_activity_official') {
+    reason = payload.verified
+      ? 'Activities manager marked as administratively verified'
+      : 'Activities manager verification removed'
+  }
+  if (input.action === 'request_corrections') {
+    payload.message = `Corrections are required for: ${payload.items.join(', ')}. Please complete them by ${payload.deadline}.`
+  }
+  return { ...input, reason, payload }
+}
 
 const formatBytes = (value) => {
   const bytes = Number(value || 0)
@@ -129,7 +154,7 @@ function mapDocuments(registration, students, generatedDocuments, submittedDocum
       person: student.full_name, kind: 'Student card', type: fileType(student.student_card_mime),
       size: formatBytes(student.student_card_size_bytes), status: reviewStatus(review, present),
       created: student.created_at, canOpen: present, confidential: true,
-      verificationNote: review?.note || '', reviewedAt: review?.reviewed_at || null,
+      reviewedAt: review?.reviewed_at || null,
       reviewedBy: review?.reviewer?.display_name || null,
     })
   }
@@ -149,7 +174,7 @@ function mapDocuments(registration, students, generatedDocuments, submittedDocum
       status: purgedAt ? 'Expired' : reviewStatus(review, Boolean(path)),
       created: registration.submitted_at || registration.created_at,
       canOpen: Boolean(path), confidential: true,
-      verificationNote: review?.note || '', reviewedAt: review?.reviewed_at || null,
+      reviewedAt: review?.reviewed_at || null,
       reviewedBy: review?.reviewer?.display_name || null,
     })
   }
@@ -165,7 +190,7 @@ function mapDocuments(registration, students, generatedDocuments, submittedDocum
       status: reviewStatus(review, true), created: document.uploaded_at || document.created_at,
       version: document.version, active: document.version === activeVersion,
       canOpen: true, confidential: true,
-      verificationNote: review?.note || '', reviewedAt: review?.reviewed_at || null,
+      reviewedAt: review?.reviewed_at || null,
       reviewedBy: review?.reviewer?.display_name || null,
     })
   }
@@ -190,13 +215,12 @@ function mapHistory(registration, generated, submitted, corrections, audit) {
     })),
     ...corrections.map((correction) => ({
       title: 'Corrections requested', actor: correction.requester?.display_name || 'Infinity Administration',
-      at: correction.created_at, kind: 'Administration', note: correction.internal_note,
+      at: correction.created_at, kind: 'Administration',
     })),
     ...audit.map((event) => ({
       title: ACTION_TITLES[event.action] || 'AIVEX file updated',
       actor: event.administrator?.display_name || 'Infinity Administration',
       at: event.created_at, kind: event.sensitivity === 'confidential' ? 'Confidential' : 'Administration',
-      note: event.metadata?.reason,
       documentKey: event.metadata?.document_key,
       sensitivity: event.sensitivity,
     })),
@@ -263,9 +287,7 @@ export function createAdminAivexService({ store, documentStore, now = () => new 
       allowedActions: allowedAivexActions(user.role),
       correctionRequest: latestCorrection ? {
         items: latestCorrection.items,
-        message: latestCorrection.team_message,
         deadline: latestCorrection.due_at,
-        note: latestCorrection.internal_note,
       } : null,
       history: mapHistory(registration, generated, submitted, corrections, audit),
       documentAccess: audit.filter((event) => event.action === 'confidential_document_opened').map((event) => ({
@@ -310,11 +332,12 @@ export function createAdminAivexService({ store, documentStore, now = () => new 
       if (!canManageAivex(user.role, input.action)) {
         return { ok: false, status: 403, message: 'You do not have permission to perform this action.' }
       }
+      const normalizedInput = normalizeActionInput(input)
       const registration = await store.findByReference(reference)
       if (!registration) return { ok: false, status: 404, message: 'This AIVEX file no longer exists.' }
       try {
-        if (input.action === 'retry_generation') {
-          if (new Date(registration.updated_at).getTime() !== new Date(input.expectedUpdatedAt).getTime()) {
+        if (normalizedInput.action === 'retry_generation') {
+          if (new Date(registration.updated_at).getTime() !== new Date(normalizedInput.expectedUpdatedAt).getTime()) {
             return { ok: false, status: 409, message: 'This file was updated by another administrator. Refresh it before continuing.' }
           }
           if (!documentStore) throw Object.assign(new Error('aivex_document_store_required'), { stage: 'configuration', code: 'configuration_error' })
@@ -322,7 +345,7 @@ export function createAdminAivexService({ store, documentStore, now = () => new 
           if (!result.attempted) return { ok: false, status: 409, message: 'Document generation is already complete or currently in progress.' }
           await store.auditEvent({
             registrationId: registration.id, adminUserId: user.id, action: 'retry_generation',
-            metadata: { reason: input.reason, generated: result.docx === true }, now: now(),
+            metadata: { reason: normalizedInput.reason, generated: result.docx === true }, now: now(),
           })
           return { ok: true, team: await detail(reference, user) }
         }
@@ -330,10 +353,10 @@ export function createAdminAivexService({ store, documentStore, now = () => new 
         await store.applyAction({
           registrationId: registration.id,
           adminUserId: user.id,
-          action: input.action,
-          expectedUpdatedAt: input.expectedUpdatedAt,
-          reason: input.reason,
-          payload: input.payload,
+          action: normalizedInput.action,
+          expectedUpdatedAt: normalizedInput.expectedUpdatedAt,
+          reason: normalizedInput.reason,
+          payload: normalizedInput.payload,
           now: now(),
         })
         return { ok: true, team: await detail(reference, user) }

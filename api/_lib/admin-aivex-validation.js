@@ -27,9 +27,6 @@ const single = (params, name) => {
   return values.length <= 1 ? (values[0] || '').trim() : null
 }
 
-const bounded = (value, max, { required = false } = {}) => typeof value === 'string'
-  && value.length <= max && (!required || value.trim().length > 0)
-
 export const isAivexReference = (value) => REGISTRATION_REFERENCE_PATTERN.test(String(value || ''))
 export const isAivexDocumentKey = (value) => DOCUMENT_KEY_RE.test(String(value || ''))
 
@@ -63,7 +60,6 @@ export function validateAivexActionBody(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return { ok: false }
   if (!ADMIN_AIVEX_ACTIONS.includes(body.action)) return { ok: false }
   if (!Number.isFinite(Date.parse(body.expectedUpdatedAt))) return { ok: false }
-  if (!bounded(body.reason, 2000, { required: true })) return { ok: false }
   const payload = body.payload === undefined ? {} : body.payload
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return { ok: false }
   if (JSON.stringify(payload).length > 8192) return { ok: false }
@@ -73,7 +69,7 @@ export function validateAivexActionBody(body) {
   if (body.action === 'request_corrections') {
     if (!Array.isArray(payload.items) || payload.items.length < 1 || payload.items.length > 8) return { ok: false }
     if (new Set(payload.items).size !== payload.items.length || payload.items.some((item) => !CORRECTION_ITEMS.has(item))) return { ok: false }
-    if (!bounded(payload.message, 2000, { required: true }) || !DATE_RE.test(payload.deadline || '')) return { ok: false }
+    if (!DATE_RE.test(payload.deadline || '')) return { ok: false }
   }
 
   return {
@@ -81,7 +77,6 @@ export function validateAivexActionBody(body) {
     value: {
       action: body.action,
       expectedUpdatedAt: body.expectedUpdatedAt,
-      reason: body.reason,
       payload,
     },
   }

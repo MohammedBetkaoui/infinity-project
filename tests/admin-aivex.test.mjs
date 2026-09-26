@@ -104,11 +104,10 @@ test('AIVEX query and mutation validation accept only the production contract', 
   assert.equal(isAivexDocumentKey('../private/path'), false)
 
   const correction = validateAivexActionBody({
-    action: 'request_corrections', expectedUpdatedAt: NOW.toISOString(), reason: 'The active form is incomplete.',
-    payload: { items: ['Signed and stamped form'], message: 'Please upload a signed copy.', deadline: '2026-10-02' },
+    action: 'request_corrections', expectedUpdatedAt: NOW.toISOString(),
+    payload: { items: ['Signed and stamped form'], deadline: '2026-10-02' },
   })
   assert.equal(correction.ok, true)
-  assert.equal(validateAivexActionBody({ ...correction.value, reason: '' }).ok, false)
   assert.equal(validateAivexActionBody({ ...correction.value, payload: { ...correction.value.payload, items: ['Unknown'] } }).ok, false)
 })
 
@@ -152,13 +151,14 @@ test('AIVEX actions enforce role permissions before reaching the store', async (
   const store = new MemoryAivexStore()
   const service = createAdminAivexService({ store, now: () => NOW })
   const reviewer = { ...ADMIN, role: 'reviewer' }
-  const denied = await service.act(REFERENCE, { action: 'validate_file', expectedUpdatedAt: registration.updated_at, reason: 'Final review complete.', payload: {} }, reviewer)
+  const denied = await service.act(REFERENCE, { action: 'validate_file', expectedUpdatedAt: registration.updated_at, payload: {} }, reviewer)
   assert.equal(denied.status, 403)
   assert.equal(store.actions.length, 0)
-  const allowed = await service.act(REFERENCE, { action: 'verify_document', expectedUpdatedAt: registration.updated_at, reason: 'Visual match confirmed.', payload: { documentKey: 'student-1' } }, reviewer)
+  const allowed = await service.act(REFERENCE, { action: 'verify_document', expectedUpdatedAt: registration.updated_at, payload: { documentKey: 'student-1' } }, reviewer)
   assert.equal(allowed.ok, true)
   assert.equal(store.actions.length, 1)
   assert.equal(store.actions[0].adminUserId, ADMIN.id)
+  assert.equal(store.actions[0].reason, 'Document verified in the confidential viewer')
 })
 
 test('AIVEX handler fails closed behind its feature flag, session and strict mutation origin', async () => {
@@ -182,7 +182,7 @@ test('AIVEX handler fails closed behind its feature flag, session and strict mut
   })
   const mutationRes = response()
   await mutation(request('POST', `/api/admin-auth?__admin_path=aivex/${REFERENCE}/actions`, {
-    action: 'start_review', expectedUpdatedAt: registration.updated_at, reason: 'Start the review.', payload: {},
+    action: 'start_review', expectedUpdatedAt: registration.updated_at, payload: {},
   }, { host: 'www.infinty-bba.com', origin: 'https://evil.example', 'content-type': 'application/json' }), mutationRes)
   assert.equal(mutationRes.statusCode, 403)
   assert.equal(called, false)
@@ -227,4 +227,6 @@ test('AIVEX React workspace uses the protected API and contains no demo document
   assert.match(hook, /\/api\/admin\/aivex/)
   assert.match(auth, /requestRaw/)
   assert.doesNotMatch(`${page}\n${hook}\n${auth}`, /localStorage.*token|sessionStorage.*token|SUPABASE_SECRET_KEY/)
+  assert.doesNotMatch(page, /Verification note|Message for the team|name="reason"|name="message"|Each decision requires an internal reason/)
+  assert.match(page, /reason: false, description: false/)
 })
