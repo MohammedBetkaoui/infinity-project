@@ -324,7 +324,7 @@ function SecureViewer({ team, document: file, onClose, onUpdated, locale, loadDo
     setSaving(true)
     const result = await act(team.ref, { action, expectedUpdatedAt: team.updatedAt, payload: { documentKey: file.id } })
     setSaving(false)
-    if (!result.ok) { setError(result.message); return }
+    if (!result.ok) { setError(t(result.message)); return }
     onUpdated(result.team)
     addToast(t(action === 'verify_document' ? 'Document accepted' : 'Replacement requested'), t('The review result is recorded automatically in the protected AIVEX history.'))
     onClose()

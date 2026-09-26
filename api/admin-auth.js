@@ -364,7 +364,12 @@ export function createAdminAivexHandler({
       })
     } catch (error) {
       safeAdminAuthLog('aivex', error)
-      return sendAdminJson(res, 503, { success: false, message: 'Unable to load AIVEX administration right now.' })
+      return sendAdminJson(res, 503, {
+        success: false,
+        message: actionMatch
+          ? 'Unable to save this AIVEX action right now.'
+          : 'Unable to load AIVEX administration right now.',
+      })
     }
   }
 }

@@ -318,6 +318,7 @@ const ARABIC = Object.freeze({
   'This decision will update the local demo record and be recorded in the activity log.': 'سيحدّث هذا القرار السجل التجريبي المحلي وسيُسجل في سجل النشاط.',
   'This decision updates the real AIVEX file and is recorded with the authenticated administrator.': 'يحدّث هذا القرار ملف AIVEX الحقيقي ويُسجل باسم المسؤول المصادق عليه.',
   'The action could not be completed. Please try again.': 'تعذر إتمام الإجراء. أعد المحاولة.',
+  'Unable to save this AIVEX action right now.': 'تعذر حفظ إجراء AIVEX الآن. أعد المحاولة بعد قليل.',
   'Confirm action': 'تأكيد الإجراء',
   'Explain the decision for your colleagues…': 'اشرح القرار لزملائك…',
   'Not provided': 'غير متوفر',

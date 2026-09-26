@@ -226,6 +226,17 @@ test('AIVEX handler fails closed behind its feature flag, session and strict mut
   }, { host: 'www.infinty-bba.com', origin: 'https://evil.example', 'content-type': 'application/json' }), mutationRes)
   assert.equal(mutationRes.statusCode, 403)
   assert.equal(called, false)
+
+  const failedAction = createAdminAivexHandler({
+    createService: () => ({ act: async () => { throw Object.assign(new Error('database failure'), { code: '42702' }) } }),
+    requireSession: async () => ({ user: ADMIN }), env: base,
+  })
+  const failedActionRes = response()
+  await failedAction(request('POST', `/api/admin-auth?__admin_path=aivex/${REFERENCE}/actions`, {
+    action: 'verify_document', expectedUpdatedAt: registration.updated_at, payload: { documentKey: 'student-1' },
+  }, { host: 'www.infinty-bba.com', origin: 'https://www.infinty-bba.com', 'content-type': 'application/json' }), failedActionRes)
+  assert.equal(failedActionRes.statusCode, 503)
+  assert.equal(failedActionRes.body.message, 'Unable to save this AIVEX action right now.')
 })
 
 test('AIVEX handler streams secure bytes with no-store headers', async () => {
@@ -255,6 +266,17 @@ test('AIVEX admin migration is service-role-only and audits real administrators'
   assert.doesNotMatch(migration, /signedurl|public url/i)
   assert.match(migration, /p_admin_user_id/)
   assert.match(migration, /insert into public\.admin_audit_events/)
+})
+
+test('AIVEX document-action fix removes the PL/pgSQL document_key ambiguity', async () => {
+  const migration = (await read('supabase/migrations/20260927130000_fix_admin_aivex_document_actions.sql')).toLowerCase()
+  assert.match(migration, /create or replace function public\.admin_apply_aivex_action/)
+  assert.match(migration, /v_document_key text/)
+  assert.match(migration, /on conflict on constraint aivex_admin_document_reviews_registration_key/)
+  assert.doesNotMatch(migration, /\bdocument_key text;/)
+  assert.doesNotMatch(migration, /on conflict\s*\(registration_id,\s*document_key\)/)
+  assert.match(migration, /revoke all on function public\.admin_apply_aivex_action/)
+  assert.match(migration, /grant execute on function public\.admin_apply_aivex_action[\s\S]*to service_role/)
 })
 
 test('AIVEX React workspace uses the protected API and contains no demo document workflow', async () => {
