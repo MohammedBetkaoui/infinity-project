@@ -365,7 +365,7 @@ const ARABIC = Object.freeze({
   'Signed participation form': 'استمارة المشاركة الموقعة',
   'Official institution': 'مؤسسة رسمية',
   'Custom institution': 'مؤسسة مضافة يدوياً',
-  'Deputy director of activities': 'نائب مدير النشاطات',
+  'Deputy director of activities': 'المدير الفرعي للأنشطة',
   'Registration created': 'تم إنشاء التسجيل',
   'Official DOCX generated · revision 1': 'تم إنشاء DOCX الرسمي · المراجعة 1',
   'Private tracking link created': 'تم إنشاء رابط متابعة خاص',

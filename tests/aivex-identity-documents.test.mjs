@@ -877,7 +877,7 @@ test('24. the three student cards still work, in their own bucket, on their own 
 test('25. the official DOCX never sees an identity document: no variable, no column, no placeholder', async () => {
   const described = JSON.stringify(WORD_VARIABLES_V4)
   assert.doesNotMatch(described, /id_card|idCard|identity/i)
-  assert.equal(WORD_VARIABLES_V4.length, 29, 'the 29 official variables are unchanged')
+  assert.equal(WORD_VARIABLES_V4.length, 30, 'the 30 official variables contain no identity document data')
   for (const excluded of ['idCard', ...['delegation_head', 'driver'].flatMap((subject) => ['path', 'mime', 'size', 'sha256'].map((suffix) => `${subject}_id_card_${suffix}`))]) {
     assert.ok(WORD_EXCLUDED_FIELDS_V4.includes(excluded), `${excluded} is excluded from the document`)
     assert.equal(described.includes(excluded), false)
@@ -892,7 +892,7 @@ test('25. the official DOCX never sees an identity document: no variable, no col
     },
     students: [1, 2, 3].map((position) => ({ position, full_name: `S${position}` })),
   })
-  assert.equal(Object.keys(data).length, 29)
+  assert.equal(Object.keys(data).length, 30)
   assert.doesNotMatch(JSON.stringify(data), /edition-2\/x|delegation-head\/|a{64}|1234/)
   // The document generator only reads the columns its mapping names.
   const documentStore = await read('api/_lib/aivex-document-store.js')

@@ -36,7 +36,7 @@ const TEMPLATE_PATH = fileURLToPath(new URL('../../public/word-form/aivex-partic
 // Bumped whenever the template file itself changes shape (placeholders
 // added/removed, layout redone) — stored per generated document so an old
 // DOCX can always be traced back to the template that produced it.
-export const AIVEX_TEMPLATE_VERSION = 'aivex-participation-template-01'
+export const AIVEX_TEMPLATE_VERSION = 'aivex-participation-template-02'
 
 export const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 

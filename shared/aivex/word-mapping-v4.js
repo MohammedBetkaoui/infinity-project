@@ -54,6 +54,7 @@ export const WORD_VARIABLES_V4 = Object.freeze([
   registrationVariable('institution_name', 'answers.team.institution.name', 'team.institution | team.customInstitution'),
   registrationVariable('wilaya_name', 'answers.team.wilaya.name', 'team.wilaya'),
   registrationVariable('team_name', 'answers.team.name', 'team.name'),
+  registrationVariable('activity_official_name', 'answers.activityOfficial.fullName', 'activityOfficial.fullName'),
   registrationVariable('activity_official_phone', 'answers.activityOfficial.phone', 'activityOfficial.phone'),
   registrationVariable('activity_official_email', 'answers.activityOfficial.email', 'activityOfficial.email'),
   ...STUDENT_POSITIONS.flatMap(studentVariables),

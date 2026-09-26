@@ -35,6 +35,7 @@ function sampleRows(overrides = {}) {
       team_name: 'Infinity AI',
       wilaya_name: 'Bordj Bou Arréridj',
       institution_name: 'Université Mohamed El Bachir El Ibrahimi',
+      activity_official_name: 'Amina Benali',
       activity_official_phone: '0555123456',
       activity_official_email: 'activities@univ-bba.dz',
       delegation_head_name: 'Karim Haddad',
@@ -88,7 +89,7 @@ function createMemoryDocumentStore(rows) {
 // 1-4. Template correctness (the fixed file on disk)
 // =================================================================================
 
-test('1. the official template has exactly the 29 canonical placeholders, no more, no less', async () => {
+test('1. the official template has exactly the 30 canonical placeholders, no more, no less', async () => {
   const buffer = await loadRegistrationTemplate()
   const zip = await JSZip.loadAsync(buffer)
   const found = new Set()
@@ -98,7 +99,7 @@ test('1. the official template has exactly the 29 canonical placeholders, no mor
     for (const match of xml.matchAll(/\{\{([a-zA-Z0-9_]+)\}\}/g)) found.add(match[1])
   }
   const expected = new Set(WORD_VARIABLES_V4.map((entry) => entry.variable))
-  assert.equal(found.size, 29)
+  assert.equal(found.size, 30)
   assert.deepEqual([...found].sort(), [...expected].sort())
 })
 
@@ -107,11 +108,11 @@ test('2. no split-run placeholder: every {{token}} is a single, literal run in d
   const zip = await JSZip.loadAsync(buffer)
   const xml = await zip.file('word/document.xml').async('string')
   // If any placeholder were split across <w:r> runs, this count would be
-  // lower than the 29 found by scanning the plain (tag-stripped) text.
+  // lower than the 30 found by scanning the plain (tag-stripped) text.
   const literal = [...xml.matchAll(/\{\{([a-zA-Z0-9_]+)\}\}/g)].length
   const plain = xml.replace(/<[^>]+>/g, '')
   const stripped = [...plain.matchAll(/\{\{([a-zA-Z0-9_]+)\}\}/g)].length
-  assert.equal(literal, 29)
+  assert.equal(literal, 30)
   assert.equal(literal, stripped)
 })
 
@@ -159,7 +160,7 @@ test('5. rendering fills every placeholder with the real value, escapes XML-sens
   const zip = await JSZip.loadAsync(rendered)
   const xml = await zip.file('word/document.xml').async('string')
   assert.doesNotMatch(xml, /\{\{/, 'no placeholder left in the rendered document')
-  for (const value of ['AIVEX2-7K3M9QXT', 'Bordj Bou Arréridj', 'Karim Haddad', '00471236', 'Student Number 2', '2022', 'TEST-STU-0003']) {
+  for (const value of ['AIVEX2-7K3M9QXT', 'Bordj Bou Arréridj', 'Amina Benali', 'Karim Haddad', '00471236', 'Student Number 2', '2022', 'TEST-STU-0003']) {
     assert.match(xml, new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `missing ${value}`)
   }
   assert.match(xml, /Infinity AI &amp; &lt;Sons&gt; &quot;Team&quot;/, 'special characters are XML-escaped, not left raw')
@@ -595,7 +596,7 @@ test('e2e: a synthetic registration keeps the unchanged 201 contract and produce
   const xml = await (await JSZip.loadAsync(db.files.get(docx.file_path).buffer)).file('word/document.xml').async('string')
   const text = xml.replace(/<[^>]+>/g, '')
   assert.doesNotMatch(xml, /\{\{/)
-  for (const value of [body.reference, 'PHASE4 TEST', 'Bordj Bou Arréridj', 'Phase Four Test Head', 'TEST-HEAD-0001', 'Phase Four Test Driver',
+  for (const value of [body.reference, 'PHASE4 TEST', 'Bordj Bou Arréridj', 'Phase Four Test Official', 'Phase Four Test Head', 'TEST-HEAD-0001', 'Phase Four Test Driver',
     'TEST-DRIVER-0001', 'Phase Four Test Student One', 'Phase Four Test Student Three', '90000002', '2021', 'phase4-test@example.invalid',
     '2026-12-10', '2026-12-12', '2026-11-30', 'aivex@univ-bba.dz', 'الطبعة الثانية',
     // Official label, re-derived server-side from the dataset (the payload said "x").
@@ -901,6 +902,7 @@ test('supabase store: private bucket, atomic claim filter, one row per (registra
   await createSupabaseDocumentStore(load.client).loadRegistrationData(REGISTRATION_ID)
   const selects = load.calls.filter(([, method]) => method === 'select').map(([, , columns]) => columns).join(' ')
   assert.doesNotMatch(selects, /student_card|national|registration_number|study_level/)
+  assert.match(selects, /activity_official_name/)
   assert.match(selects, /rfid_number/)
 
   const failing = recordingSupabase({ data: null, error: { code: '42501' } })

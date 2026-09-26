@@ -252,13 +252,13 @@ Une image de la **carte nationale d'identité** par personne, **obligatoire pour
 
 ## 9. Mapping Word
 
-29 variables, données officielles uniquement : édition et dates (`aivex_settings`), `registration_reference`, wilaya, établissement, équipe, téléphone et e-mail du responsable, chef de délégation et chauffeur (nom, téléphone, RFID), 3 étudiants (nom, téléphone, année du BAC, RFID), date limite et e-mail de dépôt. **Aucune** variable de carte (étudiante ou d'identité), de n° d'identité, de matricule ou de niveau : les colonnes `*_id_card_*` sont dans `WORD_EXCLUDED_FIELDS_V4` et le générateur ne lit que les colonnes que le mapping nomme (test).
+30 variables, données officielles uniquement : édition et dates (`aivex_settings`), `registration_reference`, wilaya, établissement, équipe, nom, téléphone et e-mail du responsable, chef de délégation et chauffeur (nom, téléphone, RFID), 3 étudiants (nom, téléphone, année du BAC, RFID), date limite et e-mail de dépôt. **Aucune** variable de carte (étudiante ou d'identité), de n° d'identité, de matricule ou de niveau : les colonnes `*_id_card_*` sont dans `WORD_EXCLUDED_FIELDS_V4` et le générateur ne lit que les colonnes que le mapping nomme (test).
 
 ### 9.1 Génération du document officiel (Phase 4)
 
 | Élément | Fichier |
 |---|---|
-| Template officiel (version `aivex-participation-template-01`) | [`public/word-form/aivex-participation-template-01.docx`](../public/word-form/aivex-participation-template-01.docx) |
+| Template officiel (version `aivex-participation-template-02`) | [`public/word-form/aivex-participation-template-01.docx`](../public/word-form/aivex-participation-template-01.docx) |
 | Rendu DOCX | [`api/_lib/aivex-document-template.js`](../api/_lib/aivex-document-template.js) |
 | Orchestration, statuts, présentation des dates | [`api/_lib/aivex-document-generation.js`](../api/_lib/aivex-document-generation.js) |
 | Accès Supabase (claim atomique, Storage, métadonnées) | [`api/_lib/aivex-document-store.js`](../api/_lib/aivex-document-store.js) |
@@ -268,7 +268,7 @@ Une image de la **carte nationale d'identité** par personne, **obligatoire pour
 | Tests | [`tests/aivex-document-generation.test.mjs`](../tests/aivex-document-generation.test.mjs) |
 
 **Template.** Corrigé une fois, trois interventions ciblées (tout le reste du .docx est identique octet pour octet) :
-1. `{{edition_name}}`, `{{event_start_date}}`, `{{event_end_date}}` étaient absents (texte figé « الطبعة الثانية » et « من 10 ديسمبر إلى 03 ديسمبر 2025 », ce dernier réparti sur 5 runs Word, « 10 » coupé en « 1 » + « 0 ») ; les 29 placeholders sont désormais chacun d'un seul tenant ;
+1. `{{edition_name}}`, `{{event_start_date}}`, `{{event_end_date}}` et `{{activity_official_name}}` sont maintenant dynamiques ; les 30 placeholders sont chacun d'un seul tenant ;
 2. le tableau des étudiants était **flottant** (`w:tblpPr`) : l'intitulé « تأطير الوفد » s'enroulait lettre par lettre à côté ; tableau rendu *inline* comme celui de la délégation ;
 3. les cellules « سنة البكالوريا » étaient en 9 pt (réduites pour loger le long placeholder), contre 14 pt pour le reste de la ligne : remises à 14 pt.
 
@@ -363,7 +363,7 @@ Tant que les migrations ne sont pas appliquées, l'API V4 répond 500 à toute i
 2. ~~Borne haute de l'année du BAC~~ **Décidé** : 2019 à 2026 pour l'édition 2, fixe ; à revoir volontairement à chaque édition.
 3. Cartes : PDF accepté ? recto seul ? durée de conservation.
 4. ~~Téléphones : format saisi ou E.164~~ **Décidé** : national à 10 chiffres (05 / 06 / 07), imprimé tel que stocké.
-5. Template Word : `activity_official_name` / rôle, formats des dates.
+5. Template Word : le rôle reste présenté par l'intitulé officiel commun ; formats des dates à confirmer.
 6. Valeurs officielles de `aivex_settings` (édition 2).
 7. Conservation des numéros d'identité des inscriptions V3.
 8. Limite Vercel de 4,5 Mo par requête : compression navigateur (actuelle) ou upload direct vers Storage. Avec 5 images le budget passe à ≈ 800 Ko chacune (contre 1,2 Mo pour 3).

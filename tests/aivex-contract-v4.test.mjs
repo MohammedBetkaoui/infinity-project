@@ -827,10 +827,10 @@ test('student cards: never a public URL; AIVEX logs carry a stage and a code onl
   }
 })
 
-test('Word mapping: official data only, 29 variables, no student card', () => {
+test('Word mapping: official data only, 30 variables, no student card', () => {
   const names = WORD_VARIABLES_V4.map((entry) => entry.variable)
-  assert.equal(names.length, 29)
-  for (const expected of ['registration_reference', 'wilaya_name', 'institution_name', 'team_name', 'activity_official_phone',
+  assert.equal(names.length, 30)
+  for (const expected of ['registration_reference', 'wilaya_name', 'institution_name', 'team_name', 'activity_official_name', 'activity_official_phone',
     'activity_official_email', 'delegation_head_rfid', 'driver_rfid', 'student_1_bac_year', 'student_3_rfid']) {
     assert.ok(names.includes(expected), expected)
   }
@@ -839,10 +839,11 @@ test('Word mapping: official data only, 29 variables, no student card', () => {
   for (const excluded of WORD_EXCLUDED_FIELDS_V4) assert.equal(described.includes(excluded), false, excluded)
   const data = resolveWordDataV4({
     settings: { edition_name: 'AIVEX 2' },
-    registration: { reference: 'AIVEX2-7K3M9QXT', team_name: 'Infinity AI' },
+    registration: { reference: 'AIVEX2-7K3M9QXT', team_name: 'Infinity AI', activity_official_name: 'Amina Benali' },
     students: [1, 2, 3].map((position) => ({ position, full_name: `S${position}`, student_card_path: `edition-2/x/student-${position}.jpg` })),
   })
   assert.equal(data.registration_reference, 'AIVEX2-7K3M9QXT')
+  assert.equal(data.activity_official_name, 'Amina Benali')
   assert.doesNotMatch(JSON.stringify(data), /student-\d\.jpg|card/i)
 })
 
