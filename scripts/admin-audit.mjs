@@ -225,25 +225,24 @@ try {
   await evaluate('document.querySelector(".adm-table input[type=checkbox]").click()')
   assert(await evaluate('Boolean(document.querySelector(".adm-bulk"))'))
   await evaluate('document.querySelector(".adm-record-link").click()')
-  await waitFor('Boolean(document.querySelector(".adm-drawer"))')
+  await waitFor('Boolean(document.querySelector(".adm-modal.is-candidate-modal"))')
   await pause(300)
-  report.candidateDrawer = await evaluate(`({
-    title: document.querySelector('.adm-drawer__head h2')?.innerText,
-    width: Math.round(document.querySelector('.adm-drawer').getBoundingClientRect().width),
+  report.candidateModal = await evaluate(`({
+    title: document.querySelector('.is-candidate-modal > header h2')?.innerText,
+    width: Math.round(document.querySelector('.is-candidate-modal').getBoundingClientRect().width),
     steps: document.querySelectorAll('.adm-candidate-progress li').length,
     sections: document.querySelectorAll('.adm-candidate-section').length,
     actions: document.querySelectorAll('.adm-candidate-actionbar button').length,
-    overflow: document.querySelector('.adm-drawer').scrollWidth > document.querySelector('.adm-drawer').clientWidth
+    overflow: document.querySelector('.is-candidate-modal').scrollWidth > document.querySelector('.is-candidate-modal').clientWidth
   })`)
-  assert.deepEqual(report.candidateDrawer, { title: 'Application review', width: 710, steps: 4, sections: 6, actions: 6, overflow: false })
-  await screenshot('application-drawer-desktop')
+  assert.deepEqual(report.candidateModal, { title: 'Application review', width: 1296, steps: 4, sections: 5, actions: 5, overflow: false })
+  await screenshot('application-modal-desktop')
   await clickText('Accept as member')
-  await waitFor('Boolean(document.querySelector(".adm-modal"))')
-  await evaluate(`(() => { const field = document.querySelector('.adm-modal textarea[name="reason"]'); field.value = 'Strong fit for the autumn member programme.' })()`)
+  await waitFor('Boolean(document.querySelector(".adm-action-form"))')
   await clickText('Confirm action')
-  await waitFor('!document.querySelector(".adm-modal") && document.querySelector(".adm-drawer").innerText.includes("Accepted")')
+  await waitFor('!document.querySelector(".adm-action-form") && document.querySelector(".is-candidate-modal").innerText.includes("Accepted")')
   await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' })
-  await waitFor('!document.querySelector(".adm-drawer")')
+  await waitFor('!document.querySelector(".is-candidate-modal")')
 
   await navigate('/admin/members')
   await waitFor('document.querySelectorAll(".adm-people-card").length > 0')

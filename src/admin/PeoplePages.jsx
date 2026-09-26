@@ -6,6 +6,20 @@ import { AVAILABILITY, APPLICATION_STATUSES, DEPARTMENTS, EXPERIENCE, LEVELS, PO
 import { Avatar, BulkBar, Button, Drawer, EmptyState, PageHeader, Pagination, StatusBadge, Tabs } from './AdminUI'
 import { ActionDialog, Facts, History, RecordTable, RecordToolbar, SummaryStrip } from './AdminRecords'
 
+const SUBMISSION_TIME_ZONE = 'Africa/Algiers'
+const submissionDate = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: SUBMISSION_TIME_ZONE })
+const submissionWeekday = new Intl.DateTimeFormat('en-GB', { weekday: 'short', timeZone: SUBMISSION_TIME_ZONE })
+const submissionTime = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: SUBMISSION_TIME_ZONE })
+
+export function ApplicationSubmittedAt({ value, compact = false }) {
+  const parsed = new Date(value)
+  if (!Number.isFinite(parsed.getTime())) return <span className="adm-submitted-at is-missing">Not recorded</span>
+  return <time className={`adm-submitted-at ${compact ? 'is-compact' : ''}`} dateTime={parsed.toISOString()}>
+    <b>{compact ? submissionDate.format(parsed) : `${submissionWeekday.format(parsed)}, ${submissionDate.format(parsed)}`}</b>
+    <small><span>{submissionTime.format(parsed)}</span><em>Algiers time</em></small>
+  </time>
+}
+
 const titles = { applications: ['People · Join intake', 'Join applications', 'Every new connection starts here. Review, meet and welcome the next Infinity members.'], members: ['Community · Member directory', 'Members', 'The people who make Infinity. Follow their journey, participation and interests.'], staff: ['Operations · Team structure', 'Staff operations', 'Three departments. One shared direction. Keep your team coordinated.'] }
 const unique = (items, key) => [...new Set(items.map((item) => item[key]))].filter(Boolean)
 const Person = ({ record }) => <div className="adm-person-cell"><Avatar initials={record.initials} small/><span><b>{record.name}</b><small>{record.email || record.id}</small></span>{record.status === 'New' && <i title="New application"/>}</div>
@@ -68,7 +82,7 @@ export function CandidateDossier({ detail, note = '', setNote, onSave, noteSavin
     <section className="adm-candidate-overview">
       <div className="adm-candidate-overview__rail"><code>{detail.ref || detail.id}</code><span>JOIN INTAKE / {detail.form}</span></div>
       <div className="adm-candidate-overview__identity"><Avatar initials={detail.initials}/><div><span>{detail.type} application</span><h3>{detail.name}</h3><p>{detail.level} · {detail.speciality}</p></div><StatusBadge>{detail.status}</StatusBadge></div>
-      <dl><div><dt>Submitted</dt><dd>{detail.date}</dd></div><div><dt>Source</dt><dd>{detail.source}</dd></div><div><dt>Consent</dt><dd><Check size={13}/>{detail.consent === false ? 'Not recorded' : 'Recorded'}</dd></div></dl>
+      <dl><div><dt>Submitted</dt><dd><ApplicationSubmittedAt value={detail.submittedAt || detail.date}/></dd></div><div><dt>Source</dt><dd>{detail.source}</dd></div><div><dt>Consent</dt><dd><Check size={13}/>{detail.consent === false ? 'Not recorded' : 'Recorded'}</dd></div></dl>
     </section>
 
     <CandidateProgress status={detail.status}/>

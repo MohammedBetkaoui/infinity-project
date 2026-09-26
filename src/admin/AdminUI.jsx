@@ -125,14 +125,14 @@ export function Tabs({ items, value, onChange, counts = {}, getLabel = (item) =>
   )
 }
 
-export function Modal({ open, onClose, title, eyebrow = 'Confirmation', children, footer, wide = false, closeLabel = 'Close' }) {
+export function Modal({ open, onClose, title, eyebrow = 'Confirmation', children, footer, wide = false, className = '', closeLabel = 'Close' }) {
   const ref = useRef(null)
   const titleId = useId()
   useDialog(ref, open, onClose)
   if (!open) return null
   return (
     <div className="adm-modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section ref={ref} tabIndex={-1} className={`adm-modal ${wide ? 'is-wide' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId}>
+      <section ref={ref} tabIndex={-1} className={`adm-modal ${wide ? 'is-wide' : ''} ${className}`.trim()} role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <header><div><p className="adm-eyebrow">{eyebrow}</p><h2 id={titleId}>{title}</h2></div><IconButton label={closeLabel} onClick={onClose}><X size={19} /></IconButton></header>
         <div className="adm-modal__body">{children}</div>
         {footer && <footer>{footer}</footer>}

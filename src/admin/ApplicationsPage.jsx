@@ -4,9 +4,9 @@ import { useSearchParams } from 'react-router-dom'
 import { useAdminAuth } from './AdminAuth'
 import { useAdmin } from './AdminStore'
 import { ActionDialog, RecordTable, RecordToolbar } from './AdminRecords'
-import { CandidateActionBar, CandidateDossier } from './PeoplePages'
-import { APPLICATION_STATUSES, AVAILABILITY, DEPARTMENTS, EXPERIENCE, LEVELS, POLES, dateLabel } from './adminModel'
-import { Avatar, Button, Drawer, PageHeader, StatusBadge, Tabs } from './AdminUI'
+import { ApplicationSubmittedAt, CandidateActionBar, CandidateDossier } from './PeoplePages'
+import { APPLICATION_STATUSES, AVAILABILITY, DEPARTMENTS, EXPERIENCE, LEVELS, POLES } from './adminModel'
+import { Avatar, Button, Modal, PageHeader, StatusBadge, Tabs } from './AdminUI'
 import { useAdminApplicationActions, useAdminApplications } from './useAdminApplications'
 
 const STATUS_KEYS = Object.freeze({
@@ -83,7 +83,7 @@ export default function ApplicationsPage() {
     { key: 'level', label: 'Studies', render: (record) => <><b>{record.level}</b><small className="adm-cell-sub">{record.speciality}</small></> },
     { key: 'track', label: 'Interest / department' },
     { key: 'availability', label: 'Availability', secondary: true },
-    { key: 'date', label: 'Submitted', secondary: true, render: (record) => dateLabel(record.submittedAt) },
+    { key: 'date', label: 'Submitted', render: (record) => <ApplicationSubmittedAt value={record.submittedAt} compact/> },
     { key: 'status', label: 'Status', render: (record) => <StatusBadge>{record.status}</StatusBadge> },
   ], [])
 
@@ -214,9 +214,9 @@ export default function ApplicationsPage() {
     {detailLoading && <div className="adm-applications-detail-loading" role="status"><RefreshCw size={16}/><span>Opening secure application…</span></div>}
     {detailError && !detailLoading && <div className="adm-inline-application-error" role="alert"><span>{detailError}</span><button onClick={() => setDetailError('')}>Dismiss</button></div>}
 
-    {detail && <Drawer className="is-candidate-drawer" title="Application review" eyebrow={detail.ref} onClose={() => setDetail(null)} footer={<CandidateActionBar detail={detail} request={requestAction}/> }>
+    {detail && <Modal open wide className="is-candidate-modal" title="Application review" eyebrow={detail.ref} onClose={() => setDetail(null)} footer={<CandidateActionBar detail={detail} request={requestAction}/> }>
       <CandidateDossier detail={detail}/>
-    </Drawer>}
+    </Modal>}
 
     {action && <ActionDialog key={action.title} action={action} onClose={() => setAction(null)} onSubmit={submitAction}/>} 
   </div>
