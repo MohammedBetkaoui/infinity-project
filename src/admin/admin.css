@@ -919,6 +919,15 @@
 .adm-correction-summary { margin-top: 9px; padding: 12px; background: rgba(245,158,11,.07); border: 1px solid rgba(245,158,11,.25); }
 .adm-correction-summary p, .adm-correction-summary ul { margin: 6px 0; font-size: 9px; }
 .adm-correction-summary small { color: var(--adm-muted); }
+.adm-correction-items-list { display: grid; gap: 8px; padding: 0; list-style: none; }
+.adm-correction-item { padding: 9px 10px; background: #fff; border: 1px solid var(--adm-line); }
+.adm-correction-item-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 9px; font-weight: 700; }
+.adm-correction-item-hint { display: flex; align-items: center; gap: 8px; margin-top: 7px; padding-top: 7px; border-top: 1px solid var(--adm-line); color: var(--adm-muted); font-size: 9px; }
+.adm-correction-item-fields { margin-top: 7px; padding-top: 7px; border-top: 1px solid var(--adm-line); }
+.adm-correction-item-fields dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; margin: 0; }
+.adm-correction-item-fields dt { color: var(--adm-secondary); font-size: 8px; font-weight: 700; text-transform: uppercase; }
+.adm-correction-item-fields dd { margin: 2px 0 0; font-size: 9px; font-weight: 600; }
+.adm-correction-item-actions { display: flex; gap: 8px; margin-top: 9px; }
 .adm-correction-items { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; margin: 0 0 15px; padding: 12px; border: 1px solid var(--adm-line); }
 .adm-correction-items legend { padding: 0 5px; color: var(--adm-secondary); font-size: 9px; font-weight: 700; }
 .adm-correction-items label { display: flex; align-items: center; gap: 7px; min-height: 32px; font-size: 9px; }

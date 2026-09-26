@@ -211,7 +211,58 @@ function documentOutcomeLabel(status) {
   return 'Waiting for review'
 }
 
-function AivexReviewSummary({ team, allowed, locale, syncStatus, onTab, onDecision, onCorrections }) {
+const CORRECTION_ITEM_STATUS_TONE = { open: 'warning', submitted: 'info', verified: 'success' }
+const CORRECTION_ITEM_STATUS_LABEL = { open: 'Awaiting the team', submitted: 'Submitted — needs review', verified: 'Verified' }
+const ACTIVITY_ROLE_LABELS = { sub_director_activities: 'Deputy director of activities', activities_officer: 'Activities manager' }
+
+// One requested item's live status. A document-kind item resolves through
+// the Documents tab's existing SecureViewer review (verify_document /
+// invalidate_document already syncs the matching correction item — see the
+// migration) — never a second control here. A field-kind item ('Team
+// information' / 'Activities manager') has no other review surface, so its
+// proposed values and the Verified / Needs another attempt buttons live
+// right here, calling resolve_correction_item.
+function CorrectionItemRow({ item, allowed, onTab, onResolveItem, resolving, t }) {
+  const fields = item.submittedFields
+  return (
+    <li className="adm-correction-item" data-status={item.status}>
+      <div className="adm-correction-item-head">
+        <span>{t(item.item)}</span>
+        <StatusBadge tone={CORRECTION_ITEM_STATUS_TONE[item.status]}>{t(CORRECTION_ITEM_STATUS_LABEL[item.status] || item.status)}</StatusBadge>
+      </div>
+      {item.status === 'submitted' && item.kind === 'document' && (
+        <p className="adm-correction-item-hint">
+          {t('Review the resubmitted file from the Documents tab, then accept or reject it there.')}
+          <button type="button" className="adm-text-action" onClick={() => onTab('Documents')}>{t('Open Documents')}<ArrowRight size={13}/></button>
+        </p>
+      )}
+      {item.status === 'submitted' && item.kind === 'field' && fields && (
+        <div className="adm-correction-item-fields">
+          <dl>
+            {item.item === 'Team information' ? <>
+              <div><dt>{t('Team name')}</dt><dd><Ltr>{fields.name}</Ltr></dd></div>
+              <div><dt>{t('Wilaya')}</dt><dd><Ltr>{fields.wilaya?.name}</Ltr></dd></div>
+              <div><dt>{t('Institution')}</dt><dd><Ltr>{fields.institution?.name}</Ltr></dd></div>
+            </> : <>
+              <div><dt>{t('Role')}</dt><dd>{t(ACTIVITY_ROLE_LABELS[fields.role] || fields.role)}</dd></div>
+              <div><dt>{t('Full name')}</dt><dd><Ltr>{fields.fullName}</Ltr></dd></div>
+              <div><dt>{t('Email')}</dt><dd><Ltr>{fields.email}</Ltr></dd></div>
+              <div><dt>{t('Phone')}</dt><dd><Ltr>{fields.phone}</Ltr></dd></div>
+            </>}
+          </dl>
+          {allowed.has('resolve_correction_item') && (
+            <div className="adm-correction-item-actions">
+              <Button variant="secondary" disabled={resolving} onClick={() => onResolveItem(item.id, 'rejected')}>{t('Needs another attempt')}</Button>
+              <Button disabled={resolving} onClick={() => onResolveItem(item.id, 'verified')} icon={<CheckCircle2 size={15}/>}>{t('Verified')}</Button>
+            </div>
+          )}
+        </div>
+      )}
+    </li>
+  )
+}
+
+function AivexReviewSummary({ team, allowed, locale, syncStatus, onTab, onDecision, onCorrections, onResolveItem, resolvingItemId }) {
   const { isArabic, t } = locale
   const review = team.reviewSummary
   const outstanding = review.blockers.length
@@ -235,7 +286,7 @@ function AivexReviewSummary({ team, allowed, locale, syncStatus, onTab, onDecisi
       {outstanding > 0 && <ul>{review.blockers.map((blocker) => <li key={blocker.key}><span><i/>{t(REVIEW_BLOCKER_LABELS[blocker.key])}</span><button type="button" onClick={() => onTab(blocker.tab)}>{t('Open')}<ArrowRight size={13}/></button></li>)}</ul>}
       {outstanding > 0 && allowed.has('request_corrections') && <div className="adm-review-support"><Button variant="secondary" onClick={onCorrections}>{t('Request corrections')}</Button></div>}
     </div>
-    {team.correctionRequest && <div className="adm-correction-summary"><b>{t('Current correction request')}</b><small>{t('Due')} <Ltr>{team.correctionRequest.deadline}</Ltr></small><ul>{team.correctionRequest.items.map((item) => <li key={item}>{t(item)}</li>)}</ul></div>}
+    {team.correctionRequest && <div className="adm-correction-summary"><b>{t('Current correction request')}</b><small>{t('Due')} <Ltr>{team.correctionRequest.deadline}</Ltr></small><ul className="adm-correction-items-list">{team.correctionRequest.itemStatuses.map((item) => <CorrectionItemRow key={item.id} item={item} allowed={allowed} onTab={onTab} onResolveItem={onResolveItem} resolving={resolvingItemId === item.id} t={t}/>)}</ul></div>}
   </section>
 }
 
@@ -342,6 +393,7 @@ export function AivexDetailPage() {
   const [busy, setBusy] = useState(false)
   const [downloadBusy, setDownloadBusy] = useState(false)
   const [verificationSync, setVerificationSync] = useState('current')
+  const [resolvingItemId, setResolvingItemId] = useState(null)
 
   const refreshDetail = useCallback(async () => {
     try {
@@ -455,6 +507,17 @@ export function AivexDetailPage() {
     setCorrections(false)
     addToast(t('Corrections requested'), t('The request is saved in the protected AIVEX history.'))
   }
+  const resolveCorrectionItem = async (itemId, decision) => {
+    setResolvingItemId(itemId)
+    const result = await act(team.ref, {
+      action: 'resolve_correction_item', expectedUpdatedAt: team.updatedAt, payload: { itemId, decision },
+    })
+    setResolvingItemId(null)
+    if (!result.ok) { addToast(t('Action failed'), t(result.message)); return }
+    setTeam(result.team)
+    setVerificationSync('current')
+    addToast(t(decision === 'verified' ? 'Correction verified' : 'Sent back to the team'), t('The real AIVEX file and its protected history were updated.'))
+  }
 
   return <div className={`adm-page adm-aivex-page adm-team-page ${isArabic ? 'is-arabic' : ''}`} dir={dir} lang={language}>
     <Link className="adm-back-link" to={path('/admin/aivex')}><ArrowLeft size={15}/>{t('All AIVEX files')}<span>/</span>{t('Team dossier breadcrumb')}</Link>
@@ -477,7 +540,7 @@ export function AivexDetailPage() {
       ['student', 'C', 'Student cards', 'Exactly three files · JPG, PNG or WEBP · Maximum 5 MB each'],
       ['identity', 'D', 'Identity documents', 'Delegation leader & driver · JPG or PNG · Maximum 5 MB each'],
     ].map(([category, index, title, meta]) => <section className="adm-panel adm-file-category" key={category}><SectionHeading index={index} title={t(title)} meta={t(meta)}/>{team.docs.filter((document) => document.category === category).map((document) => <div className="adm-file-row" key={document.id}><span className={`adm-file-icon ${category !== 'official' ? 'is-locked' : ''}`}>{category === 'official' ? <FileText size={22}/> : <LockKeyhole size={20}/>}</span><div className="adm-file-name"><b><Ltr>{document.name}</Ltr></b><small><Ltr>{document.person}</Ltr> · <Ltr>{document.type}</Ltr> · <Ltr>{document.size}</Ltr></small>{category === 'official' && <code>{t('Template')} <Ltr>{document.template}</Ltr> · {t('Revision')} <Ltr>{document.revision}</Ltr></code>}</div><div className="adm-file-time"><span>{dateLabel(document.created)}</span><small><Ltr>{timeLabel(document.created)}</Ltr></small></div>{document.version && <span className="adm-version"><Ltr>v{document.version}</Ltr> · {t(document.active ? 'Active' : 'Previous')}</span>}{category === 'official' ? <AivexStatus value={document.status} t={t}/> : <div className="adm-file-review-state"><AivexStatus value={document.status} t={t}/><small>{t(documentOutcomeLabel(document.status))}</small></div>}{category === 'official' ? document.canOpen ? <IconButton label={t('Download secure DOCX')} disabled={downloadBusy} onClick={download}><Download size={18}/></IconButton> : allowed.has('retry_generation') ? <Button variant="secondary" onClick={regenerate}>{t(document.status === 'Generation issue' ? 'Retry generation' : 'Generate form')}</Button> : null : <Button variant="secondary" disabled={!document.canOpen} onClick={() => openFile(document)} icon={<LockKeyhole size={14}/>}>{t(document.status === 'Verified' ? 'Review again' : 'Review document')}</Button>}</div>)}{!team.docs.some((document) => document.category === category) && <div className="adm-file-absent"><FolderClosed size={23}/><div><b>{t('No signed document received')}</b><p>{t('The official form still needs to be signed and stamped by the institution.')}</p></div><AivexStatus value="Absent" tone="warning" t={t}/></div>}</section>)}</div>}
-    {tab === 'Verification' && <div className="adm-verification-layout"><AivexReviewSummary team={team} allowed={allowed} locale={locale} syncStatus={verificationSync} onTab={setTab} onDecision={decision} onCorrections={() => { setCorrectionError(''); setCorrections(true) }}/><AivexDecisionPanel team={team} allowed={allowed} locale={locale} onDecision={decision}/></div>}
+    {tab === 'Verification' && <div className="adm-verification-layout"><AivexReviewSummary team={team} allowed={allowed} locale={locale} syncStatus={verificationSync} onTab={setTab} onDecision={decision} onCorrections={() => { setCorrectionError(''); setCorrections(true) }} onResolveItem={resolveCorrectionItem} resolvingItemId={resolvingItemId}/><AivexDecisionPanel team={team} allowed={allowed} locale={locale} onDecision={decision}/></div>}
     {tab === 'History' && <section className="adm-panel adm-dossier-section"><SectionHeading index="07" title={t('Complete file history')} meta={t('Authors, timestamps & decisions')}/><History items={team.history} translate={t} locale={isArabic ? 'ar-DZ' : 'en-GB'} emptyTitle={t('Historical data incomplete')} emptyCopy={t('No earlier actions are available for this file. New actions will appear here.')}/><div className="adm-history-note"><LockKeyhole size={15}/><p>{t('Confidential document consultations are recorded separately in the')} <Link to="/admin/activity?sensitivity=Confidential">{t('global activity log')}</Link>.</p></div></section>}
     {file && <SecureViewer key={file.id} team={team} document={file} onClose={closeViewer} onUpdated={setTeam} locale={locale} loadDocument={loadDocument} act={act}/>} 
     {action && <ActionDialog key={action.key} action={action} labels={actionDialogLabels(isArabic, t)} getOptionLabel={t} onClose={() => setAction(null)} onSubmit={submitAction}/>} 
