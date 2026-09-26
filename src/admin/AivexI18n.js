@@ -269,6 +269,7 @@ const ARABIC = Object.freeze({
   'Access is logged. Do not copy, download or disclose personal documents outside the authorised review process.': 'يتم تسجيل كل وصول. يُمنع نسخ الوثائق الشخصية أو تنزيلها أو مشاركتها خارج مسار المراجعة المصرح به.',
   'Zoom out': 'تصغير',
   'Zoom in': 'تكبير',
+  'Reset zoom': 'إعادة التكبير إلى 100٪',
   'Rotate document': 'تدوير الوثيقة',
   'SECURE SERVER VIEW': 'عرض آمن من الخادم',
   'Opening secure document': 'جارٍ فتح الوثيقة الآمنة',
