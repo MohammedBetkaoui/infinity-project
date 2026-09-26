@@ -38,11 +38,11 @@ function correctionDropzoneStrings(t) {
   }
 }
 
-function DocumentCorrectionForm({ itemId, correction, t }) {
+function DocumentCorrectionForm({ itemId, item, correction, t }) {
   const upload = correction.uploadFor(itemId)
   return (
     <SignedDocumentDropzone
-      upload={upload} hasExisting selectSignedDocument={(file) => correction.selectFile(itemId, file)}
+      upload={upload} hasExisting selectSignedDocument={(file) => correction.selectFile(itemId, item, file)}
       clearSignedDocument={() => correction.clearFile(itemId)} submitSignedDocument={() => correction.submitFile(itemId)}
       t={correctionDropzoneStrings(t)}
     />
@@ -169,7 +169,7 @@ export default function CorrectionRequestPanel({ correctionRequest, lang, token,
                   <em>{t.correctionStatus[entry.status] || entry.status}</em>
                 </div>
                 {entry.status === 'open' && isSelfServiceCard && (
-                  <DocumentCorrectionForm itemId={entry.id} correction={correction} t={t} />
+                  <DocumentCorrectionForm itemId={entry.id} item={entry.item} correction={correction} t={t} />
                 )}
                 {entry.status === 'open' && isIdentityDocument && (
                   <p className="axs-correction-contact">
