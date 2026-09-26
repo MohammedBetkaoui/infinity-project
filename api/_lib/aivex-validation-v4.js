@@ -26,6 +26,7 @@ import {
   IDENTITY_CARD_FIELDS, IDENTITY_CARD_POLICY, IDENTITY_CARD_SUBJECTS, REGISTRATION_FILE_FIELDS, STUDENT_CARD_FIELDS,
   STUDENT_CARD_POLICY, canonicalCardMime, identityCardField, imageFileIssue, studentCardField,
 } from '../../shared/aivex/contract-v4.js'
+import { correctionCardSpec } from '../../shared/aivex/correction-items.js'
 
 const fail = (status, message, field) => ({ ok: false, status, message, field })
 
@@ -124,6 +125,24 @@ export async function validateStudentCardsV4(students, files) {
 // delegation then the driver, or { ok: false, status, message, field }.
 export async function validateIdentityCardsV4(files) {
   return unexpectedFile(files, IDENTITY_CARD_FIELDS) || checkIdentityCards(files)
+}
+
+// One resubmitted student card for a correction item (api/_lib/aivex-
+// correction-upload.js) — same real-bytes checks as a fresh registration's
+// card (checkImagePart). shared/aivex/correction-items.js's
+// correctionCardSpec never maps an identity-document item ('Delegation
+// leader ID' / 'Driver ID') or the signed form here — those two are
+// deliberately not self-serviceable via the Magic Link (see that function's
+// own comment), and the signed form uses the pre-existing, unrelated
+// signed-document upload flow. Returns { ok: true, mime, extension, size,
+// position } or the usual failure shape.
+export async function validateCorrectionCardV4(item, file) {
+  const spec = correctionCardSpec(item)
+  if (!spec) return fail(400, 'This item does not accept a file.', 'item')
+  const label = `Student card ${String(spec.position).padStart(2, '0')}`
+  const checked = await checkImagePart({ file, policy: spec.policy, words: WORDS.studentCard, label, field: 'file' })
+  if (!checked.ok) return checked
+  return { ok: true, ...checked, position: spec.position }
 }
 
 // Everything a registration request may carry: exactly the five image parts

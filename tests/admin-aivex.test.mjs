@@ -61,6 +61,7 @@ class MemoryAivexStore {
     return [...['delegation-leader', 'driver', 'signed-v1', 'student-1', 'student-2', 'student-3']].map((key) => ({ document_key: key, review_status: 'verified', note: 'Visual match confirmed.', reviewed_at: '2026-09-24T10:00:00.000Z', reviewer: { display_name: 'AIVEX Administrator' } }))
   }
   async corrections() { return [] }
+  async correctionItems() { return [] }
   async audit() { return [...this.audits] }
   async applyAction(input) { this.actions.push(input); return NOW.toISOString() }
   async auditEvent(input) { this.audits.push({ action: input.action, sensitivity: input.sensitivity, metadata: input.metadata, created_at: input.now.toISOString(), administrator: { display_name: 'AIVEX Administrator' } }) }

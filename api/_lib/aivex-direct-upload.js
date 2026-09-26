@@ -3,11 +3,12 @@ import {
   AIVEX_EDITION, IDENTITY_CARD_FIELDS, IDENTITY_CARD_POLICY, REGISTRATION_FILE_FIELDS, STUDENT_CARD_FIELDS,
   STUDENT_CARD_POLICY, canonicalCardMime,
 } from '../../shared/aivex/contract-v4.js'
+import { correctionCardSpec } from '../../shared/aivex/correction-items.js'
 import {
   MAX_SIGNED_DOCUMENT_SIZE, SIGNED_DOCUMENT_BUCKET, SIGNED_DOCUMENT_TYPES, canonicalSignedDocumentMime,
 } from '../../shared/aivex/signed-document-policy.js'
 import { sanitizeOriginalFileName } from './aivex-signed-document-upload.js'
-import { validateRegistrationFilesV4 } from './aivex-validation-v4.js'
+import { validateCorrectionCardV4, validateRegistrationFilesV4 } from './aivex-validation-v4.js'
 import { validateSignedDocumentUpload } from './aivex-signed-document-validation.js'
 
 const SESSIONS = 'aivex_upload_sessions'
@@ -74,6 +75,27 @@ export function buildSignedDocumentUploadManifest(sessionId, hint) {
   }]
 }
 
+// A correction item's replacement student card (the only document-kind item
+// with a self-service upload — see correctionCardSpec's own comment for why
+// the two identity-document items and the signed form are not built here).
+// `itemId` (the aivex_correction_items row id) travels as the manifest's
+// `field`, exactly how the registration manifest above carries a field name:
+// it is how the finalize handler later knows which item and, via
+// `position`, which final storage path and DB row to write to.
+export function buildCorrectionCardUploadManifest(sessionId, itemId, item, hint) {
+  const spec = correctionCardSpec(item)
+  if (!spec) return null
+  const normalized = normalizeHint(hint, spec.policy, canonicalCardMime)
+  if (!normalized) return null
+  return [{
+    field: itemId,
+    bucket: spec.policy.bucket,
+    path: `staging/corrections/${sessionId}/student-${spec.position}.${normalized.extension}`,
+    position: spec.position,
+    ...normalized,
+  }]
+}
+
 export function createSupabaseUploadSessionStore(supabase) {
   const storage = (bucket) => supabase.storage.from(bucket)
   return {
@@ -88,6 +110,14 @@ export function createSupabaseUploadSessionStore(supabase) {
     async findSignedSession(registrationId, uploadId, now) {
       const { data, error } = await supabase.from(SESSIONS).select('*')
         .eq('kind', 'signed_document').eq('registration_id', registrationId).eq('upload_id', uploadId)
+        .in('status', ['initialized', 'failed', 'finalizing']).gt('expires_at', now.toISOString())
+        .order('created_at', { ascending: false }).limit(1).maybeSingle()
+      if (error) throw new DirectUploadError('session-lookup', error)
+      return data
+    },
+    async findCorrectionSession(registrationId, uploadId, now) {
+      const { data, error } = await supabase.from(SESSIONS).select('*')
+        .eq('kind', 'correction_document').eq('registration_id', registrationId).eq('upload_id', uploadId)
         .in('status', ['initialized', 'failed', 'finalizing']).gt('expires_at', now.toISOString())
         .order('created_at', { ascending: false }).limit(1).maybeSingle()
       if (error) throw new DirectUploadError('session-lookup', error)
@@ -197,6 +227,21 @@ export async function verifySignedDocumentStaging(store, session) {
   const validated = await validateSignedDocumentUpload(file)
   if (!validated.ok) return { ...validated, reason: 'invalid_file' }
   return { ok: true, file: { ...validated, filename: manifest[0].originalFileName, sourcePath: manifest[0].path } }
+}
+
+// `item` (the correction's label, e.g. 'Student card 02') is passed in by
+// the caller, which already loaded the aivex_correction_items row fresh
+// (never trusted from the session alone) — the manifest's own `field` is
+// only the item's id, used to fetch that row, not to re-derive its label.
+export async function verifyCorrectionUploadStaging(store, session, item) {
+  const manifest = session.expected_files
+  if (!Array.isArray(manifest) || manifest.length !== 1) return { ok: false, status: 400, reason: 'invalid_session' }
+  const inspected = await store.inspectManifest(manifest)
+  if (!inspected.ok) return inspected
+  const file = inspected.files.get(manifest[0].field)
+  const validated = await validateCorrectionCardV4(item, file)
+  if (!validated.ok) return { ...validated, reason: 'invalid_file' }
+  return { ok: true, file: { ...validated, sourcePath: manifest[0].path, bucket: manifest[0].bucket } }
 }
 
 export const newUploadSessionId = () => randomUUID()

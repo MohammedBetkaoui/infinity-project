@@ -62,6 +62,22 @@ test('progressFor: an unknown status claims nothing beyond the registration', ()
   assert.deepEqual(progressFor('brand_new_status').map((step) => step.state), ['done', 'upcoming', 'upcoming', 'upcoming'])
 })
 
+test('progressFor: a correction unrelated to the signed form does not un-complete it', () => {
+  assert.deepEqual(
+    progressFor('changes_required', { hasSignedDocument: true, correctionTargetsSignedForm: false }).map((s) => s.state),
+    ['done', 'done', 'done', 'attention'],
+  )
+  assert.deepEqual(
+    progressFor('changes_required', { hasSignedDocument: true, correctionTargetsSignedForm: true }).map((s) => s.state),
+    ['done', 'done', 'attention', 'upcoming'],
+  )
+  assert.deepEqual(
+    progressFor('changes_required', { hasSignedDocument: false }).map((s) => s.state),
+    ['done', 'done', 'attention', 'upcoming'],
+  )
+  assert.deepEqual(progressFor('changes_required').map((s) => s.state), ['done', 'done', 'attention', 'upcoming'], 'no context: the safe legacy default')
+})
+
 test('toneFor: action for the signature step, success only for received/validated, issue for problems', () => {
   assert.equal(toneFor('awaiting_signature'), 'action')
   assert.equal(toneFor('signed_document_uploaded'), 'success')
@@ -80,6 +96,13 @@ test('stageFor: upload stages are exactly the statuses the server accepts, inclu
   assert.equal(stageFor('generating'), 'preparing')
   assert.equal(stageFor('generation_failed'), 'retry')
   for (const status of ['under_review', 'validated', 'expired', 'something_new']) assert.equal(stageFor(status), 'other', status)
+})
+
+test('stageFor: an open correction unrelated to the signed form does not hide a document already on file', () => {
+  assert.equal(stageFor('changes_required', { hasSignedDocument: true, correctionTargetsSignedForm: false }), 'received')
+  assert.equal(stageFor('changes_required', { hasSignedDocument: true, correctionTargetsSignedForm: true }), 'sign')
+  assert.equal(stageFor('changes_required', { hasSignedDocument: false, correctionTargetsSignedForm: false }), 'sign')
+  assert.equal(stageFor('changes_required'), 'sign', 'no context: the safe legacy default')
 })
 
 test('dossierStateFor: the team sees one truthful overall administrative state', () => {
@@ -149,7 +172,6 @@ const STRING_KEYS = [
   'uploadDropTitle', 'uploadDropActive', 'uploadDropOr', 'uploadRemove', 'uploadProcessing',
   'newVersionTitle', 'newVersionHint', 'helpText', 'privateNote', 'fieldReference', 'fieldInstitution',
   'fieldWilaya', 'fieldStudents', 'fieldRegistrationStatus', 'validKicker',
-  'fieldDocumentStatus', 'currentStatusTitle', 'currentStatusAuto', 'currentStatusHint', 'refreshStatus',
 ]
 
 test('status strings: every new key exists, as a non-empty string, in EN, FR and AR', () => {
@@ -182,7 +204,7 @@ test('status strings: every document status has a label in every language, and e
 test('status strings: "received" wording never claims the document was checked or validated', () => {
   for (const [lang, strings] of Object.entries(statusStrings)) {
     const received = [
-      strings.uploadSuccessTitle, strings.uploadReceivedTitle, strings.uploadReceivedNote, strings.uploadReceivedOn({ date: '' }),
+      strings.uploadSuccessTitle, strings.uploadReceivedTitle, strings.uploadReceivedNote, strings.uploadReceivedNoteCorrectionsElsewhere, strings.uploadReceivedOn({ date: '' }),
       strings.documentStatus.signed_document_uploaded,
       strings.dossierStatus.received.title, strings.dossierStatus.received.text,
     ].join(' ')
@@ -209,8 +231,8 @@ const withoutComments = (source) => source
 
 test('status page components never persist, log or beacon anything', async () => {
   const files = [
-    'AivexStatusPage.jsx', 'CurrentDossierStatus.jsx', 'DossierHeader.jsx', 'OfficialFormPanel.jsx', 'ProgressTracker.jsx', 'ReceivedPanel.jsx',
-    'SignaturePanel.jsx', 'SignedDocumentDropzone.jsx', 'StatusNotices.jsx', 'statusModel.js', 'useAivexStatus.js',
+    'AivexStatusPage.jsx', 'CorrectionRequestPanel.jsx', 'DossierHeader.jsx', 'OfficialFormPanel.jsx', 'ProgressTracker.jsx', 'ReceivedPanel.jsx',
+    'SignaturePanel.jsx', 'SignedDocumentDropzone.jsx', 'StatusNotices.jsx', 'statusModel.js', 'useAivexStatus.js', 'useCorrectionSubmission.js',
   ]
   for (const file of files) {
     const code = withoutComments(await read(`src/pages/aivex/status/${file}`))

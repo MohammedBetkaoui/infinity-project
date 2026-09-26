@@ -30,7 +30,15 @@ const PROGRESS = {
 // registration exists (the token resolved), nothing else is claimed.
 const UNKNOWN_PROGRESS = ['done', 'upcoming', 'upcoming', 'upcoming']
 
-export function progressFor(documentStatus) {
+// `context` disambiguates `changes_required`, which the static table above
+// cannot: it is the same document_status whether the open correction is
+// about the signed form itself or about something else entirely (a student
+// card, the team's own information...) while a signed document already sits
+// on file. Only in the latter case is the "signed" step actually done.
+export function progressFor(documentStatus, context = {}) {
+  if (documentStatus === 'changes_required' && context.hasSignedDocument && !context.correctionTargetsSignedForm) {
+    return PROGRESS_STEPS.map((id, index) => ({ id, state: ['done', 'done', 'done', 'attention'][index] }))
+  }
   const states = PROGRESS[documentStatus] || UNKNOWN_PROGRESS
   return PROGRESS_STEPS.map((id, index) => ({ id, state: states[index] }))
 }
@@ -74,11 +82,18 @@ export function dossierStateFor(registrationStatus, documentStatus) {
 // Which panel the page leads with. 'sign' and 'received' are the two that
 // can upload (the same two statuses shared/aivex/signed-document-policy.js
 // lists); the rest are informational.
-export function stageFor(documentStatus) {
+//
+// `changes_required` alone does not say WHICH item needs fixing: a
+// correction about a student card or the team's own information, requested
+// after the signed form was already received, must not make an
+// already-compliant team believe their signed document never arrived. Only
+// when the signed form itself is one of the requested items (or none has
+// been received yet) does this state still mean "come sign/upload".
+export function stageFor(documentStatus, context = {}) {
   switch (documentStatus) {
     case 'awaiting_signature': return 'sign'
     case 'signed_document_uploaded': return 'received'
-    case 'changes_required': return 'sign'
+    case 'changes_required': return context.hasSignedDocument && !context.correctionTargetsSignedForm ? 'received' : 'sign'
     case 'not_generated':
     case 'generating': return 'preparing'
     case 'generation_failed': return 'retry'

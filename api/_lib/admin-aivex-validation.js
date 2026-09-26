@@ -1,5 +1,6 @@
 import { REGISTRATION_REFERENCE_PATTERN } from './aivex-reference.js'
 import { ADMIN_AIVEX_ACTIONS } from './admin-aivex-permissions.js'
+import { CORRECTION_ITEMS as CORRECTION_ITEM_LIST } from '../../shared/aivex/correction-items.js'
 import {
   DOCUMENT_STATUSES as AIVEX_DOCUMENT_STATUSES,
   REGISTRATION_STATUSES as AIVEX_REGISTRATION_STATUSES,
@@ -17,10 +18,9 @@ const COMPLETENESS = new Set(['complete', 'incomplete'])
 const PRESENCE = new Set(['present', 'absent'])
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const DOCUMENT_KEY_RE = /^(official|student-[1-3]|delegation-leader|driver|signed-v[1-9][0-9]*)$/
-const CORRECTION_ITEMS = new Set([
-  'Team information', 'Activities manager', 'Delegation leader ID', 'Driver ID',
-  'Student card 01', 'Student card 02', 'Student card 03', 'Signed and stamped form',
-])
+const CORRECTION_ITEMS = new Set(CORRECTION_ITEM_LIST)
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const CORRECTION_DECISIONS = new Set(['verified', 'rejected'])
 
 const single = (params, name) => {
   const values = params.getAll(name)
@@ -70,6 +70,10 @@ export function validateAivexActionBody(body) {
     if (!Array.isArray(payload.items) || payload.items.length < 1 || payload.items.length > 8) return { ok: false }
     if (new Set(payload.items).size !== payload.items.length || payload.items.some((item) => !CORRECTION_ITEMS.has(item))) return { ok: false }
     if (!DATE_RE.test(payload.deadline || '')) return { ok: false }
+  }
+  if (body.action === 'resolve_correction_item') {
+    if (typeof payload.itemId !== 'string' || !UUID_RE.test(payload.itemId)) return { ok: false }
+    if (!CORRECTION_DECISIONS.has(payload.decision)) return { ok: false }
   }
 
   return {

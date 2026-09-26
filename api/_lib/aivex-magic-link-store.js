@@ -11,6 +11,7 @@
 const MAGIC_LINKS = 'aivex_magic_links'
 const REGISTRATIONS = 'aivex_registrations'
 const CORRECTIONS = 'aivex_correction_requests'
+const CORRECTION_ITEMS = 'aivex_correction_items'
 
 export class MagicLinkStoreError extends Error {
   constructor(stage, cause) {
@@ -81,19 +82,28 @@ export function createSupabaseMagicLinkStore(supabase) {
       return data
     },
     // The one open (unresolved) correction request for this registration, if
-    // any — same candidate-safe projection rule as above: the team's own
-    // message and deadline, never `internal_note` (admin-only, see the
-    // migration) or who requested it.
+    // any, with its per-item status — same candidate-safe projection rule as
+    // above: the team's own message, deadline and each item's live status
+    // (needed to know which items still need the team's action vs. already
+    // submitted/verified), never `internal_note` (admin-only), the reviewer,
+    // or a rejected attempt's review_note.
     async latestOpenCorrection(registrationId) {
       const { data, error } = await supabase.from(CORRECTIONS)
-        .select('items, team_message, due_at')
+        .select('id, team_message, due_at')
         .eq('registration_id', registrationId)
         .is('resolved_at', null)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()
       if (error) throw new MagicLinkStoreError('load-correction', error)
-      return data
+      if (!data) return null
+
+      const { data: items, error: itemsError } = await supabase.from(CORRECTION_ITEMS)
+        .select('id, item, kind, status')
+        .eq('correction_request_id', data.id)
+      if (itemsError) throw new MagicLinkStoreError('load-correction-items', itemsError)
+
+      return { message: data.team_message, deadline: data.due_at, items: items || [] }
     },
   }
 }

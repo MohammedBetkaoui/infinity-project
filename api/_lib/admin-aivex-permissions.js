@@ -9,6 +9,7 @@ export const ADMIN_AIVEX_ACTIONS = Object.freeze([
   'verify_document',
   'invalidate_document',
   'retry_generation',
+  'resolve_correction_item',
 ])
 
 const REVIEWER_ACTIONS = new Set([
@@ -17,6 +18,7 @@ const REVIEWER_ACTIONS = new Set([
   'verify_activity_official',
   'verify_document',
   'invalidate_document',
+  'resolve_correction_item',
 ])
 
 export function canManageAivex(role, action) {

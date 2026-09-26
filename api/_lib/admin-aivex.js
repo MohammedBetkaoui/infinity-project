@@ -31,6 +31,7 @@ const ACTION_TITLES = Object.freeze({
   verify_document: 'Confidential document verified',
   invalidate_document: 'Document marked invalid',
   retry_generation: 'Official form generation retried',
+  resolve_correction_item: 'Correction item reviewed',
   confidential_document_opened: 'Confidential document opened',
   official_document_downloaded: 'Official form downloaded',
 })
@@ -56,6 +57,11 @@ function normalizeActionInput(input) {
   }
   if (input.action === 'request_corrections') {
     payload.message = `Corrections are required for: ${payload.items.join(', ')}. Please complete them by ${payload.deadline}.`
+  }
+  if (input.action === 'resolve_correction_item') {
+    reason = payload.decision === 'verified'
+      ? 'Correction item accepted by an authorised administrator'
+      : 'Correction item sent back to the team for another attempt'
   }
   return { ...input, reason, payload }
 }
@@ -312,10 +318,11 @@ export function createAdminAivexService({ store, documentStore, now = () => new 
   const detail = async (reference, user) => {
     const registration = await store.findByReference(reference)
     if (!registration) return null
-    const [overview, students, generated, submitted, reviews, corrections, audit] = await Promise.all([
+    const [overview, students, generated, submitted, reviews, corrections, correctionItems, audit] = await Promise.all([
       store.overview(registration.id), store.students(registration.id),
       store.generatedDocuments(registration.id), store.submittedDocuments(registration.id),
-      store.documentReviews(registration.id), store.corrections(registration.id), store.audit(registration.id),
+      store.documentReviews(registration.id), store.corrections(registration.id),
+      store.correctionItems(registration.id), store.audit(registration.id),
     ])
     if (!overview) return null
     const base = mapOverview(overview)
@@ -348,8 +355,24 @@ export function createAdminAivexService({ store, documentStore, now = () => new 
       canValidate: reviewSummary.readyForFinalValidation,
       allowedActions: allowedAivexActions(user.role),
       correctionRequest: latestCorrection ? {
+        id: latestCorrection.id,
         items: latestCorrection.items,
         deadline: latestCorrection.due_at,
+        message: latestCorrection.team_message,
+        itemStatuses: correctionItems
+          .filter((item) => item.correction_request_id === latestCorrection.id)
+          .map((item) => ({
+            id: item.id,
+            item: item.item,
+            kind: item.kind,
+            status: item.status,
+            submittedFields: item.submitted_fields,
+            submittedDocumentKey: item.submitted_document_key,
+            submittedAt: item.submitted_at,
+            reviewedAt: item.reviewed_at,
+            reviewNote: item.review_note,
+            reviewer: item.reviewer?.display_name || null,
+          })),
       } : null,
       history: mapHistory(registration, generated, submitted, corrections, audit),
       documentAccess: audit.filter((event) => event.action === 'confidential_document_opened').map((event) => ({

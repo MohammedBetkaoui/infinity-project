@@ -219,6 +219,7 @@ export default function useAivexStatus() {
   return {
     status: state.status,
     data: state.data,
+    token,
     download,
     downloading: downloadState.busy,
     downloadError: downloadState.error,

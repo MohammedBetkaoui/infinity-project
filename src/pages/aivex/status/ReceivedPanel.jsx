@@ -11,7 +11,7 @@ import { formatReceivedAt } from './statusModel'
 // state — the candidate has already done that — and replacing the document
 // is tucked into a collapsed section, since it is the exception.
 export default function ReceivedPanel({
-  signedDocument, lang, download, downloading, downloadError, upload, selectSignedDocument, clearSignedDocument, submitSignedDocument, t,
+  signedDocument, lang, download, downloading, downloadError, upload, selectSignedDocument, clearSignedDocument, submitSignedDocument, t, note,
 }) {
   const receivedOn = signedDocument?.uploadedAt ? formatReceivedAt(signedDocument.uploadedAt, lang) : ''
 
@@ -41,7 +41,7 @@ export default function ReceivedPanel({
       {upload.status === 'success' && (
         <p className="axs-inline-success" role="status"><CircleCheck size={16} aria-hidden="true" />{t.uploadSuccessTitle}</p>
       )}
-      <p className="axs-received-note">{t.uploadReceivedNote}</p>
+      <p className="axs-received-note">{note || t.uploadReceivedNote}</p>
 
       <div className="axs-received-actions">
         <button type="button" className="af-button af-button-secondary" onClick={download} disabled={downloading} aria-busy={downloading}>

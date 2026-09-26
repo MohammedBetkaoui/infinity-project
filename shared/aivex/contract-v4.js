@@ -419,7 +419,11 @@ function readStudentRfid(value, label, field) {
   return isValidStudentRfid(rfid.value) ? rfid : fail(`${label}: the student RFID must contain exactly 8 digits.`, field)
 }
 
-function readTeam(raw) {
+// Exported for api/_lib/aivex-correction-validation.js (the "Team
+// information" / "Activities manager" resubmission endpoint), which reuses
+// these exactly instead of duplicating the rules: a candidate-resubmitted
+// value must pass the same checks a fresh registration would.
+export function readTeam(raw) {
   const path = 'team'
   if (!isObject(raw)) return fail('Team: invalid data.', path)
   const extra = unexpectedKey(raw, V4_FIELDS.team, path)
@@ -467,7 +471,8 @@ function readTeam(raw) {
   return pass({ name, wilaya: { code: wilaya.code, name: wilaya.name }, institution })
 }
 
-function readActivityOfficial(raw) {
+// Exported for the same reason as readTeam above.
+export function readActivityOfficial(raw) {
   const path = 'activityOfficial'
   const label = 'Activity administration contact'
   if (!isObject(raw)) return fail(`${label}: invalid data.`, path)

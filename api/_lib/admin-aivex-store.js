@@ -164,10 +164,20 @@ export function createAdminAivexStore(supabase) {
     async corrections(registrationId) {
       const { data, error } = await supabase
         .from('aivex_correction_requests')
-        .select('items, team_message, internal_note, due_at, created_at, resolved_at, requester:admin_users!aivex_correction_requests_requested_by_admin_user_id_fkey(display_name)')
+        .select('id, items, team_message, internal_note, due_at, created_at, resolved_at, requester:admin_users!aivex_correction_requests_requested_by_admin_user_id_fkey(display_name)')
         .eq('registration_id', registrationId)
         .order('created_at', { ascending: false })
       if (error) fail('aivex_corrections', error)
+      return data || []
+    },
+
+    async correctionItems(registrationId) {
+      const { data, error } = await supabase
+        .from('aivex_correction_items')
+        .select('id, correction_request_id, item, kind, status, submitted_fields, submitted_document_key, submitted_at, reviewed_at, review_note, reviewer:admin_users!aivex_correction_items_reviewed_by_admin_user_id_fkey(display_name)')
+        .eq('registration_id', registrationId)
+        .order('created_at', { ascending: true })
+      if (error) fail('aivex_correction_items', error)
       return data || []
     },
 

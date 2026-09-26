@@ -5,7 +5,6 @@ import InfinityClubMark from '../../../components/InfinityClubMark'
 import { UPLOAD_ELIGIBLE_DOCUMENT_STATUSES } from '../../../../shared/aivex/signed-document-policy.js'
 import AivexLogoMark from '../AivexLogoMark'
 import CorrectionRequestPanel from './CorrectionRequestPanel'
-import CurrentDossierStatus from './CurrentDossierStatus'
 import DossierHeader from './DossierHeader'
 import OfficialFormPanel from './OfficialFormPanel'
 import ProgressTracker from './ProgressTracker'
@@ -30,22 +29,34 @@ const readLang = () => {
 }
 
 // The candidate's file: who it belongs to, where it stands, and the one
-// thing to do next. Which panel leads is decided by document_status alone
-// (statusModel.js); whether an upload is offered at all stays with the same
-// rule the server enforces (shared/aivex/signed-document-policy.js).
+// thing to do next. Which panel leads is decided by document_status plus two
+// pieces of real context (statusModel.js): whether a signed document already
+// exists, and whether the open correction (if any) is actually about that
+// signed form — otherwise a team that already sent it in would wrongly be
+// told it never arrived just because something else needs fixing. Whether an
+// upload is offered at all stays with the same rule the server enforces
+// (shared/aivex/signed-document-policy.js).
 function Dossier({ data, lang, api, t }) {
   const uploadEligible = UPLOAD_ELIGIBLE_DOCUMENT_STATUSES.includes(data.documentStatus)
-  const stage = stageFor(data.documentStatus)
+  const hasSignedDocument = Boolean(data.signedDocument)
+  // Only an item still awaiting the team's action should force the re-sign
+  // flow: one already submitted (resubmitted, pending admin review) or
+  // verified must not keep telling the team to sign and upload again.
+  const correctionTargetsSignedForm = Boolean(data.correctionRequest?.items?.some(
+    (entry) => entry.item === 'Signed and stamped form' && entry.status === 'open',
+  ))
+  const stageContext = { hasSignedDocument, correctionTargetsSignedForm }
+  const stage = stageFor(data.documentStatus, stageContext)
+  const correctionsElsewhere = data.documentStatus === 'changes_required' && hasSignedDocument && !correctionTargetsSignedForm
   const { download, downloading, downloadError, upload, selectSignedDocument, clearSignedDocument, submitSignedDocument } = api
 
   return (
     <article className="axs-dossier" aria-label={t.validTitle}>
       <DossierHeader data={data} t={t} />
-      <CurrentDossierStatus data={data} onRefresh={api.refresh} refreshing={api.refreshing} refreshFailed={api.refreshFailed} t={t}/>
-      <ProgressTracker documentStatus={data.documentStatus} t={t} />
+      <ProgressTracker documentStatus={data.documentStatus} context={stageContext} t={t} />
 
       {data.documentStatus === 'changes_required' && data.correctionRequest && (
-        <CorrectionRequestPanel correctionRequest={data.correctionRequest} lang={lang} t={t} />
+        <CorrectionRequestPanel correctionRequest={data.correctionRequest} lang={lang} token={api.token} onSubmitted={api.refresh} t={t} />
       )}
 
       {uploadEligible && stage === 'sign' && (
@@ -56,7 +67,8 @@ function Dossier({ data, lang, api, t }) {
       {uploadEligible && stage === 'received' && (
         <ReceivedPanel signedDocument={data.signedDocument} lang={lang} download={download} downloading={downloading}
           downloadError={downloadError} upload={upload} selectSignedDocument={selectSignedDocument}
-          clearSignedDocument={clearSignedDocument} submitSignedDocument={submitSignedDocument} t={t} />
+          clearSignedDocument={clearSignedDocument} submitSignedDocument={submitSignedDocument} t={t}
+          note={correctionsElsewhere ? t.uploadReceivedNoteCorrectionsElsewhere : undefined} />
       )}
       {!uploadEligible && (
         <OfficialFormPanel stage={stage} download={download} downloading={downloading} downloadError={downloadError}
