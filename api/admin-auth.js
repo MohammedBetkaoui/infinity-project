@@ -1,11 +1,17 @@
 import { createServerAdminAuthService, requireAdminSession } from './_lib/admin-auth.js'
 import { createServerAdminApplicationsService } from './_lib/admin-applications.js'
+import { createServerAdminPeopleService } from './_lib/admin-people.js'
 import { createServerAdminAivexService } from './_lib/admin-aivex.js'
 import { canAccessApplications } from './_lib/admin-applications-permissions.js'
+import { canAccessPeople } from './_lib/admin-people-permissions.js'
 import {
   isApplicationId, parseApplicationListOptions, validateApplicationActionBody,
   validateApplicationBulkBody,
 } from './_lib/admin-applications-validation.js'
+import {
+  isPeopleProfileId, parsePeopleListOptions, validatePeopleActionBody,
+  validatePeopleBulkBody, validatePeopleCreateBody,
+} from './_lib/admin-people-validation.js'
 import {
   isAivexDocumentKey, isAivexReference, parseAivexListOptions, validateAivexActionBody,
 } from './_lib/admin-aivex-validation.js'
@@ -23,6 +29,7 @@ import {
 
 const MAX_BODY_BYTES = 4 * 1024
 const MAX_APPLICATION_BODY_BYTES = 24 * 1024
+const MAX_PEOPLE_BODY_BYTES = 24 * 1024
 const MAX_AIVEX_BODY_BYTES = 24 * 1024
 
 export function createAdminLoginHandler({
@@ -267,6 +274,83 @@ export function createAdminApplicationsHandler({
   }
 }
 
+const peopleAdministrationEnabled = (env = process.env) => env.ADMIN_PEOPLE_API_ENABLED === 'true'
+
+export function createAdminPeopleHandler({
+  createService = createServerAdminPeopleService,
+  requireSession = requireAdminSession,
+  env = process.env,
+  enabled = peopleAdministrationEnabled,
+  trustedOrigin = isStrictAdminOrigin,
+} = {}) {
+  return async function adminPeopleHandler(req, res) {
+    if (!enabled(env)) return sendAdminJson(res, 503, { success: false, message: 'People administration is not enabled yet.' })
+    let session
+    try { session = await requireSession(req) } catch (error) {
+      safeAdminAuthLog('people_session', error)
+      return sendAdminJson(res, 503, { success: false, message: 'Administrative service unavailable.' })
+    }
+    if (!session) return sendAdminJson(res, 401, { success: false, message: 'Your session has expired.' })
+    if (!canAccessPeople(session.user.role)) return sendAdminJson(res, 403, { success: false, message: 'This workspace is restricted to super administrators.' })
+
+    const path = adminPathFromRequest(req)
+    const url = new URL(req.url || '/', 'http://localhost')
+    const rootMatch = path.match(/^(members|staff)$/)
+    const detailMatch = path.match(/^(members|staff)\/([0-9a-f-]+)$/i)
+    const actionMatch = path.match(/^(members|staff)\/([0-9a-f-]+)\/actions$/i)
+    const bulkMatch = path.match(/^(members|staff)\/bulk-actions$/i)
+    const kind = rootMatch?.[1] || detailMatch?.[1] || actionMatch?.[1] || bulkMatch?.[1]
+    if (req.method === 'POST' && !trustedOrigin(req, env)) return sendAdminJson(res, 403, { success: false, message: 'Request rejected.' })
+
+    try {
+      const service = createService()
+      if (rootMatch && req.method === 'GET') {
+        const parsed = parsePeopleListOptions(url.searchParams, kind)
+        if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid directory filters.' })
+        return sendAdminJson(res, 200, { success: true, ...(await service.list(kind, parsed.value, session.user)) })
+      }
+      if (rootMatch && req.method === 'POST') {
+        if (!String(req.headers?.['content-type'] || '').toLowerCase().startsWith('application/json')) return sendAdminJson(res, 415, { success: false, message: 'Unsupported request.' })
+        const parsed = validatePeopleCreateBody(await readJsonBody(req, MAX_PEOPLE_BODY_BYTES), kind)
+        if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid profile information.' })
+        const result = await service.create(kind, parsed.value, session.user)
+        if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: result.message })
+        return sendAdminJson(res, 201, { success: true, profile: result.profile })
+      }
+      if (detailMatch && req.method === 'GET') {
+        const profileId = detailMatch[2]
+        if (!isPeopleProfileId(profileId)) return sendAdminJson(res, 404, { success: false, message: 'Profile not found.' })
+        const profile = await service.detail(kind, profileId, session.user)
+        return profile ? sendAdminJson(res, 200, { success: true, profile }) : sendAdminJson(res, 404, { success: false, message: 'Profile not found.' })
+      }
+      if (actionMatch && req.method === 'POST') {
+        if (!String(req.headers?.['content-type'] || '').toLowerCase().startsWith('application/json')) return sendAdminJson(res, 415, { success: false, message: 'Unsupported request.' })
+        const profileId = actionMatch[2]
+        if (!isPeopleProfileId(profileId)) return sendAdminJson(res, 404, { success: false, message: 'Profile not found.' })
+        const parsed = validatePeopleActionBody(await readJsonBody(req, MAX_PEOPLE_BODY_BYTES), kind)
+        if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid administrative action.' })
+        const result = await service.act(kind, profileId, parsed.value, session.user)
+        if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: result.message })
+        return sendAdminJson(res, 200, { success: true, profile: result.profile })
+      }
+      if (bulkMatch && req.method === 'POST') {
+        if (!String(req.headers?.['content-type'] || '').toLowerCase().startsWith('application/json')) return sendAdminJson(res, 415, { success: false, message: 'Unsupported request.' })
+        const parsed = validatePeopleBulkBody(await readJsonBody(req, MAX_PEOPLE_BODY_BYTES), kind)
+        if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid bulk action.' })
+        const result = await service.bulk(kind, parsed.value, session.user)
+        if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: result.message })
+        return sendAdminJson(res, 200, { success: true, succeeded: result.succeeded, failed: result.failed })
+      }
+      const peoplePath = path === 'members' || path.startsWith('members/') || path === 'staff' || path.startsWith('staff/')
+      res.setHeader('Allow', rootMatch ? 'GET, POST' : actionMatch || bulkMatch ? 'POST' : 'GET')
+      return sendAdminJson(res, peoplePath ? 405 : 404, { success: false, message: peoplePath ? 'Method not allowed.' : 'Not found.' })
+    } catch (error) {
+      safeAdminAuthLog('people', error)
+      return sendAdminJson(res, 503, { success: false, message: req.method === 'POST' ? 'Unable to save this profile right now.' : 'Unable to load the people directory right now.' })
+    }
+  }
+}
+
 const aivexAdministrationEnabled = (env = process.env) => env.ADMIN_AIVEX_API_ENABLED === 'true'
 
 const safeDownloadName = (value) => String(value || 'document')
@@ -381,11 +465,13 @@ export function createAdminAivexHandler({
 export function createAdminRouter(handlers = {}) {
   const auth = handlers.auth || createAdminAuthRouter()
   const applications = handlers.applications || createAdminApplicationsHandler()
+  const people = handlers.people || createAdminPeopleHandler()
   const aivex = handlers.aivex || createAdminAivexHandler()
   return function adminRouter(req, res) {
     const path = adminPathFromRequest(req)
     if (path.startsWith('auth/')) return auth(req, res)
     if (path === 'applications' || path.startsWith('applications/')) return applications(req, res)
+    if (path === 'members' || path.startsWith('members/') || path === 'staff' || path.startsWith('staff/')) return people(req, res)
     if (path === 'aivex' || path.startsWith('aivex/')) return aivex(req, res)
     return sendAdminJson(res, 404, { success: false, message: 'Not found.' })
   }

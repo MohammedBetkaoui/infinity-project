@@ -85,6 +85,13 @@ To enable the real Join administration page, additionally apply
 server-only `ADMIN_JOIN_API_ENABLED=true`, and redeploy. Keep the flag false
 until that migration has completed successfully.
 
+To enable the live Members and Staff directories, apply
+`supabase/migrations/20260929120000_admin_members_staff_directory.sql`, set
+the server-only `ADMIN_PEOPLE_API_ENABLED=true`, and redeploy. Apply the Join
+administration migration first: accepted Join applications are synchronized
+into the member directory, and Staff acceptances create both the linked member
+and operational staff profiles.
+
 To enable the real AIVEX administration page, then apply
 `supabase/migrations/20260927120000_admin_aivex_operations.sql`, set the
 server-only `ADMIN_AIVEX_API_ENABLED=true`, and redeploy. The AIVEX flag must

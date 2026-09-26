@@ -160,9 +160,7 @@ function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen, language 
   }
   const renderNavItem = (item) => {
     const Icon = icons[item.icon]
-    const count = item.icon === 'applications'
-      ? state.applications.filter((application) => application.status === 'New').length
-      : item.icon === 'aivex'
+    const count = item.icon === 'aivex'
         ? state.teams.filter((team) => ['Signed document received', 'Under review', 'Corrections needed'].includes(team.document)).length
         : 0
     return (
@@ -251,7 +249,7 @@ export function AdminShell({ children, collapsed, setCollapsed, mobileOpen, setM
   const language = pathname.startsWith('/admin/aivex') && new URLSearchParams(search).get('lang') === 'ar' ? 'ar' : 'en'
   const isArabic = language === 'ar'
   const t = (value) => translateAivex(value, language)
-  const liveJoinWorkspace = pathname === '/admin/applications'
+  const livePeopleWorkspace = ['/admin/applications', '/admin/members', '/admin/staff'].includes(pathname)
   return (
     <div className={`adm-app ${collapsed ? 'is-sidebar-collapsed' : ''} ${isArabic ? 'is-aivex-ar' : ''}`} dir={isArabic ? 'rtl' : 'ltr'} lang={language}>
       <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} language={language} />
@@ -259,7 +257,7 @@ export function AdminShell({ children, collapsed, setCollapsed, mobileOpen, setM
       <div className="adm-workspace">
         <Topbar setMobileOpen={setMobileOpen} query={query} setQuery={setQuery} notify={onNotifications} onNewAction={onNewAction} language={language} />
         <main className="adm-main" id="admin-content">{children}</main>
-        <footer className="adm-global-footer"><span><i />{liveJoinWorkspace ? 'Protected workspace · Live Join records' : t('Fictional demo data · Local prototype')}</span><code>INFINITY / ADMIN · 2026.09</code></footer>
+        <footer className="adm-global-footer"><span><i />{livePeopleWorkspace ? 'Protected workspace · Live database records' : t('Fictional demo data · Local prototype')}</span><code>INFINITY / ADMIN · 2026.09</code></footer>
       </div>
     </div>
   )
