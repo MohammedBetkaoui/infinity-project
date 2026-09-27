@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowRight, Check, CircleAlert, Eye, EyeOff, LoaderCircle, LockKeyhole, RotateCw, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, CircleAlert, Eye, EyeOff, LoaderCircle, LockKeyhole, RotateCw, ShieldCheck, TriangleAlert, User } from 'lucide-react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import InfinityMark from '../components/InfinityMark'
 import { useAdminAuth } from './AdminAuth'
@@ -33,36 +33,46 @@ export function LoginPage() {
     navigate(safeAdminReturnTo(params.get('returnTo')), { replace: true })
   }
   const updateCapsLock = (event) => setCapsLock(event.getModifierState?.('CapsLock') === true)
+  const invalid = error ? true : undefined
   return (
     <main className="adm-login adm-app">
+      <div className="adm-login-backdrop" aria-hidden="true"><InfinityMark className="adm-login-emblem"/></div>
       <div className="adm-login-card">
         <header className="adm-login-head">
-          <InfinityMark/>
-          <p>Infinity Club · Administration</p>
-          <h1>Sign in</h1>
-          <span>Access reserved for authorized administrators.</span>
+          <div className="adm-login-medallion"><InfinityMark/></div>
+          <p className="adm-login-badge"><span aria-hidden="true"/>Secure admin access</p>
+          <h1>Welcome back</h1>
+          <p className="adm-login-lede">Sign in with your administrator credentials to open the Infinity Club workspace.</p>
         </header>
         <form className="adm-login-form" onSubmit={submit} aria-busy={busy}>
-          <label>
-            <span>Username</span>
-            <input name="username" value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" autoCapitalize="none" spellCheck="false" autoFocus required disabled={busy}/>
+          <label className="adm-login-field">
+            <span className="adm-login-label">Username</span>
+            <span className="adm-login-control">
+              <User className="adm-login-control-icon" size={18} aria-hidden="true"/>
+              <input name="username" value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" autoCapitalize="none" spellCheck="false" autoFocus required disabled={busy} aria-invalid={invalid}/>
+            </span>
           </label>
-          <label>
-            <span>Password</span>
-            <div className="adm-password-input">
-              <input name="password" type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} onKeyDown={updateCapsLock} onKeyUp={updateCapsLock} onBlur={() => setCapsLock(false)} autoComplete="current-password" required disabled={busy} aria-describedby={error ? 'admin-login-error' : undefined}/>
-              <button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'} disabled={busy}>{showPassword ? <EyeOff size={17}/> : <Eye size={17}/>}</button>
-            </div>
+          <label className="adm-login-field">
+            <span className="adm-login-label">Password</span>
+            <span className="adm-login-control has-action">
+              <LockKeyhole className="adm-login-control-icon" size={18} aria-hidden="true"/>
+              <input name="password" type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} onKeyDown={updateCapsLock} onKeyUp={updateCapsLock} onBlur={() => setCapsLock(false)} autoComplete="current-password" required disabled={busy} aria-invalid={invalid} aria-describedby={error ? 'admin-login-error' : undefined}/>
+              <button type="button" className="adm-login-reveal" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} disabled={busy}>{showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
+            </span>
           </label>
-          {capsLock && <p className="adm-caps-lock" role="status">Caps Lock is on.</p>}
-          {error && <p id="admin-login-error" className="adm-auth-error" role="alert"><CircleAlert size={15}/>{error}</p>}
-          <Button type="submit" disabled={busy || !username || !password} icon={busy ? <LoaderCircle className="adm-spin" size={18}/> : <ArrowRight size={18}/>}>{busy ? 'Verifying access…' : 'Sign in'}</Button>
+          {capsLock && <p className="adm-caps-lock adm-login-hint" role="status"><TriangleAlert size={14} aria-hidden="true"/>Caps Lock is on.</p>}
+          {error && <p id="admin-login-error" className="adm-auth-error" role="alert"><CircleAlert size={16} aria-hidden="true"/><span>{error}</span></p>}
+          <Button type="submit" className={`adm-login-submit${busy ? ' is-loading' : ''}`} disabled={busy || !username || !password} icon={busy ? <LoaderCircle className="adm-spin" size={18}/> : <ArrowRight size={18}/>}>{busy ? 'Verifying access…' : 'Sign in'}</Button>
         </form>
         <footer className="adm-login-foot">
-          <span><ShieldCheck size={14}/> Secure session</span>
-          <Link to="/">Back to site</Link>
+          <div className="adm-login-foot-row">
+            <span className="adm-login-secure"><ShieldCheck size={15} aria-hidden="true"/>Secure session</span>
+            <Link to="/" className="adm-login-back"><ArrowLeft size={14} aria-hidden="true"/>Back to site</Link>
+          </div>
+          <p>Restricted to authorized Infinity Club staff. Sign-in attempts are rate-limited and monitored.</p>
         </footer>
       </div>
+      <p className="adm-login-caption" aria-hidden="true">Infinity is a mindset.</p>
     </main>
   )
 }
