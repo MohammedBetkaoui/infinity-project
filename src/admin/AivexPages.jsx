@@ -1,21 +1,23 @@
 import { useCallback, useDeferredValue, useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, Download, FileCheck2, FileText, FolderClosed, Languages, LockKeyhole, Maximize2, RefreshCw, RotateCw, ShieldCheck, TriangleAlert, Upload, ZoomIn, ZoomOut } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CheckCircle2, ChevronDown, Download, FileCheck2, FileText, FolderClosed, Languages, LockKeyhole, Maximize2, RefreshCw, RotateCw, ShieldCheck, TriangleAlert, Upload, ZoomIn, ZoomOut } from 'lucide-react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAdmin } from './AdminStore'
 import { useAivexLocale } from './AivexI18n'
 import { DOCUMENT_STATUSES, REGISTRATION_STATUSES, dateLabel, timeLabel } from './adminModel'
 import { Button, ConfidentialNotice, CriticalNotice, EmptyState, IconButton, Modal, PageHeader, Pagination, Progress, SectionHeading, StatusBadge, Tabs } from './AdminUI'
-import { ActionDialog, Facts, History, RecordTable, RecordToolbar, SummaryStrip } from './AdminRecords'
+import { ActionDialog, Facts, History, RecordTable, RecordToolbar } from './AdminRecords'
 import { useAdminAivex, useAdminAivexActions } from './useAdminAivex'
+import { aivexDateLabel, aivexFilePresentation } from './aivexPresentation'
+import './aivex-admin.css'
 
-const AIVEX_CARD_STAGES = ['Recorded', 'Form ready', 'Signed', 'Review', 'Validated']
-const AIVEX_TABS = ['Team overview', 'Documents', 'Verification', 'History']
-const DOCUMENT_KEYS = Object.freeze({
-  'Not generated': 'not_generated', Generating: 'generating', 'Awaiting signature': 'awaiting_signature',
-  'Signed document received': 'signed_document_uploaded', 'Under review': 'under_review',
-  'Corrections needed': 'changes_required', Validated: 'validated',
-  'Generation issue': 'generation_failed', Expired: 'expired',
-})
+const AIVEX_TABS = ['Verification', 'Team overview', 'Documents', 'History']
+const AIVEX_QUEUES = [
+  { label: 'All files', filter: '', count: 'all' },
+  { label: 'Ready to review', filter: 'Signed document received', count: 'signed_document_uploaded' },
+  { label: 'Under review', filter: 'Under review', count: 'under_review' },
+  { label: 'Corrections requested', filter: 'Corrections needed', count: 'changes_required' },
+  { label: 'Team accepted', filter: 'Validated', count: 'validated' },
+]
 const TABLE_SORT_KEYS = Object.freeze({
   ref: 'reference', name: 'team', institution: 'institution', manager: 'team',
   registration: 'registration', document: 'document', completeness: 'completion',
@@ -55,19 +57,9 @@ function actionDialogLabels(isArabic, t) {
   return isArabic ? { close: 'إغلاق', cancel: t('Cancel'), confirm: t('Confirm action'), eyebrow: t('Administrative action'), submitError: t('The action could not be completed. Please try again.') } : {}
 }
 
-function cardStageState(team) {
-  const generated = team.docs?.find((document) => document.id === 'official')?.status === 'Generated' || team.checklist?.[7] === true
-  return [true, generated, team.signed, ['Under review', 'Corrections needed', 'Validated'].includes(team.document), team.document === 'Validated']
-}
-
-function nextCheckpoint(team) {
-  const checkpoints = {
-    'Not generated': 'Generate the official form', Generating: 'Wait for form generation',
-    'Awaiting signature': 'Receive the signed form', 'Signed document received': 'Start document review',
-    'Under review': 'Review missing information', 'Corrections needed': 'Follow up on requested corrections',
-    Validated: 'No action required', 'Generation issue': 'Resolve the generation issue', Expired: 'Review the expired file',
-  }
-  return checkpoints[team.document] || 'Review the administrative file'
+function FileState({ team, t }) {
+  const state = aivexFilePresentation(team)
+  return <AivexStatus value={state.label} tone={state.tone} t={t}/>
 }
 
 function AivexSkeleton({ label }) {
@@ -80,28 +72,17 @@ function AivexCardGrid({ records, onOpen, locale, pagination, onPageChange, orde
   const { t, isArabic } = locale
   return <section className="adm-aivex-board" aria-label={t('AIVEX files')}>
     <header className="adm-aivex-board__head">
-      <div><span>{t('Operational case board')}</span><b>{isArabic ? `${pagination.total} ملف فريق في هذا العرض` : `${pagination.total} team file${pagination.total !== 1 ? 's' : ''} in this view`}</b></div>
+      <div><b>{t('Team files')}</b><span>{t('Open a file to see what needs to be done.')}</span></div>
       <label><span>{t('Order by')}</span><select value={order} onChange={(event) => onOrder(event.target.value)}><option value="attention">{t('Action priority')}</option><option value="completion">{t('Lowest completion')}</option><option value="team">{t('Team name')}</option></select></label>
     </header>
-    {records.length ? <div className="adm-aivex-card-grid">{records.map((team, index) => {
-      const stages = cardStageState(team)
-      const attention = ['Generation issue', 'Corrections needed', 'Expired'].includes(team.document)
-      return <article key={team.ref} className={`adm-aivex-card ${attention ? 'is-attention' : ''} ${team.document === 'Validated' ? 'is-validated' : ''}`}>
-        <div className="adm-aivex-card__rail"><code>{team.ref}</code><span>{isArabic ? 'الطبعة 02 / ملف' : 'ED.02 / CASE'} {String((pagination.page - 1) * pagination.limit + index + 1).padStart(2, '0')}</span></div>
-        <header className="adm-aivex-card__identity">
-          <div><span>{t('Team dossier')}</span><h3><Ltr>{team.name}</Ltr></h3><p>{team.institution}<small>{team.wilaya}</small></p></div>
-          <div className="adm-aivex-card__completion" style={{ '--adm-progress-angle': `${team.completeness * 3.6}deg` }} aria-label={`${t('File completion')}: ${team.completeness}%`}><span><strong>{team.completeness}</strong><small>%</small></span></div>
-        </header>
-        <div className="adm-aivex-card__statuses"><AivexStatus value={team.registration} t={t}/><AivexStatus value={team.document} t={t}/></div>
-        <div className="adm-aivex-card__journey" aria-label={t('Administrative progress')}>{AIVEX_CARD_STAGES.map((label, stage) => <div key={label} className={stages[stage] ? 'is-complete' : ''}><i>{stages[stage] ? <Check size={11}/> : stage + 1}</i><span>{t(label)}</span></div>)}</div>
-        <dl className="adm-aivex-card__facts">
-          <div><dt>{t('Activities manager')}</dt><dd>{team.manager}</dd></div>
-          <div><dt>{t('Submitted')}</dt><dd>{dateLabel(team.submittedAt)}</dd></div>
-          <div><dt>{t('Last update')}</dt><dd>{dateLabel(team.updatedAt)}</dd></div>
-          <div><dt>{t('Signed file')}</dt><dd className={team.signed ? 'is-present' : 'is-missing'}><LockKeyhole size={12}/>{t(team.signed ? 'Secure copy received' : 'Not received')}</dd></div>
-        </dl>
-        <div className={`adm-aivex-card__checkpoint ${attention ? 'is-attention' : ''}`}><span>{t(attention ? 'Attention required' : team.document === 'Validated' ? 'Administrative outcome' : 'Next checkpoint')}</span><b>{t(nextCheckpoint(team))}</b></div>
-        <footer><button onClick={() => onOpen(team)}><span>{t('Open administrative file')}</span><ArrowRight size={16}/></button></footer>
+    {records.length ? <div className="adm-case-grid">{records.map((team) => {
+      const state = aivexFilePresentation(team)
+      return <article key={team.ref} className="adm-case-card">
+        <header><code><Ltr>{team.ref}</Ltr></code><FileState team={team} t={t}/></header>
+        <div className="adm-case-card__identity"><h3><button onClick={() => onOpen(team)}><bdi>{team.name}</bdi></button></h3><p>{team.institution}</p><span>{team.wilaya}</span></div>
+        <div className="adm-case-card__progress"><span>{t('Review progress')}</span><Progress value={team.completeness} label={t('Review progress')}/></div>
+        <div className="adm-case-card__next"><span>{t('Next step')}</span><b>{t(state.title)}</b></div>
+        <footer><span>{t('Updated')} {aivexDateLabel(team.updatedAt, locale.language)}</span><button onClick={() => onOpen(team)} aria-label={`${t('Open file')} · ${team.name}`}>{t('Open file')}<ArrowRight size={16}/></button></footer>
       </article>
     })}</div> : <EmptyState title={t('No AIVEX files match this view')} copy={t('Adjust the search or remove one of the active filters.')}/>} 
     {pagination.total > 0 && <Pagination current={pagination.page} count={pagination.total} pageSize={pagination.limit} onChange={onPageChange} labels={paginationLabels(isArabic, t)}/>} 
@@ -135,7 +116,6 @@ export function AivexListPage({ globalQuery }) {
   }, [])
   const activeView = mobileCardsOnly ? 'cards' : view
   const resetPage = useCallback((callback) => { callback(); setPage(1) }, [])
-  const counts = DOCUMENT_STATUSES.map((status) => ({ status, count: summary.documentCounts?.[DOCUMENT_KEYS[status]] || 0 }))
   const updateCardOrder = (value) => resetPage(() => { setCardOrder(value); setSort(CARD_SORTS[value] || 'attention_asc') })
   const updateTableSort = (value) => resetPage(() => {
     setTableSort(value)
@@ -148,39 +128,27 @@ export function AivexListPage({ globalQuery }) {
   }
 
   return <div className={`adm-page adm-aivex-page ${isArabic ? 'is-arabic' : ''}`} dir={dir} lang={language}>
-    <PageHeader eyebrow={t('Competition operations · Edition 02')} title={t('AIVEX files')} description={t('Administrative tracking for every team. From registration to the final green light.')} actions={<div className="adm-aivex-header-actions"><AivexLanguageSwitch language={language} setLanguage={setLanguage} t={t}/><Button variant="secondary" onClick={refresh} icon={<RefreshCw size={15}/>}>{t('Refresh files')}</Button><span className="adm-edition"><i/>{t('AIVEX / SECOND EDITION')}</span></div>}/>
-    <SummaryStrip items={[{ label: t('Registered teams'), value: summary.registered || 0 }, { label: t('Complete files'), value: summary.complete || 0 }, { label: t('Awaiting signature'), value: summary.awaitingSignature || 0 }, { label: t('Signed received'), value: summary.signedReceived || 0 }, { label: t('Under review'), value: summary.underReview || 0 }, { label: t('Corrections'), value: summary.corrections || 0 }, { label: t('Validated'), value: summary.validated || 0 }]}/>
-    <div className="adm-status-pipeline" aria-label={isArabic ? 'التصفية حسب مرحلة الوثيقة' : 'Filter by document stage'}><button className={!filters.document ? 'is-active' : ''} onClick={() => resetPage(() => setFilters({ ...filters, document: '' }))}><span>{t('All files')}</span><b>{summary.registered || 0}</b></button>{counts.map(({ status, count }) => <button key={status} className={filters.document === status ? 'is-active' : ''} onClick={() => resetPage(() => setFilters({ ...filters, document: status }))}><span>{t(status)}</span><b>{count}</b></button>)}</div>
+    <PageHeader eyebrow={t('AIVEX · Edition 02')} title={t('AIVEX files')} description={t('Find a team, review its file and follow up on corrections.')} actions={<div className="adm-aivex-header-actions"><AivexLanguageSwitch language={language} setLanguage={setLanguage} t={t}/><Button variant="secondary" onClick={refresh} disabled={loading} icon={<RefreshCw size={15}/>}>{t('Refresh files')}</Button></div>}/>
+    <nav className="adm-case-queues" aria-label={t('Filter team files')}>
+      {AIVEX_QUEUES.map((queue) => <button key={queue.count} type="button" aria-pressed={(filters.document || '') === queue.filter} className={(filters.document || '') === queue.filter ? 'is-active' : ''} onClick={() => resetPage(() => setFilters({ ...filters, document: queue.filter }))}><span>{t(queue.label)}</span><b>{queue.count === 'all' ? summary.registered || 0 : summary.documentCounts?.[queue.count] || 0}</b></button>)}
+    </nav>
     <div className="adm-work-panel"><RecordToolbar search={search} onSearch={(value) => resetPage(() => setSearch(value))} placeholder={t('Search reference, team, institution or person…')} filters={filters} onFilters={(value) => resetPage(() => setFilters(value))} resultCount={pagination.total} filterLabel={t('All filters')} getOptionLabel={t} labels={isArabic ? { search: 'البحث في ملفات AIVEX', clearSearch: 'مسح البحث', all: 'الكل', recordView: 'طريقة عرض السجلات', tableView: t('Table view'), cardView: t('Card view'), liveScope: t('Live scope'), matchingRecords: (count) => `${count} سجل مطابق`, removeFilter: 'إزالة عامل تصفية', allIncluded: t('All records included'), clearAll: t('Clear all'), drawerTitle: t('Refine records'), drawerEyebrow: t('Search & filters'), reset: t('Reset filters'), showResults: (count) => `عرض ${count} نتيجة`, drawerSummary: 'سجل مطابق للمعايير الحالية. تظهر التغييرات مباشرة.', close: 'إغلاق عوامل التصفية' } : {}} quickDefinitions={[
       { key: 'document', label: t('Document stage'), shortLabel: t('Stage'), allLabel: t('All stages'), options: DOCUMENT_STATUSES },
-      { key: 'registration', label: t('Registration status'), shortLabel: t('Registration'), allLabel: t('All registrations'), options: REGISTRATION_STATUSES },
-      { key: 'complete', label: t('Completeness'), shortLabel: t('File state'), allLabel: t('All files'), options: ['Complete', 'Incomplete'] },
     ]} view={activeView} onView={mobileCardsOnly ? undefined : changeView} definitions={[
       { key: 'registration', label: t('Registration status'), options: REGISTRATION_STATUSES }, { key: 'document', label: t('Document status'), options: DOCUMENT_STATUSES }, { key: 'wilaya', label: t('Wilaya'), options: facets.wilayas || [] }, { key: 'institution', label: t('Institution'), options: facets.institutions || [] }, { key: 'complete', label: t('Completeness'), options: ['Complete', 'Incomplete'] }, { key: 'signedLabel', label: t('Signed document'), options: ['Present', 'Absent'] }, { key: 'dateFrom', label: t('Submitted from'), type: 'date', options: [] }, { key: 'dateTo', label: t('Submitted until'), type: 'date', options: [] },
     ]}/>
       {error ? <div className="adm-state-error adm-aivex-error" role="alert"><TriangleAlert size={24}/><h3>{t('AIVEX files could not be loaded')}</h3><p>{t(error)}</p><Button onClick={refresh} variant="secondary" icon={<RefreshCw size={15}/>}>{t('Try again')}</Button></div> : loading ? <AivexSkeleton label={t('Loading AIVEX files')}/> : activeView === 'cards' ? <AivexCardGrid records={teams} locale={locale} pagination={pagination} onPageChange={setPage} order={cardOrder} onOrder={updateCardOrder} onOpen={(team) => navigate(path(`/admin/aivex/${team.ref}`))}/> : <>
-        <div className="adm-aivex-register-head"><div><code>AIVEX / REGISTER-02</code><b>{pagination.total}</b><span>{isArabic ? `${pagination.total} ملف فريق في السجل الحالي` : `${pagination.total} team file${pagination.total !== 1 ? 's' : ''} in the current register`}</span></div><div aria-label={isArabic ? 'مؤشرات صفوف السجل' : 'Register row markers'}><span><i className="is-action"/>{t('Action required')}</span><span><i className="is-validated"/>{t('Validated')}</span></div></div>
         <RecordTable className="adm-aivex-table-view" records={teams} controlledSort={tableSort} onSortChange={updateTableSort} pagination={pagination} onPageChange={setPage} locale={isArabic ? 'ar' : 'en'} labels={isArabic ? { open: 'فتح', record: 'السجل', openFile: t('Open file'), openRecord: 'فتح السجل', empty: t('No matching records'), emptyCopy: t('Adjust the search or remove one of the active filters.'), pagination: paginationLabels(true, t) } : {}} rowClassName={(team) => ['Generation issue', 'Corrections needed', 'Expired'].includes(team.document) ? 'is-aivex-attention' : team.document === 'Validated' ? 'is-aivex-validated' : ''} onOpen={(team) => navigate(path(`/admin/aivex/${team.ref}`))} columns={[
-          { key: 'ref', label: t('Reference'), render: (team) => <span className="adm-aivex-ref-cell"><code>{team.ref}</code><small>{isArabic ? 'الطبعة 02' : 'Edition 02'}</small></span> },
-          { key: 'name', label: t('Team'), render: (team) => <span className="adm-aivex-team-cell"><b><Ltr>{team.name}</Ltr></b><small>{team.completeness === 100 ? t('Administrative file complete') : isArabic ? `${10 - team.checklist.filter(Boolean).length} عناصر للمراجعة` : `${10 - team.checklist.filter(Boolean).length} items to review`}</small></span> },
+          { key: 'name', label: t('Team'), render: (team) => <span className="adm-aivex-team-cell"><b><bdi>{team.name}</bdi></b><small><Ltr>{team.ref}</Ltr></small></span> },
           { key: 'institution', label: t('Institution'), render: (team) => <span className="adm-institution-cell"><b>{team.institution}</b><small>{team.wilaya}</small></span> },
-          { key: 'manager', label: t('Activities manager'), secondary: true, render: (team) => <span className="adm-aivex-manager-cell"><b>{team.manager}</b><small>{t(team.managerRole)}</small></span> },
-          { key: 'registration', label: t('Registration'), render: (team) => <AivexStatus value={team.registration} t={t}/> },
-          { key: 'document', label: t('Document'), render: (team) => <AivexStatus value={team.document} t={t}/> },
-          { key: 'completeness', label: t('Completeness'), render: (team) => <span className="adm-aivex-table-progress"><Progress value={team.completeness} label={t('Completeness')}/><small className={team.signed ? 'is-present' : 'is-missing'}><FileCheck2 size={12}/>{t(team.signed ? 'Signed copy received' : 'Signed copy missing')}</small></span> },
-          { key: 'submitted', label: t('Submitted'), secondary: true, render: (team) => <span className="adm-aivex-date-cell"><b>{dateLabel(team.submittedAt)}</b><small>{t('Initial record')}</small></span> },
-          { key: 'updated', label: t('Updated'), secondary: true, render: (team) => <span className="adm-aivex-date-cell"><b>{dateLabel(team.updatedAt)}</b><small>{t('Latest activity')}</small></span> },
+          { key: 'document', label: t('File status'), render: (team) => <div className="adm-case-table-state"><FileState team={team} t={t}/><small>{t(aivexFilePresentation(team).title)}</small></div> },
+          { key: 'completeness', label: t('Review progress'), render: (team) => <Progress value={team.completeness} label={t('Review progress')}/> },
+          { key: 'updated', label: t('Last update'), render: (team) => aivexDateLabel(team.updatedAt, language) },
         ]}/>
       </>}
     </div>
     <div className="adm-security-footnote"><LockKeyhole size={14}/><p>{t('Identity documents are visible only inside the confidential viewer. Every consultation is logged.')}</p></div>
   </div>
-}
-
-function TeamTimeline({ team, onStep, t }) {
-  const generated = team.docs.find((document) => document.id === 'official')?.status === 'Generated'
-  const states = [true, generated, team.signed, ['Under review', 'Corrections needed', 'Validated'].includes(team.document), team.document === 'Validated']
-  return <div className="adm-team-timeline">{['Registration recorded', 'Official form ready', 'Signed document', 'Organizer review', 'File validated'].map((label, index) => <button key={label} onClick={() => onStep(index === 0 ? 'Team overview' : index < 3 ? 'Documents' : 'Verification')} className={states[index] ? 'is-complete' : ''}><i>{states[index] ? <Check size={15}/> : String(index + 1).padStart(2, '0')}</i><span>{t(label)}</span><small>{t(states[index] ? 'Completed' : 'Pending')}</small></button>)}</div>
 }
 
 const REVIEW_GROUP_COPY = Object.freeze({
@@ -363,27 +331,23 @@ function AivexReviewSummary({ team, allowed, locale, syncStatus, onTab, onDecisi
   const { isArabic, t } = locale
   const review = team.reviewSummary
   const outstanding = review.blockers.length
+  const isClosed = ['Rejected', 'Cancelled'].includes(team.registration) || team.document === 'Validated'
   return <section className="adm-panel adm-review-summary">
-    <SectionHeading index="05" title={t('Administrative review')} meta={outstanding === 0 ? t('Ready for decision') : isArabic ? `${outstanding} عناصر تتطلب الانتباه` : `${outstanding} item${outstanding === 1 ? '' : 's'} need attention`}/>
-    <div className={`adm-review-live is-${syncStatus}`} role="status" aria-live="polite"><i/><span>{t('Live status')}</span><small>{t(syncStatus === 'syncing' ? 'Updating from the protected file…' : syncStatus === 'error' ? 'Automatic update will retry shortly.' : 'Up to date · refreshes automatically')}</small></div>
-    <p className="adm-review-intro">{t('Review the file in three clear steps. Every status updates automatically after an action in another section.')}</p>
-    <div className="adm-review-groups">{review.groups.map((group, index) => {
+    <SectionHeading title={t('Administrative review')} meta={t(isClosed ? 'Review recorded' : 'Three simple checks')}/>
+    <p className="adm-review-intro">{t('Check each section. The final decision becomes available when all required items are accepted.')}</p>
+    {team.correctionRequest && <div className="adm-correction-summary"><div className="adm-case-correction-heading"><div><b>{t('Current correction request')}</b><small>{t(team.correctionRequest.expired ? 'Expired correction deadline' : 'Due')} {aivexDateLabel(team.correctionRequest.deadline, locale.language)}</small></div>{allowed.has('extend_correction_deadline') && <Button variant="secondary" onClick={onExtendDeadline}>{t('Set new deadline')}</Button>}</div><ul className="adm-correction-items-list">{team.correctionRequest.itemStatuses.map((item) => <CorrectionItemRow key={item.id} item={item} allowed={allowed} onTab={onTab} onResolveItem={onResolveItem} resolving={resolvingItemId === item.id} t={t}/>)}</ul></div>}
+    <div className="adm-case-checks">{review.groups.map((group, index) => {
       const copy = REVIEW_GROUP_COPY[group.key]
-      const managerNeedsConfirmation = group.key === 'people' && team.checklist[1] !== true
-      return <article key={group.key} className={group.ready ? 'is-ready' : 'is-action'}>
-        <header><span>{String(index + 1).padStart(2, '0')}</span><StatusBadge tone={group.ready ? 'success' : 'warning'}>{t(group.ready ? 'Ready' : 'Action needed')}</StatusBadge></header>
-        <h3>{t(copy.title)}</h3>
-        <p>{group.key === 'documents' ? (isArabic ? `${review.documents.verified} من ${review.documents.total} وثائق مطلوبة مقبولة.` : `${review.documents.verified} of ${review.documents.total} required documents accepted.`) : t(copy.copy)}</p>
-        <div className="adm-review-group-progress"><i style={{ width: `${Math.round(group.complete / group.total * 100)}%` }}/><span>{group.complete}/{group.total}</span></div>
-        {managerNeedsConfirmation && allowed.has('verify_activity_official') ? <button type="button" onClick={() => onDecision('Verify activities manager', 'verify_activity_official', false, { verified: true })}>{t('Confirm manager details')}<ArrowRight size={14}/></button> : <button type="button" onClick={() => onTab(group.key === 'team' ? 'Team overview' : 'Documents')}>{t(group.key === 'team' ? 'View team information' : 'Review documents')}<ArrowRight size={14}/></button>}
+      const managerNeedsConfirmation = group.key === 'people' && team.checklist[1] !== true && !isClosed
+      return <article key={group.key} className={group.ready ? 'is-ready' : ''}>
+        <span className="adm-case-checks__number" aria-hidden="true">{group.ready ? <CheckCircle2 size={22}/> : index + 1}</span>
+        <div className="adm-case-checks__content"><h3>{t(copy.title)}</h3><p>{group.key === 'documents' ? (isArabic ? `${review.documents.verified} من ${review.documents.total} وثائق مطلوبة مقبولة.` : `${review.documents.verified} of ${review.documents.total} required documents accepted.`) : t(copy.copy)}</p><StatusBadge tone={group.ready ? 'success' : 'neutral'}>{t(group.ready ? 'Checked' : isClosed ? 'Review recorded' : 'To check')}</StatusBadge>{group.key === 'people' && <details className="adm-case-manager"><summary>{t('View activities manager details')}</summary><Facts missingLabel={t('Not provided')} items={[[t('Full name'), <bdi>{team.manager}</bdi>], [t('Role'), t(team.managerRole)], [t('Email'), <Ltr>{team.managerEmail}</Ltr>], [t('Phone'), <Ltr>{team.managerPhone}</Ltr>]]}/></details>}</div>
+        {managerNeedsConfirmation && allowed.has('verify_activity_official') ? <Button variant="secondary" onClick={() => onDecision('Verify activities manager', 'verify_activity_official', false, { verified: true })}>{t('Confirm manager details')}</Button> : <Button variant="secondary" onClick={() => onTab(group.key === 'team' ? 'Team overview' : 'Documents')} icon={<ArrowRight size={15}/>}>{t(group.key === 'team' ? 'View team information' : 'Review documents')}</Button>}
       </article>
     })}</div>
-    <div className={`adm-review-blockers ${outstanding === 0 ? 'is-ready' : ''}`}>
-      <header>{outstanding === 0 ? <CheckCircle2 size={19}/> : <TriangleAlert size={19}/>}<div><b>{t(outstanding === 0 ? 'No blocking item remains' : 'Before final acceptance')}</b><small>{t(outstanding === 0 ? 'The administrative file is ready for its final decision.' : 'Complete only the items listed below. The system updates this list automatically.')}</small></div></header>
-      {outstanding > 0 && <ul>{review.blockers.map((blocker) => <li key={blocker.key}><span><i/>{t(REVIEW_BLOCKER_LABELS[blocker.key])}</span><button type="button" onClick={() => onTab(blocker.tab)}>{t('Open')}<ArrowRight size={13}/></button></li>)}</ul>}
-      {outstanding > 0 && allowed.has('request_corrections') && team.canRequestCorrections && <div className="adm-review-support"><Button variant="secondary" onClick={onCorrections}>{t('Request corrections')}</Button></div>}
-    </div>
-    {team.correctionRequest && <div className="adm-correction-summary"><b>{t('Current correction request')}</b><small>{t(team.correctionRequest.expired ? 'Expired correction deadline' : 'Due')} <Ltr>{team.correctionRequest.deadline}</Ltr></small>{allowed.has('extend_correction_deadline') && <Button variant="secondary" onClick={onExtendDeadline}>{t('Set new deadline')}</Button>}<ul className="adm-correction-items-list">{team.correctionRequest.itemStatuses.map((item) => <CorrectionItemRow key={item.id} item={item} allowed={allowed} onTab={onTab} onResolveItem={onResolveItem} resolving={resolvingItemId === item.id} t={t}/>)}</ul></div>}
+    {outstanding > 0 && !isClosed && <details className="adm-case-remaining"><summary><span>{t('What remains to be checked')} <b>{outstanding}</b></span><ChevronDown size={16}/></summary><ul>{review.blockers.map((blocker) => <li key={blocker.key}><span>{t(REVIEW_BLOCKER_LABELS[blocker.key])}</span><button onClick={() => onTab(blocker.tab)}>{t('Open')}<ArrowRight size={14}/></button></li>)}</ul></details>}
+    {outstanding > 0 && !isClosed && allowed.has('request_corrections') && team.canRequestCorrections && <div className="adm-case-correction-help"><div><b>{t('Something needs correcting?')}</b><p>{t('Select only the items the team needs to update.')}</p></div><Button variant="secondary" onClick={onCorrections}>{t('Request corrections')}</Button></div>}
+    <div className={`adm-case-sync is-${syncStatus}`} role="status" aria-live="polite"><i/><span>{t(syncStatus === 'syncing' ? 'Updating…' : syncStatus === 'error' ? 'Automatic update will retry shortly.' : 'Up to date · refreshes automatically')}</span></div>
   </section>
 }
 
@@ -397,14 +361,14 @@ function AivexDecisionPanel({ team, allowed, locale, onDecision }) {
   const title = isAccepted ? 'Team accepted'
     : isClosed ? 'Registration closed'
       : ready ? 'Team ready for acceptance'
-        : 'Final acceptance locked'
+        : 'Review still in progress'
   const copy = isAccepted ? 'Registration is approved and the administrative file is validated.'
     : isClosed ? 'This registration is no longer in the active review workflow.'
-      : ready ? 'This single action approves the registration and validates the complete team file.'
-        : 'The acceptance button unlocks automatically when every required item is ready.'
+      : ready ? 'All checks are complete. You can now confirm the team’s acceptance.'
+        : 'Check the remaining items before accepting this team.'
 
   return <aside className="adm-panel adm-decision-panel">
-    <SectionHeading index="06" title={t('Final team decision')}/>
+    <SectionHeading title={t('Final team decision')}/>
     <div className={`adm-next-decision ${isAccepted || ready ? 'is-complete' : 'is-review_required'}`}><span>{t('Final acceptance')}</span><h3>{t(title)}</h3><p>{t(copy)}</p></div>
     {!isAccepted && !isClosed && <Button disabled={!ready || !canAccept} onClick={() => onDecision('Accept AIVEX team', 'validate_file')} icon={<ShieldCheck size={17}/>}>{t('Accept team')}</Button>}
     {!isAccepted && !isClosed && !ready && <p className="adm-validation-help"><LockKeyhole size={15}/>{t('Complete the remaining review items to unlock final acceptance.')}</p>}
@@ -606,7 +570,7 @@ function SecureViewer({ team, document: file, onClose, onUpdated, onNeedsCorrect
     <div className="adm-viewer-layout">
       <section className="adm-viewer-preview" aria-label={t('Confidential document')}>
         <div className="adm-viewer-controls">
-          <span className="adm-viewer-controls-label"><LockKeyhole size={14}/>{t('SECURE SERVER VIEW')}</span>
+          <span className="adm-viewer-controls-label"><LockKeyhole size={14}/>{t('Confidential document')}</span>
           {isImage && <div className="adm-viewer-control-actions"><IconButton label={t('Fit image to screen')} onClick={resetImageView}><Maximize2 size={18}/></IconButton><IconButton label={t('Zoom out')} disabled={zoom <= IMAGE_ZOOM_MIN} onClick={() => updateImageView(imageViewRef.current.zoom - .25)}><ZoomOut size={18}/></IconButton><button type="button" className="adm-viewer-zoom" onClick={resetImageView} aria-label={t('Reset zoom')}>{Math.round(zoom * 100)}%</button><IconButton label={t('Zoom in')} disabled={zoom >= IMAGE_ZOOM_MAX} onClick={() => updateImageView(imageViewRef.current.zoom + .25)}><ZoomIn size={18}/></IconButton><IconButton label={t('Rotate document')} onClick={rotateImage}><RotateCw size={18}/></IconButton></div>}
           {!isImage && <span className="adm-viewer-format">{isPdf ? 'PDF' : (mimeType.split('/')[1] || 'FILE').toUpperCase()}</span>}
         </div>
@@ -614,7 +578,7 @@ function SecureViewer({ team, document: file, onClose, onUpdated, onNeedsCorrect
       </section>
       <aside className="adm-viewer-sidebar">
         <div className="adm-viewer-security"><ShieldCheck size={20}/><div><b>{t('Internal verification data.')}</b><p>{t('Access is logged. Do not copy, download or disclose personal documents outside the authorised review process.')}</p></div></div>
-        <div className="adm-document-review-guide"><span>{t('Simple document review')}</span><b>{t('Is the document readable and consistent with the team information?')}</b><p>{t('Choose one clear result. No technical note is required.')}</p></div>
+        <div className="adm-document-review-guide"><span>{t('Simple document review')}</span><b>{t('Is the document readable and consistent with the team information?')}</b><p>{t('Accept a readable, matching document or request a replacement.')}</p></div>
         <details className="adm-viewer-log"><summary><span>{t('Consultation log')}</span><Ltr>{accesses.length}</Ltr></summary><div>{accesses.length ? accesses.map((entry, index) => <p key={`${entry.at}-${index}`}><span>{entry.actor}</span><small>{dateLabel(entry.at)} · {timeLabel(entry.at)}</small></p>) : <p><span>{t('No earlier consultation recorded')}</span></p>}</div></details>
       </aside>
     </div>
@@ -631,7 +595,7 @@ export function AivexDetailPage() {
   const [team, setTeam] = useState(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
-  const [tab, setTab] = useState('Team overview')
+  const [tab, setTab] = useState('Verification')
   const [viewerId, setViewerId] = useState(null)
   const [action, setAction] = useState(null)
   const [corrections, setCorrections] = useState(false)
@@ -706,6 +670,7 @@ export function AivexDetailPage() {
   const generated = team.docs.find((document) => document.id === 'official')
   const allowed = new Set(team.allowedActions || [])
   const review = team.reviewSummary
+  const presentation = aivexFilePresentation(team)
   const openFile = (document) => {
     if (!document.canOpen) { addToast(t('File absent'), t('Request the missing file through a correction request.')); return }
     setViewerId(document.id)
@@ -803,33 +768,35 @@ export function AivexDetailPage() {
   }
 
   return <div className={`adm-page adm-aivex-page adm-team-page ${isArabic ? 'is-arabic' : ''}`} dir={dir} lang={language}>
-    <Link className="adm-back-link" to={path('/admin/aivex')}><ArrowLeft size={15}/>{t('All AIVEX files')}<span>/</span>{t('Team dossier breadcrumb')}</Link>
-    <PageHeader eyebrow={<><Ltr>{team.ref}</Ltr> · {t('SECOND EDITION')}</>} title={<Ltr>{team.name}</Ltr>} description={<>{team.institution} · {team.wilaya}</>} actions={<div className="adm-aivex-header-actions"><AivexLanguageSwitch language={language} setLanguage={setLanguage} t={t}/><Button onClick={() => setTab(team.document === 'Validated' ? 'History' : 'Verification')} icon={<ArrowRight size={16}/>}>{t(team.document === 'Validated' ? 'View audit trail' : 'Review this file')}</Button></div>}/>
-    <div className="adm-team-meta"><AivexStatus value={team.registration} t={t}/><AivexStatus value={team.document} t={t}/><span>{t('Submitted')} {dateLabel(team.submittedAt)}</span><div><span>{t('File completeness')}</span><Progress value={team.completeness} label={t('File completeness')}/></div></div>
-    <TeamTimeline team={team} onStep={setTab} t={t}/>
-    <Tabs items={AIVEX_TABS} value={tab} onChange={setTab} getLabel={t} counts={{ Documents: team.docs.length, Verification: review.blockers.length === 0 ? t('Ready') : review.blockers.length }}/>
+    <Link className="adm-back-link" to={path('/admin/aivex')}><ArrowLeft size={15}/>{t('All AIVEX files')}</Link>
+    <PageHeader eyebrow={<Ltr>{team.ref}</Ltr>} title={<bdi>{team.name}</bdi>} description={<>{team.institution} · {team.wilaya}</>} actions={<div className="adm-aivex-header-actions"><AivexLanguageSwitch language={language} setLanguage={setLanguage} t={t}/><Button variant="secondary" onClick={refreshDetail} icon={<RefreshCw size={15}/>}>{t('Refresh files')}</Button></div>}/>
+    <section className={`adm-case-overview is-${presentation.tone}`} aria-label={t('File summary')}>
+      <div className="adm-case-overview__copy"><FileState team={team} t={t}/><h2>{t(presentation.title)}</h2><p>{t(presentation.copy)}</p></div>
+      <div className="adm-case-overview__meta"><span>{t('Review progress')}</span><Progress value={team.completeness} label={t('Review progress')}/><small>{t('Updated')} {aivexDateLabel(team.updatedAt, language)}</small>{presentation.tab !== tab && <Button variant="secondary" onClick={() => setTab(presentation.tab)} icon={<ArrowRight size={15}/>}>{t(presentation.action)}</Button>}</div>
+    </section>
+    <Tabs items={AIVEX_TABS} value={tab} onChange={setTab} getLabel={(value) => t(value === 'Verification' ? 'Review & decision' : value)} counts={presentation.tab === 'History' ? {} : { Verification: review.blockers.length === 0 ? t('Ready') : review.blockers.length }}/>
     {tab === 'Team overview' && <div className="adm-dossier-layout"><div className="adm-dossier-main">
-      <section className="adm-panel adm-dossier-section"><SectionHeading index="01" title={t('Team & institution')}/><Facts missingLabel={t('Not provided')} items={[[t('Team name'), <Ltr>{team.name}</Ltr>], [t('Wilaya code & name'), team.wilaya], [t('Institution'), team.institution], [t('Institution type'), t(team.institutionType)], [t('Edition'), t(team.edition)], [t('Form version'), <code><Ltr>{team.formVersion}</Ltr></code>], [t('Submission date'), dateLabel(team.submittedAt)], [t('Reference'), <code><Ltr>{team.ref}</Ltr></code>]]}/></section>
+      <section className="adm-panel adm-dossier-section"><SectionHeading index="01" title={t('Team & institution')}/><Facts missingLabel={t('Not provided')} items={[[t('Team name'), <Ltr>{team.name}</Ltr>], [t('Wilaya code & name'), team.wilaya], [t('Institution'), team.institution], [t('Institution type'), t(team.institutionType)], [t('Edition'), t(team.edition)], [t('Submission date'), dateLabel(team.submittedAt)], [t('Reference'), <code><Ltr>{team.ref}</Ltr></code>]]}/></section>
       <section className="adm-panel adm-dossier-section"><SectionHeading index="02" title={t('Activities manager')}/><Facts missingLabel={t('Not provided')} items={[[t('Role'), t(team.managerRole)], [t('Full name'), <Ltr>{team.manager}</Ltr>], [t('Email'), <Ltr>{team.managerEmail}</Ltr>], [t('Phone'), <Ltr>{team.managerPhone}</Ltr>]]}/></section>
       <section className="adm-panel adm-dossier-section"><SectionHeading index="03" title={t('Delegation')}/><div className="adm-delegation">{[
         { id: 'delegation-leader', title: 'Delegation leader', name: team.leader, phone: team.leaderPhone, rfid: team.leaderRfid },
         { id: 'driver', title: 'Driver', name: team.driver, phone: team.driverPhone, rfid: team.driverRfid },
       ].map((person) => { const identity = team.docs.find((document) => document.id === person.id); return <div key={person.id}><h3>{t(person.title)}</h3><Facts missingLabel={t('Not provided')} items={[[t('Full name'), <Ltr>{person.name}</Ltr>], [t('Phone'), <Ltr>{person.phone}</Ltr>], ['RFID', <code><Ltr>{person.rfid}</Ltr></code>], [t('Identity card'), <AivexStatus value={identity.status} t={t}/>]]}/><button className="adm-text-action" disabled={!identity.canOpen} onClick={() => openFile(identity)}><LockKeyhole size={14}/>{t('Review document')}</button></div> })}</div></section>
       <section className="adm-panel adm-dossier-section"><SectionHeading index="04" title={t('Student roster')} meta={t('Exactly 3 students')}/><div className="adm-student-roster">{team.students.map((student, index) => { const studentCard = team.docs.find((document) => document.id === `student-${index + 1}`); return <article key={student.position}><header><span>{student.position}</span><h3><Ltr>{student.name}</Ltr></h3><AivexStatus value={studentCard.status} t={t}/></header><Facts missingLabel={t('Not provided')} items={[[t('Phone'), <Ltr>{student.phone}</Ltr>], [t('Baccalaureate year'), <Ltr>{student.bac}</Ltr>], [t('RFID · 8 digits'), <code><Ltr>{student.rfid}</Ltr></code>], [t('Document review'), t(documentOutcomeLabel(studentCard.status))]]}/><button className="adm-text-action" disabled={!studentCard.canOpen} onClick={() => openFile(studentCard)}><LockKeyhole size={14}/>{t('Review student card')} <ArrowRight size={14}/></button></article> })}</div></section>
-    </div><aside className="adm-dossier-aside"><div className="adm-dossier-summary"><span className="adm-eyebrow">{t('Next administrative step')}</span><h2>{t(team.document === 'Validated' ? 'Ready for the competition.' : 'Every detail counts.')}</h2><p>{t(team.document === 'Validated' ? 'The team file has completed every administrative check.' : 'Follow the three review steps before validating this team.')}</p><Progress value={team.completeness}/><Button onClick={() => setTab('Verification')} icon={<ArrowRight size={16}/>}>{t('Open verification')}</Button></div><section className="adm-panel adm-aside-docs"><h3>{t('Document centre')}</h3><p><FileText size={16}/>{isArabic ? `${team.docs.length} وثيقة مسجلة` : `${team.docs.length} documents on record`}</p><p><LockKeyhole size={16}/>{isArabic ? `${team.docs.filter((document) => ['student', 'identity'].includes(document.category)).length} وثائق هوية سرية` : `${team.docs.filter((document) => ['student', 'identity'].includes(document.category)).length} confidential identity files`}</p><button className="adm-text-action" onClick={() => setTab('Documents')}>{t('Browse documents')} <ArrowRight size={15}/></button></section><AivexConfidentialNotice t={t}/></aside></div>}
+    </div><aside className="adm-dossier-aside"><div className="adm-dossier-summary"><span className="adm-eyebrow">{t('Next step')}</span><h2>{t(presentation.title)}</h2><p>{t(presentation.copy)}</p><Button onClick={() => setTab(presentation.tab)} icon={<ArrowRight size={16}/>}>{t(presentation.action)}</Button></div><section className="adm-panel adm-aside-docs"><h3>{t('Document centre')}</h3><p><FileText size={16}/>{isArabic ? `${team.docs.length} وثيقة مسجلة` : `${team.docs.length} documents on record`}</p><p><LockKeyhole size={16}/>{isArabic ? `${team.docs.filter((document) => ['student', 'identity'].includes(document.category)).length} وثائق هوية سرية` : `${team.docs.filter((document) => ['student', 'identity'].includes(document.category)).length} confidential identity files`}</p><button className="adm-text-action" onClick={() => setTab('Documents')}>{t('Browse documents')} <ArrowRight size={15}/></button></section><AivexConfidentialNotice t={t}/></aside></div>}
     {tab === 'Documents' && <div className="adm-documents-page"><AivexConfidentialNotice t={t}/>{[
-      ['official', 'A', 'Official generated form', 'DOCX · Versioned generation'],
-      ['signed', 'B', 'Signed submissions', 'PDF, JPG or PNG · Maximum 10 MB · Previous versions are preserved'],
-      ['student', 'C', 'Student cards', 'Exactly three files · JPG, PNG or WEBP · Maximum 5 MB each'],
-      ['identity', 'D', 'Identity documents', 'Delegation leader & driver · JPG or PNG · Maximum 5 MB each'],
+      ['official', 'A', 'Participation form', 'Download the form to be signed by the institution.'],
+      ['signed', 'B', 'Signed and stamped form', 'Check the signature and stamp on the latest version.'],
+      ['student', 'C', 'Student cards', 'Check the name and readability of each student card.'],
+      ['identity', 'D', 'Identity documents', 'Check the delegation leader and driver documents.'],
     ].map(([category, index, title, meta]) => <section className="adm-panel adm-file-category" key={category}>
       <SectionHeading index={index} title={t(title)} meta={t(meta)}/>
       {team.docs.filter((document) => document.category === category).map((document) => <div className="adm-file-row" key={document.id}>
         <span className={`adm-file-icon ${category !== 'official' ? 'is-locked' : ''}`}>{category === 'official' ? <FileText size={22}/> : <LockKeyhole size={20}/>}</span>
-        <div className="adm-file-name"><b><Ltr>{document.name}</Ltr></b><small><Ltr>{document.person}</Ltr> · <Ltr>{document.type}</Ltr> · <Ltr>{document.size}</Ltr></small>{category === 'official' && <code>{t('Template')} <Ltr>{document.template}</Ltr> · {t('Revision')} <Ltr>{document.revision}</Ltr></code>}</div>
+        <div className="adm-file-name"><b>{t(category === 'official' ? 'Participation form' : document.kind)}</b><small><Ltr>{document.person}</Ltr> · <Ltr>{document.type}</Ltr> · <Ltr>{document.size}</Ltr></small></div>
         <div className="adm-file-time"><span>{dateLabel(document.created)}</span><small><Ltr>{timeLabel(document.created)}</Ltr></small></div>
         {document.version && <span className="adm-version"><Ltr>v{document.version}</Ltr> · {t(document.active ? 'Active' : 'Previous')}</span>}
-        {category === 'official' ? <AivexStatus value={document.status} t={t}/> : <div className="adm-file-review-state"><AivexStatus value={document.status} t={t}/><small>{t(documentOutcomeLabel(document.status))}</small></div>}
+        {category === 'official' ? <AivexStatus value={document.status} t={t}/> : <div className="adm-file-review-state"><AivexStatus value={documentOutcomeLabel(document.status)} tone={document.status === 'Verified' ? 'success' : document.status === 'Invalid' || document.status === 'Absent' ? 'warning' : 'neutral'} t={t}/></div>}
         {category === 'official' ? document.canOpen
           ? <IconButton label={t('Download secure DOCX')} disabled={downloadBusy} onClick={download}><Download size={18}/></IconButton>
           : allowed.has('retry_generation') ? <Button variant="secondary" onClick={regenerate}>{t(document.status === 'Generation issue' ? 'Retry generation' : 'Generate form')}</Button> : null
@@ -849,7 +816,7 @@ export function AivexDetailPage() {
       {!team.docs.some((document) => document.category === category) && <div className="adm-file-absent"><FolderClosed size={23}/><div><b>{t('No signed document received')}</b><p>{t('The official form still needs to be signed and stamped by the institution.')}</p></div><AivexStatus value="Absent" tone="warning" t={t}/></div>}
     </section>)}</div>}
     {tab === 'Verification' && <div className="adm-verification-layout"><AivexReviewSummary team={team} allowed={allowed} locale={locale} syncStatus={verificationSync} onTab={setTab} onDecision={decision} onCorrections={() => openCorrections()} onResolveItem={resolveCorrectionItem} onExtendDeadline={() => { setDeadlineError(''); setDeadlineChange(true) }} resolvingItemId={resolvingItemId}/><AivexDecisionPanel team={team} allowed={allowed} locale={locale} onDecision={decision}/></div>}
-    {tab === 'History' && <section className="adm-panel adm-dossier-section"><SectionHeading index="07" title={t('Complete file history')} meta={t('Authors, timestamps & decisions')}/><History items={team.history} translate={t} locale={isArabic ? 'ar-DZ' : 'en-GB'} emptyTitle={t('Historical data incomplete')} emptyCopy={t('No earlier actions are available for this file. New actions will appear here.')}/><div className="adm-history-note"><LockKeyhole size={15}/><p>{t('Confidential document consultations are recorded separately in the')} <Link to="/admin/activity?sensitivity=Confidential">{t('global activity log')}</Link>.</p></div></section>}
+    {tab === 'History' && <section className="adm-panel adm-dossier-section"><SectionHeading title={t('Complete file history')} meta={t('Authors, timestamps & decisions')}/><History items={team.history} translate={t} locale={isArabic ? 'ar-DZ' : 'en-GB'} emptyTitle={t('Historical data incomplete')} emptyCopy={t('No earlier actions are available for this file. New actions will appear here.')}/><div className="adm-history-note"><LockKeyhole size={15}/><p>{t('Confidential document consultations are recorded separately in the')} <Link to="/admin/activity?sensitivity=Confidential">{t('global activity log')}</Link>.</p></div></section>}
     {file && <SecureViewer key={file.id} team={team} document={file} onClose={closeViewer} onUpdated={setTeam} onNeedsCorrection={requestDocumentCorrection} locale={locale} loadDocument={loadDocument} act={act}/>}
     {action && <ActionDialog key={action.key} action={action} labels={actionDialogLabels(isArabic, t)} getOptionLabel={t} onClose={() => setAction(null)} onSubmit={submitAction}/>} 
     <Modal open={corrections} onClose={() => busy ? undefined : setCorrections(false)} closeLabel={isArabic ? 'إغلاق' : 'Close'} title={t('Request corrections')} eyebrow={team.ref} footer={<><Button variant="secondary" onClick={() => setCorrections(false)} disabled={busy}>{t('Cancel')}</Button><Button form="correction-form" type="submit" disabled={busy}>{t(busy ? 'Saving…' : 'Save correction request')}</Button></>}><form id="correction-form" onSubmit={saveCorrections}><fieldset className="adm-correction-items"><legend>{t('Items requiring correction')}</legend>{['Team information', 'Activities manager', 'Delegation leader ID', 'Driver ID', 'Student card 01', 'Student card 02', 'Student card 03', 'Signed and stamped form'].map((item) => <label key={item}><input type="checkbox" name="items" value={item} defaultChecked={correctionDefaults.includes(item)}/>{t(item)}</label>)}</fieldset><label className="adm-form-field"><span>{t('Correction deadline')} <em>{t('Required')}</em></span><input name="deadline" type="date" required min={new Date().toISOString().slice(0, 10)} defaultValue={tomorrowDate()}/></label><p className="adm-muted">{t('The selected items and deadline are recorded directly in the protected case history.')}</p>{correctionError && <p className="adm-form-error" role="alert">{correctionError}</p>}</form></Modal>
