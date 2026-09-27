@@ -134,6 +134,10 @@
 .axs-paper[dir='rtl'] .axs-correction-list > li { padding-inline-start: 0; padding-inline-end: 20px; }
 .axs-paper[dir='rtl'] .axs-correction-list > li::before { inset-inline-start: auto; inset-inline-end: 0; }
 .axs-paper .axs-correction-deadline { margin-top: 14px; color: var(--axs-red-ink); font-size: 12px; font-weight: 750; line-height: 1.7; }
+.axs-correction-expired { display: grid; gap: 5px; margin-top: 14px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--axs-red) 35%, transparent); background: var(--axs-red-soft); color: var(--axs-red-ink); }
+.axs-correction-expired b { font-size: 13px; }
+.axs-paper .axs-correction-expired p { margin: 0; font-size: 12px; line-height: 1.65; }
+.axs-correction-expired a { color: inherit; font-weight: 750; text-decoration: underline; text-underline-offset: 3px; }
 
 /* Per-item correction status + resubmission forms (CorrectionRequestPanel). */
 .axs-paper .axs-correction-list { display: grid; gap: 14px; margin: 18px 0 0; padding: 0; list-style: none; }
@@ -149,6 +153,7 @@ li[data-status='verified'] .axs-correction-item-head > svg { color: var(--axs-gr
 .axs-paper .axs-correction-contact { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--af-line); color: var(--af-muted); font-size: 12px; line-height: 1.7; }
 .axs-correction-contact a { color: var(--af-ink); font-weight: 700; text-decoration: underline; text-decoration-color: var(--af-accent-soft); text-underline-offset: 3px; }
 .axs-paper .axs-correction-form { display: grid; gap: 12px; margin-top: 13px; padding-top: 13px; border-top: 1px solid var(--af-line); }
+.axs-correction-fieldset { display: grid; gap: 12px; min-inline-size: 0; margin: 0; padding: 0; border: 0; }
 .axs-correction-form label { display: grid; gap: 6px; color: var(--af-muted); font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .axs-correction-form input, .axs-correction-form select { min-block-size: 42px; padding-inline: 12px; border: 1px solid var(--af-line-strong); background: var(--af-control); color: var(--af-ink); font-size: 13px; font-weight: 600; text-transform: none; letter-spacing: normal; }
 .axs-correction-form input:focus, .axs-correction-form select:focus { outline: 2px solid var(--ax-amber); outline-offset: 1px; }

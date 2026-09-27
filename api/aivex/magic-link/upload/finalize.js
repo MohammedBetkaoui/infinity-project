@@ -6,6 +6,7 @@
 // document resubmission started at ../init.js. See that file's header for
 // why they are folded together rather than split into two endpoints.
 import { UPLOAD_ELIGIBLE_DOCUMENT_STATUSES } from '../../../../shared/aivex/signed-document-policy.js'
+import { isCorrectionDeadlineExpired } from '../../../../shared/aivex/correction-deadline.js'
 import {
   UPLOAD_SESSION_STALE_MS, createSupabaseUploadSessionStore, sessionIsUsable,
   verifyCorrectionUploadStaging, verifySignedDocumentStaging,
@@ -85,6 +86,13 @@ export function createSignedUploadFinalizeHandler({
       const resolved = await resolveLink({ magicLinkStore, rawToken: typeof body.token === 'string' ? body.token : '', now: clock })
       if (!resolved.ok) return fail(res, 401, resolved.status)
 
+      const activeCorrection = typeof magicLinkStore.latestOpenCorrection === 'function'
+        ? await magicLinkStore.latestOpenCorrection(resolved.registrationId)
+        : null
+      if (activeCorrection && isCorrectionDeadlineExpired(activeCorrection.deadline, clock)) {
+        return fail(res, 409, 'correction_deadline_expired', 'The correction deadline has passed.')
+      }
+
       session = await sessions.loadSession(body.uploadSessionId)
       if (!session || session.registration_id !== resolved.registrationId) return fail(res, 409, 'invalid_upload_session')
 
@@ -141,6 +149,9 @@ export function createSignedUploadFinalizeHandler({
     } catch (error) {
       if (session?.id) await sessions.markFailed(session.id).catch(() => {})
       console.error('[aivex] Signed upload finalize failed', { stage: error?.stage || 'finalize', code: error?.code })
+      if (String(error?.databaseMessage || '').includes('correction_deadline_expired')) {
+        return fail(res, 409, 'correction_deadline_expired', 'The correction deadline has passed.')
+      }
       fail(res, 500, 'finalization_failed')
     }
   }

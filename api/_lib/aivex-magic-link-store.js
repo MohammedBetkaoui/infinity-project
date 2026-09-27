@@ -83,13 +83,13 @@ export function createSupabaseMagicLinkStore(supabase) {
     },
     // The one open (unresolved) correction request for this registration, if
     // any, with its per-item status — same candidate-safe projection rule as
-    // above: the team's own message, deadline and each item's live status
+    // above: the structured deadline and each item's live status
     // (needed to know which items still need the team's action vs. already
     // submitted/verified), never `internal_note` (admin-only), the reviewer,
     // or a rejected attempt's review_note.
     async latestOpenCorrection(registrationId) {
       const { data, error } = await supabase.from(CORRECTIONS)
-        .select('id, team_message, due_at')
+        .select('id, due_at')
         .eq('registration_id', registrationId)
         .is('resolved_at', null)
         .order('created_at', { ascending: false })
@@ -103,7 +103,7 @@ export function createSupabaseMagicLinkStore(supabase) {
         .eq('correction_request_id', data.id)
       if (itemsError) throw new MagicLinkStoreError('load-correction-items', itemsError)
 
-      return { message: data.team_message, deadline: data.due_at, items: items || [] }
+      return { deadline: data.due_at, items: items || [] }
     },
   }
 }

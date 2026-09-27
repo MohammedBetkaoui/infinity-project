@@ -10,6 +10,11 @@ export const ADMIN_AIVEX_ACTIONS = Object.freeze([
   'invalidate_document',
   'retry_generation',
   'resolve_correction_item',
+  'extend_correction_deadline',
+])
+
+export const ADMIN_AIVEX_CAPABILITIES = Object.freeze([
+  'replace_identity_document',
 ])
 
 const REVIEWER_ACTIONS = new Set([
@@ -22,7 +27,7 @@ const REVIEWER_ACTIONS = new Set([
 ])
 
 export function canManageAivex(role, action) {
-  if (!ADMIN_AIVEX_ACTIONS.includes(action)) return false
+  if (!ADMIN_AIVEX_ACTIONS.includes(action) && !ADMIN_AIVEX_CAPABILITIES.includes(action)) return false
   if (role === 'super_admin' || role === 'administrator') return true
   return role === 'reviewer' && REVIEWER_ACTIONS.has(action)
 }
@@ -32,6 +37,6 @@ export function canAccessAivexDocuments(role) {
 }
 
 export function allowedAivexActions(role) {
-  return ADMIN_AIVEX_ACTIONS.filter((action) => canManageAivex(role, action))
+  return [...ADMIN_AIVEX_ACTIONS, ...ADMIN_AIVEX_CAPABILITIES]
+    .filter((action) => canManageAivex(role, action))
 }
-

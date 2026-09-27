@@ -13,7 +13,8 @@ import {
   validatePeopleBulkBody, validatePeopleCreateBody,
 } from './_lib/admin-people-validation.js'
 import {
-  isAivexDocumentKey, isAivexReference, parseAivexListOptions, validateAivexActionBody,
+  isAivexDocumentKey, isAivexReference, parseAivexListOptions, validateAdminIdentityUploadFinalizeBody,
+  validateAdminIdentityUploadInitBody, validateAivexActionBody,
 } from './_lib/admin-aivex-validation.js'
 import { readJsonBody } from './_lib/http.js'
 import { getClientIp } from './_lib/security.js'
@@ -400,6 +401,8 @@ export function createAdminAivexHandler({
     const detailMatch = path.match(/^aivex\/(AIVEX[1-9][0-9]?-[0-9A-HJKMNP-TV-Z]{8})$/)
     const actionMatch = path.match(/^aivex\/(AIVEX[1-9][0-9]?-[0-9A-HJKMNP-TV-Z]{8})\/actions$/)
     const documentMatch = path.match(/^aivex\/(AIVEX[1-9][0-9]?-[0-9A-HJKMNP-TV-Z]{8})\/documents\/([A-Za-z0-9-]+)\/content$/)
+    const identityInitMatch = path.match(/^aivex\/(AIVEX[1-9][0-9]?-[0-9A-HJKMNP-TV-Z]{8})\/identity-upload\/init$/)
+    const identityFinalizeMatch = path.match(/^aivex\/(AIVEX[1-9][0-9]?-[0-9A-HJKMNP-TV-Z]{8})\/identity-upload\/finalize$/)
 
     if (req.method === 'POST' && !trustedOrigin(req, env)) {
       return sendAdminJson(res, 403, { success: false, message: 'Request rejected.' })
@@ -434,6 +437,23 @@ export function createAdminAivexHandler({
         return sendAdminJson(res, 200, { success: true, team: result.team })
       }
 
+      if ((identityInitMatch || identityFinalizeMatch) && req.method === 'POST') {
+        if (!String(req.headers?.['content-type'] || '').toLowerCase().startsWith('application/json')) {
+          return sendAdminJson(res, 415, { success: false, message: 'Unsupported request.' })
+        }
+        const reference = (identityInitMatch || identityFinalizeMatch)[1]
+        const body = await readJsonBody(req, MAX_AIVEX_BODY_BYTES)
+        const parsed = identityInitMatch
+          ? validateAdminIdentityUploadInitBody(body)
+          : validateAdminIdentityUploadFinalizeBody(body)
+        if (!parsed.ok) return sendAdminJson(res, 400, { success: false, status: 'invalid_upload_request', message: 'Invalid identity-document upload request.' })
+        const result = identityInitMatch
+          ? await service.identityUploadInit(reference, parsed.value, session.user)
+          : await service.identityUploadFinalize(reference, parsed.value, session.user)
+        if (!result.ok) return sendAdminJson(res, result.status, { success: false, status: result.code || 'upload_failed', message: result.message })
+        return sendAdminJson(res, 200, { success: true, ...result })
+      }
+
       if (documentMatch && req.method === 'GET') {
         const [, reference, documentKey] = documentMatch
         if (!isAivexReference(reference) || !isAivexDocumentKey(documentKey)) {
@@ -445,7 +465,7 @@ export function createAdminAivexHandler({
       }
 
       const isAivexPath = path === 'aivex' || path.startsWith('aivex/')
-      res.setHeader('Allow', actionMatch ? 'POST' : 'GET')
+      res.setHeader('Allow', actionMatch || identityInitMatch || identityFinalizeMatch ? 'POST' : 'GET')
       return sendAdminJson(res, isAivexPath ? 405 : 404, {
         success: false,
         message: isAivexPath ? 'Method not allowed.' : 'Not found.',

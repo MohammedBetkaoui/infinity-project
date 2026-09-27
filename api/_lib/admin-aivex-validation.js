@@ -2,6 +2,7 @@ import { REGISTRATION_REFERENCE_PATTERN } from './aivex-reference.js'
 import { ADMIN_AIVEX_ACTIONS } from './admin-aivex-permissions.js'
 import { CORRECTION_ITEMS as CORRECTION_ITEM_LIST } from '../../shared/aivex/correction-items.js'
 import {
+  IDENTITY_CARD_POLICY, canonicalCardMime,
   DOCUMENT_STATUSES as AIVEX_DOCUMENT_STATUSES,
   REGISTRATION_STATUSES as AIVEX_REGISTRATION_STATUSES,
 } from '../../shared/aivex/contract-v4.js'
@@ -21,6 +22,8 @@ const DOCUMENT_KEY_RE = /^(official|student-[1-3]|delegation-leader|driver|signe
 const CORRECTION_ITEMS = new Set(CORRECTION_ITEM_LIST)
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const CORRECTION_DECISIONS = new Set(['verified', 'rejected'])
+const IDENTITY_DOCUMENT_KEYS = new Set(['delegation-leader', 'driver'])
+const FILE_EXTENSION_RE = /\.([a-z0-9]+)$/i
 
 const single = (params, name) => {
   const values = params.getAll(name)
@@ -75,6 +78,7 @@ export function validateAivexActionBody(body) {
     if (typeof payload.itemId !== 'string' || !UUID_RE.test(payload.itemId)) return { ok: false }
     if (!CORRECTION_DECISIONS.has(payload.decision)) return { ok: false }
   }
+  if (body.action === 'extend_correction_deadline' && !DATE_RE.test(payload.deadline || '')) return { ok: false }
 
   return {
     ok: true,
@@ -84,4 +88,32 @@ export function validateAivexActionBody(body) {
       payload,
     },
   }
+}
+
+export function validateAdminIdentityUploadInitBody(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return { ok: false }
+  if (!UUID_RE.test(body.uploadId || '') || !IDENTITY_DOCUMENT_KEYS.has(body.documentKey)) return { ok: false }
+  if (!Number.isFinite(Date.parse(body.expectedUpdatedAt))) return { ok: false }
+  const file = body.file
+  if (!file || typeof file !== 'object' || Array.isArray(file)) return { ok: false }
+  const mime = canonicalCardMime(file.mime)
+  const type = IDENTITY_CARD_POLICY.types[mime]
+  const size = Number(file.size)
+  const extension = FILE_EXTENSION_RE.exec(String(file.name || ''))?.[1].toLowerCase() || ''
+  if (!type || !type.extensions.includes(extension)) return { ok: false }
+  if (!Number.isInteger(size) || size < 1 || size > IDENTITY_CARD_POLICY.maxBytes) return { ok: false }
+  return {
+    ok: true,
+    value: {
+      uploadId: body.uploadId,
+      documentKey: body.documentKey,
+      expectedUpdatedAt: body.expectedUpdatedAt,
+      file: { name: String(file.name).slice(0, 255), mime, size },
+    },
+  }
+}
+
+export function validateAdminIdentityUploadFinalizeBody(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body) || !UUID_RE.test(body.uploadSessionId || '')) return { ok: false }
+  return { ok: true, value: { uploadSessionId: body.uploadSessionId } }
 }

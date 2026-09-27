@@ -1,5 +1,5 @@
 import { useCallback, useDeferredValue, useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, Download, FileCheck2, FileText, FolderClosed, Languages, LockKeyhole, Maximize2, RefreshCw, RotateCw, ShieldCheck, TriangleAlert, ZoomIn, ZoomOut } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, Download, FileCheck2, FileText, FolderClosed, Languages, LockKeyhole, Maximize2, RefreshCw, RotateCw, ShieldCheck, TriangleAlert, Upload, ZoomIn, ZoomOut } from 'lucide-react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAdmin } from './AdminStore'
 import { useAivexLocale } from './AivexI18n'
@@ -236,6 +236,81 @@ const tomorrowDate = () => {
 const CORRECTION_ITEM_STATUS_TONE = { open: 'warning', submitted: 'info', verified: 'success' }
 const CORRECTION_ITEM_STATUS_LABEL = { open: 'Awaiting the team', submitted: 'Submitted — needs review', verified: 'Verified' }
 const ACTIVITY_ROLE_LABELS = { sub_director_activities: 'Deputy director of activities', activities_officer: 'Activities manager' }
+const IDENTITY_FILE_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/pjpeg', 'image/png'])
+const IDENTITY_FILE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png'])
+const IDENTITY_MAX_BYTES = 5 * 1024 * 1024
+
+const identityFileIssue = (file) => {
+  if (!file || !(file.size > 0)) return 'The selected file is empty.'
+  const extension = file.name.split('.').pop()?.toLowerCase() || ''
+  if (!IDENTITY_FILE_TYPES.has(file.type.toLowerCase()) || !IDENTITY_FILE_EXTENSIONS.has(extension)) return 'Use a JPG, JPEG or PNG image.'
+  if (file.size > IDENTITY_MAX_BYTES) return 'The selected file is larger than 5 MB.'
+  return ''
+}
+
+const identityFileSize = (bytes) => bytes >= 1024 * 1024
+  ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  : `${Math.max(1, Math.round(bytes / 1024))} KB`
+
+function IdentityReplacementControl({ team, document: file, allowed, locale, uploadIdentityReplacement, onUploaded }) {
+  const { t } = locale
+  const inputRef = useRef(null)
+  const [selected, setSelected] = useState(null)
+  const [issue, setIssue] = useState('')
+  const [phase, setPhase] = useState('idle')
+  const [progress, setProgress] = useState(0)
+  const [message, setMessage] = useState('')
+  const canUpload = allowed.has('replace_identity_document') && file.correctionStatus === 'open'
+  const busy = ['preparing', 'uploading', 'validating'].includes(phase)
+  if (!allowed.has('replace_identity_document') || (!canUpload && phase !== 'success')) return null
+
+  const choose = (event) => {
+    const next = event.target.files?.[0] || null
+    setSelected(next)
+    setIssue(identityFileIssue(next))
+    setMessage('')
+    setPhase('idle')
+    event.target.value = ''
+  }
+  const cancel = () => {
+    if (busy) return
+    setSelected(null)
+    setIssue('')
+    setMessage('')
+    setPhase('idle')
+  }
+  const submit = async () => {
+    const clientIssue = identityFileIssue(selected)
+    if (!canUpload || busy || clientIssue) { setIssue(clientIssue); return }
+    try {
+      const nextTeam = await uploadIdentityReplacement(
+        team.ref, file.id, team.updatedAt, selected,
+        (nextPhase, nextProgress) => { setPhase(nextPhase); setProgress(nextProgress) },
+      )
+      setPhase('success')
+      setProgress(100)
+      setMessage(t('Replacement passed secure server validation and is ready for review.'))
+      onUploaded(nextTeam)
+    } catch (error) {
+      setPhase('error')
+      setProgress(0)
+      setMessage(t(error.message || 'The replacement failed secure server validation.'))
+    }
+  }
+
+  return <div className="adm-identity-replacement" data-state={phase}>
+    <input ref={inputRef} type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" aria-label={t('Upload replacement')} onChange={choose} disabled={!canUpload || busy} />
+    {!selected && phase !== 'success' && <Button variant="secondary" onClick={() => inputRef.current?.click()} disabled={!canUpload || busy} icon={<Upload size={14}/>}>{t('Upload replacement')}</Button>}
+    {selected && <div className="adm-identity-replacement__file">
+      <div><b>{selected.name}</b><small>{(selected.name.split('.').pop() || selected.type).toUpperCase()} · {identityFileSize(selected.size)}</small></div>
+      {phase !== 'success' && <div><button type="button" onClick={() => inputRef.current?.click()} disabled={busy}>{t('Replace')}</button><button type="button" onClick={cancel} disabled={busy}>{t('Cancel')}</button></div>}
+    </div>}
+    {issue && <p className="adm-form-error" role="alert">{t(issue)}</p>}
+    {busy && <div className="adm-identity-replacement__progress" role="status"><progress max="100" value={progress}/><span>{t(phase === 'preparing' ? 'Preparing secure upload…' : phase === 'uploading' ? 'Secure upload in progress…' : 'Running secure server validation…')} <Ltr>{progress}%</Ltr></span></div>}
+    {message && <p className={phase === 'success' ? 'adm-form-success' : 'adm-form-error'} role={phase === 'success' ? 'status' : 'alert'}>{message}</p>}
+    {selected && phase !== 'success' && <Button onClick={submit} disabled={!canUpload || busy || Boolean(issue)}>{t(phase === 'validating' ? 'Validating…' : 'Upload replacement')}</Button>}
+  </div>
+}
 
 // One requested item's live status. A document-kind item resolves through
 // the Documents tab's existing SecureViewer review (verify_document /
@@ -284,7 +359,7 @@ function CorrectionItemRow({ item, allowed, onTab, onResolveItem, resolving, t }
   )
 }
 
-function AivexReviewSummary({ team, allowed, locale, syncStatus, onTab, onDecision, onCorrections, onResolveItem, resolvingItemId }) {
+function AivexReviewSummary({ team, allowed, locale, syncStatus, onTab, onDecision, onCorrections, onResolveItem, onExtendDeadline, resolvingItemId }) {
   const { isArabic, t } = locale
   const review = team.reviewSummary
   const outstanding = review.blockers.length
@@ -308,7 +383,7 @@ function AivexReviewSummary({ team, allowed, locale, syncStatus, onTab, onDecisi
       {outstanding > 0 && <ul>{review.blockers.map((blocker) => <li key={blocker.key}><span><i/>{t(REVIEW_BLOCKER_LABELS[blocker.key])}</span><button type="button" onClick={() => onTab(blocker.tab)}>{t('Open')}<ArrowRight size={13}/></button></li>)}</ul>}
       {outstanding > 0 && allowed.has('request_corrections') && team.canRequestCorrections && <div className="adm-review-support"><Button variant="secondary" onClick={onCorrections}>{t('Request corrections')}</Button></div>}
     </div>
-    {team.correctionRequest && <div className="adm-correction-summary"><b>{t('Current correction request')}</b><small>{t('Due')} <Ltr>{team.correctionRequest.deadline}</Ltr></small><ul className="adm-correction-items-list">{team.correctionRequest.itemStatuses.map((item) => <CorrectionItemRow key={item.id} item={item} allowed={allowed} onTab={onTab} onResolveItem={onResolveItem} resolving={resolvingItemId === item.id} t={t}/>)}</ul></div>}
+    {team.correctionRequest && <div className="adm-correction-summary"><b>{t('Current correction request')}</b><small>{t(team.correctionRequest.expired ? 'Expired correction deadline' : 'Due')} <Ltr>{team.correctionRequest.deadline}</Ltr></small>{allowed.has('extend_correction_deadline') && <Button variant="secondary" onClick={onExtendDeadline}>{t('Set new deadline')}</Button>}<ul className="adm-correction-items-list">{team.correctionRequest.itemStatuses.map((item) => <CorrectionItemRow key={item.id} item={item} allowed={allowed} onTab={onTab} onResolveItem={onResolveItem} resolving={resolvingItemId === item.id} t={t}/>)}</ul></div>}
   </section>
 }
 
@@ -521,7 +596,7 @@ function SecureViewer({ team, document: file, onClose, onUpdated, onNeedsCorrect
     event.preventDefault()
   }
   const reviewingCorrection = file.correctionStatus === 'submitted'
-  const awaitingCandidateReplacement = file.correctionStatus === 'open' && ['student', 'signed'].includes(file.category)
+  const awaitingCandidateReplacement = file.correctionStatus === 'open' && ['student', 'signed', 'identity'].includes(file.category)
   const replacementDisabled = saving || loading || (!reviewingCorrection && !team.canRequestCorrections)
   return <Modal open wide className="is-document-viewer" onClose={saving ? () => {} : onClose} closeLabel={isArabic ? 'إغلاق' : 'Close'} title={t('Confidential document')} eyebrow={t('Restricted review · Access recorded')} footer={<div className="adm-viewer-footer"><span className="adm-viewer-timer"><LockKeyhole size={14}/>{t('Auto-close in')} <Ltr>{Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, '0')}</Ltr></span><div className="adm-viewer-footer-actions"><Button variant="secondary" onClick={onClose} disabled={saving}>{t('Close viewer')}</Button><Button variant="danger" onClick={() => reviewingCorrection ? submitReview('invalidate_document') : onNeedsCorrection(file)} disabled={replacementDisabled}>{t(reviewingCorrection ? 'Needs another attempt' : team.correctionRequest ? 'Correction cycle already active' : 'Needs replacement')}</Button><Button onClick={() => submitReview('verify_document')} disabled={saving || loading || file.status === 'Verified' || awaitingCandidateReplacement} icon={<CheckCircle2 size={16}/>}>{t(file.status === 'Verified' ? 'Document accepted' : awaitingCandidateReplacement ? 'Waiting for the team' : saving ? 'Saving…' : 'Document is correct')}</Button></div></div>}>
     <div className="adm-viewer-heading">
@@ -552,7 +627,7 @@ export function AivexDetailPage() {
   const { addToast } = useAdmin()
   const locale = useAivexLocale()
   const { language, isArabic, dir, t, setLanguage, path } = locale
-  const { loadDetail, act, loadDocument } = useAdminAivexActions()
+  const { loadDetail, act, loadDocument, uploadIdentityReplacement } = useAdminAivexActions()
   const [team, setTeam] = useState(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
@@ -562,6 +637,8 @@ export function AivexDetailPage() {
   const [corrections, setCorrections] = useState(false)
   const [correctionDefaults, setCorrectionDefaults] = useState([])
   const [correctionError, setCorrectionError] = useState('')
+  const [deadlineChange, setDeadlineChange] = useState(false)
+  const [deadlineError, setDeadlineError] = useState('')
   const [busy, setBusy] = useState(false)
   const [downloadBusy, setDownloadBusy] = useState(false)
   const [verificationSync, setVerificationSync] = useState('current')
@@ -710,6 +787,20 @@ export function AivexDetailPage() {
     setVerificationSync('current')
     addToast(t(decision === 'verified' ? 'Correction verified' : 'Sent back to the team'), t('The real AIVEX file and its protected history were updated.'))
   }
+  const saveCorrectionDeadline = async (event) => {
+    event.preventDefault()
+    const deadline = new FormData(event.currentTarget).get('deadline')
+    setBusy(true)
+    const result = await act(team.ref, {
+      action: 'extend_correction_deadline', expectedUpdatedAt: team.updatedAt, payload: { deadline },
+    })
+    setBusy(false)
+    if (!result.ok) { setDeadlineError(t(result.message)); return }
+    setTeam(result.team)
+    setDeadlineChange(false)
+    setDeadlineError('')
+    addToast(t('Correction deadline updated'), t('The old and new deadlines were recorded in the protected history.'))
+  }
 
   return <div className={`adm-page adm-aivex-page adm-team-page ${isArabic ? 'is-arabic' : ''}`} dir={dir} lang={language}>
     <Link className="adm-back-link" to={path('/admin/aivex')}><ArrowLeft size={15}/>{t('All AIVEX files')}<span>/</span>{t('Team dossier breadcrumb')}</Link>
@@ -731,12 +822,38 @@ export function AivexDetailPage() {
       ['signed', 'B', 'Signed submissions', 'PDF, JPG or PNG · Maximum 10 MB · Previous versions are preserved'],
       ['student', 'C', 'Student cards', 'Exactly three files · JPG, PNG or WEBP · Maximum 5 MB each'],
       ['identity', 'D', 'Identity documents', 'Delegation leader & driver · JPG or PNG · Maximum 5 MB each'],
-    ].map(([category, index, title, meta]) => <section className="adm-panel adm-file-category" key={category}><SectionHeading index={index} title={t(title)} meta={t(meta)}/>{team.docs.filter((document) => document.category === category).map((document) => <div className="adm-file-row" key={document.id}><span className={`adm-file-icon ${category !== 'official' ? 'is-locked' : ''}`}>{category === 'official' ? <FileText size={22}/> : <LockKeyhole size={20}/>}</span><div className="adm-file-name"><b><Ltr>{document.name}</Ltr></b><small><Ltr>{document.person}</Ltr> · <Ltr>{document.type}</Ltr> · <Ltr>{document.size}</Ltr></small>{category === 'official' && <code>{t('Template')} <Ltr>{document.template}</Ltr> · {t('Revision')} <Ltr>{document.revision}</Ltr></code>}</div><div className="adm-file-time"><span>{dateLabel(document.created)}</span><small><Ltr>{timeLabel(document.created)}</Ltr></small></div>{document.version && <span className="adm-version"><Ltr>v{document.version}</Ltr> · {t(document.active ? 'Active' : 'Previous')}</span>}{category === 'official' ? <AivexStatus value={document.status} t={t}/> : <div className="adm-file-review-state"><AivexStatus value={document.status} t={t}/><small>{t(documentOutcomeLabel(document.status))}</small></div>}{category === 'official' ? document.canOpen ? <IconButton label={t('Download secure DOCX')} disabled={downloadBusy} onClick={download}><Download size={18}/></IconButton> : allowed.has('retry_generation') ? <Button variant="secondary" onClick={regenerate}>{t(document.status === 'Generation issue' ? 'Retry generation' : 'Generate form')}</Button> : null : <Button variant="secondary" disabled={!document.canOpen} onClick={() => openFile(document)} icon={<LockKeyhole size={14}/>}>{t(document.status === 'Verified' ? 'Review again' : 'Review document')}</Button>}</div>)}{!team.docs.some((document) => document.category === category) && <div className="adm-file-absent"><FolderClosed size={23}/><div><b>{t('No signed document received')}</b><p>{t('The official form still needs to be signed and stamped by the institution.')}</p></div><AivexStatus value="Absent" tone="warning" t={t}/></div>}</section>)}</div>}
-    {tab === 'Verification' && <div className="adm-verification-layout"><AivexReviewSummary team={team} allowed={allowed} locale={locale} syncStatus={verificationSync} onTab={setTab} onDecision={decision} onCorrections={() => openCorrections()} onResolveItem={resolveCorrectionItem} resolvingItemId={resolvingItemId}/><AivexDecisionPanel team={team} allowed={allowed} locale={locale} onDecision={decision}/></div>}
+    ].map(([category, index, title, meta]) => <section className="adm-panel adm-file-category" key={category}>
+      <SectionHeading index={index} title={t(title)} meta={t(meta)}/>
+      {team.docs.filter((document) => document.category === category).map((document) => <div className="adm-file-row" key={document.id}>
+        <span className={`adm-file-icon ${category !== 'official' ? 'is-locked' : ''}`}>{category === 'official' ? <FileText size={22}/> : <LockKeyhole size={20}/>}</span>
+        <div className="adm-file-name"><b><Ltr>{document.name}</Ltr></b><small><Ltr>{document.person}</Ltr> · <Ltr>{document.type}</Ltr> · <Ltr>{document.size}</Ltr></small>{category === 'official' && <code>{t('Template')} <Ltr>{document.template}</Ltr> · {t('Revision')} <Ltr>{document.revision}</Ltr></code>}</div>
+        <div className="adm-file-time"><span>{dateLabel(document.created)}</span><small><Ltr>{timeLabel(document.created)}</Ltr></small></div>
+        {document.version && <span className="adm-version"><Ltr>v{document.version}</Ltr> · {t(document.active ? 'Active' : 'Previous')}</span>}
+        {category === 'official' ? <AivexStatus value={document.status} t={t}/> : <div className="adm-file-review-state"><AivexStatus value={document.status} t={t}/><small>{t(documentOutcomeLabel(document.status))}</small></div>}
+        {category === 'official' ? document.canOpen
+          ? <IconButton label={t('Download secure DOCX')} disabled={downloadBusy} onClick={download}><Download size={18}/></IconButton>
+          : allowed.has('retry_generation') ? <Button variant="secondary" onClick={regenerate}>{t(document.status === 'Generation issue' ? 'Retry generation' : 'Generate form')}</Button> : null
+          : <Button variant="secondary" disabled={!document.canOpen} onClick={() => openFile(document)} icon={<LockKeyhole size={14}/>}>{t(document.status === 'Verified' ? 'Review again' : 'Review document')}</Button>}
+        {category === 'identity' && (
+          <IdentityReplacementControl
+            team={team} document={document} allowed={allowed} locale={locale}
+            uploadIdentityReplacement={uploadIdentityReplacement}
+            onUploaded={(nextTeam) => {
+              setTeam(nextTeam)
+              setVerificationSync('current')
+              addToast(t('Identity replacement submitted'), t('The replacement must now be reviewed in the secure viewer.'))
+            }}
+          />
+        )}
+      </div>)}
+      {!team.docs.some((document) => document.category === category) && <div className="adm-file-absent"><FolderClosed size={23}/><div><b>{t('No signed document received')}</b><p>{t('The official form still needs to be signed and stamped by the institution.')}</p></div><AivexStatus value="Absent" tone="warning" t={t}/></div>}
+    </section>)}</div>}
+    {tab === 'Verification' && <div className="adm-verification-layout"><AivexReviewSummary team={team} allowed={allowed} locale={locale} syncStatus={verificationSync} onTab={setTab} onDecision={decision} onCorrections={() => openCorrections()} onResolveItem={resolveCorrectionItem} onExtendDeadline={() => { setDeadlineError(''); setDeadlineChange(true) }} resolvingItemId={resolvingItemId}/><AivexDecisionPanel team={team} allowed={allowed} locale={locale} onDecision={decision}/></div>}
     {tab === 'History' && <section className="adm-panel adm-dossier-section"><SectionHeading index="07" title={t('Complete file history')} meta={t('Authors, timestamps & decisions')}/><History items={team.history} translate={t} locale={isArabic ? 'ar-DZ' : 'en-GB'} emptyTitle={t('Historical data incomplete')} emptyCopy={t('No earlier actions are available for this file. New actions will appear here.')}/><div className="adm-history-note"><LockKeyhole size={15}/><p>{t('Confidential document consultations are recorded separately in the')} <Link to="/admin/activity?sensitivity=Confidential">{t('global activity log')}</Link>.</p></div></section>}
     {file && <SecureViewer key={file.id} team={team} document={file} onClose={closeViewer} onUpdated={setTeam} onNeedsCorrection={requestDocumentCorrection} locale={locale} loadDocument={loadDocument} act={act}/>}
     {action && <ActionDialog key={action.key} action={action} labels={actionDialogLabels(isArabic, t)} getOptionLabel={t} onClose={() => setAction(null)} onSubmit={submitAction}/>} 
     <Modal open={corrections} onClose={() => busy ? undefined : setCorrections(false)} closeLabel={isArabic ? 'إغلاق' : 'Close'} title={t('Request corrections')} eyebrow={team.ref} footer={<><Button variant="secondary" onClick={() => setCorrections(false)} disabled={busy}>{t('Cancel')}</Button><Button form="correction-form" type="submit" disabled={busy}>{t(busy ? 'Saving…' : 'Save correction request')}</Button></>}><form id="correction-form" onSubmit={saveCorrections}><fieldset className="adm-correction-items"><legend>{t('Items requiring correction')}</legend>{['Team information', 'Activities manager', 'Delegation leader ID', 'Driver ID', 'Student card 01', 'Student card 02', 'Student card 03', 'Signed and stamped form'].map((item) => <label key={item}><input type="checkbox" name="items" value={item} defaultChecked={correctionDefaults.includes(item)}/>{t(item)}</label>)}</fieldset><label className="adm-form-field"><span>{t('Correction deadline')} <em>{t('Required')}</em></span><input name="deadline" type="date" required min={new Date().toISOString().slice(0, 10)} defaultValue={tomorrowDate()}/></label><p className="adm-muted">{t('The selected items and deadline are recorded directly in the protected case history.')}</p>{correctionError && <p className="adm-form-error" role="alert">{correctionError}</p>}</form></Modal>
+    <Modal open={deadlineChange} onClose={() => busy ? undefined : setDeadlineChange(false)} closeLabel={isArabic ? 'إغلاق' : 'Close'} title={t('Set new correction deadline')} eyebrow={team.ref} footer={<><Button variant="secondary" onClick={() => setDeadlineChange(false)} disabled={busy}>{t('Cancel')}</Button><Button form="correction-deadline-form" type="submit" disabled={busy}>{t(busy ? 'Saving…' : 'Save new deadline')}</Button></>}><form id="correction-deadline-form" onSubmit={saveCorrectionDeadline}><label className="adm-form-field"><span>{t('New deadline')} <em>{t('Required')}</em></span><input name="deadline" type="date" required min={new Date().toISOString().slice(0, 10)} defaultValue={team.correctionRequest?.expired ? tomorrowDate() : team.correctionRequest?.deadline}/></label><p className="adm-muted">{t('The previous deadline remains in the protected audit history.')}</p>{deadlineError && <p className="adm-form-error" role="alert">{deadlineError}</p>}</form></Modal>
     {generated.status === 'Generation issue' && tab !== 'Documents' && <div className="adm-inline-error"><CriticalNotice>{t('The official form could not be generated. The team data is saved.')}</CriticalNotice>{allowed.has('retry_generation') && <Button variant="secondary" onClick={regenerate}>{t('Retry generation')}</Button>}</div>}
   </div>
 }

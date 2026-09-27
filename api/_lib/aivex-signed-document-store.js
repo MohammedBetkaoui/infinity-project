@@ -116,7 +116,9 @@ export function createSupabaseSignedDocumentStore(supabase) {
       return { ok: true }
     },
     async setDocumentStatus(registrationId, status) {
-      const { error } = await supabase.from(REGISTRATIONS).update({ document_status: status }).eq('id', registrationId)
+      const { error } = await supabase.from(REGISTRATIONS).update({ document_status: status })
+        .eq('id', registrationId)
+        .neq('document_status', 'changes_required')
       if (error) throw new SignedDocumentStoreError('set-status', error)
     },
     // The candidate status page's own view of "was a signed document

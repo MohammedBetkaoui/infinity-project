@@ -65,7 +65,7 @@ const en = {
     action_required: { title: 'Action required from your team', text: 'The official form is ready. Download it, have it signed and stamped, then submit it from this page.' },
     received: { title: 'Signed document received', text: 'Your signed document is safely on file and is waiting for review by the organisers.' },
     under_review: { title: 'File under review', text: 'The organisers are checking your team’s administrative file. No action is required unless they request a correction.' },
-    changes_required: { title: 'Corrections required', text: 'Your team must submit a corrected signed document. The previous version remains safely archived.' },
+    changes_required: { title: 'Corrections required', text: 'The organisers have requested changes to your administrative file. Review the items below and submit only the information or documents requested.' },
     accepted: { title: 'Team accepted', text: 'Your team’s registration and administrative file have been approved and validated.' },
     rejected: { title: 'Registration not approved', text: 'The organisers have completed their decision and this registration was not approved.' },
     cancelled: { title: 'Registration cancelled', text: 'This team registration is no longer active. Contact the organisers if you believe this is unexpected.' },
@@ -78,6 +78,8 @@ const en = {
   // to the generic dossierStatus.changes_required copy above).
   correctionsTitle: 'Corrections requested',
   correctionsDeadline: ({ date }) => `Please resubmit by ${date}.`,
+  correctionDeadlineExpiredTitle: 'Correction deadline expired.',
+  correctionDeadlineExpiredText: 'The correction deadline has passed. Please contact the organisers and mention your AIVEX reference.',
   correctionItemLabels: {
     'Team information': 'Team information',
     'Activities manager': 'Activities manager',
@@ -127,6 +129,7 @@ const en = {
       correction_item_not_ready: 'This item is no longer open for a correction. Refresh the page.',
       invalid_upload_session: 'This upload session is no longer valid. Please try again.',
       finalization_in_progress: 'This file is already being checked. Please wait, then refresh.',
+      correction_deadline_expired: 'The correction deadline has passed. Please contact the organisers and mention your AIVEX reference.',
       network: 'We could not reach the server. Please check your connection and try again.',
       error: 'The upload failed. Please try again in a moment; if it keeps failing, contact the organisers with your reference.',
     },
@@ -270,7 +273,7 @@ const fr = {
     action_required: { title: 'Action requise par votre équipe', text: 'La fiche officielle est prête. Téléchargez-la, faites-la signer et cacheter, puis déposez-la depuis cette page.' },
     received: { title: 'Document signé reçu', text: 'Votre document signé est bien enregistré et attend maintenant la vérification des organisateurs.' },
     under_review: { title: 'Dossier en cours d’examen', text: 'Les organisateurs vérifient le dossier administratif de votre équipe. Aucune action n’est requise sauf demande de correction.' },
-    changes_required: { title: 'Corrections nécessaires', text: 'Votre équipe doit déposer un document signé corrigé. La version précédente reste conservée en sécurité.' },
+    changes_required: { title: 'Corrections requises', text: 'Les organisateurs ont demandé des corrections dans votre dossier administratif. Consultez les éléments ci-dessous et renvoyez uniquement les informations ou documents demandés.' },
     accepted: { title: 'Équipe acceptée', text: 'L’inscription et le dossier administratif de votre équipe ont été approuvés et validés.' },
     rejected: { title: 'Inscription non approuvée', text: 'Les organisateurs ont terminé leur décision et cette inscription n’a pas été approuvée.' },
     cancelled: { title: 'Inscription annulée', text: 'Cette inscription d’équipe n’est plus active. Contactez les organisateurs si cette situation est inattendue.' },
@@ -281,6 +284,8 @@ const fr = {
 
   correctionsTitle: 'Corrections demandées',
   correctionsDeadline: ({ date }) => `Merci de soumettre à nouveau avant le ${date}.`,
+  correctionDeadlineExpiredTitle: 'Le délai de correction a expiré.',
+  correctionDeadlineExpiredText: 'Le délai de correction est dépassé. Contactez les organisateurs en indiquant votre référence AIVEX.',
   correctionItemLabels: {
     'Team information': 'Informations de l’équipe',
     'Activities manager': 'Responsable des activités',
@@ -330,6 +335,7 @@ const fr = {
       correction_item_not_ready: 'Cet élément n’est plus ouvert à une correction. Actualisez la page.',
       invalid_upload_session: 'Cette session d’envoi n’est plus valide. Merci de réessayer.',
       finalization_in_progress: 'Ce fichier est déjà en cours de vérification. Merci de patienter, puis d’actualiser.',
+      correction_deadline_expired: 'Le délai de correction est dépassé. Contactez les organisateurs en indiquant votre référence AIVEX.',
       network: 'Impossible de joindre le serveur. Vérifiez votre connexion et réessayez.',
       error: 'L’envoi a échoué. Réessayez dans un instant ; si le problème persiste, contactez les organisateurs avec votre référence.',
     },
@@ -467,7 +473,7 @@ const ar = {
     action_required: { title: 'إجراء مطلوب من الفريق', text: 'الاستمارة الرسمية جاهزة. حمّلوها ووقّعوها واختموها، ثم أودعوها من هذه الصفحة.' },
     received: { title: 'تم استلام الوثيقة الموقعة', text: 'تم حفظ وثيقتكم الموقعة بأمان وهي الآن في انتظار مراجعة المنظمين.' },
     under_review: { title: 'الملف قيد المراجعة', text: 'يقوم المنظمون بمراجعة الملف الإداري لفريقكم. لا يلزم أي إجراء ما لم تُطلب منكم تصحيحات.' },
-    changes_required: { title: 'تصحيحات مطلوبة', text: 'يجب على فريقكم إيداع نسخة مصححة من الوثيقة الموقعة. ستبقى النسخة السابقة محفوظة بأمان.' },
+    changes_required: { title: 'التصحيحات مطلوبة', text: 'طلب المنظمون إجراء تصحيحات على ملفكم الإداري. راجعوا العناصر أدناه وأعيدوا إرسال المعلومات أو الوثائق المطلوبة فقط.' },
     accepted: { title: 'تم قبول الفريق', text: 'تمت الموافقة على تسجيل فريقكم واعتماد ملفه الإداري.' },
     rejected: { title: 'لم تتم الموافقة على التسجيل', text: 'أكمل المنظمون دراسة الطلب ولم تتم الموافقة على هذا التسجيل.' },
     cancelled: { title: 'تم إلغاء التسجيل', text: 'لم يعد تسجيل هذا الفريق نشطاً. تواصلوا مع المنظمين إذا كان هذا الأمر غير متوقع.' },
@@ -478,6 +484,8 @@ const ar = {
 
   correctionsTitle: 'تصحيحات مطلوبة',
   correctionsDeadline: ({ date }) => `يرجى إعادة الإيداع قبل ${date}.`,
+  correctionDeadlineExpiredTitle: 'انتهت مهلة التصحيح.',
+  correctionDeadlineExpiredText: 'انتهت مهلة التصحيح. يرجى التواصل مع المنظمين وذكر مرجع AIVEX الخاص بكم.',
   correctionItemLabels: {
     'Team information': 'معلومات الفريق',
     'Activities manager': 'مسؤول النشاطات',
@@ -527,6 +535,7 @@ const ar = {
       correction_item_not_ready: 'لم يعد هذا العنصر مفتوحاً للتصحيح. يرجى تحديث الصفحة.',
       invalid_upload_session: 'لم تعد جلسة الإرسال هذه صالحة. يرجى المحاولة مجدداً.',
       finalization_in_progress: 'هذا الملف قيد التحقق بالفعل. يرجى الانتظار ثم تحديث الصفحة.',
+      correction_deadline_expired: 'انتهت مهلة التصحيح. يرجى التواصل مع المنظمين وذكر مرجع AIVEX الخاص بكم.',
       network: 'تعذر الوصول إلى الخادم. يرجى التحقق من اتصالكم والمحاولة مجدداً.',
       error: 'فشل الإرسال. أعيدوا المحاولة بعد لحظات؛ إذا استمرت المشكلة، تواصلوا مع المنظمين مع ذكر مرجعكم.',
     },

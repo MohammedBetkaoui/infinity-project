@@ -3,14 +3,15 @@
 //
 // Two request shapes share this one endpoint (see the correction branch
 // below): the classic signed-document upload ({ uploadId, file }), and a
-// per-item correction document resubmission ({ itemId, uploadId, file } —
-// a student card or an identity card). They are folded into one file,
+// per-item student-card correction resubmission ({ itemId, uploadId, file }).
+// They are folded into one file,
 // rather than two, purely to stay within the Vercel Hobby plan's
 // 12-Function ceiling (see tests/admin-auth.test.mjs) — every other Magic
 // Link concern already has its own endpoint; this is one of two exceptions
 // (the other being ../verify.js's field-correction branch), kept as a
 // clearly separated, self-contained block with its own store and manifest.
 import { AIVEX_EDITION, isUuidV4 } from '../../../../shared/aivex/contract-v4.js'
+import { isCorrectionDeadlineExpired } from '../../../../shared/aivex/correction-deadline.js'
 import { UPLOAD_ELIGIBLE_DOCUMENT_STATUSES } from '../../../../shared/aivex/signed-document-policy.js'
 import {
   buildCorrectionCardUploadManifest, buildSignedDocumentUploadManifest,
@@ -29,8 +30,8 @@ const MAX_JSON_BYTES = 16 * 1024
 const RATE_LIMIT = { max: 10, windowMs: 15 * 60 * 1000 }
 const fail = (res, status, state, message = 'The document upload could not be prepared.') => sendJson(res, status, { success: false, status: state, message })
 
-// The correction branch: a student/identity card, keyed by the correction
-// item rather than by document_status. No idempotent-replay short-circuit
+// The correction branch: a student card, keyed by the correction item rather
+// than by document_status. No idempotent-replay short-circuit
 // here (unlike the signed document below) — an overwrite-in-place upload
 // has nothing to replay; see api/_lib/aivex-correction-upload.js's own note.
 async function initCorrectionUpload(res, { supabase, corrections, magicLinkStore, resolved, body, clock, createId, makeSessionStore }) {
@@ -82,6 +83,13 @@ export function createSignedUploadInitHandler({
       const magicLinkStore = makeMagicLinkStore(supabase)
       const resolved = await resolveLink({ magicLinkStore, rawToken: typeof body.token === 'string' ? body.token : '', now: clock })
       if (!resolved.ok) return fail(res, 401, resolved.status)
+
+      const activeCorrection = typeof magicLinkStore.latestOpenCorrection === 'function'
+        ? await magicLinkStore.latestOpenCorrection(resolved.registrationId)
+        : null
+      if (activeCorrection && isCorrectionDeadlineExpired(activeCorrection.deadline, clock)) {
+        return fail(res, 409, 'correction_deadline_expired', 'The correction deadline has passed.')
+      }
 
       if (typeof body.itemId === 'string') {
         return await initCorrectionUpload(res, {

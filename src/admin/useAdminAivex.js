@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createSubmissionId } from '../../shared/aivex/contract-v4.js'
+import { uploadToSignedStorage } from '../lib/directStorageUpload'
 import { useAdminAuth } from './AdminAuth'
 
 const REGISTRATION_KEYS = Object.freeze({
@@ -109,5 +111,33 @@ export function useAdminAivexActions() {
     }
   }, [requestRaw])
 
-  return { loadDetail, act, loadDocument }
+  const uploadIdentityReplacement = useCallback(async (reference, documentKey, expectedUpdatedAt, file, onProgress) => {
+    const uploadId = createSubmissionId()
+    onProgress?.('preparing', 0)
+    const initialized = await request(`/api/admin/aivex/${encodeURIComponent(reference)}/identity-upload/init`, {
+      method: 'POST',
+      body: JSON.stringify({
+        uploadId, documentKey, expectedUpdatedAt,
+        file: { name: file.name, mime: file.type, size: file.size },
+      }),
+    })
+    if (!initialized.response.ok) throw Object.assign(new Error(initialized.body.message || 'The secure upload could not be prepared.'), { code: initialized.body.status })
+
+    onProgress?.('uploading', 0)
+    if (!initialized.body.upload?.alreadyUploaded) {
+      await uploadToSignedStorage({
+        signedUrl: initialized.body.upload?.signedUrl,
+        file,
+        onProgress: (loaded, total) => onProgress?.('uploading', total ? Math.min(99, Math.round(loaded / total * 100)) : 0),
+      })
+    }
+    onProgress?.('validating', 100)
+    const finalized = await request(`/api/admin/aivex/${encodeURIComponent(reference)}/identity-upload/finalize`, {
+      method: 'POST', body: JSON.stringify({ uploadSessionId: initialized.body.uploadSessionId }),
+    })
+    if (!finalized.response.ok) throw Object.assign(new Error(finalized.body.message || 'The replacement failed secure server validation.'), { code: finalized.body.status })
+    return finalized.body.team
+  }, [request])
+
+  return { loadDetail, act, loadDocument, uploadIdentityReplacement }
 }

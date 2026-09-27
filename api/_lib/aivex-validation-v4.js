@@ -127,6 +127,20 @@ export async function validateIdentityCardsV4(files) {
   return unexpectedFile(files, IDENTITY_CARD_FIELDS) || checkIdentityCards(files)
 }
 
+export async function validateAdminIdentityReplacementV4(documentKey, file) {
+  const subject = documentKey === 'delegation-leader' ? 'delegationHead' : documentKey === 'driver' ? 'driver' : null
+  if (!subject) return fail(400, 'This identity document is not supported.', 'file')
+  const checked = await checkImagePart({
+    file,
+    policy: IDENTITY_CARD_POLICY,
+    words: WORDS.identityCard,
+    label: IDENTITY_LABELS[subject],
+    field: 'file',
+  })
+  if (!checked.ok) return checked
+  return { ok: true, ...checked, buffer: file.buffer, sha256: sha256Hex(file.buffer), subject, documentKey }
+}
+
 // One resubmitted student card for a correction item (api/_lib/aivex-
 // correction-upload.js) — same real-bytes checks as a fresh registration's
 // card (checkImagePart). shared/aivex/correction-items.js's

@@ -194,7 +194,12 @@ export function createAdminAivexStore(supabase) {
 
     async applyAction({ registrationId, adminUserId, action, expectedUpdatedAt, reason, payload, now }) {
       const isFinalAcceptance = action === 'validate_file'
-      const procedure = isFinalAcceptance ? 'admin_accept_aivex_team' : 'admin_apply_aivex_action'
+      const procedure = isFinalAcceptance ? 'admin_accept_aivex_team'
+        : action === 'request_corrections' ? 'admin_request_aivex_corrections'
+          : action === 'extend_correction_deadline' ? 'admin_extend_aivex_correction_deadline'
+            : ['verify_activity_official', 'verify_document', 'invalidate_document'].includes(action)
+              ? 'admin_apply_aivex_review_action'
+              : 'admin_apply_aivex_action'
       const parameters = {
         p_registration_id: registrationId,
         p_admin_user_id: adminUserId,
@@ -206,6 +211,34 @@ export function createAdminAivexStore(supabase) {
       const { data, error } = await supabase.rpc(procedure, parameters)
       if (error) fail('aivex_action', error)
       return Array.isArray(data) ? data[0] : data
+    },
+
+    async applyIdentityReplacement({ registrationId, adminUserId, expectedUpdatedAt, itemId, documentKey, file, now }) {
+      const { data, error } = await supabase.rpc('admin_submit_aivex_identity_replacement', {
+        p_registration_id: registrationId,
+        p_admin_user_id: adminUserId,
+        p_expected_updated_at: expectedUpdatedAt,
+        p_item_id: itemId,
+        p_document_key: documentKey,
+        p_file_path: file.path,
+        p_file_mime: file.mime,
+        p_file_size: file.size,
+        p_file_sha256: file.sha256,
+        p_now: now.toISOString(),
+      })
+      if (error) fail('aivex_identity_replacement', error)
+      return Array.isArray(data) ? data[0] : data
+    },
+
+    async copyIdentityReplacement(sourcePath, finalPath) {
+      const { error } = await supabase.storage.from('aivex-id-cards').copy(sourcePath, finalPath)
+      if (error) fail('aivex_identity_copy', error)
+    },
+
+    async removeIdentityReplacement(path) {
+      if (!path) return
+      const { error } = await supabase.storage.from('aivex-id-cards').remove([path])
+      if (error) fail('aivex_identity_cleanup', error)
     },
 
     async auditEvent({ registrationId, adminUserId, action, sensitivity = 'standard', metadata = {}, now }) {

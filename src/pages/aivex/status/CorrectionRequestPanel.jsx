@@ -13,8 +13,8 @@ import useCorrectionSubmission from './useCorrectionSubmission'
 // "changes required" placeholder. `correctionRequest` comes straight from
 // the admin dashboard's request_corrections action (aivex_correction_requests
 // + aivex_correction_items), via the Magic Link verify endpoint: the exact
-// items checked, each one's own live status, the deadline, and the message
-// sent to the team. An 'open' item gets the form or dropzone that answers
+// items checked, each one's own live status, and the deadline. An 'open'
+// item gets the form or dropzone that answers
 // it right here; 'submitted'/'verified' items are shown as read-only history.
 const STATUS_ICON = { open: TriangleAlert, submitted: Clock3, verified: CircleCheck }
 
@@ -49,7 +49,7 @@ function DocumentCorrectionForm({ itemId, item, correction, t }) {
   )
 }
 
-function TeamInformationForm({ itemId, initialValues, correction, lang, t }) {
+function TeamInformationForm({ itemId, initialValues, correction, lang, t, disabled }) {
   const { values, error, errorMessage, saving } = correction.fieldFor(itemId, initialValues)
   const wilaya = findWilaya(values.wilayaCode || '')
   const institutions = wilaya ? getInstitutionsByWilaya(values.wilayaCode) : []
@@ -69,7 +69,8 @@ function TeamInformationForm({ itemId, initialValues, correction, lang, t }) {
   }
 
   return (
-    <form className="axs-correction-form" onSubmit={submit}>
+    <form className="axs-correction-form" onSubmit={submit} aria-disabled={disabled}>
+      <fieldset className="axs-correction-fieldset" disabled={disabled}>
       <label>{t.correctionFieldTeamName}<input value={values.name || ''} onChange={set('name')} maxLength={120} required /></label>
       <div className="axs-correction-form-grid">
         <label>{t.correctionFieldWilaya}
@@ -92,13 +93,14 @@ function TeamInformationForm({ itemId, initialValues, correction, lang, t }) {
       {values.institutionId === OTHER_INSTITUTION_ID && (
         <label>{t.correctionFieldCustomInstitution}<input value={values.customInstitution || ''} onChange={set('customInstitution')} maxLength={180} required /></label>
       )}
-      {error && <p className="axs-inline-error" role="alert">{errorMessage || t.correctionGenericError}</p>}
-      <button type="submit" className="af-button af-button-primary" disabled={saving} aria-busy={saving}>{saving ? t.correctionSaving : t.correctionSaveButton}</button>
+      </fieldset>
+      {error && <p className="axs-inline-error" role="alert">{error === 'correction_deadline_expired' ? t.correctionDeadlineExpiredText : errorMessage || t.correctionGenericError}</p>}
+      <button type="submit" className="af-button af-button-primary" disabled={saving || disabled} aria-busy={saving}>{saving ? t.correctionSaving : t.correctionSaveButton}</button>
     </form>
   )
 }
 
-function ActivitiesManagerForm({ itemId, initialValues, correction, lang, t }) {
+function ActivitiesManagerForm({ itemId, initialValues, correction, lang, t, disabled }) {
   const { values, error, errorMessage, saving } = correction.fieldFor(itemId, initialValues)
   const roleOptions = getRoleOptions(getRegistrationStrings(lang))
   const set = (key) => (event) => correction.updateFieldValue(itemId, key, event.target.value, initialValues)
@@ -111,7 +113,8 @@ function ActivitiesManagerForm({ itemId, initialValues, correction, lang, t }) {
   }
 
   return (
-    <form className="axs-correction-form" onSubmit={submit}>
+    <form className="axs-correction-form" onSubmit={submit} aria-disabled={disabled}>
+      <fieldset className="axs-correction-fieldset" disabled={disabled}>
       <div className="axs-correction-form-grid">
         <label>{t.correctionFieldRole}
           <select value={values.role || ''} onChange={set('role')} required>
@@ -125,8 +128,9 @@ function ActivitiesManagerForm({ itemId, initialValues, correction, lang, t }) {
         <label>{t.correctionFieldEmail}<input type="email" value={values.email || ''} onChange={set('email')} required /></label>
         <label>{t.correctionFieldPhone}<input type="tel" value={values.phone || ''} onChange={set('phone')} required /></label>
       </div>
-      {error && <p className="axs-inline-error" role="alert">{errorMessage || t.correctionGenericError}</p>}
-      <button type="submit" className="af-button af-button-primary" disabled={saving} aria-busy={saving}>{saving ? t.correctionSaving : t.correctionSaveButton}</button>
+      </fieldset>
+      {error && <p className="axs-inline-error" role="alert">{error === 'correction_deadline_expired' ? t.correctionDeadlineExpiredText : errorMessage || t.correctionGenericError}</p>}
+      <button type="submit" className="af-button af-button-primary" disabled={saving || disabled} aria-busy={saving}>{saving ? t.correctionSaving : t.correctionSaveButton}</button>
     </form>
   )
 }
@@ -136,7 +140,8 @@ const FIELD_FORMS = { 'Team information': TeamInformationForm, 'Activities manag
 export default function CorrectionRequestPanel({ correctionRequest, lang, token, onSubmitted, t }) {
   const items = Array.isArray(correctionRequest?.items) ? correctionRequest.items : []
   const deadline = correctionRequest?.deadline ? formatCorrectionDeadline(correctionRequest.deadline, lang) : ''
-  const correction = useCorrectionSubmission(token, onSubmitted)
+  const expired = correctionRequest?.expired === true
+  const correction = useCorrectionSubmission(token, onSubmitted, expired)
 
   return (
     <section className="axs-panel axs-correction" data-tone="issue" aria-labelledby="axs-correction-title">
@@ -145,8 +150,8 @@ export default function CorrectionRequestPanel({ correctionRequest, lang, token,
         <h2 id="axs-correction-title" className="axs-panel-title">{t.correctionsTitle}</h2>
       </div>
 
-      {deadline && <p className="axs-correction-deadline">{t.correctionsDeadline({ date: deadline })}</p>}
-      {correctionRequest?.message && <p className="axs-panel-text">{correctionRequest.message}</p>}
+      {deadline && !expired && <p className="axs-correction-deadline">{t.correctionsDeadline({ date: deadline })}</p>}
+      {expired && <div className="axs-correction-expired" role="alert"><b>{t.correctionDeadlineExpiredTitle}</b><p>{t.correctionDeadlineExpiredText} <a href={INSTAGRAM_URL} target="_blank" rel="noreferrer noopener">{t.correctionContactLink}</a></p></div>}
 
       {items.length > 0 && (
         <ul className="axs-correction-list">
@@ -168,7 +173,7 @@ export default function CorrectionRequestPanel({ correctionRequest, lang, token,
                   <span>{t.correctionItemLabels[entry.item] || entry.item}</span>
                   <em>{t.correctionStatus[entry.status] || entry.status}</em>
                 </div>
-                {entry.status === 'open' && isSelfServiceCard && (
+                {entry.status === 'open' && isSelfServiceCard && !expired && (
                   <DocumentCorrectionForm itemId={entry.id} item={entry.item} correction={correction} t={t} />
                 )}
                 {entry.status === 'open' && isIdentityDocument && (
@@ -176,8 +181,8 @@ export default function CorrectionRequestPanel({ correctionRequest, lang, token,
                     {t.correctionContactOrganisers} <a href={INSTAGRAM_URL} target="_blank" rel="noreferrer noopener">{t.correctionContactLink}</a>
                   </p>
                 )}
-                {entry.status === 'open' && FieldForm && (
-                  <FieldForm itemId={entry.id} initialValues={entry.initialFields || {}} correction={correction} lang={lang} t={t} />
+                {entry.status === 'open' && FieldForm && !expired && (
+                  <FieldForm itemId={entry.id} initialValues={entry.initialFields || {}} correction={correction} lang={lang} t={t} disabled={expired} />
                 )}
               </li>
             )

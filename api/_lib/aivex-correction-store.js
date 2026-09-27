@@ -16,12 +16,14 @@
 
 const ITEMS = 'aivex_correction_items'
 const REGISTRATIONS = 'aivex_registrations'
+const CORRECTION_REQUESTS = 'aivex_correction_requests'
 
 export class CorrectionStoreError extends Error {
   constructor(stage, cause) {
     super(stage)
     this.stage = stage
     this.code = cause?.code || cause?.statusCode || cause?.status
+    this.databaseMessage = cause?.message
   }
 }
 
@@ -36,6 +38,15 @@ export function createSupabaseCorrectionStore(supabase) {
         .maybeSingle()
       if (error) throw new CorrectionStoreError('load-item', error)
       return data
+    },
+    async loadActiveDeadline(correctionRequestId) {
+      const { data, error } = await supabase.from(CORRECTION_REQUESTS)
+        .select('due_at')
+        .eq('id', correctionRequestId)
+        .is('resolved_at', null)
+        .maybeSingle()
+      if (error) throw new CorrectionStoreError('load-deadline', error)
+      return data?.due_at || null
     },
     // Candidate-validated values stay pending on the correction item until
     // an administrator explicitly accepts them.

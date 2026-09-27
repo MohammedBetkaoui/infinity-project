@@ -28,6 +28,14 @@
       "maxDuration": 60
     }
   },
+  "headers": [
+    {
+      "source": "/aivex/status",
+      "headers": [
+        { "key": "Referrer-Policy", "value": "no-referrer" }
+      ]
+    }
+  ],
   "rewrites": [
     { "source": "/api/admin/:path*", "destination": "/api/admin-auth?__admin_path=:path*" },
     { "source": "/aivex", "destination": "/aivex/index.html" },

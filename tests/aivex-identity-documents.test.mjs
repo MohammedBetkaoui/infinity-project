@@ -916,7 +916,7 @@ test('26. the Magic Link and the candidate status page never touch identity docu
     if (/id_card|idCard|IdCard|IDENTITY_CARD|aivex-id-cards/.test(await read(file))) knowing.push(file)
   }
   assert.deepEqual(knowing.sort(), [
-    'api/_lib/admin-aivex-store.js', 'api/_lib/admin-aivex.js',
+    'api/_lib/admin-aivex-store.js', 'api/_lib/admin-aivex-validation.js', 'api/_lib/admin-aivex.js',
     'api/_lib/aivex-direct-upload.js', 'api/_lib/aivex-registration-v4.js',
     'api/_lib/aivex-validation-v4.js',
   ])

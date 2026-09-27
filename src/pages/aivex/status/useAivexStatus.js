@@ -5,12 +5,11 @@ import { postCandidateJson, uploadToSignedStorage } from '../../../lib/directSto
 
 // AIVEX candidate status page (Magic Link, Phase 5A/5B) — data layer.
 //
-// The token is read once from the URL, on mount, into React state used only
-// to drive the fetch calls below — never rendered, never written to
-// localStorage or sessionStorage. Closing the tab loses it from memory
-// exactly as intended: the candidate still has it in the Magic Link URL
-// itself (their inbox, a bookmark...), which is the only place it is meant
-// to persist.
+// The token is captured once from the URL, immediately removed from the
+// visible address with history.replaceState, and then held only in React
+// memory to drive the calls below. It is never rendered or persisted. A full
+// refresh therefore shows the safe invalid-link state; the candidate can
+// reopen the original link from the message they received.
 const VERIFY_ENDPOINT = '/api/aivex/magic-link/verify'
 const DOCUMENT_ENDPOINT = '/api/aivex/magic-link/document'
 const UPLOAD_INIT_ENDPOINT = '/api/aivex/magic-link/upload/init'
@@ -24,25 +23,28 @@ const UPLOAD_TIMEOUT_MS = REQUEST_TIMEOUT_MS * 10
 
 const KNOWN_FAILURES = new Set(['invalid', 'expired', 'revoked', 'registration_not_found'])
 
-function readTokenFromUrl() {
+let pageToken
+function captureTokenFromUrl() {
+  if (pageToken !== undefined) return pageToken
   try {
-    return new URLSearchParams(window.location.search).get('token') || ''
+    pageToken = new URLSearchParams(window.location.search).get('token') || ''
+    if (pageToken) window.history.replaceState(null, '', window.location.pathname)
+    return pageToken
   } catch {
-    return ''
+    pageToken = ''
+    return pageToken
   }
 }
 
 const BLANK_UPLOAD = { file: null, uploadId: null, issue: '', status: 'idle', message: '', progress: 0 }
 
-// A direct load of /aivex/status?token=... (bookmark, reopened link, page
-// refresh) is the only entry point this page supports on purpose: it never
-// reads React state from the registration page, so it works identically
-// whether the tab has been open for a week or was just opened from a link.
+// A direct load of the original /aivex/status?token=... Magic Link is the
+// only valid entry point. Once sanitized, reloading /aivex/status deliberately
+// cannot recover the in-memory credential.
 export default function useAivexStatus() {
-  // Lazy initializer: readTokenFromUrl() runs exactly once, on the first
-  // render, never again — the token cannot change without a full reload of
-  // this page, so there is nothing to keep it in sync with afterwards.
-  const [token] = useState(readTokenFromUrl)
+  // Lazy initializer: captureTokenFromUrl() runs exactly once on the first
+  // render and sanitizes the URL in the same synchronous operation.
+  const [token] = useState(captureTokenFromUrl)
   const [state, setState] = useState(() => (token ? { status: 'loading', data: null } : { status: 'invalid', data: null }))
   const [downloadState, setDownloadState] = useState({ busy: false, error: false })
   // A file picked but not yet (or not successfully) sent; `uploadId` is
@@ -213,6 +215,7 @@ export default function useAivexStatus() {
       setRefreshCount((count) => count + 1)
     } catch (error) {
       setUpload((previous) => ({ ...previous, status: 'error', message: error?.status || 'error', progress: 0 }))
+      if (error?.status === 'correction_deadline_expired') setRefreshCount((count) => count + 1)
     }
   }
 

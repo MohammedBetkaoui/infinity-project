@@ -6,6 +6,12 @@ import {
 } from './admin-aivex-permissions.js'
 import { createAdminAivexStore } from './admin-aivex-store.js'
 import { CORRECTION_ITEM_DOCUMENT_KEY } from '../../shared/aivex/correction-items.js'
+import { isCorrectionDeadlineExpired } from '../../shared/aivex/correction-deadline.js'
+import { identityCardStoragePath } from '../../shared/aivex/contract-v4.js'
+import {
+  UPLOAD_SESSION_STALE_MS, buildAdminIdentityUploadManifest, createSupabaseUploadSessionStore,
+  newUploadSessionId, sessionExpiry, sessionIsUsable, verifyAdminIdentityUploadStaging,
+} from './aivex-direct-upload.js'
 
 const REGISTRATION_LABELS = Object.freeze({
   submitted: 'Submitted', under_review: 'Under review', approved: 'Approved',
@@ -35,6 +41,8 @@ const ACTION_TITLES = Object.freeze({
   resolve_correction_item: 'Correction item reviewed',
   confidential_document_opened: 'Confidential document opened',
   official_document_downloaded: 'Official form downloaded',
+  extend_correction_deadline: 'Correction deadline extended',
+  identity_document_replacement_uploaded: 'Identity document replacement uploaded',
 })
 const STANDARD_ACTION_REASONS = Object.freeze({
   start_review: 'File moved to administrative review',
@@ -46,6 +54,7 @@ const STANDARD_ACTION_REASONS = Object.freeze({
   verify_document: 'Document verified in the confidential viewer',
   invalidate_document: 'Document marked invalid in the confidential viewer',
   retry_generation: 'Official form generation retried by an authorised administrator',
+  extend_correction_deadline: 'Correction deadline changed by an authorised administrator',
 })
 
 function normalizeActionInput(input) {
@@ -55,9 +64,6 @@ function normalizeActionInput(input) {
     reason = payload.verified
       ? 'Activities manager marked as administratively verified'
       : 'Activities manager verification removed'
-  }
-  if (input.action === 'request_corrections') {
-    payload.message = `Corrections are required for: ${payload.items.join(', ')}. Please complete them by ${payload.deadline}.`
   }
   if (input.action === 'resolve_correction_item') {
     reason = payload.decision === 'verified'
@@ -189,7 +195,7 @@ function mapDocuments(registration, students, generatedDocuments, submittedDocum
       person: identity.person, kind: identity.kind, type: fileType(mime),
       size: formatBytes(registration[`${identity.prefix}_id_card_size`]),
       status: purgedAt ? 'Expired' : reviewStatus(review, Boolean(path), 'Absent', correction),
-      created: registration.submitted_at || registration.created_at,
+      created: correction?.submitted_at || registration.submitted_at || registration.created_at,
       canOpen: Boolean(path), confidential: true,
       correctionStatus: correction?.status || null,
       reviewedAt: review?.reviewed_at || null,
@@ -391,7 +397,7 @@ export function createAdminAivexService({ store, documentStore, now = () => new 
         id: latestCorrection.id,
         items: latestCorrection.items,
         deadline: latestCorrection.due_at,
-        message: latestCorrection.team_message,
+        expired: isCorrectionDeadlineExpired(latestCorrection.due_at, now()),
         itemStatuses: correctionItems
           .filter((item) => item.correction_request_id === latestCorrection.id)
           .map((item) => ({
@@ -414,6 +420,21 @@ export function createAdminAivexService({ store, documentStore, now = () => new 
         documentKey: event.metadata?.document_key,
       })),
     }
+  }
+
+  const activeIdentityCorrection = async (registrationId, documentKey) => {
+    const [corrections, items] = await Promise.all([
+      store.corrections(registrationId),
+      store.correctionItems(registrationId),
+    ])
+    const request = corrections.find((entry) => !entry.resolved_at)
+    if (!request) return null
+    return items.find((item) => (
+      item.correction_request_id === request.id
+      && item.status === 'open'
+      && CORRECTION_ITEM_DOCUMENT_KEY[item.item] === documentKey
+      && ['Delegation leader ID', 'Driver ID'].includes(item.item)
+    )) || null
   }
 
   return {
@@ -485,6 +506,118 @@ export function createAdminAivexService({ store, documentStore, now = () => new 
       }
     },
 
+    async identityUploadInit(reference, input, user) {
+      if (!canManageAivex(user.role, 'replace_identity_document')) {
+        return { ok: false, status: 403, message: 'You do not have permission to replace identity documents.' }
+      }
+      if (!documentStore?.uploadSessions) {
+        throw Object.assign(new Error('aivex_upload_session_store_required'), { stage: 'configuration', code: 'configuration_error' })
+      }
+      const registration = await store.findByReference(reference)
+      if (!registration) return { ok: false, status: 404, message: 'This AIVEX file no longer exists.' }
+      if (new Date(registration.updated_at).getTime() !== new Date(input.expectedUpdatedAt).getTime()) {
+        return { ok: false, status: 409, message: 'This file was updated by another administrator. Refresh it before continuing.' }
+      }
+      const correctionItem = await activeIdentityCorrection(registration.id, input.documentKey)
+      if (!correctionItem) return { ok: false, status: 409, message: 'This identity document does not have an open replacement request.' }
+
+      const clock = now()
+      const sessions = documentStore.uploadSessions
+      let session = await sessions.findAdminIdentitySession(registration.id, user.id, input.uploadId, clock)
+      if (!session) {
+        const id = newUploadSessionId()
+        const manifest = buildAdminIdentityUploadManifest(id, input.documentKey, input.file)
+        if (!manifest) return { ok: false, status: 400, message: 'The selected file is empty, too large, or uses an unsupported format.' }
+        session = await sessions.createSession({
+          id,
+          kind: 'admin_identity_replacement',
+          edition: registration.edition,
+          upload_id: input.uploadId,
+          registration_id: registration.id,
+          admin_user_id: user.id,
+          expected_updated_at: input.expectedUpdatedAt,
+          expected_files: manifest,
+          expires_at: sessionExpiry(clock).toISOString(),
+        })
+      }
+      const [upload] = await sessions.signedCapabilities(session.expected_files)
+      return { ok: true, uploadSessionId: session.id, upload }
+    },
+
+    async identityUploadFinalize(reference, input, user) {
+      if (!canManageAivex(user.role, 'replace_identity_document')) {
+        return { ok: false, status: 403, message: 'You do not have permission to replace identity documents.' }
+      }
+      if (!documentStore?.uploadSessions) {
+        throw Object.assign(new Error('aivex_upload_session_store_required'), { stage: 'configuration', code: 'configuration_error' })
+      }
+      const sessions = documentStore.uploadSessions
+      const clock = now()
+      const session = await sessions.loadSession(input.uploadSessionId)
+      if (!sessionIsUsable(session, 'admin_identity_replacement', clock) || session.admin_user_id !== user.id) {
+        return { ok: false, status: 409, code: 'invalid_upload_session', message: 'This secure upload session is no longer valid.' }
+      }
+      const registration = await store.findByReference(reference)
+      if (!registration || registration.id !== session.registration_id) {
+        return { ok: false, status: 404, message: 'This AIVEX file no longer exists.' }
+      }
+      const documentKey = session.expected_files?.[0]?.field
+      const correctionItem = await activeIdentityCorrection(registration.id, documentKey)
+      if (!correctionItem) return { ok: false, status: 409, message: 'This identity document does not have an open replacement request.' }
+
+      const claimed = await sessions.markFinalizing(session.id, new Date(clock.getTime() - UPLOAD_SESSION_STALE_MS))
+      if (!claimed) return { ok: false, status: 409, code: 'finalization_in_progress', message: 'This file is already being validated.' }
+
+      let finalPath = ''
+      let replacementApplied = false
+      const previousPath = documentKey === 'delegation-leader'
+        ? registration.delegation_head_id_card_path
+        : registration.driver_id_card_path
+      try {
+        const verified = await verifyAdminIdentityUploadStaging(sessions, session)
+        if (!verified.ok) {
+          await sessions.removeStaging(session.expected_files).catch(() => {})
+          await sessions.markFailed(session.id).catch(() => {})
+          return { ok: false, status: verified.status || 400, code: verified.reason || 'invalid_file', message: verified.message || 'The file failed secure server validation.' }
+        }
+        finalPath = identityCardStoragePath(
+          registration.id, verified.file.subject, verified.file.mime, session.id, registration.edition,
+        )
+        await store.copyIdentityReplacement(verified.file.sourcePath, finalPath)
+        await store.applyIdentityReplacement({
+          registrationId: registration.id,
+          adminUserId: user.id,
+          expectedUpdatedAt: session.expected_updated_at,
+          itemId: correctionItem.id,
+          documentKey,
+          file: { path: finalPath, mime: verified.file.mime, size: verified.file.size, sha256: verified.file.sha256 },
+          now: clock,
+        })
+        replacementApplied = true
+        if (previousPath && previousPath !== finalPath) {
+          await store.removeIdentityReplacement(previousPath).catch((error) => {
+            console.error('[aivex] Superseded identity document cleanup failed', { stage: error?.stage || 'identity-cleanup', code: error?.code })
+          })
+        }
+        await sessions.markCompleted(session.id, clock).catch((error) => {
+          console.error('[aivex] Identity upload session completion failed', { stage: error?.stage || 'session-complete', code: error?.code })
+        })
+        await sessions.removeStaging(session.expected_files).catch((error) => {
+          console.error('[aivex] Identity upload staging cleanup failed', { stage: error?.stage || 'staging-cleanup', code: error?.code })
+        })
+        return { ok: true, status: 'submitted', team: await detail(reference, user) }
+      } catch (error) {
+        // Once the RPC commits, the new object is the live document. A later
+        // session-cleanup or detail-refresh failure must never delete bytes
+        // that the registration row now references.
+        if (!replacementApplied && finalPath) await store.removeIdentityReplacement(finalPath).catch(() => {})
+        if (!replacementApplied) await sessions.markFailed(session.id).catch(() => {})
+        const publicError = publicActionError(error)
+        if (publicError) return { ok: false, ...publicError }
+        throw error
+      }
+    },
+
     async document(reference, documentKey, user) {
       if (!canAccessAivexDocuments(user.role)) return { ok: false, status: 403, message: 'You do not have permission to open this document.' }
       const registration = await store.findByReference(reference)
@@ -511,6 +644,9 @@ export function createServerAdminAivexService() {
   const supabase = createServerSupabaseClient()
   return createAdminAivexService({
     store: createAdminAivexStore(supabase),
-    documentStore: createSupabaseDocumentStore(supabase),
+    documentStore: {
+      ...createSupabaseDocumentStore(supabase),
+      uploadSessions: createSupabaseUploadSessionStore(supabase),
+    },
   })
 }

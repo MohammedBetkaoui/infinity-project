@@ -39,7 +39,7 @@ function correctionFileIssue(item, file) {
   return ''
 }
 
-export default function useCorrectionSubmission(token, onSubmitted) {
+export default function useCorrectionSubmission(token, onSubmitted, disabled = false) {
   const [uploads, setUploads] = useState({})
   const [fieldForms, setFieldForms] = useState({})
 
@@ -47,6 +47,7 @@ export default function useCorrectionSubmission(token, onSubmitted) {
   const fieldFor = (itemId, initialValues = {}) => fieldForms[itemId] || { values: initialValues, error: '', errorMessage: '', saving: false }
 
   const selectFile = (itemId, item, file) => {
+    if (disabled) return
     setUploads((previous) => ({
       ...previous,
       [itemId]: { ...BLANK_UPLOAD, file, uploadId: createSubmissionId(), issue: correctionFileIssue(item, file) },
@@ -60,7 +61,7 @@ export default function useCorrectionSubmission(token, onSubmitted) {
 
   const submitFile = async (itemId) => {
     const current = uploadFor(itemId)
-    if (!token || !current.file || current.issue || ['preparing', 'uploading', 'verifying'].includes(current.status)) return
+    if (disabled || !token || !current.file || current.issue || ['preparing', 'uploading', 'verifying'].includes(current.status)) return
     setUploads((previous) => ({ ...previous, [itemId]: { ...previous[itemId], status: 'preparing', message: '', progress: 0 } }))
     try {
       const initialized = await postCandidateJson(UPLOAD_INIT_ENDPOINT, {
@@ -85,10 +86,12 @@ export default function useCorrectionSubmission(token, onSubmitted) {
       onSubmitted?.()
     } catch (error) {
       setUploads((previous) => ({ ...previous, [itemId]: { ...previous[itemId], status: 'error', message: error?.status || 'error', progress: 0 } }))
+      if (error?.status === 'correction_deadline_expired') onSubmitted?.()
     }
   }
 
   const updateFieldValue = (itemId, key, value, initialValues = {}) => {
+    if (disabled) return
     setFieldForms((previous) => ({
       ...previous,
       [itemId]: { ...fieldFor(itemId, initialValues), values: { ...fieldFor(itemId, initialValues).values, [key]: value }, error: '', errorMessage: '' },
@@ -96,7 +99,7 @@ export default function useCorrectionSubmission(token, onSubmitted) {
   }
 
   const submitField = async (itemId, fields) => {
-    if (!token || fieldFor(itemId).saving) return
+    if (disabled || !token || fieldFor(itemId).saving) return
     setFieldForms((previous) => ({ ...previous, [itemId]: { ...fieldFor(itemId), saving: true, error: '', errorMessage: '' } }))
     try {
       await postCandidateJson(FIELD_ENDPOINT, { token, itemId, fields }, REQUEST_TIMEOUT_MS)
@@ -110,6 +113,7 @@ export default function useCorrectionSubmission(token, onSubmitted) {
       setFieldForms((previous) => ({
         ...previous, [itemId]: { ...fieldFor(itemId), saving: false, error: error?.status || 'error', errorMessage: error?.message || '' },
       }))
+      if (error?.status === 'correction_deadline_expired') onSubmitted?.()
     }
   }
 

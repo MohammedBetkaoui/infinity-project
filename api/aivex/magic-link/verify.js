@@ -26,8 +26,8 @@
 // unrelated item), and the candidate must keep seeing it.
 //
 // When document_status is 'changes_required', the response also carries the
-// real per-team correctionRequest (items, message, deadline) the admin
-// dashboard recorded — never the admin-only internal_note or who requested
+// real per-team correctionRequest (items, per-item statuses and deadline) the
+// admin dashboard recorded — never the admin-only internal_note or who requested
 // it — so the page can show what was actually asked for instead of a
 // generic "changes required" notice.
 //
@@ -44,6 +44,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { readActivityOfficial, readTeam } from '../../../shared/aivex/contract-v4.js'
+import { isCorrectionDeadlineExpired } from '../../../shared/aivex/correction-deadline.js'
 import { createSupabaseCorrectionStore } from '../../_lib/aivex-correction-store.js'
 import { resolveMagicLink } from '../../_lib/aivex-magic-link.js'
 import { createSupabaseMagicLinkStore } from '../../_lib/aivex-magic-link-store.js'
@@ -154,6 +155,14 @@ export function createMagicLinkVerifyHandler({
         if (item.kind !== 'field' || item.status !== 'open') {
           return refuse(res, 409, { success: false, status: 'correction_item_not_ready', message: 'This item is no longer open for a correction.' })
         }
+        fieldStage = 'load-deadline'
+        const deadline = await corrections.loadActiveDeadline(item.correction_request_id)
+        if (!deadline) {
+          return refuse(res, 409, { success: false, status: 'correction_item_not_ready', message: 'This item is no longer open for a correction.' })
+        }
+        if (isCorrectionDeadlineExpired(deadline, clock)) {
+          return refuse(res, 409, { success: false, status: 'correction_deadline_expired', message: 'The correction deadline has passed.' })
+        }
         const spec = FIELD_ITEMS[item.item]
         if (!spec) return refuse(res, 409, { success: false, status: 'correction_item_not_ready', message: 'This item does not accept these fields.' })
 
@@ -168,6 +177,9 @@ export function createMagicLinkVerifyHandler({
         send(res, 200, { success: true, status: 'submitted' })
       } catch (error) {
         console.error('[aivex] Correction field submission failed', { stage: error?.stage || fieldStage, code: error?.code })
+        if (String(error?.databaseMessage || '').includes('correction_deadline_expired')) {
+          return refuse(res, 409, { success: false, status: 'correction_deadline_expired', message: 'The correction deadline has passed.' })
+        }
         refuse(res, 500, { success: false, status: 'submission_failed', message: 'This correction could not be saved.' })
       }
       return
@@ -215,6 +227,7 @@ export function createMagicLinkVerifyHandler({
         : undefined
 
       if (correctionRequest) {
+        correctionRequest.expired = isCorrectionDeadlineExpired(correctionRequest.deadline, clock)
         correctionRequest.items = correctionRequest.items.map((item) => {
           if (item.item === 'Team information') return {
             ...item,

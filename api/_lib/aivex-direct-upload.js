@@ -8,7 +8,7 @@ import {
   MAX_SIGNED_DOCUMENT_SIZE, SIGNED_DOCUMENT_BUCKET, SIGNED_DOCUMENT_TYPES, canonicalSignedDocumentMime,
 } from '../../shared/aivex/signed-document-policy.js'
 import { sanitizeOriginalFileName } from './aivex-signed-document-upload.js'
-import { validateCorrectionCardV4, validateRegistrationFilesV4 } from './aivex-validation-v4.js'
+import { validateAdminIdentityReplacementV4, validateCorrectionCardV4, validateRegistrationFilesV4 } from './aivex-validation-v4.js'
 import { validateSignedDocumentUpload } from './aivex-signed-document-validation.js'
 
 const SESSIONS = 'aivex_upload_sessions'
@@ -96,6 +96,20 @@ export function buildCorrectionCardUploadManifest(sessionId, itemId, item, hint)
   }]
 }
 
+export function buildAdminIdentityUploadManifest(sessionId, documentKey, hint) {
+  if (!['delegation-leader', 'driver'].includes(documentKey)) return null
+  const normalized = normalizeHint(hint, IDENTITY_CARD_POLICY, canonicalCardMime)
+  if (!normalized) return null
+  const originalExtension = extensionOf(hint?.name)
+  if (!IDENTITY_CARD_POLICY.types[normalized.mime].extensions.includes(originalExtension)) return null
+  return [{
+    field: documentKey,
+    bucket: IDENTITY_CARD_POLICY.bucket,
+    path: `staging/admin-identity/${sessionId}/${documentKey}.${normalized.extension}`,
+    ...normalized,
+  }]
+}
+
 export function createSupabaseUploadSessionStore(supabase) {
   const storage = (bucket) => supabase.storage.from(bucket)
   return {
@@ -118,6 +132,15 @@ export function createSupabaseUploadSessionStore(supabase) {
     async findCorrectionSession(registrationId, uploadId, now) {
       const { data, error } = await supabase.from(SESSIONS).select('*')
         .eq('kind', 'correction_document').eq('registration_id', registrationId).eq('upload_id', uploadId)
+        .in('status', ['initialized', 'failed', 'finalizing']).gt('expires_at', now.toISOString())
+        .order('created_at', { ascending: false }).limit(1).maybeSingle()
+      if (error) throw new DirectUploadError('session-lookup', error)
+      return data
+    },
+    async findAdminIdentitySession(registrationId, adminUserId, uploadId, now) {
+      const { data, error } = await supabase.from(SESSIONS).select('*')
+        .eq('kind', 'admin_identity_replacement').eq('registration_id', registrationId)
+        .eq('admin_user_id', adminUserId).eq('upload_id', uploadId)
         .in('status', ['initialized', 'failed', 'finalizing']).gt('expires_at', now.toISOString())
         .order('created_at', { ascending: false }).limit(1).maybeSingle()
       if (error) throw new DirectUploadError('session-lookup', error)
@@ -242,6 +265,19 @@ export async function verifyCorrectionUploadStaging(store, session, item) {
   const validated = await validateCorrectionCardV4(item, file)
   if (!validated.ok) return { ...validated, reason: 'invalid_file' }
   return { ok: true, file: { ...validated, sourcePath: manifest[0].path, bucket: manifest[0].bucket } }
+}
+
+export async function verifyAdminIdentityUploadStaging(store, session) {
+  const manifest = session.expected_files
+  if (!Array.isArray(manifest) || manifest.length !== 1 || !['delegation-leader', 'driver'].includes(manifest[0].field)) {
+    return { ok: false, status: 400, reason: 'invalid_upload_session' }
+  }
+  const inspected = await store.inspectManifest(manifest)
+  if (!inspected.ok) return inspected
+  const file = inspected.files.get(manifest[0].field)
+  const validated = await validateAdminIdentityReplacementV4(manifest[0].field, file)
+  if (!validated.ok) return { ...validated, reason: 'invalid_file' }
+  return { ok: true, file: { ...validated, sourcePath: manifest[0].path } }
 }
 
 export const newUploadSessionId = () => randomUUID()
