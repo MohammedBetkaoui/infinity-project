@@ -336,6 +336,12 @@ function publicActionError(error) {
   if (error?.code === '40001' || message.includes('aivex_registration_conflict')) {
     return { status: 409, message: 'This file was updated by another administrator. Refresh it before continuing.' }
   }
+  if (error?.code === '55P03' || message.includes('lock timeout')) {
+    return { status: 409, message: 'This file is currently being updated. Please try again in a few seconds.' }
+  }
+  if (error?.code === '55000' || message.includes('aivex_invalid_state_transition')) {
+    return { status: 409, message: 'This action is not available for the current AIVEX file.' }
+  }
   if (error?.code === '23505' || message.includes('aivex_correction_cycle_active')) {
     return { status: 409, message: 'A correction cycle is already active for this team. Finish it before creating another one.' }
   }
