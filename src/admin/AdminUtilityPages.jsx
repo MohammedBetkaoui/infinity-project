@@ -33,7 +33,38 @@ export function LoginPage() {
     navigate(safeAdminReturnTo(params.get('returnTo')), { replace: true })
   }
   const updateCapsLock = (event) => setCapsLock(event.getModifierState?.('CapsLock') === true)
-  return <div className="adm-login adm-app"><div className="adm-login-brand"><InfinityMark/><span>INFINITY CLUB</span><code>ADMINISTRATION / SECURE ACCESS</code></div><div className="adm-login-composition"><section className="adm-login-story"><p className="adm-eyebrow">Behind every possibility.</p><h1>The people.<br/>The projects.<br/><span>The next chapter.</span></h1><p>A shared workspace for the people making<br/>Infinity Club happen.</p><div className="adm-login-art"><svg viewBox="0 0 600 210" aria-hidden="true"><path d="M20 105C20 20 170 20 270 105S500 195 560 110C620 10 450 5 340 105S20 190 20 105Z"/><circle cx="20" cy="105" r="6"/><circle cx="310" cy="111" r="6"/><circle cx="565" cy="98" r="6"/></svg><span>PEOPLE</span><span>OPERATIONS</span><span>AIVEX</span></div><code>36.0661° N / 4.7630° E · BORDJ BOU ARRERIDJ</code></section><section className="adm-login-panel"><span className="adm-login-index">01 / ADMINISTRATIVE ACCESS</span><div className="adm-login-lock"><LockKeyhole size={24}/></div><h2>Welcome to<br/>the control room.</h2><p>Secure access for authorized Infinity Club administrators.</p><form className="adm-login-form" onSubmit={submit} aria-busy={busy}><label><span>Username</span><input name="username" value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" autoCapitalize="none" spellCheck="false" required disabled={busy}/></label><label><span>Password</span><div className="adm-password-input"><input name="password" type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} onKeyDown={updateCapsLock} onKeyUp={updateCapsLock} onBlur={() => setCapsLock(false)} autoComplete="current-password" required disabled={busy} aria-describedby={error ? 'admin-login-error' : undefined}/><button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'} disabled={busy}>{showPassword ? <EyeOff size={17}/> : <Eye size={17}/>}</button></div></label>{capsLock && <p className="adm-caps-lock" role="status">Caps Lock is on.</p>}{error && <p id="admin-login-error" className="adm-auth-error" role="alert"><CircleAlert size={15}/>{error}</p>}<Button type="submit" disabled={busy || !username || !password} icon={busy ? <LoaderCircle className="adm-spin" size={18}/> : <ArrowRight size={18}/>}>{busy ? 'Verifying access…' : 'Enter workspace'}</Button></form><p className="adm-login-security"><ShieldCheck size={14}/> Protected administrative workspace</p><Link to="/">Back to Infinity Club <ArrowRight size={13}/></Link></section></div><footer><span>INFINITY IS A MINDSET.</span><span>Protected administrative workspace</span></footer></div>
+  return (
+    <main className="adm-login adm-app">
+      <div className="adm-login-card">
+        <header className="adm-login-head">
+          <InfinityMark/>
+          <p>Infinity Club · Administration</p>
+          <h1>Sign in</h1>
+          <span>Access reserved for authorized administrators.</span>
+        </header>
+        <form className="adm-login-form" onSubmit={submit} aria-busy={busy}>
+          <label>
+            <span>Username</span>
+            <input name="username" value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" autoCapitalize="none" spellCheck="false" autoFocus required disabled={busy}/>
+          </label>
+          <label>
+            <span>Password</span>
+            <div className="adm-password-input">
+              <input name="password" type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} onKeyDown={updateCapsLock} onKeyUp={updateCapsLock} onBlur={() => setCapsLock(false)} autoComplete="current-password" required disabled={busy} aria-describedby={error ? 'admin-login-error' : undefined}/>
+              <button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'} disabled={busy}>{showPassword ? <EyeOff size={17}/> : <Eye size={17}/>}</button>
+            </div>
+          </label>
+          {capsLock && <p className="adm-caps-lock" role="status">Caps Lock is on.</p>}
+          {error && <p id="admin-login-error" className="adm-auth-error" role="alert"><CircleAlert size={15}/>{error}</p>}
+          <Button type="submit" disabled={busy || !username || !password} icon={busy ? <LoaderCircle className="adm-spin" size={18}/> : <ArrowRight size={18}/>}>{busy ? 'Verifying access…' : 'Sign in'}</Button>
+        </form>
+        <footer className="adm-login-foot">
+          <span><ShieldCheck size={14}/> Secure session</span>
+          <Link to="/">Back to site</Link>
+        </footer>
+      </div>
+    </main>
+  )
 }
 
 export function ActivityPage({ globalQuery }) {
