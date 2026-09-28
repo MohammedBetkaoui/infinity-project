@@ -257,7 +257,7 @@ export function AdminShell({ children, collapsed, setCollapsed, mobileOpen, setM
       <div className="adm-workspace">
         <Topbar setMobileOpen={setMobileOpen} query={query} setQuery={setQuery} notify={onNotifications} onNewAction={onNewAction} language={language} />
         <main className="adm-main" id="admin-content">{children}</main>
-        <footer className="adm-global-footer"><span><i />{livePeopleWorkspace ? 'Protected workspace · Live database records' : t('Fictional demo data · Local prototype')}</span><code>INFINITY / ADMIN · 2026.09</code></footer>
+        <footer className="adm-global-footer"></footer>
       </div>
     </div>
   )
