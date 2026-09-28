@@ -175,24 +175,39 @@ test('purge repair migration owns one explicit, bounded deletion graph', async (
   assert.doesNotMatch(migration, /storage\.objects|p_password|password_hash|token_hash|file_path/)
 })
 
-test('purge lock contention fails fast with a controlled retry response', async () => {
+test('purge lock repair blocks competing writes without blocking admin reads', async () => {
+  const migration = (await read('supabase/migrations/20261005120000_reduce_aivex_purge_lock_contention.sql')).toLowerCase()
+  assert.match(migration, /create or replace function public\.admin_purge_all_aivex_data/)
+  assert.match(migration, /security definer/)
+  assert.match(migration, /set lock_timeout = '5s'/)
+  assert.match(migration, /set statement_timeout = '15s'/)
+  assert.match(migration, /lock table[\s\S]+in share row exclusive mode/)
+  assert.doesNotMatch(migration, /in access exclusive mode/)
+  assert.match(migration, /v_role is distinct from 'super_admin'/)
+  assert.match(migration, /revoke all on function public\.admin_purge_all_aivex_data[\s\S]+from public, anon, authenticated/)
+  assert.match(migration, /grant execute on function public\.admin_purge_all_aivex_data[\s\S]+to service_role/)
+})
+
+test('purge lock or statement contention fails fast with a controlled retry response', async () => {
   const env = { ADMIN_AIVEX_API_ENABLED: 'true', NODE_ENV: 'production', ADMIN_SESSION_COOKIE_NAME: 'infinity_admin_session' }
-  const handler = createAdminAivexHandler({
-    createService: () => ({ purgeAll: async () => { throw Object.assign(new Error('database lock'), { code: '55P03' }) } }),
-    createAuthService: () => ({ confirmPassword: async () => ({ ok: true }) }),
-    requireSession: async () => ({ user: SUPER_ADMIN }),
-    env,
-  })
-  const res = response()
-  await handler(request('POST', '/api/admin-auth?__admin_path=aivex/purge', {
-    password: PASSWORD, confirmation: 'delete_all_aivex_files',
-  }, mutationHeaders), res)
-  assert.equal(res.statusCode, 409)
-  assert.deepEqual(res.body, {
-    success: false,
-    code: 'aivex_purge_busy',
-    message: 'An AIVEX operation is still being saved. Wait a moment and try again.',
-  })
+  for (const code of ['55P03', '57014']) {
+    const handler = createAdminAivexHandler({
+      createService: () => ({ purgeAll: async () => { throw Object.assign(new Error('database busy'), { code }) } }),
+      createAuthService: () => ({ confirmPassword: async () => ({ ok: true }) }),
+      requireSession: async () => ({ user: SUPER_ADMIN }),
+      env,
+    })
+    const res = response()
+    await handler(request('POST', '/api/admin-auth?__admin_path=aivex/purge', {
+      password: PASSWORD, confirmation: 'delete_all_aivex_files',
+    }, mutationHeaders), res)
+    assert.equal(res.statusCode, 409)
+    assert.deepEqual(res.body, {
+      success: false,
+      code: 'aivex_purge_busy',
+      message: 'An AIVEX operation is still being saved. Wait a moment and try again.',
+    })
+  }
 })
 
 test('purge control is password-confirmed, super-admin-only in UI, and never persists the password', async () => {
@@ -204,6 +219,8 @@ test('purge control is password-confirmed, super-admin-only in UI, and never per
   assert.match(page, /autoComplete="current-password"/)
   assert.match(page, /This action cannot be undone/)
   assert.match(page, /purgeAcknowledged/)
+  assert.match(page, /addEventListener\('focus', syncVerification\)/)
+  assert.doesNotMatch(page, /setInterval\(syncVerification/)
   assert.match(hook, /\/api\/admin\/aivex\/purge/)
   assert.doesNotMatch(`${page}\n${hook}`, /localStorage|sessionStorage|document\.cookie/)
 })

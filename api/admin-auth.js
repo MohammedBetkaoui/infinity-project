@@ -498,7 +498,7 @@ export function createAdminAivexHandler({
       })
     } catch (error) {
       safeAdminAuthLog(purgeAll ? 'aivex_purge_all' : 'aivex', error)
-      if (purgeAll && error?.code === '55P03') {
+      if (purgeAll && ['55P03', '57014'].includes(error?.code)) {
         return sendAdminJson(res, 409, {
           success: false,
           code: 'aivex_purge_busy',

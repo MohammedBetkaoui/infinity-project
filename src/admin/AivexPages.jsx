@@ -698,13 +698,10 @@ export function AivexDetailPage() {
       }
     }
     const syncWhenVisible = () => { if (document.visibilityState === 'visible') syncVerification() }
-    syncVerification()
-    const interval = window.setInterval(syncVerification, 12000)
     window.addEventListener('focus', syncVerification)
     document.addEventListener('visibilitychange', syncWhenVisible)
     return () => {
       active = false
-      window.clearInterval(interval)
       window.removeEventListener('focus', syncVerification)
       document.removeEventListener('visibilitychange', syncWhenVisible)
     }
