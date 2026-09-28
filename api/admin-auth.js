@@ -497,9 +497,17 @@ export function createAdminAivexHandler({
         message: isAivexPath ? 'Method not allowed.' : 'Not found.',
       })
     } catch (error) {
-      safeAdminAuthLog('aivex', error)
+      safeAdminAuthLog(purgeAll ? 'aivex_purge_all' : 'aivex', error)
+      if (purgeAll && error?.code === '55P03') {
+        return sendAdminJson(res, 409, {
+          success: false,
+          code: 'aivex_purge_busy',
+          message: 'An AIVEX operation is still being saved. Wait a moment and try again.',
+        })
+      }
       return sendAdminJson(res, 503, {
         success: false,
+        ...(purgeAll ? { code: 'aivex_purge_failed' } : {}),
         message: purgeAll
           ? 'Unable to delete the AIVEX files right now.'
           : actionMatch

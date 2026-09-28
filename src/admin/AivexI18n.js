@@ -79,6 +79,7 @@ const ARABIC = Object.freeze({
   'The current password is incorrect.': 'كلمة المرور الحالية غير صحيحة.',
   'Password confirmation is temporarily unavailable. Please wait and try again.': 'تأكيد كلمة المرور غير متاح مؤقتاً. يرجى الانتظار ثم المحاولة مجدداً.',
   'The team files were deleted, but some private documents still need cleanup. Confirm the action again to retry.': 'تم حذف ملفات الفرق، لكن بعض الوثائق الخاصة ما زالت تحتاج إلى التنظيف. أكّد العملية مرة أخرى لإعادة المحاولة.',
+  'An AIVEX operation is still being saved. Wait a moment and try again.': 'لا تزال هناك عملية AIVEX قيد الحفظ. انتظر قليلاً ثم أعد المحاولة.',
   'The AIVEX files could not be deleted.': 'تعذر حذف ملفات AIVEX.',
   'Invalid deletion confirmation.': 'تأكيد الحذف غير صالح.',
   'Loading AIVEX files': 'جارٍ تحميل ملفات AIVEX',

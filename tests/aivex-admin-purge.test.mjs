@@ -154,6 +154,47 @@ test('forward migration keeps purge service-role-only, transactional and audited
   assert.doesNotMatch(migration, /storage\.objects|p_password|password_hash|token_hash|file_path/)
 })
 
+test('purge repair migration owns one explicit, bounded deletion graph', async () => {
+  const migration = (await read('supabase/migrations/20261004120000_fix_admin_aivex_purge_execution.sql')).toLowerCase()
+  assert.match(migration, /create or replace function public\.admin_purge_all_aivex_data/)
+  assert.match(migration, /security definer/)
+  assert.match(migration, /set lock_timeout = '5s'/)
+  assert.match(migration, /v_role is distinct from 'super_admin'/)
+  assert.match(migration, /lock table[\s\S]+in access exclusive mode/)
+  for (const table of [
+    'aivex_correction_items', 'aivex_correction_requests', 'aivex_admin_document_reviews',
+    'aivex_admin_case_reviews', 'aivex_magic_links', 'aivex_submitted_documents',
+    'aivex_generated_documents', 'aivex_students', 'aivex_members',
+    'aivex_upload_sessions', 'aivex_registrations',
+  ]) {
+    assert.match(migration, new RegExp(`delete from public\\.${table}`))
+  }
+  assert.match(migration, /insert into public\.admin_audit_events/)
+  assert.match(migration, /revoke all on function public\.admin_purge_all_aivex_data[\s\S]+from public, anon, authenticated/)
+  assert.match(migration, /grant execute on function public\.admin_purge_all_aivex_data[\s\S]+to service_role/)
+  assert.doesNotMatch(migration, /storage\.objects|p_password|password_hash|token_hash|file_path/)
+})
+
+test('purge lock contention fails fast with a controlled retry response', async () => {
+  const env = { ADMIN_AIVEX_API_ENABLED: 'true', NODE_ENV: 'production', ADMIN_SESSION_COOKIE_NAME: 'infinity_admin_session' }
+  const handler = createAdminAivexHandler({
+    createService: () => ({ purgeAll: async () => { throw Object.assign(new Error('database lock'), { code: '55P03' }) } }),
+    createAuthService: () => ({ confirmPassword: async () => ({ ok: true }) }),
+    requireSession: async () => ({ user: SUPER_ADMIN }),
+    env,
+  })
+  const res = response()
+  await handler(request('POST', '/api/admin-auth?__admin_path=aivex/purge', {
+    password: PASSWORD, confirmation: 'delete_all_aivex_files',
+  }, mutationHeaders), res)
+  assert.equal(res.statusCode, 409)
+  assert.deepEqual(res.body, {
+    success: false,
+    code: 'aivex_purge_busy',
+    message: 'An AIVEX operation is still being saved. Wait a moment and try again.',
+  })
+})
+
 test('purge control is password-confirmed, super-admin-only in UI, and never persists the password', async () => {
   const [page, hook] = await Promise.all([
     read('src/admin/AivexPages.jsx'),
