@@ -247,11 +247,16 @@ test('status page components never persist, log or beacon anything', async () =>
 })
 
 test('the open Magic Link page refreshes its candidate-safe status without a persistent connection', async () => {
-  const hook = await read('src/pages/aivex/status/useAivexStatus.js')
-  assert.match(hook, /AUTO_REFRESH_MS = 90 \* 1000/)
-  assert.match(hook, /window\.setInterval\(refreshIfDue, AUTO_REFRESH_MS\)/)
+  const hook = withoutComments(await read('src/pages/aivex/status/useAivexStatus.js'))
+  assert.match(hook, /AUTO_REFRESH_MIN_INTERVAL_MS = 5 \* 60 \* 1000/)
+  // No background polling: a forgotten tab must not keep querying the database.
+  assert.doesNotMatch(hook, /setInterval|EventSource|WebSocket/)
   assert.match(hook, /document\.visibilityState !== 'visible'/)
+  assert.match(hook, /Date\.now\(\) - lastVerifiedAt\.current < AUTO_REFRESH_MIN_INTERVAL_MS/)
+  assert.match(hook, /window\.addEventListener\('focus', refreshIfDue\)/)
+  assert.match(hook, /document\.addEventListener\('visibilitychange', refreshIfDue\)/)
   assert.match(hook, /window\.removeEventListener\('focus', refreshIfDue\)/)
+  assert.match(hook, /document\.removeEventListener\('visibilitychange', refreshIfDue\)/)
 })
 
 test('the upload uses same-origin init/finalize and direct signed Storage progress with a per-file idempotency id', async () => {
