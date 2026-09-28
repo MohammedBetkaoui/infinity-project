@@ -15,8 +15,7 @@ const DOCUMENT_ENDPOINT = '/api/aivex/magic-link/document'
 const UPLOAD_INIT_ENDPOINT = '/api/aivex/magic-link/upload/init'
 const UPLOAD_FINALIZE_ENDPOINT = '/api/aivex/magic-link/upload/finalize'
 const REQUEST_TIMEOUT_MS = 12000
-const AUTO_REFRESH_MS = 90 * 1000
-const AUTO_REFRESH_MIN_INTERVAL_MS = 30 * 1000
+const AUTO_REFRESH_MIN_INTERVAL_MS = 5 * 60 * 1000
 // A 10 MB file over a slow mobile connection needs far more headroom than
 // the short JSON calls above.
 const UPLOAD_TIMEOUT_MS = REQUEST_TIMEOUT_MS * 10
@@ -105,9 +104,9 @@ export default function useAivexStatus() {
     }
   }, [token, refreshCount])
 
-  // Keep an open team page current without a persistent connection: a
-  // low-frequency same-origin verification works reliably on Vercel Hobby,
-  // and a throttled visibility/focus check catches a return to the page.
+  // Refresh only when the candidate returns after a meaningful absence.
+  // A background interval kept every forgotten Magic Link tab querying the
+  // database indefinitely; the visible refresh button remains available.
   useEffect(() => {
     if (!token || state.status !== 'valid') return undefined
     const refreshIfDue = () => {
@@ -115,11 +114,9 @@ export default function useAivexStatus() {
       lastVerifiedAt.current = Date.now()
       setRefreshCount((count) => count + 1)
     }
-    const interval = window.setInterval(refreshIfDue, AUTO_REFRESH_MS)
     window.addEventListener('focus', refreshIfDue)
     document.addEventListener('visibilitychange', refreshIfDue)
     return () => {
-      window.clearInterval(interval)
       window.removeEventListener('focus', refreshIfDue)
       document.removeEventListener('visibilitychange', refreshIfDue)
     }

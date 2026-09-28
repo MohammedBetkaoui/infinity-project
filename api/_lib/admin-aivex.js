@@ -357,14 +357,22 @@ export function createAdminAivexService({ store, documentStore, now = () => new 
   if (!store) throw Object.assign(new Error('admin_aivex_store_required'), { stage: 'configuration', code: 'configuration_error' })
 
   const detail = async (reference, user) => {
-    const registration = await store.findByReference(reference)
+    const bundle = typeof store.detailBundle === 'function'
+      ? await store.detailBundle(reference)
+      : null
+    const registration = bundle?.registration || await store.findByReference(reference)
     if (!registration) return null
-    const [overview, students, generated, submitted, reviews, corrections, correctionItems, audit] = await Promise.all([
-      store.overview(registration.id), store.students(registration.id),
-      store.generatedDocuments(registration.id), store.submittedDocuments(registration.id),
-      store.documentReviews(registration.id), store.corrections(registration.id),
-      store.correctionItems(registration.id), store.audit(registration.id),
-    ])
+    const [overview, students, generated, submitted, reviews, corrections, correctionItems, audit] = bundle
+      ? [
+          bundle.overview, bundle.students, bundle.generatedDocuments, bundle.submittedDocuments,
+          bundle.documentReviews, bundle.corrections, bundle.correctionItems, bundle.audit,
+        ]
+      : await Promise.all([
+          store.overview(registration.id), store.students(registration.id),
+          store.generatedDocuments(registration.id), store.submittedDocuments(registration.id),
+          store.documentReviews(registration.id), store.corrections(registration.id),
+          store.correctionItems(registration.id), store.audit(registration.id),
+        ])
     if (!overview) return null
     const base = mapOverview(overview)
     const latestCorrection = corrections.find((correction) => !correction.resolved_at)
@@ -445,6 +453,26 @@ export function createAdminAivexService({ store, documentStore, now = () => new 
 
   return {
     async list(options, user) {
+      if (typeof store.listPage === 'function') {
+        const bundled = await store.listPage(options)
+        const rows = Array.isArray(bundled.rows) ? bundled.rows : []
+        const total = Number(bundled.total || 0)
+        const documentCounts = Object.fromEntries(Object.keys(DOCUMENT_LABELS).map((status) => [status, 0]))
+        Object.assign(documentCounts, bundled.summary?.documentCounts || {})
+        return {
+          data: rows.map(mapOverview),
+          pagination: {
+            page: options.page, limit: options.limit, total,
+            pages: Math.max(1, Math.ceil(total / options.limit)),
+          },
+          summary: { ...(bundled.summary || {}), documentCounts },
+          facets: {
+            wilayas: Array.isArray(bundled.facets?.wilayas) ? bundled.facets.wilayas : [],
+            institutions: Array.isArray(bundled.facets?.institutions) ? bundled.facets.institutions : [],
+          },
+          role: user.role,
+        }
+      }
       const [{ rows, count }, summaryRows] = await Promise.all([
         store.list(options), store.summaryRows(options.edition),
       ])

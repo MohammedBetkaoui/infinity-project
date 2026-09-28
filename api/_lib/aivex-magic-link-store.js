@@ -23,6 +23,18 @@ export class MagicLinkStoreError extends Error {
 
 export function createSupabaseMagicLinkStore(supabase) {
   return {
+    async loadCandidateStatus(tokenHash, now) {
+      const { data, error } = await supabase.rpc('server_get_aivex_magic_link_status', {
+        p_token_hash: tokenHash,
+        p_now: now.toISOString(),
+      })
+      // This fallback keeps deploys safe while PostgREST refreshes its schema
+      // cache, or if application code reaches an older database briefly.
+      if (error && ['PGRST202', '42883'].includes(error.code)) return undefined
+      if (error) throw new MagicLinkStoreError('load-candidate-status', error)
+      return data
+    },
+
     // Rotation: revoke every still-active link for this registration, then
     // insert the new one. Two plain statements rather than one transaction
     // (this client has no cross-statement transaction primitive) — a crash

@@ -82,6 +82,26 @@ export function createAdminAivexStore(supabase) {
   if (!supabase) throw Object.assign(new Error('admin_aivex_store_unavailable'), { stage: 'configuration', code: 'configuration_error' })
 
   return {
+    async listPage(options) {
+      const { data, error } = await supabase.rpc('admin_list_aivex_cases', {
+        p_edition: options.edition,
+        p_page: options.page,
+        p_limit: options.limit,
+        p_query: safeSearch(options.q) || null,
+        p_registration_status: options.registration || null,
+        p_document_status: options.document || null,
+        p_wilaya: options.wilaya || null,
+        p_institution: options.institution || null,
+        p_complete: options.complete || null,
+        p_signed: options.signed || null,
+        p_date_from: options.dateFrom || null,
+        p_date_to: options.dateTo || null,
+        p_sort: options.sort,
+      })
+      if (error) fail('aivex_list_bundle', error)
+      return data || { rows: [], total: 0, summary: {}, facets: {} }
+    },
+
     async list(options) {
       const [sortName, sortDirection] = options.sort.split('_')
       const sortColumn = SORT_COLUMNS[sortName] || 'attention_rank'
@@ -116,6 +136,14 @@ export function createAdminAivexStore(supabase) {
         .eq('form_version', 4)
         .maybeSingle()
       if (error) fail('aivex_registration', error)
+      return data
+    },
+
+    async detailBundle(reference) {
+      const { data, error } = await supabase.rpc('admin_get_aivex_detail', {
+        p_reference: reference,
+      })
+      if (error) fail('aivex_detail_bundle', error)
       return data
     },
 

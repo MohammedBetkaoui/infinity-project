@@ -46,7 +46,7 @@ import { createClient } from '@supabase/supabase-js'
 import { readActivityOfficial, readTeam } from '../../../shared/aivex/contract-v4.js'
 import { isCorrectionDeadlineExpired } from '../../../shared/aivex/correction-deadline.js'
 import { createSupabaseCorrectionStore } from '../../_lib/aivex-correction-store.js'
-import { resolveMagicLink } from '../../_lib/aivex-magic-link.js'
+import { hashMagicLinkToken, isPlausibleMagicLinkToken, resolveMagicLink } from '../../_lib/aivex-magic-link.js'
 import { createSupabaseMagicLinkStore } from '../../_lib/aivex-magic-link-store.js'
 import { createSupabaseSignedDocumentStore } from '../../_lib/aivex-signed-document-store.js'
 import { readJsonBody, sendJson as send } from '../../_lib/http.js'
@@ -89,6 +89,47 @@ const FIELD_ITEMS = {
   'Activities manager': {
     validate: readActivityOfficial,
   },
+}
+
+function candidateStatusBody(registration, signedDocument, correctionRequest, clock) {
+  if (correctionRequest) {
+    correctionRequest.expired = isCorrectionDeadlineExpired(correctionRequest.deadline, clock)
+    correctionRequest.items = correctionRequest.items.map((item) => {
+      if (item.item === 'Team information') return {
+        ...item,
+        initialFields: {
+          name: registration.team_name,
+          wilayaCode: registration.wilaya_code,
+          institutionId: registration.institution_custom ? 'other' : registration.institution_id,
+          customInstitution: registration.institution_custom ? registration.institution_name : '',
+        },
+      }
+      if (item.item === 'Activities manager') return {
+        ...item,
+        initialFields: {
+          role: registration.activity_official_role,
+          fullName: registration.activity_official_name,
+          email: registration.activity_official_email,
+          phone: registration.activity_official_phone,
+        },
+      }
+      return item
+    })
+  }
+
+  return {
+    success: true,
+    status: 'valid',
+    reference: registration.reference,
+    teamName: registration.team_name,
+    institutionName: registration.institution_name,
+    wilayaName: registration.wilaya_name,
+    studentCount: registration.student_count,
+    registrationStatus: registration.registration_status,
+    documentStatus: registration.document_status,
+    ...(signedDocument ? { signedDocument } : {}),
+    ...(correctionRequest ? { correctionRequest } : {}),
+  }
 }
 
 export function createMagicLinkVerifyHandler({
@@ -188,6 +229,25 @@ export function createMagicLinkVerifyHandler({
     let stage = 'resolve'
     try {
       const clock = now()
+      if (isPlausibleMagicLinkToken(token) && typeof magicLinkStore.loadCandidateStatus === 'function') {
+        const bundled = await magicLinkStore.loadCandidateStatus(hashMagicLinkToken(token), clock)
+        if (bundled) {
+          if (bundled.status !== 'valid') {
+            refuse(res, bundled.status === 'registration_not_found' ? 404 : 401, { success: false, status: bundled.status })
+            return
+          }
+          send(res, 200, candidateStatusBody(
+            bundled.registration,
+            bundled.signedDocument || undefined,
+            bundled.correctionRequest || undefined,
+            clock,
+          ))
+          return
+        }
+      }
+
+      // Compatibility path while application code and the forward database
+      // migration are deployed independently.
       const resolved = await resolveMagicLink({ magicLinkStore, rawToken: token, now: clock })
       if (!resolved.ok) {
         refuse(res, 401, { success: false, status: resolved.status })
@@ -226,44 +286,7 @@ export function createMagicLinkVerifyHandler({
         ? await magicLinkStore.latestOpenCorrection(resolved.registrationId) || undefined
         : undefined
 
-      if (correctionRequest) {
-        correctionRequest.expired = isCorrectionDeadlineExpired(correctionRequest.deadline, clock)
-        correctionRequest.items = correctionRequest.items.map((item) => {
-          if (item.item === 'Team information') return {
-            ...item,
-            initialFields: {
-              name: registration.team_name,
-              wilayaCode: registration.wilaya_code,
-              institutionId: registration.institution_custom ? 'other' : registration.institution_id,
-              customInstitution: registration.institution_custom ? registration.institution_name : '',
-            },
-          }
-          if (item.item === 'Activities manager') return {
-            ...item,
-            initialFields: {
-              role: registration.activity_official_role,
-              fullName: registration.activity_official_name,
-              email: registration.activity_official_email,
-              phone: registration.activity_official_phone,
-            },
-          }
-          return item
-        })
-      }
-
-      send(res, 200, {
-        success: true,
-        status: 'valid',
-        reference: registration.reference,
-        teamName: registration.team_name,
-        institutionName: registration.institution_name,
-        wilayaName: registration.wilaya_name,
-        studentCount: registration.student_count,
-        registrationStatus: registration.registration_status,
-        documentStatus: registration.document_status,
-        ...(signedDocument ? { signedDocument } : {}),
-        ...(correctionRequest ? { correctionRequest } : {}),
-      })
+      send(res, 200, candidateStatusBody(registration, signedDocument, correctionRequest, clock))
     } catch (error) {
       console.error('[aivex] Magic link verification failed', { stage: error?.stage || stage, code: error?.code })
       refuse(res, 500, { success: false, status: 'server_error' })
