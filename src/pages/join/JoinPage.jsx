@@ -12,15 +12,16 @@ import useMotionPreference from '../../hooks/useMotionPreference'
 import { MOTION_EASE } from '../../lib/motion'
 import JoinPanelChoice from './JoinPanelChoice'
 import {
-  JOIN_TYPES, STAFF_DEPARTMENTS, availabilityOptions, buildSummary, experienceOptions, initialValues,
-  interestOptions, joinTypeLabel, serialize, steps, studyLevels, validators,
+  JOIN_TYPES, STAFF_DEPARTMENTS, availabilityOptions, buildSummary, experienceOptions, facultyOptions, getDepartmentOptions,
+  initialValues, interestOptions, joinTypeLabel, serialize, steps, studyLevels, validators,
 } from './joinModel'
 import '../../components/forms/application-form.css'
 import './join.css'
 
 const FORM_ID = 'membership-application'
-// v2: the essay field is gone and the role fields are new; v1 drafts are ignored.
-const STORAGE_KEY = 'infinity-membership-draft-v2'
+// v3: the free-text department became Faculty -> Department; v1/v2 drafts are ignored.
+const STORAGE_KEY = 'infinity-membership-draft-v3'
+const OUTDATED_STORAGE_KEYS = ['infinity-membership-draft-v1', 'infinity-membership-draft-v2']
 const INSTAGRAM_URL = 'https://www.instagram.com/club_.infinity/'
 
 function RoleNote({ label, children }) {
@@ -31,7 +32,7 @@ export default function JoinPage() {
   const reduced = useMotionPreference()
   const [copied, setCopied] = useState(false)
   const copyTimer = useRef(null)
-  const form = useApplicationForm({ kind: 'membership', storageKey: STORAGE_KEY, initialValues, steps, validators, serialize, version: 2 })
+  const form = useApplicationForm({ kind: 'membership', storageKey: STORAGE_KEY, initialValues, steps, validators, serialize, version: 3 })
   const lastPresentedStep = useRef(form.step)
   const { joinType } = form.values
 
@@ -42,8 +43,15 @@ export default function JoinPage() {
     if (value === 'staff') form.setField('memberInterest', '')
   }
 
+  // A department only exists inside its faculty: any faculty change clears it.
+  const changeFaculty = (name, value) => {
+    form.setField(name, value)
+    form.setField('department', '')
+  }
+  const departmentOptions = getDepartmentOptions(form.values.faculty)
+
   useEffect(() => {
-    try { window.sessionStorage.removeItem('infinity-membership-draft-v1') } catch { /* storage may be unavailable */ }
+    try { OUTDATED_STORAGE_KEYS.forEach((key) => window.sessionStorage.removeItem(key)) } catch { /* storage may be unavailable */ }
   }, [])
 
   useEffect(() => {
@@ -158,9 +166,11 @@ export default function JoinPage() {
                           <div className="af-grid-two">
                             <ApplicationField formId={FORM_ID} name="studyYear" label="Study level" as="select" options={studyLevels}
                               value={form.values.studyYear} onChange={form.setField} error={form.errors.studyYear} />
-                            <ApplicationField formId={FORM_ID} name="department" label="Department or speciality" value={form.values.department}
-                              onChange={form.setField} error={form.errors.department} autoComplete="organization-title" placeholder="e.g. Computer Science" />
+                            <ApplicationField formId={FORM_ID} name="faculty" label="Faculty" as="select" options={facultyOptions}
+                              value={form.values.faculty} onChange={changeFaculty} error={form.errors.faculty} />
                           </div>
+                          <ApplicationField formId={FORM_ID} name="department" label="Department" as="select" options={departmentOptions}
+                            value={form.values.department} onChange={form.setField} error={form.errors.department} disabled={!form.values.faculty} />
                         </div>
                       </>
                     ) : (

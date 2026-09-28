@@ -93,8 +93,8 @@ export function CandidateDossier({ detail, note = '', setNote, onSave, noteSavin
       <div className="adm-candidate-contact-grid"><div><i><Mail size={16}/></i><span><small>Email address</small><b>{detail.email}</b></span></div><div><i><Phone size={16}/></i><span><small>Phone number</small><b>{detail.phone || 'Not provided'}</b></span></div></div>
     </CandidateSection>
 
-    <CandidateSection index="02" title="Academic profile" copy="Current study path and declared speciality.">
-      <div className="adm-candidate-profile-grid"><div className="adm-candidate-feature"><i><GraduationCap size={18}/></i><span>Study level</span><strong>{detail.level}</strong></div><div><span>Department / speciality</span><b>{detail.speciality || 'Not provided'}</b></div></div>
+    <CandidateSection index="02" title="Academic profile" copy="Current study level, faculty and department.">
+      <div className="adm-candidate-profile-grid"><div className="adm-candidate-feature"><i><GraduationCap size={18}/></i><span>Study level</span><strong>{detail.level}</strong></div><div><span>Faculty</span><b>{detail.faculty || '—'}</b></div><div><span>Department</span><b>{detail.speciality || 'Not provided'}</b></div></div>
     </CandidateSection>
 
     <CandidateSection index="03" title="Join profile" copy={detail.type === 'Staff' ? 'Requested department is kept separate from the internal role assigned after acceptance.' : 'Declared interest, experience and semester availability.'}>

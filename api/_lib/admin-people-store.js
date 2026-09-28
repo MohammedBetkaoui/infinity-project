@@ -1,6 +1,6 @@
 const DIRECTORY_COLUMNS = [
   'kind', 'profile_id', 'member_id', 'source_application_id', 'full_name', 'email', 'phone',
-  'study_year', 'speciality', 'availability', 'structure', 'requested_department', 'internal_role',
+  'study_year', 'faculty', 'speciality', 'availability', 'structure', 'requested_department', 'internal_role',
   'cohort', 'status', 'joined_at', 'last_activity_at', 'activity_count', 'has_staff_profile',
   'created_at', 'updated_at',
 ].join(', ')

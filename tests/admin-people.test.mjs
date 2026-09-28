@@ -17,7 +17,7 @@ const user = { id: ADMIN_ID, username: 'root_admin', displayName: 'Root Admin', 
 const directoryRow = (changes = {}) => ({
   kind: 'members', profile_id: PROFILE_ID, member_id: PROFILE_ID, source_application_id: null,
   full_name: 'Amel Benali', email: 'amel@example.dz', phone: '0555000000', study_year: 'L3',
-  speciality: 'Computer science', availability: 'weekly', structure: 'AI Engineering',
+  faculty: null, speciality: 'Computer science', availability: 'weekly', structure: 'AI Engineering',
   requested_department: null, internal_role: null, cohort: '2026/27', status: 'active',
   joined_at: '2026-09-20', last_activity_at: null, activity_count: 0, has_staff_profile: false,
   created_at: '2026-09-20T08:00:00.000Z', updated_at: '2026-09-20T08:00:00.000Z', ...changes,
@@ -113,6 +113,22 @@ test('staff detail retains its member link without exposing database actor field
   assert.equal(profile.department, 'Dev / Tech')
   assert.equal(profile.requested, 'Design / Content Creation')
   assert.equal(profile.created_by_admin_user_id, undefined)
+})
+
+test('directory profiles show the university faculty apart from the staff department', async () => {
+  const staff = new MemoryPeopleStore(directoryRow({
+    kind: 'staff', member_id: MEMBER_ID, faculty: 'fst', speciality: 'Civil Engineering',
+    structure: 'dev-tech', requested_department: 'dev-tech', internal_role: 'Technical lead', has_staff_profile: true,
+  }))
+  const profile = await createAdminPeopleService({ store: staff }).detail('staff', PROFILE_ID, user)
+  assert.equal(profile.faculty, 'Faculty of Science and Technology')
+  assert.equal(profile.speciality, 'Civil Engineering')
+  assert.equal(profile.department, 'Dev / Tech')
+
+  // Legacy and manual profiles have no faculty: the free text stays as-is.
+  const legacy = await createAdminPeopleService({ store: new MemoryPeopleStore() }).detail('members', PROFILE_ID, user)
+  assert.equal(legacy.faculty, null)
+  assert.equal(legacy.speciality, 'Computer science')
 })
 
 test('people migration is private, audited and synchronizes accepted applications', async () => {

@@ -1,5 +1,7 @@
+import { UNIVERSITY_FACULTIES, describeAcademicDepartment } from '../../shared/membership/university-structure.js'
+
 const APPLICATION_COLUMNS = [
-  'id', 'reference', 'full_name', 'email', 'phone', 'study_year', 'department',
+  'id', 'reference', 'full_name', 'email', 'phone', 'study_year', 'faculty', 'department',
   'join_type', 'staff_department', 'primary_field', 'experience', 'availability',
   'consent', 'source', 'form_version', 'status', 'decision_reason',
   'requested_information', 'accepted_as', 'assigned_staff_department',
@@ -31,17 +33,42 @@ const safeSearch = (value) => String(value || '')
 
 const endOfDate = (date) => `${date}T23:59:59.999Z`
 
+const UNIVERSITY_DEPARTMENTS = UNIVERSITY_FACULTIES.flatMap((faculty) => faculty.departments)
+
+// Form v3 rows store faculty/department slugs, legacy rows free text. A search
+// for "Computer Science" must find both, so matching labels are translated to
+// their slugs (letters and hyphens only: safe inside the or() filter).
+function academicSearchFilters(search) {
+  const needle = search.toLowerCase()
+  const faculties = UNIVERSITY_FACULTIES.filter((faculty) => faculty.label.toLowerCase().includes(needle)).map((faculty) => faculty.value)
+  const departments = UNIVERSITY_DEPARTMENTS.filter((department) => department.label.toLowerCase().includes(needle)).map((department) => department.value)
+  return [
+    ...(faculties.length ? [`faculty.in.(${faculties.join(',')})`] : []),
+    ...(departments.length ? [`department.in.(${departments.join(',')})`] : []),
+  ]
+}
+
+// The department filter is a readable value from the facet list: legacy free
+// text equal to it, or the slug of the structured department carrying it.
+const departmentFilterValues = (value) => [
+  value,
+  ...UNIVERSITY_DEPARTMENTS.filter((department) => department.label === value).map((department) => department.value),
+]
+
 function applyFilters(query, options, { includeStatus = true } = {}) {
   let next = query
   const search = safeSearch(options.q)
   if (search) {
     const pattern = `%${search}%`
-    next = next.or(`reference.ilike.${pattern},full_name.ilike.${pattern},email.ilike.${pattern},department.ilike.${pattern},primary_field.ilike.${pattern}`)
+    next = next.or([
+      `reference.ilike.${pattern}`, `full_name.ilike.${pattern}`, `email.ilike.${pattern}`,
+      `department.ilike.${pattern}`, `primary_field.ilike.${pattern}`, ...academicSearchFilters(search),
+    ].join(','))
   }
   if (includeStatus && options.status) next = next.eq('status', options.status)
   if (options.type) next = next.eq('join_type', options.type)
   if (options.studyYear) next = next.eq('study_year', options.studyYear)
-  if (options.speciality) next = next.eq('department', options.speciality)
+  if (options.speciality) next = next.in('department', departmentFilterValues(options.speciality))
   if (options.track) next = next.eq('primary_field', options.track)
   if (options.experience) next = next.eq('experience', options.experience)
   if (options.availability) next = next.eq('availability', options.availability)
@@ -79,15 +106,16 @@ export function createAdminApplicationsStore(supabase) {
       return Object.fromEntries(entries)
     },
 
+    // Readable department values: labels for structured rows, free text for legacy ones.
     async specialities() {
       const { data, error } = await supabase
         .from('membership_applications')
-        .select('department')
+        .select('faculty, department')
         .not('department', 'is', null)
-        .order('department', { ascending: true })
         .limit(1000)
       if (error) fail('applications_facets', error)
-      return [...new Set((data || []).map((row) => row.department).filter(Boolean))]
+      return [...new Set((data || []).map((row) => describeAcademicDepartment(row.faculty, row.department)).filter(Boolean))]
+        .sort((left, right) => left.localeCompare(right))
     },
 
     async find(applicationId) {

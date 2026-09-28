@@ -7,6 +7,7 @@ export default function ApplicationField({
   error,
   hint,
   optional = false,
+  disabled = false,
   as = 'input',
   options = [],
   maxLength,
@@ -21,6 +22,7 @@ export default function ApplicationField({
     name,
     value,
     maxLength,
+    disabled,
     'aria-invalid': Boolean(error),
     'aria-describedby': describedBy,
     onChange: (event) => onChange(name, event.target.value),
@@ -46,7 +48,7 @@ export default function ApplicationField({
   }
 
   return (
-    <div className="af-field" data-invalid={error ? '' : undefined}>
+    <div className="af-field" data-invalid={error ? '' : undefined} data-disabled={disabled ? '' : undefined}>
       <label htmlFor={id}>
         <span>{label}</span>
         {optional && <small>Optional</small>}

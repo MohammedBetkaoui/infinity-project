@@ -525,7 +525,7 @@
 .adm-candidate-contact-grid span { display: grid; min-width: 0; gap: 3px; }
 .adm-candidate-contact-grid small,.adm-candidate-profile-grid span,.adm-candidate-track > span,.adm-candidate-callout span { color: var(--adm-muted); font-size: 8px; letter-spacing: .03em; text-transform: uppercase; }
 .adm-candidate-contact-grid b { overflow-wrap: anywhere; font-size: 12px; }
-.adm-candidate-profile-grid { display: grid; grid-template-columns: .72fr 1.28fr; border: 1px solid var(--adm-line); }
+.adm-candidate-profile-grid { display: grid; grid-template-columns: .72fr repeat(2, minmax(0, 1fr)); border: 1px solid var(--adm-line); }
 .adm-candidate-profile-grid > div { display: grid; align-content: center; min-height: 84px; gap: 5px; padding: 14px; background: #fff; border-left: 1px solid var(--adm-line); }
 .adm-candidate-profile-grid > div:first-child { border-left: 0; }
 .adm-candidate-profile-grid b { font-size: 12px; }

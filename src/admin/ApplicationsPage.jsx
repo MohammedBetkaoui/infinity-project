@@ -70,7 +70,7 @@ export default function ApplicationsPage() {
     { key: 'level', label: 'Study level', options: LEVELS },
     { key: 'type', label: 'Application type', options: ['Member', 'Staff'] },
     { key: 'track', label: 'Interest / requested department', options: [...POLES, ...DEPARTMENTS] },
-    { key: 'speciality', label: 'Speciality', options: facets.specialities || [] },
+    { key: 'speciality', label: 'Academic department', options: facets.specialities || [] },
     { key: 'experience', label: 'Experience', options: EXPERIENCE },
     { key: 'availability', label: 'Availability', options: AVAILABILITY },
     { key: 'dateFrom', label: 'Submitted from', type: 'date', options: [] },
@@ -188,7 +188,7 @@ export default function ApplicationsPage() {
       <RecordToolbar
         search={search}
         onSearch={(value) => resetScope(() => setSearch(value))}
-        placeholder="Search name, email, speciality or reference…"
+        placeholder="Search name, email, department or reference…"
         filters={filters}
         onFilters={(value) => resetScope(() => setFilters(value))}
         definitions={fields}

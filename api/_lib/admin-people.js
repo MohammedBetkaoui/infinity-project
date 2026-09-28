@@ -1,3 +1,4 @@
+import { getFacultyLabel } from '../../shared/membership/university-structure.js'
 import { createServerSupabaseClient } from './aivex-server.js'
 import { allowedPeopleActions, canBulkManagePeople, canManagePeople } from './admin-people-permissions.js'
 import { createAdminPeopleStore } from './admin-people-store.js'
@@ -29,7 +30,9 @@ function mapPerson(row, role, extras = {}) {
     id: row.profile_id, ref: `${isStaff ? 'STF' : 'MEM'}-${String(row.profile_id).slice(0, 8).toUpperCase()}`,
     memberId: row.member_id,
     name: row.full_name, initials: initials(row.full_name), email: row.email, phone: row.phone || 'Not provided',
-    level: row.study_year === 'other' ? 'Other' : row.study_year, speciality: row.speciality,
+    // University faculty (null for legacy and manual profiles) and the readable
+    // university department. `department` below is the staff department.
+    level: row.study_year === 'other' ? 'Other' : row.study_year, faculty: getFacultyLabel(row.faculty) || null, speciality: row.speciality,
     availability: AVAILABILITY_LABELS[row.availability] || row.availability,
     availabilityKey: row.availability, status: STATUS_LABELS[row.status] || row.status, statusKey: row.status,
     cohort: row.cohort, joined: dateLabel(row.joined_at), joinedAt: row.joined_at,

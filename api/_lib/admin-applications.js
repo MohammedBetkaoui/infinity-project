@@ -1,3 +1,4 @@
+import { describeAcademicDepartment, getFacultyLabel } from '../../shared/membership/university-structure.js'
 import { createServerSupabaseClient } from './aivex-server.js'
 import {
   allowedApplicationActions, canBulkManageApplications, canManageApplication,
@@ -77,7 +78,10 @@ function mapApplication(row, role, extras = {}) {
     email: row.email,
     phone: row.phone,
     level: row.study_year === 'other' ? 'Other' : row.study_year,
-    speciality: row.department,
+    // University faculty/department (never the staff department). Legacy rows
+    // have no faculty and keep the free text the applicant typed.
+    faculty: getFacultyLabel(row.faculty) || null,
+    speciality: describeAcademicDepartment(row.faculty, row.department),
     type: TYPE_LABELS[row.join_type] || row.join_type,
     track: row.primary_field,
     experience: EXPERIENCE_LABELS[row.experience] || row.experience,

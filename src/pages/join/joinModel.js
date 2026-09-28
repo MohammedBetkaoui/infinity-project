@@ -1,4 +1,13 @@
-import { poles } from '../../data/siteData'
+import { poles } from '../../data/siteData.js'
+import {
+  UNIVERSITY_FACULTIES, getDepartmentLabel, getFacultyDepartments, getFacultyLabel,
+  isValidDepartmentForFaculty, isValidFaculty,
+} from '../../../shared/membership/university-structure.js'
+
+// The academic structure itself lives in shared/membership/university-structure.js,
+// the single list also used by api/join.js to validate submissions.
+export { getDepartmentLabel, getFacultyLabel }
+export const faculties = UNIVERSITY_FACULTIES
 
 export const JOIN_TYPES = [
   {
@@ -65,6 +74,21 @@ export const studyLevels = [
   { value: 'other', label: 'Another level' },
 ]
 
+export const facultyOptions = [
+  { value: '', label: 'Select your faculty' },
+  ...faculties.map(({ value, label }) => ({ value, label })),
+]
+
+// Only the departments of the selected faculty, never another faculty's.
+export const getDepartmentOptions = (facultyValue) => {
+  const departments = getFacultyDepartments(facultyValue)
+  if (!departments.length) return [{ value: '', label: 'Select your faculty first' }]
+  return [
+    { value: '', label: 'Select your department' },
+    ...departments.map(({ value, label }) => ({ value, label })),
+  ]
+}
+
 export const availabilityOptions = [
   { value: '', label: 'Choose a realistic rhythm' },
   { value: 'weekly', label: 'A few hours each week' },
@@ -89,6 +113,7 @@ export const initialValues = {
   email: '',
   phone: '',
   studyYear: '',
+  faculty: '',
   department: '',
   joinType: '',
   experience: '',
@@ -100,7 +125,7 @@ export const initialValues = {
 }
 
 export const steps = [
-  { label: 'About you', fields: ['fullName', 'email', 'phone', 'studyYear', 'department'] },
+  { label: 'About you', fields: ['fullName', 'email', 'phone', 'studyYear', 'faculty', 'department'] },
   { label: 'Your place', fields: ['joinType', 'experience', 'memberInterest', 'staffDepartment', 'availability', 'consent'] },
 ]
 
@@ -129,11 +154,16 @@ export const validators = {
     return ''
   },
   studyYear: required('Your study level'),
-  department: (value) => {
-    const trimmed = String(value || '').trim()
-    if (!trimmed) return 'Your department is required.'
-    if (trimmed.length > 120) return 'Please use a shorter answer (120 characters max).'
-    return ''
+  faculty: (value) => {
+    if (!String(value || '').trim()) return 'Your faculty is required.'
+    return isValidFaculty(value) ? '' : 'Select a valid faculty.'
+  },
+  // Checked against the selected faculty, not just for presence: a stale or
+  // hand-edited department from another faculty is refused.
+  department: (value, values) => {
+    if (!values.faculty) return 'Select your faculty first.'
+    if (!String(value || '').trim()) return 'Your department is required.'
+    return isValidDepartmentForFaculty(values.faculty, value) ? '' : 'Select a valid department.'
   },
   joinType: (value) => (JOIN_TYPES.some((type) => type.value === value) ? '' : 'Choose how you would like to join Infinity.'),
   experience: requiredOnceRoleChosen('Your starting point'),
@@ -166,7 +196,8 @@ export const buildSummary = (values) => [
   `Email: ${values.email}`,
   `Phone: ${values.phone || 'Not provided'}`,
   `Study level: ${studyLabel(values.studyYear)}`,
-  `Department or speciality: ${values.department}`,
+  `Faculty: ${getFacultyLabel(values.faculty) || '—'}`,
+  `Department: ${getDepartmentLabel(values.faculty, values.department) || '—'}`,
   values.joinType === 'staff'
     ? `Staff department: ${labelOf(STAFF_DEPARTMENTS, values.staffDepartment)}`
     : `Would like to explore: ${values.memberInterest || '—'}`,

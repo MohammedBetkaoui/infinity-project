@@ -13,6 +13,7 @@
 // (Upstash Redis, Vercel KV...) later if abuse ever outgrows it.
 
 import { createClient } from '@supabase/supabase-js'
+import { isValidDepartmentForFaculty, isValidFaculty } from '../shared/membership/university-structure.js'
 import { isFilled, normalizeString, sendJson as send } from './_lib/http.js'
 import { consumeRateLimit, getClientIp, isTrustedOrigin } from './_lib/security.js'
 
@@ -35,7 +36,6 @@ const MAX_LEN = {
   fullName: 120,
   email: 254,
   phone: 40,
-  department: 120,
   memberInterest: 120,
   source: 500,
 }
@@ -152,18 +152,27 @@ const validateApplication = (res, body) => {
     return null
   }
 
-  const department = normalizeString(answers.department)
-  if (department.length < 1 || department.length > MAX_LEN.department) {
-    invalid(res, 'Please enter your department.', 'department')
+  const formVersion = Number.isFinite(body.version) ? Math.trunc(body.version) : 1
+
+  // Faculty -> Department (form v3), checked against the same list the form
+  // uses (shared/membership/university-structure.js): a department is only
+  // accepted inside its own faculty. Required for every submission — an
+  // older tab still showing the free-text field is asked to reload instead.
+  const faculty = normalizeString(answers.faculty)
+  if (!isValidFaculty(faculty)) {
+    invalid(res, formVersion < 3
+      ? 'This form has been updated. Please reload the page, then choose your faculty and department.'
+      : 'Please select your faculty.', 'faculty')
     return null
   }
 
-  const formVersion = Number.isFinite(body.version) ? Math.trunc(body.version) : 1
+  const department = normalizeString(answers.department)
+  if (!isValidDepartmentForFaculty(faculty, department)) {
+    invalid(res, 'Please select a department of your faculty.', 'department')
+    return null
+  }
 
-  // v1 clients (a tab opened before the Member/Staff release) had no role
-  // choice: they were all member applications, with the interest in primaryField.
-  const legacy = formVersion < 2 && answers.joinType === undefined
-  const joinType = legacy ? 'member' : normalizeString(answers.joinType)
+  const joinType = normalizeString(answers.joinType)
   if (!ALLOWED_JOIN_TYPES.has(joinType)) {
     invalid(res, 'Choose how you would like to join Infinity.', 'joinType')
     return null
@@ -172,7 +181,7 @@ const validateApplication = (res, body) => {
   let memberInterest = null
   let staffDepartment = null
   if (joinType === 'member') {
-    memberInterest = normalizeString(legacy ? answers.primaryField : answers.memberInterest)
+    memberInterest = normalizeString(answers.memberInterest)
     if (memberInterest.length < 1 || memberInterest.length > MAX_LEN.memberInterest) {
       invalid(res, 'Choose what you would like to explore.', 'memberInterest')
       return null
@@ -206,12 +215,14 @@ const validateApplication = (res, body) => {
 
   // Explicit allowlist: unknown client properties are ignored, never inserted.
   // primary_field keeps one readable "area" per row: the member's interest,
-  // or the staff department's label.
+  // or the staff department's label. faculty/department are stored as slugs;
+  // `department` is the university department, never the staff department.
   return {
     full_name: fullName,
     email,
     phone,
     study_year: studyYear,
+    faculty,
     department,
     join_type: joinType,
     staff_department: staffDepartment,

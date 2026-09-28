@@ -92,6 +92,9 @@
 .join-page .af-field input::placeholder { color: #6a7766; opacity: 1; }
 .join-page .af-field :is(input, select, textarea):hover { border-color: #9fb29c; }
 .join-page .af-field :is(input, select, textarea):focus { border-color: #286447; background-color: #fff; box-shadow: 0 0 0 3px #28644716; }
+.join-page .af-field :is(input, select, textarea):disabled { border-color: var(--af-line); background-color: #f3f5ef; color: var(--af-muted); cursor: not-allowed; }
+.join-page .af-field[data-disabled] > label { color: var(--af-muted); }
+.join-page .af-field select { text-overflow: ellipsis; }
 .join-page .af-field [aria-invalid='true'] { border-color: var(--af-danger); }
 .join-page .af-field-meta { min-height: 0; padding-top: 0; }
 .join-page .af-field-meta:has(.af-error:not(:empty), .af-hint, .af-count) { padding-top: 6px; }

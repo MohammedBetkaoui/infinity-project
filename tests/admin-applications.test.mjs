@@ -4,6 +4,7 @@ import { Readable } from 'node:stream'
 import { test } from 'node:test'
 import { createAdminApplicationsHandler } from '../api/admin-auth.js'
 import { createAdminApplicationsService } from '../api/_lib/admin-applications.js'
+import { createAdminApplicationsStore } from '../api/_lib/admin-applications-store.js'
 import { allowedApplicationActions, canAccessApplications, canManageApplication } from '../api/_lib/admin-applications-permissions.js'
 import {
   parseApplicationListOptions, validateApplicationActionBody, validateApplicationBulkBody,
@@ -21,6 +22,7 @@ const row = (changes = {}) => ({
   email: 'amel@example.dz',
   phone: '+213 555 00 00 00',
   study_year: 'L3',
+  faculty: null,
   department: 'Computer science',
   join_type: 'member',
   staff_department: null,
@@ -185,6 +187,53 @@ test('applications API returns authenticated paginated records and no database-o
   assert.equal(res.body.data[0].password_hash, undefined)
   assert.equal(res.body.data[0].reviewed_by_admin_user_id, undefined)
   assert.deepEqual(res.body.pagination, { page: 1, limit: 12, total: 1, pages: 1 })
+})
+
+test('Join records show faculty and department labels, and legacy free text unchanged', async () => {
+  const store = new MemoryApplicationStore()
+  const service = createAdminApplicationsService({ store, now: () => new Date(NOW) })
+  store.record = row({ faculty: 'fmi', department: 'computer-science', form_version: 3 })
+  const structured = await service.detail(APP_ID, superAdministrator)
+  assert.equal(structured.faculty, 'Faculty of Mathematics and Computer Science')
+  assert.equal(structured.speciality, 'Computer Science')
+  assert.equal(structured.track, 'AI Engineering')
+
+  store.record = row()
+  const legacy = await service.detail(APP_ID, superAdministrator)
+  assert.equal(legacy.faculty, null)
+  assert.equal(legacy.speciality, 'Computer science')
+})
+
+function recordingSupabase(result) {
+  const calls = []
+  const builder = { then: (resolve, reject) => Promise.resolve(result).then(resolve, reject) }
+  for (const method of ['select', 'or', 'eq', 'in', 'not', 'gte', 'lte', 'order', 'range', 'limit']) {
+    builder[method] = (...args) => { calls.push([method, ...args]); return builder }
+  }
+  return { calls, client: { from: (table) => { calls.push(['from', table]); return builder } } }
+}
+
+test('Join store finds structured departments by their label in search, filter and facets', async () => {
+  const listing = recordingSupabase({ data: [], error: null, count: 0 })
+  await createAdminApplicationsStore(listing.client).list({
+    q: 'Computer Science', speciality: 'Computer Science', sort: 'submitted_desc', page: 1, limit: 12,
+  })
+  const search = listing.calls.find(([method]) => method === 'or')[1]
+  assert.match(search, /department\.ilike\.%Computer Science%/)
+  assert.match(search, /faculty\.in\.\(fmi\)/)
+  assert.match(search, /department\.in\.\(computer-science\)/)
+  assert.deepEqual(listing.calls.find(([method]) => method === 'in'), ['in', 'department', ['Computer Science', 'computer-science']])
+
+  const facets = recordingSupabase({
+    data: [
+      { faculty: 'fmi', department: 'computer-science' },
+      { faculty: null, department: 'Computer Science' },
+      { faculty: null, department: 'Génie civil' },
+      { faculty: 'fst', department: 'civil-engineering' },
+    ],
+    error: null,
+  })
+  assert.deepEqual(await createAdminApplicationsStore(facets.client).specialities(), ['Civil Engineering', 'Computer Science', 'Génie civil'])
 })
 
 test('applications API denies administrator and reviewer roles before creating the data service', async () => {
