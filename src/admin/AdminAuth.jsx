@@ -3,6 +3,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 const AdminAuthContext = createContext(null)
 const SESSION_TOUCH_MS = 5 * 60 * 1000
 const SESSION_IDLE_MS = 30 * 60 * 1000
+// A session confirmed less than a minute ago cannot have reached its 30-minute
+// idle limit, so switching windows back and forth costs no database read.
+const FOCUS_SESSION_CHECK_MIN_MS = 60 * 1000
 
 async function readResponse(response) {
   try { return await response.json() } catch { return {} }
@@ -67,7 +70,7 @@ export function AdminAuthProvider({ children }) {
     const refreshWhenVisible = () => {
       if (document.visibilityState !== 'visible') return
       lastActivity.current = Date.now()
-      refreshSession()
+      if (Date.now() - lastSessionCheck.current >= FOCUS_SESSION_CHECK_MIN_MS) refreshSession()
     }
     const interval = window.setInterval(() => {
       if (Date.now() - lastActivity.current >= SESSION_IDLE_MS) refreshSession()
@@ -128,8 +131,12 @@ export function AdminAuthProvider({ children }) {
     }
   }, [])
 
+  // Every successful admin API answer went through the same server-side
+  // session check (which also keeps the session alive), so it counts as a
+  // fresh check and spares a separate /auth/session call.
   const request = useCallback(async (path, options = {}) => {
     const result = await adminRequest(path, options)
+    if (result.response.ok) lastSessionCheck.current = Date.now()
     if (result.response.status === 401) {
       authEpoch.current += 1
       setUser(null)
@@ -140,6 +147,7 @@ export function AdminAuthProvider({ children }) {
 
   const requestRaw = useCallback(async (path, options = {}) => {
     const response = await adminFetch(path, options)
+    if (response.ok) lastSessionCheck.current = Date.now()
     if (response.status === 401) {
       authEpoch.current += 1
       setUser(null)

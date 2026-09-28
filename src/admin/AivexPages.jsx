@@ -25,6 +25,10 @@ const TABLE_SORT_KEYS = Object.freeze({
   submitted: 'submitted', updated: 'updated',
 })
 const CARD_SORTS = Object.freeze({ attention: 'attention_asc', completion: 'completion_asc', team: 'team_asc' })
+// Coming back to a team file re-reads it only when the copy on screen is more
+// than a minute old, so switching windows during a review no longer reloads
+// the whole file each time. The Refresh button and every action still do.
+const DETAIL_AUTO_SYNC_MIN_INTERVAL_MS = 60 * 1000
 const IMAGE_ZOOM_MIN = .5
 const IMAGE_ZOOM_MAX = 4
 const clampImageZoom = (value) => Math.min(IMAGE_ZOOM_MAX, Math.max(IMAGE_ZOOM_MIN, value))
@@ -658,6 +662,10 @@ export function AivexDetailPage() {
   const [downloadBusy, setDownloadBusy] = useState(false)
   const [verificationSync, setVerificationSync] = useState('current')
   const [resolvingItemId, setResolvingItemId] = useState(null)
+  const teamLoadedAt = useRef(0)
+  const viewerReturnedTeam = useRef(false)
+
+  useEffect(() => { if (team) teamLoadedAt.current = Date.now() }, [team])
 
   const refreshDetail = useCallback(async () => {
     try {
@@ -686,6 +694,7 @@ export function AivexDetailPage() {
     let inFlight = false
     const syncVerification = async () => {
       if (!active || inFlight || document.visibilityState === 'hidden') return
+      if (Date.now() - teamLoadedAt.current < DETAIL_AUTO_SYNC_MIN_INTERVAL_MS) return
       inFlight = true
       setVerificationSync('syncing')
       try {
@@ -721,9 +730,22 @@ export function AivexDetailPage() {
   const presentation = aivexFilePresentation(team)
   const openFile = (document) => {
     if (!document.canOpen) { addToast(t('File absent'), t('Request the missing file through a correction request.')); return }
+    viewerReturnedTeam.current = false
     setViewerId(document.id)
   }
-  const closeViewer = () => { setViewerId(null); refreshDetail() }
+  // Opening a confidential document records an access, so closing the viewer
+  // re-reads the file, unless a decision taken in the viewer already returned
+  // the updated file (which includes that access record).
+  const updateFromViewer = (next) => {
+    viewerReturnedTeam.current = true
+    setTeam(next)
+  }
+  const closeViewer = () => {
+    const alreadyCurrent = viewerReturnedTeam.current
+    viewerReturnedTeam.current = false
+    setViewerId(null)
+    if (!alreadyCurrent) refreshDetail()
+  }
   const openCorrections = (items = []) => {
     if (team.correctionRequest) {
       addToast(t('Correction cycle already active'), t('Finish the current correction request before creating another one.'))
@@ -865,7 +887,7 @@ export function AivexDetailPage() {
     </section>)}</div>}
     {tab === 'Verification' && <div className="adm-verification-layout"><AivexReviewSummary team={team} allowed={allowed} locale={locale} syncStatus={verificationSync} onTab={setTab} onDecision={decision} onCorrections={() => openCorrections()} onResolveItem={resolveCorrectionItem} onExtendDeadline={() => { setDeadlineError(''); setDeadlineChange(true) }} resolvingItemId={resolvingItemId}/><AivexDecisionPanel team={team} allowed={allowed} locale={locale} onDecision={decision}/></div>}
     {tab === 'History' && <section className="adm-panel adm-dossier-section"><SectionHeading title={t('Complete file history')} meta={t('Authors, timestamps & decisions')}/><History items={team.history} translate={t} locale={isArabic ? 'ar-DZ' : 'en-GB'} emptyTitle={t('Historical data incomplete')} emptyCopy={t('No earlier actions are available for this file. New actions will appear here.')}/><div className="adm-history-note"><LockKeyhole size={15}/><p>{t('Confidential document consultations are recorded separately in the')} <Link to="/admin/activity?sensitivity=Confidential">{t('global activity log')}</Link>.</p></div></section>}
-    {file && <SecureViewer key={file.id} team={team} document={file} onClose={closeViewer} onUpdated={setTeam} onNeedsCorrection={requestDocumentCorrection} locale={locale} loadDocument={loadDocument} act={act}/>}
+    {file && <SecureViewer key={file.id} team={team} document={file} onClose={closeViewer} onUpdated={updateFromViewer} onNeedsCorrection={requestDocumentCorrection} locale={locale} loadDocument={loadDocument} act={act}/>}
     {action && <ActionDialog key={action.key} action={action} labels={actionDialogLabels(isArabic, t)} getOptionLabel={t} onClose={() => setAction(null)} onSubmit={submitAction}/>} 
     <Modal open={corrections} onClose={() => busy ? undefined : setCorrections(false)} closeLabel={isArabic ? 'إغلاق' : 'Close'} title={t('Request corrections')} eyebrow={team.ref} footer={<><Button variant="secondary" onClick={() => setCorrections(false)} disabled={busy}>{t('Cancel')}</Button><Button form="correction-form" type="submit" disabled={busy}>{t(busy ? 'Saving…' : 'Save correction request')}</Button></>}><form id="correction-form" onSubmit={saveCorrections}><fieldset className="adm-correction-items"><legend>{t('Items requiring correction')}</legend>{['Team information', 'Activities manager', 'Delegation leader ID', 'Driver ID', 'Student card 01', 'Student card 02', 'Student card 03', 'Signed and stamped form'].map((item) => <label key={item}><input type="checkbox" name="items" value={item} defaultChecked={correctionDefaults.includes(item)}/>{t(item)}</label>)}</fieldset><label className="adm-form-field"><span>{t('Correction deadline')} <em>{t('Required')}</em></span><input name="deadline" type="date" required min={new Date().toISOString().slice(0, 10)} defaultValue={tomorrowDate()}/></label><p className="adm-muted">{t('The selected items and deadline are recorded directly in the protected case history.')}</p>{correctionError && <p className="adm-form-error" role="alert">{correctionError}</p>}</form></Modal>
     <Modal open={deadlineChange} onClose={() => busy ? undefined : setDeadlineChange(false)} closeLabel={isArabic ? 'إغلاق' : 'Close'} title={t('Set new correction deadline')} eyebrow={team.ref} footer={<><Button variant="secondary" onClick={() => setDeadlineChange(false)} disabled={busy}>{t('Cancel')}</Button><Button form="correction-deadline-form" type="submit" disabled={busy}>{t(busy ? 'Saving…' : 'Save new deadline')}</Button></>}><form id="correction-deadline-form" onSubmit={saveCorrectionDeadline}><label className="adm-form-field"><span>{t('New deadline')} <em>{t('Required')}</em></span><input name="deadline" type="date" required min={new Date().toISOString().slice(0, 10)} defaultValue={team.correctionRequest?.expired ? tomorrowDate() : team.correctionRequest?.deadline}/></label><p className="adm-muted">{t('The previous deadline remains in the protected audit history.')}</p>{deadlineError && <p className="adm-form-error" role="alert">{deadlineError}</p>}</form></Modal>

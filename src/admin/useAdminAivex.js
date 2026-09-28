@@ -2,6 +2,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createSubmissionId } from '../../shared/aivex/contract-v4.js'
 import { uploadToSignedStorage } from '../lib/directStorageUpload'
 import { useAdminAuth } from './AdminAuth'
+import { createListCache } from './adminListCache.js'
+
+// Every list request re-evaluates the whole edition's case overview in the
+// database, and aborting a request in the browser does not stop that work on
+// the server. So a search is sent only once typing pauses, and a list page
+// shown less than a minute ago (typically when coming back from a team file)
+// is reused instead of asked again. Any AIVEX change made from this tab and
+// the Refresh button empty the cache.
+const SEARCH_DEBOUNCE_MS = 350
+const LIST_CACHE_TTL_MS = 60 * 1000
+const listCache = createListCache({ ttlMs: LIST_CACHE_TTL_MS })
+const clearListCache = () => listCache.clear()
 
 const REGISTRATION_KEYS = Object.freeze({
   Submitted: 'submitted', 'Under review': 'under_review', Approved: 'approved',
@@ -38,37 +50,66 @@ function queryString({ page, limit, search, filters, sort }) {
   return params.toString()
 }
 
+const listValue = (body, limit) => ({
+  records: body.data || [],
+  pagination: body.pagination || { page: 1, limit, total: 0, pages: 1 },
+  summary: body.summary || { documentCounts: {} },
+  facets: body.facets || { wilayas: [], institutions: [] },
+})
+
 export function useAdminAivex({ page, limit = 12, search, filters, sort }) {
   const { request } = useAdminAuth()
-  const [state, setState] = useState({
-    records: [], pagination: { page: 1, limit, total: 0, pages: 1 },
-    summary: { documentCounts: {} }, facets: { wilayas: [], institutions: [] },
-    loading: true, error: '', resolvedKey: '',
-  })
   const [refreshKey, setRefreshKey] = useState(0)
   const query = useMemo(() => queryString({ page, limit, search, filters, sort }), [filters, limit, page, search, sort])
   const requestKey = `${query}::${refreshKey}`
+  const [state, setState] = useState(() => {
+    const cached = listCache.get(query)
+    return cached
+      ? { ...cached, loading: false, error: '', resolvedKey: requestKey }
+      : {
+          records: [], pagination: { page: 1, limit, total: 0, pages: 1 },
+          summary: { documentCounts: {} }, facets: { wilayas: [], institutions: [] },
+          loading: true, error: '', resolvedKey: '',
+        }
+  })
+  const lastSearch = useRef(search)
 
   useEffect(() => {
-    const controller = new AbortController()
-    request(`/api/admin/aivex?${query}`, { signal: controller.signal })
-      .then(({ response, body }) => {
-        if (!response.ok) throw new Error(body.message || 'Unable to load AIVEX files.')
-        setState({
-          records: body.data || [],
-          pagination: body.pagination || { page: 1, limit, total: 0, pages: 1 },
-          summary: body.summary || { documentCounts: {} },
-          facets: body.facets || { wilayas: [], institutions: [] },
-          loading: false, error: '', resolvedKey: requestKey,
-        })
-      })
-      .catch((error) => {
-        if (error.name !== 'AbortError') setState((current) => ({ ...current, loading: false, error: error.message, resolvedKey: requestKey }))
-      })
-    return () => controller.abort()
-  }, [limit, query, request, requestKey])
+    const searchChanged = search !== lastSearch.current
+    lastSearch.current = search
 
-  const refresh = useCallback(() => setRefreshKey((value) => value + 1), [])
+    const cached = listCache.get(query)
+    if (cached) {
+      let active = true
+      Promise.resolve().then(() => {
+        if (active) setState((current) => (current.resolvedKey === requestKey ? current : { ...cached, loading: false, error: '', resolvedKey: requestKey }))
+      })
+      return () => { active = false }
+    }
+
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => {
+      request(`/api/admin/aivex?${query}`, { signal: controller.signal })
+        .then(({ response, body }) => {
+          if (!response.ok) throw new Error(body.message || 'Unable to load AIVEX files.')
+          const value = listValue(body, limit)
+          listCache.set(query, value)
+          setState({ ...value, loading: false, error: '', resolvedKey: requestKey })
+        })
+        .catch((error) => {
+          if (error.name !== 'AbortError') setState((current) => ({ ...current, loading: false, error: error.message, resolvedKey: requestKey }))
+        })
+    }, searchChanged && search ? SEARCH_DEBOUNCE_MS : 0)
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [limit, query, request, requestKey, search])
+
+  const refresh = useCallback(() => {
+    clearListCache()
+    setRefreshKey((value) => value + 1)
+  }, [])
   return { ...state, loading: state.loading || state.resolvedKey !== requestKey, refresh }
 }
 
@@ -90,6 +131,7 @@ export function useAdminAivexActions() {
         method: 'POST', body: JSON.stringify(input),
       })
       if (!response.ok) return { ok: false, status: response.status, message: body.message || 'The action could not be completed.' }
+      clearListCache()
       return { ok: true, team: body.team }
     } catch {
       return { ok: false, message: 'Unable to reach the AIVEX administration service.' }
@@ -136,6 +178,7 @@ export function useAdminAivexActions() {
       method: 'POST', body: JSON.stringify({ uploadSessionId: initialized.body.uploadSessionId }),
     })
     if (!finalized.response.ok) throw Object.assign(new Error(finalized.body.message || 'The replacement failed secure server validation.'), { code: finalized.body.status })
+    clearListCache()
     return finalized.body.team
   }, [request])
 
@@ -147,6 +190,8 @@ export function useAdminAivexActions() {
         method: 'POST',
         body: JSON.stringify({ password, confirmation: 'delete_all_aivex_files' }),
       })
+      // Even a partial failure (Storage cleanup) may already have removed rows.
+      clearListCache()
       if (!response.ok) {
         return {
           ok: false,
