@@ -72,6 +72,10 @@ class MemoryAdminStore {
     return { allowed: true, retryAfterSeconds: 0 }
   }
 
+  async clearRateLimits(keys) {
+    for (const { keyType, keyHash } of keys) this.limits.delete(`${keyType}:${keyHash}`)
+  }
+
   async findUser(username) { return username === this.user.username_normalized ? { ...this.user } : null }
 
   async recordLoginFailure(userId, now) {
@@ -207,6 +211,36 @@ test('sensitive actions re-verify the current password against the active server
   assert.equal(rejected.status, 400)
   assert.equal(rejected.message, 'The current password is incorrect.')
   assert(store.events.some((event) => event.type === 'login_failure'))
+})
+
+test('a correct reauthentication clears its counters and can recover immediately from a temporary block', async () => {
+  const store = new MemoryAdminStore()
+  const service = serviceFor(store)
+  const login = await service.login({ username: 'infinity.admin', password: CURRENT_PASSWORD, ip: '192.0.2.22' })
+  assert.equal(login.ok, true)
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const rejected = await service.confirmPassword({
+      token: RAW_TOKEN, password: 'Incorrect password 2026!', ip: '192.0.2.22', requiredRole: 'super_admin',
+    })
+    assert.equal(rejected.status, 400)
+  }
+  const limited = await service.confirmPassword({
+    token: RAW_TOKEN, password: 'Incorrect password 2026!', ip: '192.0.2.22', requiredRole: 'super_admin',
+  })
+  assert.equal(limited.status, 429)
+
+  const recovered = await service.confirmPassword({
+    token: RAW_TOKEN, password: CURRENT_PASSWORD, ip: '192.0.2.22', requiredRole: 'super_admin',
+  })
+  assert.equal(recovered.ok, true)
+  assert.equal(store.limits.size, 2, 'only the normal login username/IP counters remain')
+
+  const repeated = await service.confirmPassword({
+    token: RAW_TOKEN, password: CURRENT_PASSWORD, ip: '192.0.2.22', requiredRole: 'super_admin',
+  })
+  assert.equal(repeated.ok, true)
+  assert.equal(store.limits.size, 2)
 })
 
 test('unknown username and incorrect password produce the same generic response', async () => {

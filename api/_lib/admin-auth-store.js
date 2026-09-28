@@ -22,6 +22,18 @@ export function createAdminAuthStore(supabase) {
       return { allowed: row?.allowed === true, retryAfterSeconds: Number(row?.retry_after_seconds || 0) }
     },
 
+    async clearRateLimits(keys) {
+      const results = await Promise.all(keys.map(({ keyType, keyHash }) => (
+        supabase
+          .from('admin_login_rate_limits')
+          .delete()
+          .eq('key_type', keyType)
+          .eq('key_hash', keyHash)
+      )))
+      const failed = results.find(({ error }) => error)
+      if (failed) fail('rate_limit_reset', failed.error)
+    },
+
     async findUser(usernameNormalized) {
       const { data, error } = await supabase
         .from('admin_users')

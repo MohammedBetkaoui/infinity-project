@@ -135,12 +135,15 @@ export function createAdminAuthService({
 
       const clock = now()
       const usernameKey = normalizeAdminUsername(resolved.user.username) || `user:${resolved.user.id}`
+      const usernameRateKey = adminRateLimitKey(`reauth:${usernameKey}`, rateLimitSecret)
+      const ipRateKey = adminRateLimitKey(`reauth:${ip || 'unknown'}`, rateLimitSecret)
       const [usernameLimit, ipLimit] = await Promise.all([
-        store.consumeRateLimit('username', adminRateLimitKey(`reauth:${usernameKey}`, rateLimitSecret), REAUTH_USERNAME_RATE_POLICY, clock),
-        store.consumeRateLimit('ip', adminRateLimitKey(`reauth:${ip || 'unknown'}`, rateLimitSecret), REAUTH_IP_RATE_POLICY, clock),
+        store.consumeRateLimit('username', usernameRateKey, REAUTH_USERNAME_RATE_POLICY, clock),
+        store.consumeRateLimit('ip', ipRateKey, REAUTH_IP_RATE_POLICY, clock),
       ])
-      if (!usernameLimit.allowed || !ipLimit.allowed) {
-        await consumePasswordTiming(password)
+      const limited = !usernameLimit.allowed || !ipLimit.allowed
+      const matches = await verifyPassword(password, resolved.userRecord.password_hash)
+      if (!matches && limited) {
         return {
           ok: false,
           status: 429,
@@ -148,12 +151,14 @@ export function createAdminAuthService({
           retryAfterSeconds: Math.max(usernameLimit.retryAfterSeconds, ipLimit.retryAfterSeconds, 1),
         }
       }
-
-      const matches = await verifyPassword(password, resolved.userRecord.password_hash)
       if (!matches) {
         await store.recordLoginFailure(resolved.userRecord.id, clock)
         return { ok: false, status: 400, message: 'The current password is incorrect.' }
       }
+      await store.clearRateLimits([
+        { keyType: 'username', keyHash: usernameRateKey },
+        { keyType: 'ip', keyHash: ipRateKey },
+      ])
       return { ok: true, user: resolved.user }
     },
   }
