@@ -19,7 +19,6 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const PORT = Number(process.env.DEV_API_PORT) || 3001
-const MAX_BYTES = 256 * 1024
 
 if (existsSync(join(root, '.env.local'))) {
   for (const line of readFileSync(join(root, '.env.local'), 'utf8').split('\n')) {
@@ -37,11 +36,11 @@ if (existsSync(join(root, '.env.local'))) {
 }
 
 const load = async (...segments) => (await import(pathToFileURL(join(root, 'api', ...segments)).href)).default
-const joinHandler = await load('join.js')
 const adminHandler = await load('admin-auth.js')
 // These routes read the raw request stream themselves: the runner must
 // not consume the body before handing the request over.
 const streamingRoutes = {
+  '/api/join': await load('join.js'),
   '/api/aivex/register': await load('aivex', 'register.js'),
   '/api/aivex/register/init': await load('aivex', 'register', 'init.js'),
   '/api/aivex/register/finalize': await load('aivex', 'register', 'finalize.js'),
@@ -75,43 +74,7 @@ createServer((req, res) => {
     })
     return
   }
-  if (url.pathname !== '/api/join') {
-    json(res, 404, { success: false, message: 'Not found.' })
-    return
-  }
-  if (req.method !== 'POST') {
-    // Let the function produce the canonical 405 + Allow header.
-    req.body = undefined
-    joinHandler(req, res)
-    return
-  }
-  let size = 0
-  const chunks = []
-  req.on('data', (chunk) => {
-    size += chunk.length
-    if (size <= MAX_BYTES) chunks.push(chunk)
-  })
-  req.on('end', () => {
-    if (size > MAX_BYTES) {
-      json(res, 413, { success: false, message: 'Payload too large.' })
-      return
-    }
-    const text = Buffer.concat(chunks).toString('utf8')
-    let body = {}
-    if (text) {
-      try {
-        body = JSON.parse(text)
-      } catch {
-        body = {}
-      }
-    }
-    // Mutate the real request instead of spreading it into a plain object:
-    // IncomingMessage exposes headers/url through prototype getters, which
-    // `{ ...req }` silently drops (spread only copies own enumerable
-    // properties) — the handler would then see req.headers as undefined.
-    req.body = body
-    joinHandler(req, res)
-  })
+  json(res, 404, { success: false, message: 'Not found.' })
 }).listen(PORT, () => {
   console.log(`[dev-api] serving api/*.js on http://localhost:${PORT}`)
 })

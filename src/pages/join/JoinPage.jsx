@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ArrowLeft, ArrowRight, ArrowUpRight, Check, CheckCircle2, Clock3, Copy, LockKeyhole, RotateCcw } from 'lucide-react'
 import { Link } from 'react-router-dom'
@@ -6,22 +6,28 @@ import ApplicationChoice from '../../components/forms/ApplicationChoice'
 import ApplicationConsent from '../../components/forms/ApplicationConsent'
 import ApplicationField from '../../components/forms/ApplicationField'
 import ApplicationProgress from '../../components/forms/ApplicationProgress'
+import TurnstileWidget from '../../components/forms/TurnstileWidget'
 import InfinityClubMark from '../../components/InfinityClubMark'
 import useApplicationForm from '../../hooks/useApplicationForm'
 import useMotionPreference from '../../hooks/useMotionPreference'
 import { MOTION_EASE } from '../../lib/motion'
 import JoinPanelChoice from './JoinPanelChoice'
 import {
-  JOIN_TYPES, STAFF_DEPARTMENTS, availabilityOptions, buildSummary, experienceOptions, facultyOptions, getDepartmentOptions,
+  DRAFT_FIELDS, JOIN_TYPES, STAFF_DEPARTMENTS, availabilityOptions, buildSummary, experienceOptions, facultyOptions, getDepartmentOptions,
   initialValues, interestOptions, joinTypeLabel, serialize, steps, studyLevels, validators,
 } from './joinModel'
 import '../../components/forms/application-form.css'
 import './join.css'
 
 const FORM_ID = 'membership-application'
-// v3: the free-text department became Faculty -> Department; v1/v2 drafts are ignored.
-const STORAGE_KEY = 'infinity-membership-draft-v3'
-const OUTDATED_STORAGE_KEYS = ['infinity-membership-draft-v1', 'infinity-membership-draft-v2']
+// v4: Turnstile security check, and drafts no longer hold contact details;
+// older drafts (v3 kept email and phone) are ignored and removed.
+const STORAGE_KEY = 'infinity-membership-draft-v4'
+const OUTDATED_STORAGE_KEYS = ['infinity-membership-draft-v1', 'infinity-membership-draft-v2', 'infinity-membership-draft-v3']
+const FORM_VERSION = 4
+// Public site key (VITE_). The secret key only exists server-side.
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim() || ''
+const TURNSTILE_FAILED = 'We couldn’t verify the security check. Please try again.'
 const INSTAGRAM_URL = 'https://www.instagram.com/club_.infinity/'
 
 function RoleNote({ label, children }) {
@@ -32,7 +38,13 @@ export default function JoinPage() {
   const reduced = useMotionPreference()
   const [copied, setCopied] = useState(false)
   const copyTimer = useRef(null)
-  const form = useApplicationForm({ kind: 'membership', storageKey: STORAGE_KEY, initialValues, steps, validators, serialize, version: 3 })
+  const form = useApplicationForm({
+    kind: 'membership', storageKey: STORAGE_KEY, initialValues, steps, validators, serialize, version: FORM_VERSION, draftFields: DRAFT_FIELDS,
+  })
+  // Security-check token: memory only, never part of the form values or the draft.
+  const [turnstileToken, setTurnstileToken] = useState('')
+  const [turnstileRound, setTurnstileRound] = useState(0)
+  const [turnstileMessage, setTurnstileMessage] = useState('')
   const lastPresentedStep = useRef(form.step)
   const { joinType } = form.values
 
@@ -49,6 +61,26 @@ export default function JoinPage() {
     form.setField('department', '')
   }
   const departmentOptions = getDepartmentOptions(form.values.faculty)
+
+  const receiveTurnstileToken = useCallback((token) => {
+    setTurnstileToken(token)
+    if (token) setTurnstileMessage('')
+  }, [])
+  const showTurnstileFailure = useCallback(() => setTurnstileMessage(TURNSTILE_FAILED), [])
+
+  // A token is single-use: once a request has carried it, whatever the
+  // answer, a fresh check starts (new widget) before any other attempt.
+  const sendApplication = async (event) => {
+    const sent = await form.submit(event, {
+      turnstileToken,
+      ready: !TURNSTILE_SITE_KEY || Boolean(turnstileToken),
+      onBlocked: () => setTurnstileMessage('Please complete the security check before sending your application.'),
+    })
+    if (sent && TURNSTILE_SITE_KEY) {
+      setTurnstileToken('')
+      setTurnstileRound((round) => round + 1)
+    }
+  }
 
   useEffect(() => {
     try { OUTDATED_STORAGE_KEYS.forEach((key) => window.sessionStorage.removeItem(key)) } catch { /* storage may be unavailable */ }
@@ -128,7 +160,7 @@ export default function JoinPage() {
                 <button type="button" className="af-button af-button-secondary" onClick={form.reset}><RotateCcw size={14} /> Start another application</button>
               </motion.div>
             ) : (
-              <form onSubmit={form.submit} noValidate aria-label="Infinity Club membership application" aria-busy={form.status === 'submitting'}>
+              <form onSubmit={sendApplication} noValidate aria-label="Infinity Club membership application" aria-busy={form.status === 'submitting'}>
                 <ApplicationProgress steps={steps} current={form.step} onStep={form.editStep} />
                 <div className="af-trap" aria-hidden="true">
                   <label htmlFor={`${FORM_ID}-website`}>Website</label>
@@ -230,6 +262,14 @@ export default function JoinPage() {
                           <ApplicationConsent formId={FORM_ID} name="consent" checked={form.values.consent} onChange={form.setField} error={form.errors.consent}>
                             Infinity Club may use these details only to review this application, contact me about membership or recruitment, and organise club activities.
                           </ApplicationConsent>
+
+                          {TURNSTILE_SITE_KEY && (
+                            <div className="join-security-check">
+                              <TurnstileWidget key={turnstileRound} siteKey={TURNSTILE_SITE_KEY} action="join"
+                                onToken={receiveTurnstileToken} onError={showTurnstileFailure} />
+                              {turnstileMessage && <p className="af-error" role="alert">{turnstileMessage}</p>}
+                            </div>
+                          )}
                         </div>
                       </>
                     )}

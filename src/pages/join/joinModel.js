@@ -124,6 +124,14 @@ export const initialValues = {
   website: '',
 }
 
+// The only answers kept in this tab's sessionStorage draft, so a reload does
+// not lose progress. Contact details (email, phone), consent, the honeypot
+// and the security-check token are deliberately never stored.
+export const DRAFT_FIELDS = Object.freeze([
+  'fullName', 'studyYear', 'faculty', 'department', 'joinType',
+  'experience', 'memberInterest', 'staffDepartment', 'availability',
+])
+
 export const steps = [
   { label: 'About you', fields: ['fullName', 'email', 'phone', 'studyYear', 'faculty', 'department'] },
   { label: 'Your place', fields: ['joinType', 'experience', 'memberInterest', 'staffDepartment', 'availability', 'consent'] },

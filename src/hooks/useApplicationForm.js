@@ -30,32 +30,44 @@ const containsAnswers = (values) => Object.entries(values || {}).some(([name, va
 
 const identity = (values) => values
 
-export default function useApplicationForm({ kind, storageKey, initialValues, steps, validators, serialize = identity, version = 1 }) {
+// Only the listed fields are written to (and read back from) sessionStorage.
+// An allowlist, so a field added later is never persisted by accident.
+const pickDraftValues = (values, draftFields) => {
+  if (!values || typeof values !== 'object') return {}
+  if (!draftFields) {
+    const { website: _honeypot, ...rest } = values
+    return rest
+  }
+  return Object.fromEntries(draftFields.filter((name) => Object.hasOwn(values, name)).map((name) => [name, values[name]]))
+}
+
+export default function useApplicationForm({ kind, storageKey, initialValues, steps, validators, serialize = identity, version = 1, draftFields }) {
   const [storedDraft] = useState(() => readDraft(storageKey))
-  const [values, setValues] = useState(() => ({ ...initialValues, ...storedDraft?.values }))
+  const [values, setValues] = useState(() => ({ ...initialValues, ...pickDraftValues(storedDraft?.values, draftFields) }))
   const [step, setStep] = useState(() => Math.min(storedDraft?.step || 0, steps.length - 1))
   const [errors, setErrors] = useState({})
   const [status, setStatus] = useState('idle')
   const [result, setResult] = useState(null)
   const submittingRef = useRef(false)
   const endpointConfigured = isApplicationDeliveryConfigured(kind)
-  const hasDraft = containsAnswers(storedDraft?.values)
+  const hasDraft = containsAnswers(pickDraftValues(storedDraft?.values, draftFields))
 
   useEffect(() => {
     if (status === 'success') return undefined
-    if (!containsAnswers(values)) {
+    const draftValues = pickDraftValues(values, draftFields)
+    if (!containsAnswers(draftValues)) {
       window.sessionStorage.removeItem(storageKey)
       return undefined
     }
     const timer = window.setTimeout(() => {
       try {
-        window.sessionStorage.setItem(storageKey, JSON.stringify({ values, step }))
+        window.sessionStorage.setItem(storageKey, JSON.stringify({ values: draftValues, step }))
       } catch {
         // A private browser can reject storage; the form still works without drafts.
       }
     }, 320)
     return () => window.clearTimeout(timer)
-  }, [status, step, storageKey, values])
+  }, [draftFields, status, step, storageKey, values])
 
   const focusFirstError = (nextErrors) => {
     const firstName = Object.keys(nextErrors)[0]
@@ -106,22 +118,30 @@ export default function useApplicationForm({ kind, storageKey, initialValues, st
     setStep(nextStep)
   }
 
-  const submit = async (event) => {
+  // Resolves true once a request has actually been sent (whatever its
+  // outcome), false when nothing left the browser. `ready: false` holds a
+  // valid form back (e.g. the security check is not complete yet) and calls
+  // `onBlocked` instead of sending.
+  const submit = async (event, { turnstileToken = '', ready = true, onBlocked } = {}) => {
     event.preventDefault()
     if (step < steps.length - 1) {
       advance()
-      return
+      return false
     }
 
     const allFields = [...new Set(steps.flatMap(({ fields }) => fields))]
-    if (!validateFields(allFields)) return
-    if (status === 'submitting' || submittingRef.current) return
+    if (!validateFields(allFields)) return false
+    if (status === 'submitting' || submittingRef.current) return false
+    if (!ready) {
+      onBlocked?.()
+      return false
+    }
 
     submittingRef.current = true
     setStatus('submitting')
     setResult(null)
     try {
-      const [submission] = await Promise.all([submitApplication(kind, serialize(values), { version }), pause(460)])
+      const [submission] = await Promise.all([submitApplication(kind, serialize(values), { version, turnstileToken }), pause(460)])
       setResult(submission)
       setStatus(submission.delivered ? 'success' : 'draft')
       // Only a real server-confirmed delivery clears the draft.
@@ -133,6 +153,7 @@ export default function useApplicationForm({ kind, storageKey, initialValues, st
     } finally {
       submittingRef.current = false
     }
+    return true
   }
 
   const reset = () => {

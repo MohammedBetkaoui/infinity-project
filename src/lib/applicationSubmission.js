@@ -86,8 +86,10 @@ async function postToEndpoint(endpoint, { body, headers, timeoutMs }) {
 
 // `files` ([{ field, file }]) switches the request to multipart/form-data:
 // the JSON envelope travels in a `payload` part, each file in its own part.
-// Used by the membership form.
-export async function submitApplication(kind, answers, { files = [], version = 1 } = {}) {
+// Used by the membership form. `turnstileToken` (single-use, short-lived)
+// travels beside the answers, never inside them, so it can never end up in a
+// saved draft.
+export async function submitApplication(kind, answers, { files = [], version = 1, turnstileToken = '' } = {}) {
   const endpoint = ENDPOINTS[kind]
   const reference = makeReference(kind)
 
@@ -101,8 +103,11 @@ export async function submitApplication(kind, answers, { files = [], version = 1
     version,
     reference,
     submittedAt: new Date().toISOString(),
-    source: window.location.href,
+    // The page path only: a query string or fragment could carry tokens or
+    // tracking identifiers that have no business in an application record.
+    source: window.location.pathname,
     answers: safeAnswers,
+    ...(turnstileToken ? { turnstileToken } : {}),
   })
   let body = envelope
   const headers = { Accept: 'application/json' }

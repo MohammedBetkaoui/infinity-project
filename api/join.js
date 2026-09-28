@@ -1,24 +1,38 @@
 // POST /api/join — Vercel Serverless Function (Node, ESM).
 //
-// Browser -> POST /api/join -> origin/rate-limit checks -> server validation
-//   -> Supabase -> public.membership_applications -> 201 { success: true, reference }
+// Browser -> POST /api/join (application/json, at most 64 KB)
+//   -> method / content-type / size checks -> same-site check
+//   -> deployment-wide rate limit (Upstash Redis, local fallback)
+//   -> bounded JSON body -> honeypot (neutral success, nothing written)
+//   -> server validation (explicit allowlist, Faculty -> Department pair)
+//   -> Cloudflare Turnstile verification (server-side Siteverify)
+//   -> indexed duplicate lookup -> INSERT public.membership_applications
+//   -> 201 { success: true, reference }
 //
 // Supabase is NEVER called from React. The secret key lives only here,
 // server-side, via process.env. No SQL is built by hand: all writes go
 // through the official @supabase/supabase-js client (parameterized).
+// Duplicate contacts are finally refused by the database's unique indexes
+// (email, normalized phone); the lookup below only answers earlier.
 //
-// NOTE on rate limiting: see api/_lib/security.js — the limiter there is
-// an in-memory, best-effort defense (not a global limit across a whole
-// deployment). This is the right place to plug a distributed limiter
-// (Upstash Redis, Vercel KV...) later if abuse ever outgrows it.
+// Logs carry error codes and fixed reasons only: never the body, a name,
+// an e-mail address, a phone number, an IP address, a token or a secret.
+// See docs/join-security.md.
 
 import { createClient } from '@supabase/supabase-js'
 import { isValidDepartmentForFaculty, isValidFaculty } from '../shared/membership/university-structure.js'
-import { isFilled, normalizeString, sendJson as send } from './_lib/http.js'
-import { consumeRateLimit, getClientIp, isTrustedOrigin } from './_lib/security.js'
+import { consumeDistributedRateLimit } from './_lib/distributed-rate-limit.js'
+import { isFilled, isJsonContentType, normalizeString, readBoundedJsonBody, sendJson as send } from './_lib/http.js'
+import { normalizeMembershipPhone } from './_lib/membership-phone.js'
+import { getClientIp, isTrustedOrigin } from './_lib/security.js'
+import { verifyTurnstileToken } from './_lib/turnstile.js'
 
 const MAX_BODY_BYTES = 65536
 const RATE_LIMIT = { max: 8, windowMs: 10 * 60 * 1000 }
+// v4 added the Turnstile check. An older open tab cannot pass it, so it is
+// asked to reload rather than being refused without explanation.
+const CURRENT_FORM_VERSION = 4
+const TURNSTILE_ACTION = 'join'
 
 const ALLOWED_STUDY_YEARS = new Set(['L1', 'L2', 'L3', 'M1', 'M2', 'E1', 'E2', 'E3', 'E4', 'E5', 'other'])
 const ALLOWED_EXPERIENCE = new Set(['starting', 'learning', 'building'])
@@ -37,54 +51,32 @@ const MAX_LEN = {
   email: 254,
   phone: 40,
   memberInterest: 120,
-  source: 500,
 }
 
-// Digits-only form of a phone number, used for duplicate comparison so
-// that '+213 555 01 02 03', '0555010203' and '00213555010203' are
-// recognised as the same number. Non-Algerian numbers compare on their
-// full digit string.
-const phoneKey = (value) => {
-  const digits = String(value || '').replace(/\D/g, '')
-  const withoutCountry = digits.startsWith('00213')
-    ? digits.slice(5)
-    : digits.startsWith('213') && digits.length > 9
-      ? digits.slice(3)
-      : digits
-  return withoutCountry.length === 9 ? `0${withoutCountry}` : withoutCountry
-}
+// One neutral answer for any duplicate contact: it never says whether the
+// e-mail address or the phone number matched, so the public endpoint cannot
+// be used to find out who already applied.
+const DUPLICATE_MESSAGE = 'An application with these contact details may already exist. Please contact the club if you need help.'
+const SECURITY_CHECK_MESSAGE = 'We couldn’t verify the security check. Please try again.'
+const SERVICE_UNAVAILABLE_MESSAGE = 'We could not send your application right now. Please try again in a few minutes.'
+const SAVE_FAILED_MESSAGE = 'We could not save your application. Please try again.'
 
-// Returns 'email' | 'phone' | null. A failed check query fails open (logs
-// only): the insert itself remains the source of truth and surfaces real
-// DB errors. No PII is ever logged.
-const findDuplicateField = async (supabase, email, phone) => {
-  const { data: emailHit, error: emailError } = await supabase
-    .from('membership_applications')
-    .select('id')
-    .eq('email', email)
-    .limit(1)
-    .maybeSingle()
-  if (emailError) {
-    console.error('[join] Duplicate email check failed', { code: emailError.code })
-  } else if (emailHit) {
-    return 'email'
+// Early answer for the common case, through indexed equality lookups only
+// (email, phone_normalized): no application rows are scanned or loaded. A
+// failed lookup is logged (code only) and ignored — the unique indexes still
+// refuse the insert.
+const hasDuplicateContact = async (supabase, email, phoneKey) => {
+  const lookups = [
+    supabase.from('membership_applications').select('id').eq('email', email).limit(1),
+    ...(phoneKey ? [supabase.from('membership_applications').select('id').eq('phone_normalized', phoneKey).limit(1)] : []),
+  ]
+  const results = await Promise.all(lookups)
+  let duplicate = false
+  for (const { data, error } of results) {
+    if (error) console.error('[join] Duplicate lookup failed', { code: error.code })
+    else if (data?.length) duplicate = true
   }
-
-  if (phone) {
-    const wanted = phoneKey(phone)
-    const { data: phones, error: phoneError } = await supabase
-      .from('membership_applications')
-      .select('phone')
-      .not('phone', 'is', null)
-      .limit(10000)
-    if (phoneError) {
-      console.error('[join] Duplicate phone check failed', { code: phoneError.code })
-    } else if ((phones || []).some((existing) => existing.phone && phoneKey(existing.phone) === wanted)) {
-      return 'phone'
-    }
-  }
-
-  return null
+  return duplicate
 }
 
 const invalid = (res, message, field) => {
@@ -94,15 +86,22 @@ const invalid = (res, message, field) => {
   return false
 }
 
-const readBody = (req) => {
-  const raw = req.body
-  if (raw && typeof raw === 'object') return raw
-  if (typeof raw === 'string' && raw.length > 0) return JSON.parse(raw)
-  return {}
+// Only the page path is kept: never a query string, a fragment or a host,
+// which could carry tokens or tracking identifiers. Older clients sent the
+// full href; it is reduced the same way.
+const sourcePath = (value) => {
+  const raw = normalizeString(value)
+  if (!raw) return null
+  try {
+    const { pathname } = new URL(raw, 'https://source.invalid')
+    return /^\/[A-Za-z0-9/_-]{0,120}$/.test(pathname) ? pathname : null
+  } catch {
+    return null
+  }
 }
 
-// Validate the membership payload. Returns { ok: true, row } or
-// { ok: false } after the 400 response has already been sent.
+// Validate the membership payload. Returns the row to insert, or null after
+// the 400 response has already been sent.
 const validateApplication = (res, body) => {
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     invalid(res, 'Invalid application data.')
@@ -111,6 +110,12 @@ const validateApplication = (res, body) => {
 
   if (body.form !== 'membership') {
     invalid(res, 'Invalid application data.', 'form')
+    return null
+  }
+
+  const formVersion = Number.isFinite(body.version) ? Math.trunc(body.version) : 1
+  if (formVersion < CURRENT_FORM_VERSION) {
+    invalid(res, 'This form has been updated. Please reload the page, then send your application again.', 'version')
     return null
   }
 
@@ -152,17 +157,12 @@ const validateApplication = (res, body) => {
     return null
   }
 
-  const formVersion = Number.isFinite(body.version) ? Math.trunc(body.version) : 1
-
-  // Faculty -> Department (form v3), checked against the same list the form
-  // uses (shared/membership/university-structure.js): a department is only
-  // accepted inside its own faculty. Required for every submission — an
-  // older tab still showing the free-text field is asked to reload instead.
+  // Faculty -> Department, checked against the same list the form uses
+  // (shared/membership/university-structure.js): a department is only
+  // accepted inside its own faculty. The database enforces the same pairs.
   const faculty = normalizeString(answers.faculty)
   if (!isValidFaculty(faculty)) {
-    invalid(res, formVersion < 3
-      ? 'This form has been updated. Please reload the page, then choose your faculty and department.'
-      : 'Please select your faculty.', 'faculty')
+    invalid(res, 'Please select your faculty.', 'faculty')
     return null
   }
 
@@ -211,12 +211,11 @@ const validateApplication = (res, body) => {
     return null
   }
 
-  const source = normalizeString(body.source).slice(0, MAX_LEN.source) || null
-
   // Explicit allowlist: unknown client properties are ignored, never inserted.
   // primary_field keeps one readable "area" per row: the member's interest,
   // or the staff department's label. faculty/department are stored as slugs;
   // `department` is the university department, never the staff department.
+  // phone_normalized is computed by the database from `phone`.
   return {
     full_name: fullName,
     email,
@@ -230,16 +229,67 @@ const validateApplication = (res, body) => {
     experience,
     availability,
     consent: true,
-    source,
+    source: sourcePath(body.source),
     form_version: formVersion,
     submitted_at: new Date().toISOString(),
   }
+}
+
+// Returns true when the request may continue; otherwise the response has
+// already been sent. Mandatory on every Vercel deployment: a missing secret
+// there closes the form instead of silently switching the check off. Local
+// development without a secret (npm run dev:api) skips it, like the
+// same-site check below.
+let warnedTurnstileSkipped = false
+const passesTurnstile = async (req, res, body) => {
+  const secret = process.env.TURNSTILE_SECRET_KEY?.trim()
+  if (!secret) {
+    if (process.env.VERCEL) {
+      console.error('[join] Security check not configured')
+      send(res, 503, { success: false, message: SERVICE_UNAVAILABLE_MESSAGE })
+      return false
+    }
+    if (!warnedTurnstileSkipped) {
+      warnedTurnstileSkipped = true
+      console.warn('[join] Security check skipped: TURNSTILE_SECRET_KEY is not set (local development only)')
+    }
+    return true
+  }
+
+  const verification = await verifyTurnstileToken({
+    secret,
+    token: body.turnstileToken,
+    remoteIp: getClientIp(req),
+    action: TURNSTILE_ACTION,
+    // Cloudflare's testing keys may be used locally and on previews, never
+    // on the production deployment.
+    allowTestingKeys: process.env.VERCEL_ENV !== 'production',
+  })
+  if (verification.ok) return true
+  if (verification.reason === 'unavailable') {
+    console.error('[join] Security check unavailable', { code: verification.code })
+    send(res, 503, { success: false, message: SERVICE_UNAVAILABLE_MESSAGE })
+    return false
+  }
+  send(res, 403, { success: false, message: SECURITY_CHECK_MESSAGE, field: 'turnstile' })
+  return false
 }
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST')
     send(res, 405, { success: false, message: 'Method not allowed.' })
+    return
+  }
+
+  if (!isJsonContentType(req)) {
+    send(res, 415, { success: false, message: 'Unsupported request.' })
+    return
+  }
+
+  const declaredLength = Number(req.headers?.['content-length'])
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_BODY_BYTES) {
+    send(res, 413, { success: false, message: 'Payload too large.' })
     return
   }
 
@@ -251,31 +301,32 @@ export default async function handler(req, res) {
     return
   }
 
-  const rateLimit = consumeRateLimit(`join:${getClientIp(req)}`, RATE_LIMIT)
+  const rateLimit = await consumeDistributedRateLimit('join', getClientIp(req), RATE_LIMIT)
   if (!rateLimit.allowed) {
     res.setHeader('Retry-After', String(rateLimit.retryAfterSeconds))
     send(res, 429, { success: false, message: 'Too many attempts. Please wait a moment, then try again.' })
     return
   }
 
-  let body
-  try {
-    body = readBody(req)
-  } catch {
-    send(res, 400, { success: false, message: 'Invalid application data.' })
+  // Read from the raw stream with a hard byte limit, never through a
+  // platform parser with its own (larger) defaults.
+  const parsed = await readBoundedJsonBody(req, MAX_BODY_BYTES)
+  if (!parsed.ok) {
+    if (parsed.reason === 'too_large') send(res, 413, { success: false, message: 'Payload too large.' })
+    else send(res, 400, { success: false, message: 'Invalid application data.' })
     return
   }
-
-  if (JSON.stringify(body)?.length > MAX_BODY_BYTES) {
-    send(res, 413, { success: false, message: 'Payload too large.' })
+  const body = parsed.value
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    send(res, 400, { success: false, message: 'Invalid application data.' })
     return
   }
 
   // Honeypot (defense in depth: the frontend already strips/filters it).
   // A filled trap is answered with a neutral success WITHOUT any DB write,
   // so bots cannot tell they were filtered. Real users never hit this path.
-  if (isFilled(body?.answers?.website) || isFilled(body?.website)) {
-    const echo = normalizeString(body?.reference).slice(0, 64)
+  if (isFilled(body.answers?.website) || isFilled(body.website)) {
+    const echo = normalizeString(body.reference).slice(0, 64)
     send(res, 201, { success: true, reference: echo || 'received' })
     return
   }
@@ -283,11 +334,13 @@ export default async function handler(req, res) {
   const row = validateApplication(res, body)
   if (!row) return
 
+  if (!(await passesTurnstile(req, res, body))) return
+
   const supabaseUrl = process.env.SUPABASE_URL
   const supabaseSecret = process.env.SUPABASE_SECRET_KEY
   if (!supabaseUrl || !supabaseSecret) {
-    console.error('[join] Missing Supabase server configuration.')
-    send(res, 500, { success: false, message: 'Server configuration error.' })
+    console.error('[join] Missing server configuration.')
+    send(res, 500, { success: false, message: SAVE_FAILED_MESSAGE })
     return
   }
 
@@ -299,16 +352,9 @@ export default async function handler(req, res) {
       auth: { persistSession: false, autoRefreshToken: false },
     })
 
-    const duplicateField = await findDuplicateField(supabase, row.email, row.phone)
-    if (duplicateField) {
-      console.warn('[join] Duplicate application blocked', { field: duplicateField })
-      send(res, 409, {
-        success: false,
-        message: duplicateField === 'email'
-          ? 'This email has already been used for an application. Please use another email or contact the club.'
-          : 'This phone number has already been used for an application. Please use another number or contact the club.',
-        field: duplicateField,
-      })
+    if (await hasDuplicateContact(supabase, row.email, normalizeMembershipPhone(row.phone))) {
+      console.warn('[join] Duplicate application blocked', { reason: 'duplicate_contact' })
+      send(res, 409, { success: false, message: DUPLICATE_MESSAGE })
       return
     }
 
@@ -319,28 +365,28 @@ export default async function handler(req, res) {
       .single()
 
     if (error || !data) {
-      // Minimal server log: code only, never PII, secrets, or full payloads.
-      console.error('[join] Supabase insertion failed', { code: error?.code })
+      // Two identical submissions racing past the lookup: the unique index
+      // is the final authority.
       if (error?.code === '23505') {
-        send(res, 409, {
-          success: false,
-          message: 'This application already seems to have been received. Please contact the club.',
-        })
+        console.warn('[join] Duplicate application blocked', { reason: 'duplicate_contact', code: error.code })
+        send(res, 409, { success: false, message: DUPLICATE_MESSAGE })
         return
       }
-      send(res, 500, { success: false, message: 'We could not save your application. Please try again.' })
+      // Minimal server log: code only, never PII, secrets, or full payloads.
+      console.error('[join] Insertion failed', { code: error?.code })
+      send(res, 500, { success: false, message: SAVE_FAILED_MESSAGE })
       return
     }
 
     if (!data.reference) {
       console.error('[join] Insert succeeded without a reference.')
-      send(res, 500, { success: false, message: 'We could not save your application. Please try again.' })
+      send(res, 500, { success: false, message: SAVE_FAILED_MESSAGE })
       return
     }
 
     send(res, 201, { success: true, reference: data.reference })
   } catch (error) {
     console.error('[join] Unexpected failure', { code: error?.code })
-    send(res, 500, { success: false, message: 'We could not save your application. Please try again.' })
+    send(res, 500, { success: false, message: SAVE_FAILED_MESSAGE })
   }
 }

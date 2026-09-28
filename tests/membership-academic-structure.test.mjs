@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { test } from 'node:test'
-import joinHandler from '../api/join.js'
 import {
   UNIVERSITY_FACULTIES, describeAcademicDepartment, getDepartmentLabel, getFacultyLabel,
   isValidDepartmentForFaculty, isValidFaculty,
@@ -9,11 +8,11 @@ import {
 import {
   buildSummary, facultyOptions, getDepartmentOptions, initialValues, serialize, steps, validators,
 } from '../src/pages/join/joinModel.js'
+import { callJoin, insertRequests, validBody, withJoinServices } from './support/join-harness.mjs'
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8')
 const MIGRATION = 'supabase/migrations/20261008120000_membership_faculty_department.sql'
 const FACULTY_VALUES = ['fmi', 'fst', 'fsnv', 'fsecg', 'fll', 'fdsp', 'fshs']
-const NOW = '2026-10-08T09:00:00.000Z'
 
 test('the academic structure is exactly Faculty -> Department, with unique slugs', () => {
   assert.deepEqual(UNIVERSITY_FACULTIES.map((faculty) => faculty.value), FACULTY_VALUES)
@@ -96,9 +95,9 @@ test('department options follow the selected faculty and a faculty change clears
   assert.match(page, /if \(value === 'staff'\) form\.setField\('memberInterest', ''\)/)
 
   // Drafts saved by the free-text form are neither restored nor kept.
-  assert.match(page, /STORAGE_KEY = 'infinity-membership-draft-v3'/)
-  assert.match(page, /OUTDATED_STORAGE_KEYS = \['infinity-membership-draft-v1', 'infinity-membership-draft-v2'\]/)
-  assert.match(page, /serialize, version: 3 \}/)
+  assert.match(page, /STORAGE_KEY = 'infinity-membership-draft-v4'/)
+  assert.match(page, /OUTDATED_STORAGE_KEYS = \['infinity-membership-draft-v1', 'infinity-membership-draft-v2', 'infinity-membership-draft-v3'\]/)
+  assert.match(page, /const FORM_VERSION = 4/)
 
   const field = await read('src/components/forms/ApplicationField.jsx')
   assert.match(field, /disabled = false,/)
@@ -124,56 +123,8 @@ test('the summary shows readable labels while the payload keeps the slugs', () =
   assert.equal(payload.staffDepartment, null)
 })
 
-let sequence = 0
-const answers = (changes = {}) => ({
-  fullName: 'Test Applicant', email: `applicant-${++sequence}@example.invalid`, phone: '', studyYear: 'L2',
-  faculty: 'fmi', department: 'computer-science', joinType: 'member', experience: 'starting',
-  memberInterest: 'AI Engineering', staffDepartment: null, availability: 'weekly', consent: true, ...changes,
-})
-
-// Runs api/join.js against a stubbed Supabase REST API: every request the
-// official client would send is recorded instead of leaving the machine.
-async function withSupabaseStub(run) {
-  const saved = { fetch: globalThis.fetch, url: process.env.SUPABASE_URL, key: process.env.SUPABASE_SECRET_KEY, vercel: process.env.VERCEL }
-  const requests = []
-  process.env.SUPABASE_URL = 'https://join-test.supabase.invalid'
-  process.env.SUPABASE_SECRET_KEY = 'test-secret-key'
-  delete process.env.VERCEL
-  globalThis.fetch = async (input, init = {}) => {
-    const method = init.method || 'GET'
-    requests.push({ url: String(input), method, body: typeof init.body === 'string' ? JSON.parse(init.body) : null })
-    const inserted = { id: '33333333-3333-4333-8333-333333333333', reference: 'JOIN-26-TEST01', status: 'new', created_at: NOW }
-    return new Response(JSON.stringify(method === 'POST' ? inserted : []), {
-      status: method === 'POST' ? 201 : 200,
-      headers: { 'Content-Type': 'application/json' },
-    })
-  }
-  try {
-    return await run(requests)
-  } finally {
-    globalThis.fetch = saved.fetch
-    for (const [name, value] of [['SUPABASE_URL', saved.url], ['SUPABASE_SECRET_KEY', saved.key], ['VERCEL', saved.vercel]]) {
-      if (value === undefined) delete process.env[name]
-      else process.env[name] = value
-    }
-  }
-}
-
-async function submit(body) {
-  const res = {
-    statusCode: 0,
-    headers: {},
-    body: null,
-    setHeader(name, value) { this.headers[name.toLowerCase()] = value },
-    end(value) { this.body = value ? JSON.parse(value) : null },
-  }
-  // A distinct client address per call keeps the in-memory rate limit out of the way.
-  await joinHandler({ method: 'POST', headers: { 'x-forwarded-for': `198.51.100.${++sequence % 250}` }, body }, res)
-  return res
-}
-
 test('the Join API refuses a faculty/department pair outside the shared structure before touching Supabase', async () => {
-  await withSupabaseStub(async (requests) => {
+  await withJoinServices({}, async ({ requests }) => {
     for (const [faculty, department, field] of [
       ['unknown', 'mathematics', 'faculty'], // CASE 7
       ['fmi', 'civil-engineering', 'department'], // CASE 3
@@ -183,16 +134,16 @@ test('the Join API refuses a faculty/department pair outside the shared structur
       ['__proto__', 'mathematics', 'faculty'],
       [['fmi'], 'mathematics', 'faculty'],
     ]) {
-      const res = await submit({ form: 'membership', version: 3, answers: answers({ faculty, department }) })
+      const res = await callJoin({ body: validBody({ answers: { faculty, department } }) })
       assert.equal(res.statusCode, 400, `${faculty} / ${department}`)
       assert.equal(res.body.success, false)
       assert.equal(res.body.field, field, `${faculty} / ${department}`)
     }
 
     // A tab still showing the free-text field is asked to reload, not stored.
-    const stale = await submit({ form: 'membership', version: 2, answers: answers({ faculty: undefined, department: 'Computer Science' }) })
+    const stale = await callJoin({ body: validBody({ version: 2, answers: { faculty: undefined, department: 'Computer Science' } }) })
     assert.equal(stale.statusCode, 400)
-    assert.equal(stale.body.field, 'faculty')
+    assert.equal(stale.body.field, 'version')
     assert.match(stale.body.message, /reload the page/)
 
     assert.equal(requests.length, 0, 'nothing is sent to Supabase for a refused application')
@@ -200,26 +151,26 @@ test('the Join API refuses a faculty/department pair outside the shared structur
 })
 
 test('a valid application reaches Supabase with both faculty and department slugs', async () => {
-  await withSupabaseStub(async (requests) => {
+  await withJoinServices({}, async ({ requests }) => {
     // CASE 8
-    const res = await submit({ form: 'membership', version: 3, answers: answers({ faculty: 'fmi', department: 'computer-science' }) })
+    const res = await callJoin({ body: validBody({ answers: { faculty: 'fmi', department: 'computer-science' } }) })
     assert.equal(res.statusCode, 201)
     assert.deepEqual(res.body, { success: true, reference: 'JOIN-26-TEST01' })
-    const insert = requests.find((request) => request.method === 'POST')
+    const [insertRequest] = insertRequests(requests)
+    const insert = { url: insertRequest.url, body: JSON.parse(insertRequest.body) }
     assert.match(insert.url, /\/rest\/v1\/membership_applications/)
     assert.equal(insert.body.faculty, 'fmi')
     assert.equal(insert.body.department, 'computer-science')
-    assert.equal(insert.body.form_version, 3)
+    assert.equal(insert.body.form_version, 4)
     assert.equal(insert.body.staff_department, null)
 
     // Staff: the university department and the Infinity staff department are
     // two separate columns, never merged.
-    const staff = await submit({
-      form: 'membership', version: 3,
-      answers: answers({ faculty: 'fst', department: 'civil-engineering', joinType: 'staff', memberInterest: null, staffDepartment: 'dev-tech' }),
+    const staff = await callJoin({
+      body: validBody({ answers: { faculty: 'fst', department: 'civil-engineering', joinType: 'staff', memberInterest: null, staffDepartment: 'dev-tech' } }),
     })
     assert.equal(staff.statusCode, 201)
-    const staffInsert = requests.filter((request) => request.method === 'POST').at(-1)
+    const staffInsert = { body: JSON.parse(insertRequests(requests).at(-1).body) }
     assert.equal(staffInsert.body.faculty, 'fst')
     assert.equal(staffInsert.body.department, 'civil-engineering')
     assert.equal(staffInsert.body.staff_department, 'dev-tech')

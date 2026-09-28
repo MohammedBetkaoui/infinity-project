@@ -412,11 +412,18 @@ test('no page can be framed by another site (clickjacking), and nothing is conte
   assert.ok(everyPath, 'one rule covers every page, asset and API answer')
   const values = Object.fromEntries(everyPath.headers.map(({ key, value }) => [key.toLowerCase(), value]))
   assert.equal(values['x-frame-options'], 'SAMEORIGIN')
-  assert.equal(values['content-security-policy'], "frame-ancestors 'self'")
   assert.equal(values['x-content-type-options'], 'nosniff')
+  // frame-ancestors lives in the two Content-Security-Policy rules, which
+  // together cover every path: the public site and the administration.
+  for (const source of ['/((?!admin).*)', '/admin(.*)']) {
+    const policy = headers.find((entry) => entry.source === source)?.headers.find(({ key }) => key === 'Content-Security-Policy')?.value
+    assert.match(policy, /frame-ancestors 'self'/, source)
+  }
   // Same-origin framing stays allowed on purpose: the AIVEX admin viewer
-  // shows a confidential PDF in an iframe of the site itself.
+  // shows a confidential PDF in an iframe of the site itself (a blob: URL,
+  // which the administration policy allows as a frame source).
   assert.match(await read('src/admin/AivexPages.jsx'), /<iframe title=\{t\(file\.kind\)\} src=\{objectUrl\}/)
+  assert.match(headers.find((entry) => entry.source === '/admin(.*)').headers[0].value, /frame-src 'self' blob:/)
 })
 
 test('route guard accepts only internal admin return paths and protects direct workspace access', async () => {
