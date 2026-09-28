@@ -24,6 +24,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const CORRECTION_DECISIONS = new Set(['verified', 'rejected'])
 const IDENTITY_DOCUMENT_KEYS = new Set(['delegation-leader', 'driver'])
 const FILE_EXTENSION_RE = /\.([a-z0-9]+)$/i
+const ATTENDANCE_STATUSES = new Set(['expected', 'present', 'absent'])
 
 const single = (params, name) => {
   const values = params.getAll(name)
@@ -57,6 +58,14 @@ export function parseAivexListOptions(params) {
   const sort = raw.sort || 'attention_asc'
   if (!SORTS.has(sort)) return { ok: false }
   return { ok: true, value: { ...raw, edition: raw.edition ? Number(raw.edition) : 2, page, limit, sort } }
+}
+
+export function parseAivexAttendanceEdition(params) {
+  const rawEdition = single(params, 'edition')
+  if (rawEdition === null) return { ok: false }
+  const edition = rawEdition || '2'
+  if (!/^\d{1,2}$/.test(edition) || Number(edition) < 1) return { ok: false }
+  return { ok: true, value: Number(edition) }
 }
 
 export function validateAivexActionBody(body) {
@@ -124,4 +133,18 @@ export function validateAivexPurgeBody(body) {
   if (typeof body.password !== 'string' || body.password.length < 1 || body.password.length > 128) return { ok: false }
   if (Buffer.byteLength(body.password, 'utf8') > 512) return { ok: false }
   return { ok: true, value: { password: body.password } }
+}
+
+export function validateAivexAttendanceBody(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return { ok: false }
+  if (!isAivexReference(body.reference) || !ATTENDANCE_STATUSES.has(body.status)) return { ok: false }
+  if (!Number.isFinite(Date.parse(body.expectedUpdatedAt))) return { ok: false }
+  return {
+    ok: true,
+    value: {
+      reference: body.reference,
+      status: body.status,
+      expectedUpdatedAt: body.expectedUpdatedAt,
+    },
+  }
 }

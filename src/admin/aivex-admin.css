@@ -32,6 +32,58 @@
 .adm-aivex-purge-modal .adm-auth-error { margin: 0; }
 .adm-aivex-purge-reference { display: block; margin-top: 4px; font-size: 11px; opacity: .85; }
 
+/* Accepted-team arrival desk: one calm operational view, no background polling. */
+.adm-aivex-workspaces { display: grid; grid-template-columns: repeat(2, minmax(0, 320px)); gap: 10px; margin-bottom: 22px; }
+.adm-aivex-workspaces button { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 12px 15px; color: var(--adm-secondary); text-align: start; background: #fff; border: 1px solid var(--adm-line); border-radius: 9px; }
+.adm-aivex-workspaces button > svg { flex: 0 0 auto; }
+.adm-aivex-workspaces button span { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.adm-aivex-workspaces button b { color: var(--adm-ink); font-size: 13px; }
+.adm-aivex-workspaces button small { color: var(--adm-muted); font-size: 10px; }
+.adm-aivex-workspaces button > strong { display: grid; place-items: center; min-width: 27px; height: 27px; padding-inline: 6px; border-radius: 6px; background: #edf3ee; font-size: 12px; }
+.adm-aivex-workspaces button.is-active { color: #fff; background: var(--adm-green); border-color: var(--adm-green); }
+.adm-aivex-workspaces button.is-active :is(b, small) { color: #fff; }
+.adm-aivex-workspaces button.is-active small { opacity: .72; }
+.adm-aivex-workspaces button.is-active > strong { color: var(--adm-green); background: #fff; }
+.adm-attendance { display: grid; gap: 18px; }
+.adm-attendance-hero { display: flex; align-items: center; justify-content: space-between; gap: 30px; padding: 26px; color: #fff; background: linear-gradient(125deg, #063d2d, #0d654a); border-radius: 11px; }
+.adm-attendance-hero > div:first-child { max-width: 720px; }
+.adm-attendance-hero span { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; opacity: .72; }
+.adm-attendance-hero h2 { margin: 7px 0 5px; font-family: inherit; font-size: clamp(20px, 2vw, 28px); line-height: 1.3; }
+.adm-attendance-hero p { margin: 0; font-size: 12px; line-height: 1.7; opacity: .8; }
+.adm-attendance-rate { display: grid; justify-items: center; flex: 0 0 116px; padding: 16px; background: #ffffff14; border: 1px solid #ffffff24; border-radius: 9px; }
+.adm-attendance-rate strong { font-size: 30px; line-height: 1; }
+.adm-attendance-rate span { margin-top: 7px; font-size: 9px; text-align: center; }
+.adm-attendance-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.adm-attendance-stats article { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; min-height: 72px; padding: 15px; color: var(--adm-secondary); background: #fff; border: 1px solid var(--adm-line); border-radius: 9px; }
+.adm-attendance-stats article span { font-size: 11px; font-weight: 600; }
+.adm-attendance-stats article strong { color: var(--adm-ink); font-size: 24px; }
+.adm-attendance-stats .is-present { color: #16734e; border-color: #bcdcc9; background: #f2faf5; }
+.adm-attendance-stats .is-absent { color: #a33a2d; border-color: #edcbc5; background: #fff7f5; }
+.adm-attendance-stats .is-expected { color: #92711c; border-color: #e7d7ae; background: #fffaf0; }
+.adm-attendance-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 14px; background: #fff; border: 1px solid var(--adm-line); border-radius: 9px; }
+.adm-attendance-toolbar > label { flex: 1 1 230px; }
+.adm-attendance-toolbar input { width: 100%; min-height: 42px; padding: 9px 12px; color: var(--adm-ink); background: #f8faf8; border: 1px solid var(--adm-line); border-radius: 7px; font: inherit; font-size: 12px; }
+.adm-attendance-toolbar > div { display: flex; flex-wrap: wrap; gap: 5px; }
+.adm-attendance-toolbar > div button { min-height: 36px; padding: 7px 10px; color: var(--adm-muted); background: transparent; border-radius: 6px; font-size: 11px; font-weight: 650; }
+.adm-attendance-toolbar > div button.is-active { color: #fff; background: var(--adm-green); }
+.adm-attendance-list { display: grid; gap: 10px; }
+.adm-attendance-team { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(140px, .45fr) minmax(310px, auto); align-items: center; gap: 20px; padding: 18px; background: #fff; border: 1px solid var(--adm-line); border-inline-start: 4px solid #d2dbd5; border-radius: 9px; }
+.adm-attendance-team.is-present { border-inline-start-color: #2b986b; }
+.adm-attendance-team.is-absent { border-inline-start-color: #c45345; }
+.adm-attendance-team__identity code { color: var(--adm-muted); font-size: 10px; }
+.adm-attendance-team__identity h3 { margin: 5px 0 3px; font-family: inherit; font-size: 17px; line-height: 1.35; }
+.adm-attendance-team__identity p { margin: 0; color: var(--adm-secondary); font-size: 12px; }
+.adm-attendance-team__identity > span { color: var(--adm-muted); font-size: 10px; }
+.adm-attendance-team__state { display: grid; justify-items: start; gap: 6px; }
+.adm-attendance-badge { display: inline-flex; padding: 5px 9px; color: #725a1e; background: #fff3cf; border-radius: 5px; font-size: 10px; font-weight: 700; }
+.adm-attendance-badge.is-present { color: #176844; background: #e6f5ec; }
+.adm-attendance-badge.is-absent { color: #96392d; background: #fde9e6; }
+.adm-attendance-team__state small { color: var(--adm-muted); font-size: 9px; line-height: 1.5; }
+.adm-attendance-team__actions { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 7px; }
+.adm-app .adm-attendance-team__actions .adm-button { min-height: 36px; padding: 7px 10px; font-size: 10px; }
+.adm-attendance-reset { min-height: 36px; padding: 7px 4px; color: var(--adm-muted); background: transparent; font-size: 10px; font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
+.adm-attendance-readonly { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--adm-muted); font-size: 11px; }
+
 /* A short queue, followed by the same server-backed search and filters. */
 .adm-case-queues { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 24px; }
 .adm-app .adm-case-queues button { display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 14px; min-height: 98px; padding: 16px 18px; color: var(--adm-secondary); text-align: start; border: 1px solid var(--adm-line); border-radius: 9px; background: #fff; transition: border-color .15s, background .15s; }
@@ -165,6 +217,8 @@
   .adm-case-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 1200px) {
+  .adm-attendance-team { grid-template-columns: minmax(220px, 1fr) minmax(140px, .45fr); }
+  .adm-attendance-team__actions { grid-column: 1 / -1; justify-content: flex-start; }
   .adm-app .adm-aivex-page .adm-verification-layout { grid-template-columns: 1fr; }
   .adm-app .adm-aivex-page .adm-decision-panel { position: static; }
   .adm-app .adm-aivex-page .adm-file-time { display: none; }
@@ -178,6 +232,22 @@
   .adm-app .adm-aivex-page .adm-aivex-header-actions .adm-aivex-language { width: auto; }
   .adm-app .adm-aivex-page .adm-aivex-language { width: auto; }
   .adm-app .adm-aivex-page .adm-page-actions > .adm-aivex-header-actions > .adm-button { width: auto; flex: 1; }
+  .adm-aivex-workspaces { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .adm-aivex-workspaces button { align-items: flex-start; min-height: 76px; padding: 11px; }
+  .adm-aivex-workspaces button > svg { display: none; }
+  .adm-aivex-workspaces button small { line-height: 1.35; }
+  .adm-attendance-hero { align-items: flex-start; padding: 20px; }
+  .adm-attendance-rate { flex-basis: 86px; padding: 12px 8px; }
+  .adm-attendance-rate strong { font-size: 24px; }
+  .adm-attendance-stats { grid-template-columns: 1fr 1fr; }
+  .adm-attendance-stats article { grid-template-columns: auto 1fr; min-height: 68px; }
+  .adm-attendance-stats article strong { grid-column: 2; grid-row: 1 / span 2; justify-self: end; }
+  .adm-attendance-toolbar { align-items: stretch; }
+  .adm-attendance-toolbar > :is(label, div, .adm-button) { width: 100%; }
+  .adm-attendance-toolbar > div { overflow-x: auto; flex-wrap: nowrap; }
+  .adm-attendance-toolbar > div button { flex: 0 0 auto; }
+  .adm-attendance-team { grid-template-columns: 1fr; gap: 14px; padding: 15px; }
+  .adm-attendance-team__actions { grid-column: 1; }
   .adm-case-queues { grid-template-columns: repeat(5, minmax(112px, 1fr)); gap: 8px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 12px; scrollbar-width: thin; scrollbar-color: #b7c9bd transparent; }
   .adm-app .adm-case-queues button { min-height: 94px; padding: 14px; }
   .adm-case-queues button span { font-size: 11px; }

@@ -40,6 +40,10 @@ export function canPurgeAllAivex(role) {
   return role === 'super_admin'
 }
 
+export function canManageAivexAttendance(role) {
+  return role === 'super_admin' || role === 'administrator'
+}
+
 export function allowedAivexActions(role) {
   return [...ADMIN_AIVEX_ACTIONS, ...ADMIN_AIVEX_CAPABILITIES]
     .filter((action) => canManageAivex(role, action))

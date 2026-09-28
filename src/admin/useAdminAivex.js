@@ -57,7 +57,7 @@ const listValue = (body, limit) => ({
   facets: body.facets || { wilayas: [], institutions: [] },
 })
 
-export function useAdminAivex({ page, limit = 12, search, filters, sort }) {
+export function useAdminAivex({ page, limit = 12, search, filters, sort, enabled = true }) {
   const { request } = useAdminAuth()
   const [refreshKey, setRefreshKey] = useState(0)
   const query = useMemo(() => queryString({ page, limit, search, filters, sort }), [filters, limit, page, search, sort])
@@ -75,6 +75,7 @@ export function useAdminAivex({ page, limit = 12, search, filters, sort }) {
   const lastSearch = useRef(search)
 
   useEffect(() => {
+    if (!enabled) return undefined
     const searchChanged = search !== lastSearch.current
     lastSearch.current = search
 
@@ -104,13 +105,13 @@ export function useAdminAivex({ page, limit = 12, search, filters, sort }) {
       window.clearTimeout(timer)
       controller.abort()
     }
-  }, [limit, query, request, requestKey, search])
+  }, [enabled, limit, query, request, requestKey, search])
 
   const refresh = useCallback(() => {
     clearListCache()
     setRefreshKey((value) => value + 1)
   }, [])
-  return { ...state, loading: state.loading || state.resolvedKey !== requestKey, refresh }
+  return { ...state, loading: enabled && (state.loading || state.resolvedKey !== requestKey), refresh }
 }
 
 export function useAdminAivexActions() {
@@ -209,4 +210,79 @@ export function useAdminAivexActions() {
   }, [request])
 
   return { loadDetail, act, loadDocument, uploadIdentityReplacement, purgeAll }
+}
+
+const emptyAttendanceSummary = () => ({ accepted: 0, present: 0, absent: 0, expected: 0 })
+const summarizeAttendance = (teams) => teams.reduce((summary, team) => {
+  summary.accepted += 1
+  if (Object.hasOwn(summary, team.status)) summary[team.status] += 1
+  return summary
+}, emptyAttendanceSummary())
+
+export function useAdminAivexAttendance({ edition = 2, enabled = false } = {}) {
+  const { request } = useAdminAuth()
+  const [refreshKey, setRefreshKey] = useState(0)
+  const loadedRequestKey = useRef('')
+  const [state, setState] = useState({
+    teams: [], summary: emptyAttendanceSummary(), canManage: false,
+    loading: true, error: '', updating: '',
+  })
+
+  useEffect(() => {
+    if (!enabled) return undefined
+    const requestKey = `${edition}:${refreshKey}`
+    if (loadedRequestKey.current === requestKey) return undefined
+    const controller = new AbortController()
+    request(`/api/admin/aivex/attendance?edition=${edition}`, { signal: controller.signal })
+      .then(({ response, body }) => {
+        if (!response.ok) throw new Error(body.message || 'Unable to load team attendance.')
+        setState({
+          teams: Array.isArray(body.teams) ? body.teams : [],
+          summary: body.summary || emptyAttendanceSummary(),
+          canManage: body.canManage === true,
+          loading: false, error: '', updating: '',
+        })
+        loadedRequestKey.current = requestKey
+      })
+      .catch((error) => {
+        if (error.name !== 'AbortError') setState((current) => ({ ...current, loading: false, error: error.message }))
+      })
+    return () => controller.abort()
+  }, [edition, enabled, refreshKey, request])
+
+  const updateAttendance = useCallback(async (team, status) => {
+    if (!state.canManage || state.updating) return { ok: false }
+    setState((current) => ({ ...current, updating: team.reference, error: '' }))
+    try {
+      const { response, body } = await request('/api/admin/aivex/attendance', {
+        method: 'POST',
+        body: JSON.stringify({
+          reference: team.reference,
+          status,
+          expectedUpdatedAt: team.updatedAt,
+        }),
+      })
+      if (!response.ok) return { ok: false, status: response.status, message: body.message || 'Attendance could not be updated.' }
+      setState((current) => {
+        const teams = current.teams.map((entry) => entry.reference === body.team.reference ? body.team : entry)
+        return { ...current, teams, summary: summarizeAttendance(teams), updating: '' }
+      })
+      return { ok: true, team: body.team }
+    } catch {
+      return { ok: false, message: 'Unable to reach the AIVEX administration service.' }
+    } finally {
+      setState((current) => ({ ...current, updating: '' }))
+    }
+  }, [request, state.canManage, state.updating])
+
+  const refresh = useCallback(() => {
+    setState((current) => ({ ...current, loading: true, error: '' }))
+    setRefreshKey((value) => value + 1)
+  }, [])
+
+  return {
+    ...state,
+    refresh,
+    updateAttendance,
+  }
 }

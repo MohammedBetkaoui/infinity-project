@@ -2,7 +2,7 @@ import { createServerSupabaseClient } from './aivex-server.js'
 import { createSupabaseDocumentStore } from './aivex-document-store.js'
 import { generateOfficialDocuments } from './aivex-document-generation.js'
 import {
-  allowedAivexActions, canAccessAivexDocuments, canManageAivex, canPurgeAllAivex,
+  allowedAivexActions, canAccessAivexDocuments, canManageAivex, canManageAivexAttendance, canPurgeAllAivex,
 } from './admin-aivex-permissions.js'
 import { createAdminAivexStore } from './admin-aivex-store.js'
 import { CORRECTION_ITEM_DOCUMENT_KEY } from '../../shared/aivex/correction-items.js'
@@ -455,22 +455,24 @@ export function createAdminAivexService({ store, documentStore, now = () => new 
     async list(options, user) {
       if (typeof store.listPage === 'function') {
         const bundled = await store.listPage(options)
-        const rows = Array.isArray(bundled.rows) ? bundled.rows : []
-        const total = Number(bundled.total || 0)
-        const documentCounts = Object.fromEntries(Object.keys(DOCUMENT_LABELS).map((status) => [status, 0]))
-        Object.assign(documentCounts, bundled.summary?.documentCounts || {})
-        return {
-          data: rows.map(mapOverview),
-          pagination: {
-            page: options.page, limit: options.limit, total,
-            pages: Math.max(1, Math.ceil(total / options.limit)),
-          },
-          summary: { ...(bundled.summary || {}), documentCounts },
-          facets: {
-            wilayas: Array.isArray(bundled.facets?.wilayas) ? bundled.facets.wilayas : [],
-            institutions: Array.isArray(bundled.facets?.institutions) ? bundled.facets.institutions : [],
-          },
-          role: user.role,
+        if (bundled) {
+          const rows = Array.isArray(bundled.rows) ? bundled.rows : []
+          const total = Number(bundled.total || 0)
+          const documentCounts = Object.fromEntries(Object.keys(DOCUMENT_LABELS).map((status) => [status, 0]))
+          Object.assign(documentCounts, bundled.summary?.documentCounts || {})
+          return {
+            data: rows.map(mapOverview),
+            pagination: {
+              page: options.page, limit: options.limit, total,
+              pages: Math.max(1, Math.ceil(total / options.limit)),
+            },
+            summary: { ...(bundled.summary || {}), documentCounts },
+            facets: {
+              wilayas: Array.isArray(bundled.facets?.wilayas) ? bundled.facets.wilayas : [],
+              institutions: Array.isArray(bundled.facets?.institutions) ? bundled.facets.institutions : [],
+            },
+            role: user.role,
+          }
         }
       }
       const [{ rows, count }, summaryRows] = await Promise.all([
@@ -500,6 +502,33 @@ export function createAdminAivexService({ store, documentStore, now = () => new 
     },
 
     detail,
+
+    async attendance(edition, user) {
+      const result = await store.attendance(edition)
+      return {
+        teams: Array.isArray(result.teams) ? result.teams : [],
+        summary: result.summary || { accepted: 0, present: 0, absent: 0, expected: 0 },
+        canManage: canManageAivexAttendance(user.role),
+      }
+    },
+
+    async setAttendance(input, user) {
+      if (!canManageAivexAttendance(user.role)) {
+        return { ok: false, status: 403, message: 'Only an administrator can update team attendance.' }
+      }
+      try {
+        const team = await store.setAttendance({
+          ...input,
+          adminUserId: user.id,
+          now: now(),
+        })
+        return { ok: true, team }
+      } catch (error) {
+        const failure = publicActionError(error)
+        if (failure) return { ok: false, ...failure }
+        throw error
+      }
+    },
 
     async purgeAll(user) {
       if (!canPurgeAllAivex(user.role)) {

@@ -13,8 +13,9 @@ import {
   validatePeopleBulkBody, validatePeopleCreateBody,
 } from './_lib/admin-people-validation.js'
 import {
-  isAivexDocumentKey, isAivexReference, parseAivexListOptions, validateAdminIdentityUploadFinalizeBody,
-  validateAdminIdentityUploadInitBody, validateAivexActionBody, validateAivexPurgeBody,
+  isAivexDocumentKey, isAivexReference, parseAivexAttendanceEdition, parseAivexListOptions,
+  validateAdminIdentityUploadFinalizeBody, validateAdminIdentityUploadInitBody,
+  validateAivexActionBody, validateAivexAttendanceBody, validateAivexPurgeBody,
 } from './_lib/admin-aivex-validation.js'
 import { readJsonBody } from './_lib/http.js'
 import { getClientIp } from './_lib/security.js'
@@ -406,6 +407,7 @@ export function createAdminAivexHandler({
     const identityInitMatch = path.match(/^aivex\/(AIVEX[1-9][0-9]?-[0-9A-HJKMNP-TV-Z]{8})\/identity-upload\/init$/)
     const identityFinalizeMatch = path.match(/^aivex\/(AIVEX[1-9][0-9]?-[0-9A-HJKMNP-TV-Z]{8})\/identity-upload\/finalize$/)
     const purgeAll = path === 'aivex/purge'
+    const attendancePath = path === 'aivex/attendance'
 
     if (req.method === 'POST' && !trustedOrigin(req, env)) {
       return sendAdminJson(res, 403, { success: false, message: 'Request rejected.' })
@@ -418,6 +420,24 @@ export function createAdminAivexHandler({
         if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid AIVEX filters.' })
         const result = await service.list(parsed.value, session.user)
         return sendAdminJson(res, 200, { success: true, ...result })
+      }
+
+      if (attendancePath && req.method === 'GET') {
+        const parsed = parseAivexAttendanceEdition(url.searchParams)
+        if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid AIVEX edition.' })
+        const result = await service.attendance(parsed.value, session.user)
+        return sendAdminJson(res, 200, { success: true, ...result })
+      }
+
+      if (attendancePath && req.method === 'POST') {
+        if (!String(req.headers?.['content-type'] || '').toLowerCase().startsWith('application/json')) {
+          return sendAdminJson(res, 415, { success: false, message: 'Unsupported request.' })
+        }
+        const parsed = validateAivexAttendanceBody(await readJsonBody(req, MAX_AIVEX_BODY_BYTES))
+        if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid attendance update.' })
+        const result = await service.setAttendance(parsed.value, session.user)
+        if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: result.message })
+        return sendAdminJson(res, 200, { success: true, team: result.team })
       }
 
       if (purgeAll && req.method === 'POST') {
@@ -492,13 +512,13 @@ export function createAdminAivexHandler({
       }
 
       const isAivexPath = path === 'aivex' || path.startsWith('aivex/')
-      res.setHeader('Allow', actionMatch || identityInitMatch || identityFinalizeMatch || purgeAll ? 'POST' : 'GET')
+      res.setHeader('Allow', attendancePath ? 'GET, POST' : actionMatch || identityInitMatch || identityFinalizeMatch || purgeAll ? 'POST' : 'GET')
       return sendAdminJson(res, isAivexPath ? 405 : 404, {
         success: false,
         message: isAivexPath ? 'Method not allowed.' : 'Not found.',
       })
     } catch (error) {
-      safeAdminAuthLog(purgeAll ? 'aivex_purge_all' : 'aivex', error)
+      safeAdminAuthLog(purgeAll ? 'aivex_purge_all' : attendancePath ? 'aivex_attendance' : 'aivex', error)
       if (purgeAll && ['55P03', '57014'].includes(error?.code)) {
         return sendAdminJson(res, 409, {
           success: false,
@@ -513,7 +533,7 @@ export function createAdminAivexHandler({
         ...(purgeAll ? { code: 'aivex_purge_failed', reference: adminFailureReference(error) } : {}),
         message: purgeAll
           ? 'Unable to delete the AIVEX files right now.'
-          : actionMatch
+          : actionMatch || (attendancePath && req.method === 'POST')
             ? 'Unable to save this AIVEX action right now.'
             : 'Unable to load AIVEX administration right now.',
       })

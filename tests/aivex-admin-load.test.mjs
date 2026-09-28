@@ -50,7 +50,7 @@ test('the AIVEX list debounces searches, reuses a recent page and forgets it aft
 
 test('a team file is re-read on focus only when stale, and once after a viewer decision', async () => {
   const page = await read('src/admin/AivexPages.jsx')
-  assert.match(page, /DETAIL_AUTO_SYNC_MIN_INTERVAL_MS = 60 \* 1000/)
+  assert.match(page, /DETAIL_AUTO_SYNC_MIN_INTERVAL_MS = 5 \* 60 \* 1000/)
   assert.match(page, /useEffect\(\(\) => \{ if \(team\) teamLoadedAt\.current = Date\.now\(\) \}, \[team\]\)/)
   assert.match(page, /const syncVerification = async \(\) => \{[\s\S]{0,200}Date\.now\(\) - teamLoadedAt\.current < DETAIL_AUTO_SYNC_MIN_INTERVAL_MS\) return/)
   assert.match(page, /if \(!alreadyCurrent\) refreshDetail\(\)/)

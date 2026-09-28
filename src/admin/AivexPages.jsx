@@ -1,5 +1,5 @@
 import { useCallback, useDeferredValue, useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, CheckCircle2, ChevronDown, Download, FileCheck2, FileText, FolderClosed, Languages, LockKeyhole, Maximize2, RefreshCw, RotateCw, ShieldCheck, Trash2, TriangleAlert, Upload, ZoomIn, ZoomOut } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CheckCircle2, ChevronDown, Clock3, Download, FileCheck2, FileText, FolderClosed, Languages, LockKeyhole, Maximize2, RefreshCw, RotateCw, ShieldCheck, Trash2, TriangleAlert, Upload, UserCheck, UsersRound, UserX, ZoomIn, ZoomOut } from 'lucide-react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAdmin } from './AdminStore'
 import { useAdminAuth } from './AdminAuth'
@@ -7,7 +7,7 @@ import { useAivexLocale } from './AivexI18n'
 import { DOCUMENT_STATUSES, REGISTRATION_STATUSES, dateLabel, timeLabel } from './adminModel'
 import { Button, ConfidentialNotice, CriticalNotice, EmptyState, IconButton, Modal, PageHeader, Pagination, Progress, SectionHeading, StatusBadge, Tabs } from './AdminUI'
 import { ActionDialog, Facts, History, RecordTable, RecordToolbar } from './AdminRecords'
-import { useAdminAivex, useAdminAivexActions } from './useAdminAivex'
+import { useAdminAivex, useAdminAivexActions, useAdminAivexAttendance } from './useAdminAivex'
 import { aivexDateLabel, aivexFilePresentation } from './aivexPresentation'
 import './aivex-admin.css'
 
@@ -28,7 +28,7 @@ const CARD_SORTS = Object.freeze({ attention: 'attention_asc', completion: 'comp
 // Coming back to a team file re-reads it only when the copy on screen is more
 // than a minute old, so switching windows during a review no longer reloads
 // the whole file each time. The Refresh button and every action still do.
-const DETAIL_AUTO_SYNC_MIN_INTERVAL_MS = 60 * 1000
+const DETAIL_AUTO_SYNC_MIN_INTERVAL_MS = 5 * 60 * 1000
 const IMAGE_ZOOM_MIN = .5
 const IMAGE_ZOOM_MAX = 4
 const clampImageZoom = (value) => Math.min(IMAGE_ZOOM_MAX, Math.max(IMAGE_ZOOM_MIN, value))
@@ -94,6 +94,77 @@ function AivexCardGrid({ records, onOpen, locale, pagination, onPageChange, orde
   </section>
 }
 
+const ATTENDANCE_FILTERS = ['all', 'expected', 'present', 'absent']
+
+function AivexAttendanceWorkspace({ attendance, locale, onOpen, addToast }) {
+  const { t, language } = locale
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [query, setQuery] = useState('')
+  const normalizedQuery = query.trim().toLocaleLowerCase(language === 'ar' ? 'ar' : 'en')
+  const teams = attendance.teams.filter((team) => {
+    if (statusFilter !== 'all' && team.status !== statusFilter) return false
+    if (!normalizedQuery) return true
+    return [team.reference, team.teamName, team.institutionName, team.wilaya]
+      .some((value) => String(value || '').toLocaleLowerCase(language === 'ar' ? 'ar' : 'en').includes(normalizedQuery))
+  })
+  const rate = attendance.summary.accepted
+    ? Math.round((attendance.summary.present / attendance.summary.accepted) * 100)
+    : 0
+  const update = async (team, status) => {
+    const result = await attendance.updateAttendance(team, status)
+    if (!result.ok) {
+      addToast(t('Attendance not updated'), t(result.message || 'Please refresh the attendance list and try again.'))
+      if (result.status === 409) attendance.refresh()
+      return
+    }
+    addToast(
+      t(status === 'present' ? 'Arrival confirmed' : status === 'absent' ? 'Team marked absent' : 'Attendance reset'),
+      team.teamName,
+    )
+  }
+
+  const stats = [
+    { key: 'accepted', icon: UsersRound, label: 'Accepted teams' },
+    { key: 'present', icon: UserCheck, label: 'Teams present' },
+    { key: 'absent', icon: UserX, label: 'Teams absent' },
+    { key: 'expected', icon: Clock3, label: 'Awaiting arrival' },
+  ]
+
+  return <section className="adm-attendance" aria-label={t('AIVEX participation')}>
+    <div className="adm-attendance-hero">
+      <div><span>{t('Competition operations')}</span><h2>{t('Accepted-team participation')}</h2><p>{t('Confirm arrivals at the University of Bordj Bou Arreridj without changing the administrative file.')}</p></div>
+      <div className="adm-attendance-rate"><strong>{rate}%</strong><span>{t('Arrival rate')}</span></div>
+    </div>
+    <div className="adm-attendance-stats">
+      {stats.map(({ key, icon: Icon, label }) => <article key={key} className={`is-${key}`}><Icon size={20}/><span>{t(label)}</span><strong>{attendance.summary[key] || 0}</strong></article>)}
+    </div>
+    <div className="adm-attendance-toolbar">
+      <label><span className="sr-only">{t('Search accepted teams')}</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('Search team, reference or institution…')}/></label>
+      <div role="group" aria-label={t('Filter attendance')}>
+        {ATTENDANCE_FILTERS.map((status) => <button type="button" key={status} className={statusFilter === status ? 'is-active' : ''} aria-pressed={statusFilter === status} onClick={() => setStatusFilter(status)}>{t(status === 'all' ? 'All accepted' : status === 'expected' ? 'Awaiting arrival' : status === 'present' ? 'Present' : 'Absent')}</button>)}
+      </div>
+      <Button variant="secondary" onClick={attendance.refresh} disabled={attendance.loading} icon={<RefreshCw size={15}/>}>{t('Refresh attendance')}</Button>
+    </div>
+    {attendance.error ? <div className="adm-state-error" role="alert"><TriangleAlert size={22}/><h3>{t('Attendance could not be loaded')}</h3><p>{t(attendance.error)}</p><Button variant="secondary" onClick={attendance.refresh}>{t('Try again')}</Button></div>
+      : attendance.loading ? <AivexSkeleton label={t('Loading accepted teams')}/>
+        : !teams.length ? <EmptyState title={t(attendance.teams.length ? 'No teams match this attendance view' : 'No accepted teams yet')} copy={t(attendance.teams.length ? 'Change the search or attendance filter.' : 'Teams appear here automatically after final administrative acceptance.')}/>
+          : <div className="adm-attendance-list">{teams.map((team) => {
+            const busy = attendance.updating === team.reference
+            return <article key={team.reference} className={`adm-attendance-team is-${team.status}`}>
+              <div className="adm-attendance-team__identity"><code><Ltr>{team.reference}</Ltr></code><h3><bdi>{team.teamName}</bdi></h3><p>{team.institutionName}</p><span>{team.wilaya}</span></div>
+              <div className="adm-attendance-team__state"><span className={`adm-attendance-badge is-${team.status}`}>{t(team.status === 'present' ? 'Present' : team.status === 'absent' ? 'Absent' : 'Awaiting arrival')}</span>{team.checkedAt && <small>{aivexDateLabel(team.checkedAt, language)}{team.checkedBy ? ` · ${team.checkedBy}` : ''}</small>}</div>
+              <div className="adm-attendance-team__actions">
+                <Button variant="secondary" onClick={() => onOpen(team)} disabled={busy}>{t('Open file')}</Button>
+                {attendance.canManage && team.status !== 'present' && <Button onClick={() => update(team, 'present')} disabled={busy} icon={<UserCheck size={15}/>}>{t('Confirm presence')}</Button>}
+                {attendance.canManage && team.status !== 'absent' && <Button variant="danger" onClick={() => update(team, 'absent')} disabled={busy} icon={<UserX size={15}/>}>{t('Mark absent')}</Button>}
+                {attendance.canManage && team.status !== 'expected' && <button className="adm-attendance-reset" type="button" onClick={() => update(team, 'expected')} disabled={busy}>{t('Reset check-in')}</button>}
+              </div>
+            </article>
+          })}</div>}
+    {!attendance.loading && !attendance.error && !attendance.canManage && <p className="adm-attendance-readonly"><LockKeyhole size={14}/>{t('Attendance is read-only for reviewer accounts.')}</p>}
+  </section>
+}
+
 export function AivexListPage({ globalQuery }) {
   const navigate = useNavigate()
   const { user } = useAdminAuth()
@@ -101,6 +172,7 @@ export function AivexListPage({ globalQuery }) {
   const locale = useAivexLocale()
   const { language, isArabic, dir, t, setLanguage, path } = locale
   const [params] = useSearchParams()
+  const [workspace, setWorkspace] = useState('files')
   const [search, setSearch] = useState('')
   const deferredSearch = useDeferredValue(`${search} ${globalQuery}`.trim())
   const [filters, setFilters] = useState(params.get('document') ? { document: params.get('document') } : {})
@@ -118,8 +190,9 @@ export function AivexListPage({ globalQuery }) {
   const [purgeReference, setPurgeReference] = useState('')
   const { purgeAll } = useAdminAivexActions()
   const { records: teams, pagination, summary, facets, loading, error, refresh } = useAdminAivex({
-    page, search: deferredSearch, filters, sort,
+    page, search: deferredSearch, filters, sort, enabled: workspace === 'files',
   })
+  const attendance = useAdminAivexAttendance({ edition: 2, enabled: workspace === 'attendance' })
 
   useEffect(() => {
     const query = window.matchMedia('(max-width: 767px)')
@@ -173,7 +246,12 @@ export function AivexListPage({ globalQuery }) {
   }
 
   return <div className={`adm-page adm-aivex-page ${isArabic ? 'is-arabic' : ''}`} dir={dir} lang={language}>
-    <PageHeader eyebrow={t('AIVEX · Edition 02')} title={t('AIVEX files')} description={t('Find a team, review its file and follow up on corrections.')} actions={<div className="adm-aivex-header-actions"><AivexLanguageSwitch language={language} setLanguage={setLanguage} t={t}/><Button variant="secondary" onClick={refresh} disabled={loading} icon={<RefreshCw size={15}/>}>{t('Refresh files')}</Button>{user?.role === 'super_admin' && <Button variant="danger" onClick={() => setPurgeOpen(true)} icon={<Trash2 size={15}/>}>{t('Delete all team files')}</Button>}</div>}/>
+    <PageHeader eyebrow={t('AIVEX · Edition 02')} title={t('AIVEX files')} description={t('Find a team, review its file and follow up on corrections.')} actions={<div className="adm-aivex-header-actions"><AivexLanguageSwitch language={language} setLanguage={setLanguage} t={t}/><Button variant="secondary" onClick={workspace === 'attendance' ? attendance.refresh : refresh} disabled={workspace === 'attendance' ? attendance.loading : loading} icon={<RefreshCw size={15}/>}>{t(workspace === 'attendance' ? 'Refresh attendance' : 'Refresh files')}</Button>{workspace === 'files' && user?.role === 'super_admin' && <Button variant="danger" onClick={() => setPurgeOpen(true)} icon={<Trash2 size={15}/>}>{t('Delete all team files')}</Button>}</div>}/>
+    <nav className="adm-aivex-workspaces" aria-label={t('AIVEX workspace')}>
+      <button type="button" className={workspace === 'files' ? 'is-active' : ''} aria-pressed={workspace === 'files'} onClick={() => setWorkspace('files')}><FileCheck2 size={18}/><span><b>{t('Administrative files')}</b><small>{t('Review and corrections')}</small></span></button>
+      <button type="button" className={workspace === 'attendance' ? 'is-active' : ''} aria-pressed={workspace === 'attendance'} onClick={() => setWorkspace('attendance')}><UsersRound size={18}/><span><b>{t('Participation')}</b><small>{t('Accepted teams and arrivals')}</small></span><strong>{attendance.summary.accepted || summary.documentCounts?.validated || 0}</strong></button>
+    </nav>
+    {workspace === 'attendance' ? <AivexAttendanceWorkspace attendance={attendance} locale={locale} addToast={addToast} onOpen={(team) => navigate(path(`/admin/aivex/${team.reference}`))}/> : <>
     <nav className="adm-case-queues" aria-label={t('Filter team files')}>
       {AIVEX_QUEUES.map((queue) => <button key={queue.count} type="button" aria-pressed={(filters.document || '') === queue.filter} className={(filters.document || '') === queue.filter ? 'is-active' : ''} onClick={() => resetPage(() => setFilters({ ...filters, document: queue.filter }))}><span>{t(queue.label)}</span><b>{queue.count === 'all' ? summary.registered || 0 : summary.documentCounts?.[queue.count] || 0}</b></button>)}
     </nav>
@@ -193,6 +271,7 @@ export function AivexListPage({ globalQuery }) {
       </>}
     </div>
     <div className="adm-security-footnote"><LockKeyhole size={14}/><p>{t('Identity documents are visible only inside the confidential viewer. Every consultation is logged.')}</p></div>
+    </>}
     <Modal open={purgeOpen} onClose={closePurge} className="adm-aivex-purge-modal" closeLabel={isArabic ? 'إغلاق' : 'Close'} eyebrow={t('Irreversible operation')} title={t('Delete every AIVEX team file?')} footer={<><Button variant="secondary" onClick={closePurge} disabled={purgeBusy}>{t('Cancel')}</Button><Button variant="danger" type="submit" form="aivex-purge-form" disabled={purgeBusy || !purgePassword || !purgeAcknowledged} icon={<Trash2 size={16}/>}>{t(purgeBusy ? 'Deleting securely…' : 'Delete permanently')}</Button></>}>
       <form id="aivex-purge-form" className="adm-aivex-purge-form" onSubmit={submitPurge}>
         <div className="adm-aivex-purge-warning"><TriangleAlert size={22}/><div><b>{t('This action cannot be undone.')}</b><p>{t('Every team file, student record, Magic Link, correction, review and private document will be permanently deleted.')}</p></div></div>

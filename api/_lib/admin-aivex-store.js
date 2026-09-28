@@ -50,6 +50,8 @@ const fail = (stage, error) => {
   })
 }
 
+const missingRpc = (error) => ['PGRST202', '42883'].includes(error?.code)
+
 const safeSearch = (value) => String(value || '')
   .normalize('NFKC')
   .replace(/[^\p{L}\p{N}\s@.+_-]/gu, ' ')
@@ -98,6 +100,7 @@ export function createAdminAivexStore(supabase) {
         p_date_to: options.dateTo || null,
         p_sort: options.sort,
       })
+      if (error && missingRpc(error)) return null
       if (error) fail('aivex_list_bundle', error)
       return data || { rows: [], total: 0, summary: {}, facets: {} }
     },
@@ -143,6 +146,7 @@ export function createAdminAivexStore(supabase) {
       const { data, error } = await supabase.rpc('admin_get_aivex_detail', {
         p_reference: reference,
       })
+      if (error && missingRpc(error)) return null
       if (error) fail('aivex_detail_bundle', error)
       return data
     },
@@ -255,6 +259,26 @@ export function createAdminAivexStore(supabase) {
       })
       if (error) fail('aivex_purge_all', error)
       return Array.isArray(data) ? data[0] : data
+    },
+
+    async attendance(edition) {
+      const { data, error } = await supabase.rpc('admin_list_aivex_attendance', {
+        p_edition: edition,
+      })
+      if (error) fail('aivex_attendance_list', error)
+      return data || { teams: [], summary: {} }
+    },
+
+    async setAttendance({ reference, adminUserId, status, expectedUpdatedAt, now }) {
+      const { data, error } = await supabase.rpc('admin_set_aivex_attendance', {
+        p_reference: reference,
+        p_admin_user_id: adminUserId,
+        p_status: status,
+        p_expected_updated_at: expectedUpdatedAt,
+        p_now: now.toISOString(),
+      })
+      if (error) fail('aivex_attendance_write', error)
+      return data
     },
 
     async emptyPrivateBuckets() {
