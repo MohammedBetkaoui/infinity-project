@@ -2,6 +2,7 @@ import { createServerAdminAuthService, requireAdminSession } from './_lib/admin-
 import { createServerAdminApplicationsService } from './_lib/admin-applications.js'
 import { createServerAdminPeopleService } from './_lib/admin-people.js'
 import { createServerAdminAivexService } from './_lib/admin-aivex.js'
+import { createServerAdminOverviewService } from './_lib/admin-overview.js'
 import { canAccessApplications } from './_lib/admin-applications-permissions.js'
 import { canAccessPeople } from './_lib/admin-people-permissions.js'
 import {
@@ -188,6 +189,43 @@ const adminPathFromRequest = (req) => {
 }
 
 const joinAdministrationEnabled = (env = process.env) => env.ADMIN_JOIN_API_ENABLED === 'true'
+
+export function createAdminOverviewHandler({
+  createService = createServerAdminOverviewService,
+  requireSession = requireAdminSession,
+  env = process.env,
+  enabled = adminAuthEnabled,
+} = {}) {
+  return async function adminOverviewHandler(req, res) {
+    res.setHeader('Allow', 'GET')
+    if (req.method !== 'GET') {
+      return sendAdminJson(res, 405, { success: false, message: 'Method not allowed.' })
+    }
+    if (!enabled(env)) {
+      return sendAdminJson(res, 503, { success: false, message: 'Administrative overview is not enabled yet.' })
+    }
+
+    let session
+    try {
+      session = await requireSession(req)
+    } catch (error) {
+      safeAdminAuthLog('overview_session', error)
+      return sendAdminJson(res, 503, { success: false, message: 'Administrative service unavailable.' })
+    }
+    if (!session) return sendAdminJson(res, 401, { success: false, message: 'Your session has expired.' })
+    if (session.user.role !== 'super_admin') {
+      return sendAdminJson(res, 403, { success: false, message: 'This workspace is restricted to super administrators.' })
+    }
+
+    try {
+      const dashboard = await createService().dashboard(2)
+      return sendAdminJson(res, 200, { success: true, dashboard })
+    } catch (error) {
+      safeAdminAuthLog('overview', error)
+      return sendAdminJson(res, 503, { success: false, message: 'Unable to load the administrative overview right now.' })
+    }
+  }
+}
 
 export function createAdminApplicationsHandler({
   createService = createServerAdminApplicationsService,
@@ -543,12 +581,14 @@ export function createAdminAivexHandler({
 
 export function createAdminRouter(handlers = {}) {
   const auth = handlers.auth || createAdminAuthRouter()
+  const overview = handlers.overview || createAdminOverviewHandler()
   const applications = handlers.applications || createAdminApplicationsHandler()
   const people = handlers.people || createAdminPeopleHandler()
   const aivex = handlers.aivex || createAdminAivexHandler()
   return function adminRouter(req, res) {
     const path = adminPathFromRequest(req)
     if (path.startsWith('auth/')) return auth(req, res)
+    if (path === 'overview') return overview(req, res)
     if (path === 'applications' || path.startsWith('applications/')) return applications(req, res)
     if (path === 'members' || path.startsWith('members/') || path === 'staff' || path.startsWith('staff/')) return people(req, res)
     if (path === 'aivex' || path.startsWith('aivex/')) return aivex(req, res)

@@ -9,7 +9,6 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import InfinityMark from '../components/InfinityMark'
 import { useAdminAuth } from './AdminAuth'
 import { navItems } from './adminData'
-import { useAdmin } from './AdminStore'
 import { aivexPath, translateAivex } from './AivexI18n'
 import { STATUS_TRANSLATIONS } from './adminModel'
 
@@ -147,7 +146,6 @@ export function ToastStack({ toasts }) {
 
 function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen, language = 'en' }) {
   const navigate = useNavigate()
-  const { state } = useAdmin()
   const { user, logout } = useAdminAuth()
   const [signingOut, setSigningOut] = useState(false)
   const isArabic = language === 'ar'
@@ -160,9 +158,6 @@ function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen, language 
   }
   const renderNavItem = (item) => {
     const Icon = icons[item.icon]
-    const count = item.icon === 'aivex'
-        ? state.teams.filter((team) => ['Signed document received', 'Under review', 'Corrections needed'].includes(team.document)).length
-        : 0
     return (
       <NavLink
         key={item.path}
@@ -175,7 +170,6 @@ function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen, language 
         <span className="adm-nav-node" aria-hidden="true" />
         <Icon size={17} />
         <span className="adm-nav-label">{t(item.label)}</span>
-        {count > 0 && <em>{String(count).padStart(2, '0')}</em>}
       </NavLink>
     )
   }
@@ -257,7 +251,7 @@ export function AdminShell({ children, collapsed, setCollapsed, mobileOpen, setM
       <div className="adm-workspace">
         <Topbar setMobileOpen={setMobileOpen} query={query} setQuery={setQuery} notify={onNotifications} onNewAction={onNewAction} language={language} />
         <main className="adm-main" id="admin-content">{children}</main>
-        <footer className="adm-global-footer"></footer>
+        <footer className="adm-global-footer"><span><i />{livePeopleWorkspace ? 'Protected workspace · Live database records' : t('Protected workspace · Live database records')}</span><code>INFINITY / ADMIN · 2026.09</code></footer>
       </div>
     </div>
   )
