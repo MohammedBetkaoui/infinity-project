@@ -5,6 +5,7 @@ import { test } from 'node:test'
 import { createAdminPeopleHandler } from '../api/admin-auth.js'
 import { createAdminPeopleService } from '../api/_lib/admin-people.js'
 import { canAccessPeople, canManagePeople } from '../api/_lib/admin-people-permissions.js'
+import { createAdminPeopleStore } from '../api/_lib/admin-people-store.js'
 import { parsePeopleListOptions, validatePeopleActionBody, validatePeopleBulkBody, validatePeopleCreateBody } from '../api/_lib/admin-people-validation.js'
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8')
@@ -113,6 +114,31 @@ test('staff detail retains its member link without exposing database actor field
   assert.equal(profile.department, 'Dev / Tech')
   assert.equal(profile.requested, 'Design / Content Creation')
   assert.equal(profile.created_by_admin_user_id, undefined)
+})
+
+function recordingSupabase(result) {
+  const calls = []
+  const builder = { then: (resolve, reject) => Promise.resolve(result).then(resolve, reject) }
+  for (const method of ['select', 'or', 'eq', 'gte', 'lte', 'order', 'range', 'limit', 'maybeSingle']) {
+    builder[method] = (...args) => { calls.push([method, ...args]); return builder }
+  }
+  return { calls, client: { from: (table) => { calls.push(['from', table]); return builder } } }
+}
+
+test('someone accepted as staff is listed on the Staff page only, not also on Members', async () => {
+  for (const kind of ['members', 'staff']) {
+    const { calls, client } = recordingSupabase({ data: [], error: null, count: 0 })
+    const store = createAdminPeopleStore(client)
+    await store.list(kind, { page: 1, limit: 12, sort: 'joined_desc' })
+    await store.statusCounts(kind, {})
+    await store.facets(kind)
+    await store.find(kind, PROFILE_ID)
+    const queries = calls.filter(([method]) => method === 'from').length
+    const hidesStaff = calls.filter(([method, column, value]) => method === 'eq' && column === 'has_staff_profile' && value === false).length
+    // List, every status count, facets and detail: Members always hides staff
+    // profiles; Staff is never filtered on it.
+    assert.equal(hidesStaff, kind === 'members' ? queries : 0, kind)
+  }
 })
 
 test('directory profiles show the university faculty apart from the staff department', async () => {

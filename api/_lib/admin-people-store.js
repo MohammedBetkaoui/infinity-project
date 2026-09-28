@@ -13,8 +13,16 @@ const SORT_COLUMNS = Object.freeze({ joined: 'joined_at', updated: 'updated_at',
 const fail = (stage, error) => { throw Object.assign(new Error(stage), { stage, code: error?.code || 'database_error', databaseMessage: error?.message }) }
 const safeSearch = (value) => String(value || '').normalize('NFKC').replace(/[^\p{L}\p{N}\s@.+_-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 100)
 
+// One person, one page: anyone with a staff profile (accepted as staff or
+// promoted later) is managed from Staff only. Their member row still exists,
+// because the staff profile hangs off it, but it is not listed as a member.
+const directoryScope = (query, kind) => {
+  const scoped = query.eq('kind', kind)
+  return kind === 'members' ? scoped.eq('has_staff_profile', false) : scoped
+}
+
 function applyFilters(query, kind, options, { includeStatus = true } = {}) {
-  let next = query.eq('kind', kind)
+  let next = directoryScope(query, kind)
   const search = safeSearch(options.q)
   if (search) {
     const pattern = `%${search}%`
@@ -53,7 +61,7 @@ export function createAdminPeopleStore(supabase) {
       return Object.fromEntries(entries)
     },
     async facets(kind) {
-      const { data, error } = await supabase.from('admin_people_directory').select('speciality, structure').eq('kind', kind).limit(2000)
+      const { data, error } = await directoryScope(supabase.from('admin_people_directory').select('speciality, structure'), kind).limit(2000)
       if (error) fail('people_facets', error)
       return {
         specialities: [...new Set((data || []).map((row) => row.speciality).filter(Boolean))].sort(),
@@ -61,7 +69,7 @@ export function createAdminPeopleStore(supabase) {
       }
     },
     async find(kind, profileId) {
-      const { data, error } = await supabase.from('admin_people_directory').select(DIRECTORY_COLUMNS).eq('kind', kind).eq('profile_id', profileId).maybeSingle()
+      const { data, error } = await directoryScope(supabase.from('admin_people_directory').select(DIRECTORY_COLUMNS), kind).eq('profile_id', profileId).maybeSingle()
       if (error) fail('people_detail', error)
       return data
     },

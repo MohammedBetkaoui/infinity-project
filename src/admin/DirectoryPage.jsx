@@ -134,7 +134,7 @@ export default function DirectoryPage({ kind }) {
     }
     const result = await act(detail.id, { action: action.actionName, expectedUpdatedAt: detail.updatedAt, reason: values.reason || '', payload: actionPayload(action.actionName, values) })
     if (!result.ok) return result.message
-    setDetail(result.profile); refresh(); addToast(action.title, 'The live profile and audit history were updated.'); return undefined
+    setDetail(result.profile); refresh(); addToast(action.title, action.actionName === 'promote_to_staff' ? 'This person is now managed from the Staff page.' : 'The live profile and audit history were updated.'); return undefined
   }
 
   const saveNote = async () => {
