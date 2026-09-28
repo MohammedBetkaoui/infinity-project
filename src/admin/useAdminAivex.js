@@ -147,7 +147,14 @@ export function useAdminAivexActions() {
         method: 'POST',
         body: JSON.stringify({ password, confirmation: 'delete_all_aivex_files' }),
       })
-      if (!response.ok) return { ok: false, status: response.status, message: body.message || 'The AIVEX files could not be deleted.' }
+      if (!response.ok) {
+        return {
+          ok: false,
+          status: response.status,
+          message: body.message || 'The AIVEX files could not be deleted.',
+          reference: typeof body.reference === 'string' ? body.reference : '',
+        }
+      }
       return { ok: true, deletedRegistrations: Number(body.deletedRegistrations || 0) }
     } catch {
       return { ok: false, message: 'Unable to reach the AIVEX administration service.' }

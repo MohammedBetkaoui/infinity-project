@@ -81,6 +81,8 @@ const ARABIC = Object.freeze({
   'The team files were deleted, but some private documents still need cleanup. Confirm the action again to retry.': 'تم حذف ملفات الفرق، لكن بعض الوثائق الخاصة ما زالت تحتاج إلى التنظيف. أكّد العملية مرة أخرى لإعادة المحاولة.',
   'An AIVEX operation is still being saved. Wait a moment and try again.': 'لا تزال هناك عملية AIVEX قيد الحفظ. انتظر قليلاً ثم أعد المحاولة.',
   'The AIVEX files could not be deleted.': 'تعذر حذف ملفات AIVEX.',
+  'Unable to delete the AIVEX files right now.': 'تعذر حذف ملفات AIVEX حالياً.',
+  'Technical reference': 'المرجع التقني',
   'Invalid deletion confirmation.': 'تأكيد الحذف غير صالح.',
   'Loading AIVEX files': 'جارٍ تحميل ملفات AIVEX',
   'AIVEX files could not be loaded': 'تعذر تحميل ملفات AIVEX',

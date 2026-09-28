@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
 import { Readable } from 'node:stream'
 import test from 'node:test'
 import { createAdminAivexService } from '../api/_lib/admin-aivex.js'
@@ -188,6 +188,49 @@ test('purge lock repair blocks competing writes without blocking admin reads', a
   assert.match(migration, /grant execute on function public\.admin_purge_all_aivex_data[\s\S]+to service_role/)
 })
 
+// pg-safeupdate on the Data API rejects any DELETE/UPDATE without WHERE, even
+// inside a function, with SQLSTATE 21000 (answered 503 by the admin API).
+const purgeFunctionWrites = (migration) => migration
+  .split('$$')[1]
+  .replace(/--[^\n]*/g, '')
+  .split(';')
+  .map((statement) => statement.trim())
+  .filter((statement) => /^(delete|update)\b/.test(statement))
+
+test('safeupdate repair keeps the purge graph and qualifies every delete for the Data API', async () => {
+  const migration = (await read('supabase/migrations/20261007120000_fix_aivex_purge_safeupdate.sql')).toLowerCase()
+  assert.match(migration, /create or replace function public\.admin_purge_all_aivex_data/)
+  assert.match(migration, /security definer/)
+  assert.match(migration, /set lock_timeout = '5s'/)
+  assert.match(migration, /set statement_timeout = '15s'/)
+  assert.match(migration, /lock table[\s\S]+in share row exclusive mode/)
+  assert.match(migration, /v_role is distinct from 'super_admin'/)
+  const writes = purgeFunctionWrites(migration)
+  assert.deepEqual(writes.map((statement) => statement.match(/^delete from public\.([a-z_]+)/)?.[1]), [
+    'aivex_correction_items', 'aivex_correction_requests', 'aivex_admin_document_reviews',
+    'aivex_admin_case_reviews', 'aivex_magic_links', 'aivex_submitted_documents',
+    'aivex_generated_documents', 'aivex_students', 'aivex_members',
+    'aivex_upload_sessions', 'aivex_registrations',
+  ])
+  for (const statement of writes) assert.match(statement, /\swhere true$/, statement)
+  assert.match(migration, /insert into public\.admin_audit_events/)
+  assert.match(migration, /revoke all on function public\.admin_purge_all_aivex_data[\s\S]+from public, anon, authenticated/)
+  assert.match(migration, /grant execute on function public\.admin_purge_all_aivex_data[\s\S]+to service_role/)
+})
+
+test('the latest purge definition never deletes or updates without a WHERE clause', async () => {
+  const directory = new URL('../supabase/migrations/', import.meta.url)
+  const names = (await readdir(directory)).filter((name) => name.endsWith('.sql')).sort()
+  let latest = null
+  for (const name of names) {
+    const migration = (await readFile(new URL(name, directory), 'utf8')).toLowerCase()
+    if (migration.includes('create or replace function public.admin_purge_all_aivex_data')) latest = migration
+  }
+  const writes = purgeFunctionWrites(latest)
+  assert.ok(writes.length >= 11)
+  for (const statement of writes) assert.match(statement, /\bwhere\b/, statement)
+})
+
 test('purge lock or statement contention fails fast with a controlled retry response', async () => {
   const env = { ADMIN_AIVEX_API_ENABLED: 'true', NODE_ENV: 'production', ADMIN_SESSION_COOKIE_NAME: 'infinity_admin_session' }
   for (const code of ['55P03', '57014']) {
@@ -210,6 +253,38 @@ test('purge lock or statement contention fails fast with a controlled retry resp
   }
 })
 
+test('an unexpected purge failure answers 503 with a data-free step:code reference', async () => {
+  const env = { ADMIN_AIVEX_API_ENABLED: 'true', NODE_ENV: 'production', ADMIN_SESSION_COOKIE_NAME: 'infinity_admin_session' }
+  const failWith = async (failure) => {
+    const handler = createAdminAivexHandler({
+      createService: () => ({ purgeAll: async () => { throw Object.assign(new Error('aivex_purge_all'), failure) } }),
+      createAuthService: () => ({ confirmPassword: async () => ({ ok: true }) }),
+      requireSession: async () => ({ user: SUPER_ADMIN }),
+      env,
+    })
+    const res = response()
+    await handler(request('POST', '/api/admin-auth?__admin_path=aivex/purge', {
+      password: PASSWORD, confirmation: 'delete_all_aivex_files',
+    }, mutationHeaders), res)
+    return res
+  }
+
+  const res = await failWith({ stage: 'aivex_purge_all', code: '21000', databaseMessage: 'DELETE requires a WHERE clause' })
+  assert.equal(res.statusCode, 503)
+  assert.deepEqual(res.body, {
+    success: false,
+    code: 'aivex_purge_failed',
+    reference: 'aivex_purge_all:21000',
+    message: 'Unable to delete the AIVEX files right now.',
+  })
+  assert.equal((await failWith({ stage: 'rate_limit_reset', code: 504 })).body.reference, 'rate_limit_reset:504')
+
+  // Anything that is not a plain identifier is replaced, never echoed.
+  const hostile = await failWith({ stage: 'edition-2/1f0c/driver/id card.png', code: 'Key (id)=(1f0c) is still referenced' })
+  assert.equal(hostile.body.reference, 'unknown:unexpected_error')
+  assert.doesNotMatch(JSON.stringify(hostile.body), /edition-2|driver|Key \(id\)|WHERE clause/)
+})
+
 test('purge control is password-confirmed, super-admin-only in UI, and never persists the password', async () => {
   const [page, hook] = await Promise.all([
     read('src/admin/AivexPages.jsx'),
@@ -222,5 +297,7 @@ test('purge control is password-confirmed, super-admin-only in UI, and never per
   assert.match(page, /addEventListener\('focus', syncVerification\)/)
   assert.doesNotMatch(page, /setInterval\(syncVerification/)
   assert.match(hook, /\/api\/admin\/aivex\/purge/)
+  assert.match(hook, /reference: typeof body\.reference === 'string' \? body\.reference : ''/)
+  assert.match(page, /setPurgeReference\(result\.reference \|\| ''\)/)
   assert.doesNotMatch(`${page}\n${hook}`, /localStorage|sessionStorage|document\.cookie/)
 })

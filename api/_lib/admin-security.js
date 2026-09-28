@@ -123,7 +123,22 @@ export function normalizeAdminUsername(value) {
   return /^[a-z0-9][a-z0-9._-]{2,63}$/.test(normalized) ? normalized : ''
 }
 
+// The step is the identifier a store gave its failure (session_lookup,
+// rate_limit, aivex_purge_all, ...) and the code a SQLSTATE, PostgREST or
+// HTTP code. Anything else is replaced, so no database message, value or
+// path can travel through either field.
+const SAFE_FAILURE_TOKEN = /^[A-Za-z0-9_.-]{1,64}$/
+const failureStep = (error) => (SAFE_FAILURE_TOKEN.test(String(error?.stage ?? '')) ? String(error.stage) : 'unknown')
+const failureCode = (error) => (
+  ['string', 'number'].includes(typeof error?.code) && SAFE_FAILURE_TOKEN.test(String(error.code))
+    ? String(error.code)
+    : 'unexpected_error'
+)
+
+export function adminFailureReference(error) {
+  return `${failureStep(error)}:${failureCode(error)}`
+}
+
 export function safeAdminAuthLog(stage, error) {
-  const code = typeof error?.code === 'string' ? error.code : 'unexpected_error'
-  console.error('[admin-auth] Request failed', { stage, code })
+  console.error('[admin-auth] Request failed', { stage, step: failureStep(error), code: failureCode(error) })
 }

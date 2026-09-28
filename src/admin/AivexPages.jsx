@@ -111,6 +111,7 @@ export function AivexListPage({ globalQuery }) {
   const [purgeAcknowledged, setPurgeAcknowledged] = useState(false)
   const [purgeBusy, setPurgeBusy] = useState(false)
   const [purgeError, setPurgeError] = useState('')
+  const [purgeReference, setPurgeReference] = useState('')
   const { purgeAll } = useAdminAivexActions()
   const { records: teams, pagination, summary, facets, loading, error, refresh } = useAdminAivex({
     page, search: deferredSearch, filters, sort,
@@ -141,16 +142,19 @@ export function AivexListPage({ globalQuery }) {
     setPurgePassword('')
     setPurgeAcknowledged(false)
     setPurgeError('')
+    setPurgeReference('')
   }
   const submitPurge = async (event) => {
     event.preventDefault()
     if (!purgePassword || !purgeAcknowledged || purgeBusy) return
     setPurgeBusy(true)
     setPurgeError('')
+    setPurgeReference('')
     const result = await purgeAll(purgePassword)
     setPurgeBusy(false)
     if (!result.ok) {
       setPurgeError(t(result.message))
+      setPurgeReference(result.reference || '')
       return
     }
     closePurge()
@@ -192,7 +196,7 @@ export function AivexListPage({ globalQuery }) {
         <p>{t('Your current super-administrator password is required. It is checked securely by the server and is never stored.')}</p>
         <label className="adm-form-field"><span>{t('Current password')}</span><input type="password" value={purgePassword} onChange={(event) => setPurgePassword(event.target.value)} autoComplete="current-password" maxLength={128} required disabled={purgeBusy} autoFocus/></label>
         <label className="adm-aivex-purge-check"><input type="checkbox" checked={purgeAcknowledged} onChange={(event) => setPurgeAcknowledged(event.target.checked)} disabled={purgeBusy}/><span>{t('I understand that all AIVEX team files and documents will be deleted permanently.')}</span></label>
-        {purgeError && <p className="adm-auth-error" role="alert">{purgeError}</p>}
+        {purgeError && <p className="adm-auth-error" role="alert">{purgeError}{purgeReference && <small className="adm-aivex-purge-reference">{t('Technical reference')} · <Ltr>{purgeReference}</Ltr></small>}</p>}
       </form>
     </Modal>
   </div>

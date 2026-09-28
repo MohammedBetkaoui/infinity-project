@@ -20,6 +20,7 @@ import { readJsonBody } from './_lib/http.js'
 import { getClientIp } from './_lib/security.js'
 import {
   adminAuthEnabled,
+  adminFailureReference,
   adminSessionTokenFromRequest,
   clearAdminSessionCookie,
   createAdminSessionCookie,
@@ -507,7 +508,9 @@ export function createAdminAivexHandler({
       }
       return sendAdminJson(res, 503, {
         success: false,
-        ...(purgeAll ? { code: 'aivex_purge_failed' } : {}),
+        // Super-administrator only: the failed step and its error code, so a
+        // failure can be diagnosed from the confirmation dialog itself.
+        ...(purgeAll ? { code: 'aivex_purge_failed', reference: adminFailureReference(error) } : {}),
         message: purgeAll
           ? 'Unable to delete the AIVEX files right now.'
           : actionMatch

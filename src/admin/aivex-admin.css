@@ -30,6 +30,7 @@
 .adm-aivex-purge-check { display: flex; align-items: flex-start; gap: 10px; color: var(--adm-secondary); font-size: 12px; line-height: 1.6; cursor: pointer; }
 .adm-aivex-purge-check input { width: 17px; height: 17px; margin-top: 1px; accent-color: var(--adm-error); flex: 0 0 17px; }
 .adm-aivex-purge-modal .adm-auth-error { margin: 0; }
+.adm-aivex-purge-reference { display: block; margin-top: 4px; font-size: 11px; opacity: .85; }
 
 /* A short queue, followed by the same server-backed search and filters. */
 .adm-case-queues { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 24px; }
