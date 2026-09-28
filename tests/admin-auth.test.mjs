@@ -406,6 +406,19 @@ test('all public admin auth URLs dispatch through one Vercel Function', async ()
   )))
 })
 
+test('no page can be framed by another site (clickjacking), and nothing is content-sniffed', async () => {
+  const { headers } = JSON.parse(await read('vercel.json'))
+  const everyPath = headers.find((entry) => entry.source === '/(.*)')
+  assert.ok(everyPath, 'one rule covers every page, asset and API answer')
+  const values = Object.fromEntries(everyPath.headers.map(({ key, value }) => [key.toLowerCase(), value]))
+  assert.equal(values['x-frame-options'], 'SAMEORIGIN')
+  assert.equal(values['content-security-policy'], "frame-ancestors 'self'")
+  assert.equal(values['x-content-type-options'], 'nosniff')
+  // Same-origin framing stays allowed on purpose: the AIVEX admin viewer
+  // shows a confidential PDF in an iframe of the site itself.
+  assert.match(await read('src/admin/AivexPages.jsx'), /<iframe title=\{t\(file\.kind\)\} src=\{objectUrl\}/)
+})
+
 test('route guard accepts only internal admin return paths and protects direct workspace access', async () => {
   assert.equal(safeAdminReturnTo('/admin/aivex/nova?lang=ar'), '/admin/aivex/nova?lang=ar')
   assert.equal(adminLoginPathFor('/admin/overview'), '/admin/login?returnTo=%2Fadmin%2Foverview')
