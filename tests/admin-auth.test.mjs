@@ -188,6 +188,27 @@ test('valid login creates a hash-only server session and returns safe identity',
   assert.doesNotMatch(JSON.stringify([...store.sessions.values()]), new RegExp(RAW_TOKEN))
 })
 
+test('sensitive actions re-verify the current password against the active server session', async () => {
+  const store = new MemoryAdminStore()
+  const service = serviceFor(store)
+  const login = await service.login({ username: 'infinity.admin', password: CURRENT_PASSWORD, ip: '192.0.2.21' })
+  assert.equal(login.ok, true)
+
+  const confirmed = await service.confirmPassword({
+    token: RAW_TOKEN, password: CURRENT_PASSWORD, ip: '192.0.2.21', requiredRole: 'super_admin',
+  })
+  assert.equal(confirmed.ok, true)
+  assert.equal(confirmed.user.role, 'super_admin')
+
+  const rejected = await service.confirmPassword({
+    token: RAW_TOKEN, password: 'Incorrect password 2026!', ip: '192.0.2.21', requiredRole: 'super_admin',
+  })
+  assert.equal(rejected.ok, false)
+  assert.equal(rejected.status, 400)
+  assert.equal(rejected.message, 'The current password is incorrect.')
+  assert(store.events.some((event) => event.type === 'login_failure'))
+})
+
 test('unknown username and incorrect password produce the same generic response', async () => {
   const unknown = await serviceFor(new MemoryAdminStore()).login({ username: 'missing.admin', password: CURRENT_PASSWORD, ip: '192.0.2.11' })
   const incorrect = await serviceFor(new MemoryAdminStore()).login({ username: 'infinity.admin', password: 'Incorrect password 2026!', ip: '192.0.2.12' })

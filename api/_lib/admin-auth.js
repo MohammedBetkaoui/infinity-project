@@ -16,6 +16,8 @@ export const ADMIN_PASSWORD_POLICY_MESSAGE = 'Use a password between 12 and 128 
 
 const USERNAME_RATE_POLICY = Object.freeze({ limit: 10, windowMs: 15 * 60 * 1000, blockMs: 15 * 60 * 1000 })
 const IP_RATE_POLICY = Object.freeze({ limit: 30, windowMs: 15 * 60 * 1000, blockMs: 15 * 60 * 1000 })
+const REAUTH_USERNAME_RATE_POLICY = Object.freeze({ limit: 5, windowMs: 15 * 60 * 1000, blockMs: 15 * 60 * 1000 })
+const REAUTH_IP_RATE_POLICY = Object.freeze({ limit: 10, windowMs: 15 * 60 * 1000, blockMs: 15 * 60 * 1000 })
 
 const isFuture = (value, now) => value && new Date(value).getTime() > now.getTime()
 
@@ -122,6 +124,37 @@ export function createAdminAuthService({
         expiresAt,
       )
       return { ok: true, token: nextToken, expiresAt, user: resolved.user }
+    },
+
+    async confirmPassword({ token, password, ip, requiredRole }) {
+      const resolved = await resolveToken(token, { touch: false })
+      if (!resolved.ok) return { ok: false, status: 401, message: 'Your session has expired.' }
+      if (requiredRole && resolved.user.role !== requiredRole) {
+        return { ok: false, status: 403, message: 'This action is restricted to the super administrator.' }
+      }
+
+      const clock = now()
+      const usernameKey = normalizeAdminUsername(resolved.user.username) || `user:${resolved.user.id}`
+      const [usernameLimit, ipLimit] = await Promise.all([
+        store.consumeRateLimit('username', adminRateLimitKey(`reauth:${usernameKey}`, rateLimitSecret), REAUTH_USERNAME_RATE_POLICY, clock),
+        store.consumeRateLimit('ip', adminRateLimitKey(`reauth:${ip || 'unknown'}`, rateLimitSecret), REAUTH_IP_RATE_POLICY, clock),
+      ])
+      if (!usernameLimit.allowed || !ipLimit.allowed) {
+        await consumePasswordTiming(password)
+        return {
+          ok: false,
+          status: 429,
+          message: 'Password confirmation is temporarily unavailable. Please wait and try again.',
+          retryAfterSeconds: Math.max(usernameLimit.retryAfterSeconds, ipLimit.retryAfterSeconds, 1),
+        }
+      }
+
+      const matches = await verifyPassword(password, resolved.userRecord.password_hash)
+      if (!matches) {
+        await store.recordLoginFailure(resolved.userRecord.id, clock)
+        return { ok: false, status: 400, message: 'The current password is incorrect.' }
+      }
+      return { ok: true, user: resolved.user }
     },
   }
 }

@@ -36,6 +36,10 @@ export function canAccessAivexDocuments(role) {
   return ['super_admin', 'administrator', 'reviewer'].includes(role)
 }
 
+export function canPurgeAllAivex(role) {
+  return role === 'super_admin'
+}
+
 export function allowedAivexActions(role) {
   return [...ADMIN_AIVEX_ACTIONS, ...ADMIN_AIVEX_CAPABILITIES]
     .filter((action) => canManageAivex(role, action))

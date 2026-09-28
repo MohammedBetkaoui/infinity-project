@@ -139,5 +139,22 @@ export function useAdminAivexActions() {
     return finalized.body.team
   }, [request])
 
-  return { loadDetail, act, loadDocument, uploadIdentityReplacement }
+  const purgeAll = useCallback(async (password) => {
+    if (mutation.current) return { ok: false, message: 'Another AIVEX action is still being saved.' }
+    mutation.current = 'purge-all'
+    try {
+      const { response, body } = await request('/api/admin/aivex/purge', {
+        method: 'POST',
+        body: JSON.stringify({ password, confirmation: 'delete_all_aivex_files' }),
+      })
+      if (!response.ok) return { ok: false, status: response.status, message: body.message || 'The AIVEX files could not be deleted.' }
+      return { ok: true, deletedRegistrations: Number(body.deletedRegistrations || 0) }
+    } catch {
+      return { ok: false, message: 'Unable to reach the AIVEX administration service.' }
+    } finally {
+      mutation.current = null
+    }
+  }, [request])
+
+  return { loadDetail, act, loadDocument, uploadIdentityReplacement, purgeAll }
 }

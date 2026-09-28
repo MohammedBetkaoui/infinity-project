@@ -2,7 +2,7 @@ import { createServerSupabaseClient } from './aivex-server.js'
 import { createSupabaseDocumentStore } from './aivex-document-store.js'
 import { generateOfficialDocuments } from './aivex-document-generation.js'
 import {
-  allowedAivexActions, canAccessAivexDocuments, canManageAivex,
+  allowedAivexActions, canAccessAivexDocuments, canManageAivex, canPurgeAllAivex,
 } from './admin-aivex-permissions.js'
 import { createAdminAivexStore } from './admin-aivex-store.js'
 import { CORRECTION_ITEM_DOCUMENT_KEY } from '../../shared/aivex/correction-items.js'
@@ -472,6 +472,39 @@ export function createAdminAivexService({ store, documentStore, now = () => new 
     },
 
     detail,
+
+    async purgeAll(user) {
+      if (!canPurgeAllAivex(user.role)) {
+        return { ok: false, status: 403, message: 'This action is restricted to the super administrator.' }
+      }
+      const clock = now()
+      const purged = await store.purgeAll({ adminUserId: user.id, now: clock })
+      const storage = await store.emptyPrivateBuckets()
+      try {
+        await store.auditPurgeStorage({
+          adminUserId: user.id,
+          operationId: purged.operation_id,
+          completed: storage.ok,
+          failedCount: storage.failedCount,
+          now: clock,
+        })
+      } catch (error) {
+        console.error('[aivex] Purge storage audit failed', { stage: error?.stage || 'purge-audit', code: error?.code })
+      }
+      if (!storage.ok) {
+        return {
+          ok: false,
+          status: 502,
+          code: 'aivex_storage_cleanup_incomplete',
+          message: 'The team files were deleted, but some private documents still need cleanup. Confirm the action again to retry.',
+        }
+      }
+      return {
+        ok: true,
+        deletedRegistrations: Number(purged.deleted_registrations || 0),
+        deletedUploadSessions: Number(purged.deleted_upload_sessions || 0),
+      }
+    },
 
     async act(reference, input, user) {
       if (!canManageAivex(user.role, input.action)) {

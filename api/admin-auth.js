@@ -14,7 +14,7 @@ import {
 } from './_lib/admin-people-validation.js'
 import {
   isAivexDocumentKey, isAivexReference, parseAivexListOptions, validateAdminIdentityUploadFinalizeBody,
-  validateAdminIdentityUploadInitBody, validateAivexActionBody,
+  validateAdminIdentityUploadInitBody, validateAivexActionBody, validateAivexPurgeBody,
 } from './_lib/admin-aivex-validation.js'
 import { readJsonBody } from './_lib/http.js'
 import { getClientIp } from './_lib/security.js'
@@ -377,6 +377,7 @@ function sendAdminDocument(res, document) {
 
 export function createAdminAivexHandler({
   createService = createServerAdminAivexService,
+  createAuthService = createServerAdminAuthService,
   requireSession = requireAdminSession,
   env = process.env,
   enabled = aivexAdministrationEnabled,
@@ -403,6 +404,7 @@ export function createAdminAivexHandler({
     const documentMatch = path.match(/^aivex\/(AIVEX[1-9][0-9]?-[0-9A-HJKMNP-TV-Z]{8})\/documents\/([A-Za-z0-9-]+)\/content$/)
     const identityInitMatch = path.match(/^aivex\/(AIVEX[1-9][0-9]?-[0-9A-HJKMNP-TV-Z]{8})\/identity-upload\/init$/)
     const identityFinalizeMatch = path.match(/^aivex\/(AIVEX[1-9][0-9]?-[0-9A-HJKMNP-TV-Z]{8})\/identity-upload\/finalize$/)
+    const purgeAll = path === 'aivex/purge'
 
     if (req.method === 'POST' && !trustedOrigin(req, env)) {
       return sendAdminJson(res, 403, { success: false, message: 'Request rejected.' })
@@ -415,6 +417,30 @@ export function createAdminAivexHandler({
         if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid AIVEX filters.' })
         const result = await service.list(parsed.value, session.user)
         return sendAdminJson(res, 200, { success: true, ...result })
+      }
+
+      if (purgeAll && req.method === 'POST') {
+        if (session.user.role !== 'super_admin') {
+          return sendAdminJson(res, 403, { success: false, message: 'This action is restricted to the super administrator.' })
+        }
+        if (!String(req.headers?.['content-type'] || '').toLowerCase().startsWith('application/json')) {
+          return sendAdminJson(res, 415, { success: false, message: 'Unsupported request.' })
+        }
+        const parsed = validateAivexPurgeBody(await readJsonBody(req, MAX_AIVEX_BODY_BYTES))
+        if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid deletion confirmation.' })
+        const confirmed = await createAuthService().confirmPassword({
+          token: adminSessionTokenFromRequest(req, env),
+          password: parsed.value.password,
+          ip: getClientIp(req),
+          requiredRole: 'super_admin',
+        })
+        if (!confirmed.ok) {
+          if (confirmed.retryAfterSeconds) res.setHeader('Retry-After', String(confirmed.retryAfterSeconds))
+          return sendAdminJson(res, confirmed.status, { success: false, message: confirmed.message })
+        }
+        const result = await service.purgeAll(session.user)
+        if (!result.ok) return sendAdminJson(res, result.status, { success: false, code: result.code, message: result.message })
+        return sendAdminJson(res, 200, { success: true, deletedRegistrations: result.deletedRegistrations })
       }
 
       if (detailMatch && req.method === 'GET') {
@@ -465,7 +491,7 @@ export function createAdminAivexHandler({
       }
 
       const isAivexPath = path === 'aivex' || path.startsWith('aivex/')
-      res.setHeader('Allow', actionMatch || identityInitMatch || identityFinalizeMatch ? 'POST' : 'GET')
+      res.setHeader('Allow', actionMatch || identityInitMatch || identityFinalizeMatch || purgeAll ? 'POST' : 'GET')
       return sendAdminJson(res, isAivexPath ? 405 : 404, {
         success: false,
         message: isAivexPath ? 'Method not allowed.' : 'Not found.',
@@ -474,9 +500,11 @@ export function createAdminAivexHandler({
       safeAdminAuthLog('aivex', error)
       return sendAdminJson(res, 503, {
         success: false,
-        message: actionMatch
-          ? 'Unable to save this AIVEX action right now.'
-          : 'Unable to load AIVEX administration right now.',
+        message: purgeAll
+          ? 'Unable to delete the AIVEX files right now.'
+          : actionMatch
+            ? 'Unable to save this AIVEX action right now.'
+            : 'Unable to load AIVEX administration right now.',
       })
     }
   }

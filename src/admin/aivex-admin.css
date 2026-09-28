@@ -18,6 +18,18 @@
 .adm-app .adm-aivex-page .adm-aivex-language { display: flex; gap: 8px; min-height: 42px; padding: 4px 6px 4px 10px; border-radius: 7px; background: #fff; }
 .adm-app .adm-aivex-page .adm-aivex-language > span { display: none; }
 .adm-app .adm-aivex-page .adm-aivex-language button { min-width: 34px; min-height: 32px; border-radius: 4px; }
+.adm-aivex-purge-form { display: grid; gap: 18px; }
+.adm-aivex-purge-form > p { margin: 0; color: var(--adm-muted); font-size: 12px; line-height: 1.7; }
+.adm-aivex-purge-warning { display: flex; align-items: flex-start; gap: 12px; padding: 15px; color: #7f2119; background: #fff4f2; border: 1px solid #e9b8b1; border-radius: 7px; }
+.adm-aivex-purge-warning > svg { flex: 0 0 auto; }
+.adm-aivex-purge-warning b { font-size: 14px; }
+.adm-aivex-purge-warning p { margin: 5px 0 0; font-size: 12px; line-height: 1.65; }
+.adm-aivex-purge-count { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; background: #f4f7f4; border: 1px solid var(--adm-line); border-radius: 7px; }
+.adm-aivex-purge-count span { font-size: 12px; font-weight: 600; }
+.adm-aivex-purge-count b { font-size: 24px; }
+.adm-aivex-purge-check { display: flex; align-items: flex-start; gap: 10px; color: var(--adm-secondary); font-size: 12px; line-height: 1.6; cursor: pointer; }
+.adm-aivex-purge-check input { width: 17px; height: 17px; margin-top: 1px; accent-color: var(--adm-error); flex: 0 0 17px; }
+.adm-aivex-purge-modal .adm-auth-error { margin: 0; }
 
 /* A short queue, followed by the same server-backed search and filters. */
 .adm-case-queues { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 24px; }

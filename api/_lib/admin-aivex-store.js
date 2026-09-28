@@ -35,6 +35,13 @@ const SORT_COLUMNS = Object.freeze({
   updated: 'updated_at',
 })
 
+export const AIVEX_PRIVATE_BUCKETS = Object.freeze([
+  'aivex-student-cards',
+  'aivex-id-cards',
+  'aivex-signed-forms',
+  'aivex-generated-forms',
+])
+
 const fail = (stage, error) => {
   throw Object.assign(new Error(stage), {
     stage,
@@ -211,6 +218,39 @@ export function createAdminAivexStore(supabase) {
       const { data, error } = await supabase.rpc(procedure, parameters)
       if (error) fail('aivex_action', error)
       return Array.isArray(data) ? data[0] : data
+    },
+
+    async purgeAll({ adminUserId, now }) {
+      const { data, error } = await supabase.rpc('admin_purge_all_aivex_data', {
+        p_admin_user_id: adminUserId,
+        p_now: now.toISOString(),
+      })
+      if (error) fail('aivex_purge_all', error)
+      return Array.isArray(data) ? data[0] : data
+    },
+
+    async emptyPrivateBuckets() {
+      const results = await Promise.allSettled(AIVEX_PRIVATE_BUCKETS.map(async (bucket) => {
+        const { error } = await supabase.storage.emptyBucket(bucket)
+        if (error) throw error
+      }))
+      return {
+        ok: results.every((result) => result.status === 'fulfilled'),
+        failedCount: results.filter((result) => result.status === 'rejected').length,
+      }
+    },
+
+    async auditPurgeStorage({ adminUserId, operationId, completed, failedCount, now }) {
+      const { error } = await supabase.from('admin_audit_events').insert({
+        admin_user_id: adminUserId,
+        object_type: 'aivex_registration',
+        object_id: operationId,
+        action: completed ? 'aivex_storage_purge_completed' : 'aivex_storage_purge_incomplete',
+        sensitivity: 'confidential',
+        metadata: { failed_bucket_count: failedCount },
+        created_at: now.toISOString(),
+      })
+      if (error) fail('aivex_purge_audit', error)
     },
 
     async applyIdentityReplacement({ registrationId, adminUserId, expectedUpdatedAt, itemId, documentKey, file, now }) {

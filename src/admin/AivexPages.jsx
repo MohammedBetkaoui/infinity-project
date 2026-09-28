@@ -1,7 +1,8 @@
 import { useCallback, useDeferredValue, useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, CheckCircle2, ChevronDown, Download, FileCheck2, FileText, FolderClosed, Languages, LockKeyhole, Maximize2, RefreshCw, RotateCw, ShieldCheck, TriangleAlert, Upload, ZoomIn, ZoomOut } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CheckCircle2, ChevronDown, Download, FileCheck2, FileText, FolderClosed, Languages, LockKeyhole, Maximize2, RefreshCw, RotateCw, ShieldCheck, Trash2, TriangleAlert, Upload, ZoomIn, ZoomOut } from 'lucide-react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAdmin } from './AdminStore'
+import { useAdminAuth } from './AdminAuth'
 import { useAivexLocale } from './AivexI18n'
 import { DOCUMENT_STATUSES, REGISTRATION_STATUSES, dateLabel, timeLabel } from './adminModel'
 import { Button, ConfidentialNotice, CriticalNotice, EmptyState, IconButton, Modal, PageHeader, Pagination, Progress, SectionHeading, StatusBadge, Tabs } from './AdminUI'
@@ -91,6 +92,8 @@ function AivexCardGrid({ records, onOpen, locale, pagination, onPageChange, orde
 
 export function AivexListPage({ globalQuery }) {
   const navigate = useNavigate()
+  const { user } = useAdminAuth()
+  const { addToast } = useAdmin()
   const locale = useAivexLocale()
   const { language, isArabic, dir, t, setLanguage, path } = locale
   const [params] = useSearchParams()
@@ -103,6 +106,12 @@ export function AivexListPage({ globalQuery }) {
   const [cardOrder, setCardOrder] = useState('attention')
   const [tableSort, setTableSort] = useState({ key: '', asc: true })
   const [sort, setSort] = useState('attention_asc')
+  const [purgeOpen, setPurgeOpen] = useState(false)
+  const [purgePassword, setPurgePassword] = useState('')
+  const [purgeAcknowledged, setPurgeAcknowledged] = useState(false)
+  const [purgeBusy, setPurgeBusy] = useState(false)
+  const [purgeError, setPurgeError] = useState('')
+  const { purgeAll } = useAdminAivexActions()
   const { records: teams, pagination, summary, facets, loading, error, refresh } = useAdminAivex({
     page, search: deferredSearch, filters, sort,
   })
@@ -126,9 +135,37 @@ export function AivexListPage({ globalQuery }) {
     setPage(1)
     setSort(value === 'cards' ? CARD_SORTS[cardOrder] : tableSort.key ? `${TABLE_SORT_KEYS[tableSort.key] || 'submitted'}_${tableSort.asc ? 'asc' : 'desc'}` : 'submitted_desc')
   }
+  const closePurge = () => {
+    if (purgeBusy) return
+    setPurgeOpen(false)
+    setPurgePassword('')
+    setPurgeAcknowledged(false)
+    setPurgeError('')
+  }
+  const submitPurge = async (event) => {
+    event.preventDefault()
+    if (!purgePassword || !purgeAcknowledged || purgeBusy) return
+    setPurgeBusy(true)
+    setPurgeError('')
+    const result = await purgeAll(purgePassword)
+    setPurgeBusy(false)
+    if (!result.ok) {
+      setPurgeError(t(result.message))
+      return
+    }
+    closePurge()
+    setPage(1)
+    refresh()
+    addToast(
+      t('All AIVEX team files deleted'),
+      isArabic
+        ? `تم حذف ${result.deletedRegistrations} ملف فريق وجميع الوثائق الخاصة.`
+        : `${result.deletedRegistrations} team files and all private documents were deleted.`,
+    )
+  }
 
   return <div className={`adm-page adm-aivex-page ${isArabic ? 'is-arabic' : ''}`} dir={dir} lang={language}>
-    <PageHeader eyebrow={t('AIVEX · Edition 02')} title={t('AIVEX files')} description={t('Find a team, review its file and follow up on corrections.')} actions={<div className="adm-aivex-header-actions"><AivexLanguageSwitch language={language} setLanguage={setLanguage} t={t}/><Button variant="secondary" onClick={refresh} disabled={loading} icon={<RefreshCw size={15}/>}>{t('Refresh files')}</Button></div>}/>
+    <PageHeader eyebrow={t('AIVEX · Edition 02')} title={t('AIVEX files')} description={t('Find a team, review its file and follow up on corrections.')} actions={<div className="adm-aivex-header-actions"><AivexLanguageSwitch language={language} setLanguage={setLanguage} t={t}/><Button variant="secondary" onClick={refresh} disabled={loading} icon={<RefreshCw size={15}/>}>{t('Refresh files')}</Button>{user?.role === 'super_admin' && <Button variant="danger" onClick={() => setPurgeOpen(true)} icon={<Trash2 size={15}/>}>{t('Delete all team files')}</Button>}</div>}/>
     <nav className="adm-case-queues" aria-label={t('Filter team files')}>
       {AIVEX_QUEUES.map((queue) => <button key={queue.count} type="button" aria-pressed={(filters.document || '') === queue.filter} className={(filters.document || '') === queue.filter ? 'is-active' : ''} onClick={() => resetPage(() => setFilters({ ...filters, document: queue.filter }))}><span>{t(queue.label)}</span><b>{queue.count === 'all' ? summary.registered || 0 : summary.documentCounts?.[queue.count] || 0}</b></button>)}
     </nav>
@@ -148,6 +185,16 @@ export function AivexListPage({ globalQuery }) {
       </>}
     </div>
     <div className="adm-security-footnote"><LockKeyhole size={14}/><p>{t('Identity documents are visible only inside the confidential viewer. Every consultation is logged.')}</p></div>
+    <Modal open={purgeOpen} onClose={closePurge} className="adm-aivex-purge-modal" closeLabel={isArabic ? 'إغلاق' : 'Close'} eyebrow={t('Irreversible operation')} title={t('Delete every AIVEX team file?')} footer={<><Button variant="secondary" onClick={closePurge} disabled={purgeBusy}>{t('Cancel')}</Button><Button variant="danger" type="submit" form="aivex-purge-form" disabled={purgeBusy || !purgePassword || !purgeAcknowledged} icon={<Trash2 size={16}/>}>{t(purgeBusy ? 'Deleting securely…' : 'Delete permanently')}</Button></>}>
+      <form id="aivex-purge-form" className="adm-aivex-purge-form" onSubmit={submitPurge}>
+        <div className="adm-aivex-purge-warning"><TriangleAlert size={22}/><div><b>{t('This action cannot be undone.')}</b><p>{t('Every team file, student record, Magic Link, correction, review and private document will be permanently deleted.')}</p></div></div>
+        <div className="adm-aivex-purge-count"><span>{t('Team files currently listed')}</span><b>{summary.registered || 0}</b></div>
+        <p>{t('Your current super-administrator password is required. It is checked securely by the server and is never stored.')}</p>
+        <label className="adm-form-field"><span>{t('Current password')}</span><input type="password" value={purgePassword} onChange={(event) => setPurgePassword(event.target.value)} autoComplete="current-password" maxLength={128} required disabled={purgeBusy} autoFocus/></label>
+        <label className="adm-aivex-purge-check"><input type="checkbox" checked={purgeAcknowledged} onChange={(event) => setPurgeAcknowledged(event.target.checked)} disabled={purgeBusy}/><span>{t('I understand that all AIVEX team files and documents will be deleted permanently.')}</span></label>
+        {purgeError && <p className="adm-auth-error" role="alert">{purgeError}</p>}
+      </form>
+    </Modal>
   </div>
 }
 

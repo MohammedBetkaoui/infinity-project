@@ -117,3 +117,11 @@ export function validateAdminIdentityUploadFinalizeBody(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body) || !UUID_RE.test(body.uploadSessionId || '')) return { ok: false }
   return { ok: true, value: { uploadSessionId: body.uploadSessionId } }
 }
+
+export function validateAivexPurgeBody(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return { ok: false }
+  if (body.confirmation !== 'delete_all_aivex_files') return { ok: false }
+  if (typeof body.password !== 'string' || body.password.length < 1 || body.password.length > 128) return { ok: false }
+  if (Buffer.byteLength(body.password, 'utf8') > 512) return { ok: false }
+  return { ok: true, value: { password: body.password } }
+}
