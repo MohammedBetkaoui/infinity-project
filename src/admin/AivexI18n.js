@@ -563,7 +563,6 @@ const ARABIC = Object.freeze({
   'New action': 'إجراء جديد',
   'Open profile': 'فتح الملف الشخصي',
   Close: 'إغلاق',
-  'Fictional demo data · Local prototype': 'بيانات تجريبية وهمية · نموذج محلي',
   'Skip to workspace': 'الانتقال إلى مساحة العمل',
   'Refine records': 'تحسين نتائج البحث',
   'Search & filters': 'البحث والتصفية',
