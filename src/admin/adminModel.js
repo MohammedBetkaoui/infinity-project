@@ -47,7 +47,7 @@ export function createDemoState() {
       ...(team.signed ? [{ title: 'Official form downloaded', actor: team.manager, at: '2026-09-19T11:20:00', kind: 'Document' }, { title: 'Signed document deposited · v1', actor: team.manager, at: '2026-09-20T09:45:00', kind: 'Upload' }] : []),
     ] }
   })
-  return { version: 3, applications: applicantRecords, members: memberRecords, staff: staffRecords, teams: teamRecords, activities: recentActivity.map((a, i) => ({ ...a, id: `ACT-${i}`, at: `2026-09-21T${a.time.includes(':') ? a.time : '09:12'}:00`, sensitivity: a.tone === 'sensitive' ? 'Confidential' : 'Standard', objectType: a.kind === 'application' || a.kind === 'interview' ? 'Application' : 'AIVEX', action: a.title, entity: a.subject })), settings: { name: 'Nadia Belkacem', role: 'Lead administrator', campaign: 'Autumn · 2026/27', notificationEmail: false, reviewAlerts: true, viewerTimeout: 120, density: 'Comfortable' } }
+  return { version: 3, applications: applicantRecords, members: memberRecords, staff: staffRecords, teams: teamRecords, activities: recentActivity.map((a, i) => ({ ...a, id: `ACT-${i}`, at: `2026-09-21T${a.time.includes(':') ? a.time : '09:12'}:00`, sensitivity: a.tone === 'sensitive' ? 'Confidential' : 'Standard', objectType: a.kind === 'application' || a.kind === 'interview' ? 'Application' : 'AIVEX', action: a.title, entity: a.subject })) }
 }
 
 export function filterRecords(records, query, filters) {

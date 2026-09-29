@@ -6,6 +6,9 @@ import {
   createServerAdminAivexCampaignSettingsService, validateAivexCampaignSettingsBody,
 } from './_lib/admin-aivex-campaign-settings.js'
 import { createServerAdminOverviewService } from './_lib/admin-overview.js'
+import {
+  createServerAdminPreferencesService, validateAdminPreferencesBody,
+} from './_lib/admin-preferences.js'
 import { AIVEX_EDITION } from '../shared/aivex/contract-v4.js'
 import { canAccessApplications } from './_lib/admin-applications-permissions.js'
 import { canAccessPeople } from './_lib/admin-people-permissions.js'
@@ -193,6 +196,64 @@ const adminPathFromRequest = (req) => {
 }
 
 const joinAdministrationEnabled = (env = process.env) => env.ADMIN_JOIN_API_ENABLED === 'true'
+
+export function createAdminPreferencesHandler({
+  createService = createServerAdminPreferencesService,
+  requireSession = requireAdminSession,
+  env = process.env,
+  enabled = adminAuthEnabled,
+  trustedOrigin = isStrictAdminOrigin,
+} = {}) {
+  return async function adminPreferencesHandler(req, res) {
+    res.setHeader('Allow', 'GET, POST')
+    if (!enabled(env)) {
+      return sendAdminJson(res, 503, { success: false, message: 'Administrator preferences are unavailable.' })
+    }
+
+    let session
+    try { session = await requireSession(req) } catch (error) {
+      safeAdminAuthLog('preferences_session', error)
+      return sendAdminJson(res, 503, { success: false, message: 'Administrative service unavailable.' })
+    }
+    if (!session) return sendAdminJson(res, 401, { success: false, message: 'Your session has expired.' })
+
+    if (req.method === 'POST' && !trustedOrigin(req, env)) {
+      return sendAdminJson(res, 403, { success: false, message: 'Request rejected.' })
+    }
+
+    try {
+      const service = createService()
+      if (req.method === 'GET') {
+        const result = await service.get(session.user)
+        if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: 'Your session has expired.' })
+        return sendAdminJson(res, 200, { success: true, preferences: result.preferences })
+      }
+      if (req.method === 'POST') {
+        if (!isJsonContentType(req)) {
+          return sendAdminJson(res, 415, { success: false, message: 'Unsupported request.' })
+        }
+        const parsed = validateAdminPreferencesBody(await readJsonBody(req, MAX_BODY_BYTES))
+        if (!parsed.ok) {
+          return sendAdminJson(res, 400, {
+            success: false, message: parsed.message, ...(parsed.field ? { field: parsed.field } : {}),
+          })
+        }
+        const result = await service.update(parsed.value, session.user)
+        if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: 'Your session has expired.' })
+        return sendAdminJson(res, 200, { success: true, preferences: result.preferences })
+      }
+      return sendAdminJson(res, 405, { success: false, message: 'Method not allowed.' })
+    } catch (error) {
+      safeAdminAuthLog('preferences', error)
+      return sendAdminJson(res, 503, {
+        success: false,
+        message: req.method === 'POST'
+          ? 'Unable to save administrator preferences right now.'
+          : 'Unable to load administrator preferences right now.',
+      })
+    }
+  }
+}
 
 export function createAdminOverviewHandler({
   createService = createServerAdminOverviewService,
@@ -621,6 +682,7 @@ export function createAdminAivexHandler({
 
 export function createAdminRouter(handlers = {}) {
   const auth = handlers.auth || createAdminAuthRouter()
+  const preferences = handlers.preferences || createAdminPreferencesHandler()
   const overview = handlers.overview || createAdminOverviewHandler()
   const applications = handlers.applications || createAdminApplicationsHandler()
   const people = handlers.people || createAdminPeopleHandler()
@@ -628,6 +690,7 @@ export function createAdminRouter(handlers = {}) {
   return function adminRouter(req, res) {
     const path = adminPathFromRequest(req)
     if (path.startsWith('auth/')) return auth(req, res)
+    if (path === 'settings/preferences') return preferences(req, res)
     if (path === 'overview') return overview(req, res)
     if (path === 'applications' || path.startsWith('applications/')) return applications(req, res)
     if (path === 'members' || path.startsWith('members/') || path === 'staff' || path.startsWith('staff/')) return people(req, res)

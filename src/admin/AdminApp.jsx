@@ -6,6 +6,9 @@ import { adminHomePath, adminPathForRole, hasFullAdminWorkspace } from './adminA
 import { AdminAuthProvider, useAdminAuth } from './AdminAuth'
 import { adminLoginPathFor } from './adminAuthPath'
 import { AdminProvider, useAdmin } from './AdminStore'
+import {
+  AdminPreferencesProvider, useAdminPreferences, useAdminReviewQueue,
+} from './AdminPreferences'
 import { AdminShell, AivexOnlyShell, Button, Modal, ToastStack } from './AdminUI'
 import ApplicationsPage from './ApplicationsPage'
 import DirectoryPage from './DirectoryPage'
@@ -38,6 +41,7 @@ const AIVEX_GLOBAL_ARABIC = Object.freeze({
 function Workspace() {
   const { state, toasts } = useAdmin()
   const { user } = useAdminAuth()
+  const { effectiveReducedMotion, preferences } = useAdminPreferences()
   const { pathname, search: routeSearch } = useLocation()
   const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState(false)
@@ -50,7 +54,15 @@ function Workspace() {
   const t = (value) => isArabicAivex ? (AIVEX_GLOBAL_ARABIC[value] || translateAivex(value, language)) : value
   const preserveAivexLanguage = (route) => isArabicAivex && route.startsWith('/admin/aivex') ? aivexPath(route, language) : route
   const FlowArrow = isArabicAivex ? ArrowLeft : ArrowRight
-  const wrapperClassName = ['adm-admin-root', state.settings.density === 'Compact' && 'adm-density-compact', isArabicAivex && 'is-aivex-ar'].filter(Boolean).join(' ')
+  const reviewQueue = useAdminReviewQueue(
+    hasFullAdminWorkspace(user.role) && preferences.reviewNotificationsEnabled,
+  )
+  const wrapperClassName = [
+    'adm-admin-root',
+    preferences.tableDensity === 'compact' && 'adm-density-compact',
+    effectiveReducedMotion && 'adm-reduced-motion',
+    isArabicAivex && 'is-aivex-ar',
+  ].filter(Boolean).join(' ')
   useEffect(() => {
     document.title = isArabicAivex ? 'إدارة Infinity Club' : 'Infinity Club Administration'
     window.scrollTo(0, 0)
@@ -64,7 +76,6 @@ function Workspace() {
   // Global search stays on the legacy team collection until a cross-resource
   // server endpoint is available, so stale local people records never surface.
   const searchResults = query.trim() ? state.teams.filter((r) => `${r.name} ${r.ref || ''}`.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 8).map((record) => ({ collection: 'teams', record })) : []
-  const pending = state.teams.filter((t) => ['Signed document received', 'Corrections needed', 'Generation issue'].includes(t.document))
   if (!hasFullAdminWorkspace(user.role)) {
     return <div className={wrapperClassName} dir={isArabicAivex ? 'rtl' : 'ltr'} lang={language}>
       <a href="#admin-content" className="adm-skip-link">{t('Skip to workspace')}</a>
@@ -79,17 +90,31 @@ function Workspace() {
       <ToastStack toasts={toasts}/>
     </div>
   }
-  return <div className={wrapperClassName} dir={isArabicAivex ? 'rtl' : 'ltr'} lang={language}><a href="#admin-content" className="adm-skip-link">{t('Skip to workspace')}</a><AdminShell collapsed={collapsed} setCollapsed={setCollapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} query={query} setQuery={setQuery} onNotifications={() => setNotifications(true)} onNewAction={() => setNewAction(true)}>
+  const openNotifications = () => {
+    if (preferences.reviewNotificationsEnabled) reviewQueue.refresh()
+    setNotifications(true)
+  }
+  return <div className={wrapperClassName} dir={isArabicAivex ? 'rtl' : 'ltr'} lang={language}><a href="#admin-content" className="adm-skip-link">{t('Skip to workspace')}</a><AdminShell collapsed={collapsed} setCollapsed={setCollapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} query={query} setQuery={setQuery} onNotifications={openNotifications} hasNotifications={preferences.reviewNotificationsEnabled && reviewQueue.items.length > 0} onNewAction={() => setNewAction(true)}>
     <Routes><Route index element={<Navigate to="/admin/overview" replace/>}/><Route path="overview" element={<OverviewPage/>}/><Route path="applications" element={<ApplicationsPage key={`applications-${routeSearch}`}/>}/><Route path="members" element={<DirectoryPage key={`members-${routeSearch}`} kind="members"/>}/><Route path="staff" element={<DirectoryPage key={`staff-${routeSearch}`} kind="staff"/>}/><Route path="aivex" element={<AivexListPage key={routeSearch} globalQuery=""/>}/><Route path="aivex/:teamId" element={<AivexDetailPage key={pathname}/>}/><Route path="activity" element={<ActivityPage key={routeSearch} globalQuery=""/>}/><Route path="settings" element={<SettingsPage/>}/><Route path="*" element={<Navigate to="/admin/overview" replace/>}/></Routes>
   </AdminShell>
   {query.trim() && <div className="adm-global-results" role="region" aria-label={t('Global search results')}><header><Search size={15}/>{t('Search the workspace')}<button onClick={() => setQuery('')}>{t('Close')}</button></header>{searchResults.length ? searchResults.map(({ collection, record }) => <button key={`${collection}-${record.id}`} onClick={() => { navigate(collection === 'teams' ? preserveAivexLanguage(`/admin/aivex/${record.id}`) : `/admin/${collection}?record=${encodeURIComponent(record.id)}${collection === 'applications' ? `&stage=${record.status}` : ''}`); setQuery('') }}><span><b>{record.name}</b><small dir="ltr">{record.ref || record.email}</small></span><em>{collection === 'teams' ? 'AIVEX' : t(collection)}</em><FlowArrow size={15}/></button>) : <p>{t('No matching names or references.')}</p>}</div>}
   <Modal open={newAction} onClose={() => setNewAction(false)} title={t('What’s next?')} eyebrow={t('Quick actions')} closeLabel={t('Close')}><div className="adm-quick-actions">{[['Review Join applications', 'Meet the next generation of Infinity.', '/admin/applications', Users], ['Verify an AIVEX file', 'Continue the administrative review.', '/admin/aivex', FileText], ['Open the activity log', 'Trace a decision or document consultation.', '/admin/activity', Search]].map(([title, copy, route, Icon]) => <button key={route} onClick={() => { navigate(preserveAivexLanguage(route)); setNewAction(false) }}><Icon size={21}/><span><b>{t(title)}</b><small>{t(copy)}</small></span><FlowArrow size={17}/></button>)}</div></Modal>
-  <Modal open={notifications} onClose={() => setNotifications(false)} title={t('Your review queue')} eyebrow={t('Notifications')} closeLabel={t('Close')}><div className="adm-quick-actions">{state.settings.reviewAlerts && pending.length ? pending.map((team) => <button key={team.id} onClick={() => { navigate(preserveAivexLanguage(`/admin/aivex/${team.id}`)); setNotifications(false) }}><FileText size={20}/><span><b>{team.name}</b><small>{t(team.document)}</small></span><FlowArrow size={16}/></button>) : <p>{t('No review notifications. You can change alert preferences in Settings.')}</p>}</div></Modal>
+  <Modal open={notifications} onClose={() => setNotifications(false)} title={t('Your review queue')} eyebrow={t('Notifications')} closeLabel={t('Close')}><div className="adm-quick-actions">
+    {!preferences.reviewNotificationsEnabled
+      ? <p>Review notifications are disabled in Settings.</p>
+      : reviewQueue.status === 'loading'
+        ? <p role="status">Loading the live AIVEX review queue...</p>
+        : reviewQueue.status === 'error'
+          ? <div className="adm-notification-error" role="alert"><p>{reviewQueue.error}</p><Button variant="secondary" onClick={reviewQueue.refresh}>Retry</Button></div>
+          : reviewQueue.items.length
+            ? reviewQueue.items.map((item) => <button key={item.reference} onClick={() => { navigate(preserveAivexLanguage(`/admin/aivex/${item.reference}`)); setNotifications(false) }}><FileText size={20}/><span><b>{item.teamName}</b><small>{t(item.label)}</small></span><FlowArrow size={16}/></button>)
+            : <p>{t('No review notifications. You can change alert preferences in Settings.')}</p>}
+  </div></Modal>
   <ToastStack toasts={toasts}/></div>
 }
 
-function SecureLoadingState() {
-  return <div className="adm-auth-loading adm-app" role="status" aria-live="polite"><InfinityMark/><LockKeyhole size={20}/><div><b>Verifying administrative access</b><span>Infinity Administration · Secure session</span></div></div>
+function SecureLoadingState({ title = 'Verifying administrative access' }) {
+  return <div className="adm-auth-loading adm-app" role="status" aria-live="polite"><InfinityMark/><LockKeyhole size={20}/><div><b>{title}</b><span>Infinity Administration · Secure session</span></div></div>
 }
 
 function ProtectedWorkspace() {
@@ -99,6 +124,12 @@ function ProtectedWorkspace() {
   if (status !== 'authenticated') {
     return <Navigate to={adminLoginPathFor(`${location.pathname}${location.search}${location.hash}`)} replace/>
   }
+  return <AdminPreferencesProvider><PreferencesWorkspace/></AdminPreferencesProvider>
+}
+
+function PreferencesWorkspace() {
+  const { status } = useAdminPreferences()
+  if (status === 'loading') return <SecureLoadingState title="Loading workspace preferences"/>
   return <AdminProvider><Workspace/></AdminProvider>
 }
 

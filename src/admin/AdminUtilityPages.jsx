@@ -1,14 +1,17 @@
 import { useState } from 'react'
-import { ArrowLeft, ArrowRight, Check, CircleAlert, Eye, EyeOff, LoaderCircle, LockKeyhole, RotateCw, ShieldCheck, TriangleAlert, User } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CalendarClock, Check, CircleAlert, Eye, EyeOff, LoaderCircle, LockKeyhole, RefreshCw, ShieldCheck, TriangleAlert, User } from 'lucide-react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import InfinityMark from '../components/InfinityMark'
 import { useAdminAuth } from './AdminAuth'
+import { useAdminPreferences } from './AdminPreferences'
 import { safeAdminReturnTo } from './adminAuthPath'
 import { useAdmin } from './AdminStore'
 import { dateLabel, filterRecords, timeLabel } from './adminModel'
-import { Button, EmptyState, PageHeader, Progress, StatusBadge, Tabs } from './AdminUI'
+import { Button, PageHeader, StatusBadge, Tabs } from './AdminUI'
 import { ActionDialog, Facts, RecordTable, RecordToolbar, SummaryStrip } from './AdminRecords'
 import AivexCampaignSettings from './AivexCampaignSettings'
+import { useAdminAivexCampaignSettings } from './useAdminAivexCampaignSettings'
+import { formatCampaignDateTime } from '../../shared/aivex/campaign-schedule.js'
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -89,17 +92,6 @@ export function ActivityPage({ globalQuery }) {
   return <div className="adm-page"><PageHeader eyebrow="Accountability · Audit trail" title="Activity log" description="A clear record of decisions, changes and confidential document access."/><SummaryStrip items={[{ label: 'Recorded actions', value: records.length }, { label: 'Confidential events', value: records.filter((r) => r.sensitivity === 'Confidential').length }, { label: 'Administrators', value: new Set(records.map((r) => r.actor)).size }]}/><div className="adm-work-panel"><RecordToolbar search={search} onSearch={setSearch} placeholder="Search action, team or candidate…" filters={filters} onFilters={setFilters} definitions={[{ key: 'actor', label: 'Administrator', options: [...new Set(records.map((r) => r.actor))] }, { key: 'objectType', label: 'Object type', options: ['Application', 'Member', 'Staff', 'AIVEX', 'Administration'] }, { key: 'action', label: 'Action', options: [...new Set(records.map((r) => r.action))] }, { key: 'day', label: 'Date', options: [...new Set(records.map((r) => r.day))] }, { key: 'sensitivity', label: 'Sensitivity', options: ['Standard', 'Confidential'] }]}/><RecordTable records={visible} pageSize={8} onOpen={setDetail} columns={[{ key: 'action', label: 'Action', render: (a) => <span className="adm-log-action">{a.sensitivity === 'Confidential' ? <LockKeyhole size={16}/> : <Check size={16}/>}<b>{a.action}</b></span> }, { key: 'entity', label: 'Team / candidate' }, { key: 'actor', label: 'Administrator' }, { key: 'objectType', label: 'Object', secondary: true }, { key: 'at', label: 'Date / time', render: (a) => <span>{dateLabel(a.at)}<small className="adm-cell-sub">{timeLabel(a.at)}</small></span> }, { key: 'sensitivity', label: 'Sensitivity', render: (a) => <StatusBadge tone={a.sensitivity === 'Confidential' ? 'sensitive' : 'neutral'}>{a.sensitivity}</StatusBadge> }]}/></div>{detail && <ActionDialog action={{ title: detail.action, reason: false, description: `${detail.entity} · ${detail.actor} · ${dateLabel(detail.at)}, ${timeLabel(detail.at)}. ${detail.note || 'No additional internal note.'}`, submit: 'Close', fields: [] }} onClose={() => setDetail(null)} onSubmit={() => {}}/>}</div>
 }
 
-function StatePreview({ value, onRetry }) {
-  if (value === 'Ready') return <div className="adm-state-success"><Check size={24}/><h3>All set</h3><p>Your changes were saved and recorded in the history.</p></div>
-  if (value === 'Loading') return <div className="adm-skeleton-group" aria-label="Loading records" role="status">{[1, 2, 3, 4].map((n) => <div className="adm-skeleton-row" key={n}><i/><span/><b/></div>)}</div>
-  if (value === 'No results') return <EmptyState/>
-  if (value === 'No applications') return <EmptyState title="A quiet inbox" copy="No applications have arrived for this campaign yet."/>
-  if (value === 'Access denied') return <div className="adm-state-error"><LockKeyhole size={26}/><h3>Access restricted</h3><p>Your current role does not include confidential document review.</p><Button variant="secondary" onClick={onRetry}>Return to workspace</Button></div>
-  if (value === 'Historical data incomplete') return <div className="adm-history-incomplete"><h3>Earlier history is unavailable</h3><p>This record was imported without its full history. All subsequent actions will be recorded.</p></div>
-  const copy = { 'Incomplete file': 'Two required items are still missing. Complete the checklist before validation.', 'Missing file': 'The driver’s identity document has not been provided.', 'Generation failed': 'The official document could not be generated. Your team information is saved.', 'Loading error': 'The record could not be loaded. Your changes are preserved.', 'Action impossible': 'File validation requires a verified signed form and all administrative checks.' }
-  return <div className="adm-state-error"><CircleAlert size={26}/><h3>{value}</h3><p>{copy[value]}</p><Button variant="secondary" onClick={onRetry} icon={<RotateCw size={15}/>}>{value.includes('failed') || value.includes('error') ? 'Retry' : 'Return to review'}</Button></div>
-}
-
 function PasswordSecurityPanel({ addToast }) {
   const { changePassword } = useAdminAuth()
   const [currentPassword, setCurrentPassword] = useState('')
@@ -124,24 +116,82 @@ function PasswordSecurityPanel({ addToast }) {
   return <form className="adm-panel adm-settings-form adm-password-settings" onSubmit={submit}><span className="adm-eyebrow">Account security</span><h2>Change password</h2><p>Changing your password revokes every other active session. This browser receives a newly rotated secure session.</p><label className="adm-form-field"><span>Current password</span><input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} autoComplete="current-password" required disabled={busy}/></label><label className="adm-form-field"><span>New password <small>12–128 characters</small></span><input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} autoComplete="new-password" minLength={12} maxLength={128} required disabled={busy}/></label><label className="adm-form-field"><span>Confirm new password</span><input type="password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="new-password" minLength={12} maxLength={128} required disabled={busy}/></label>{error && <p className="adm-auth-error" role="alert"><CircleAlert size={15}/>{error}</p>}<Button type="submit" disabled={busy || !currentPassword || !newPassword || !confirmation} icon={busy ? <LoaderCircle className="adm-spin" size={17}/> : <ShieldCheck size={17}/>}>{busy ? 'Updating securely…' : 'Change password'}</Button></form>
 }
 
+function PreferencesLoadNotice() {
+  const { error, refreshing, refreshPreferences, status } = useAdminPreferences()
+  if (status !== 'error') return null
+  return <section className="adm-panel adm-preferences-error" role="alert" aria-busy={refreshing}><CircleAlert size={19}/><div><b>Administrator preferences could not be loaded.</b><p>{error}</p></div><Button type="button" variant="secondary" onClick={refreshPreferences} disabled={refreshing} icon={refreshing ? <LoaderCircle className="adm-spin" size={14}/> : <RefreshCw size={14}/>}>{refreshing ? 'Retrying…' : 'Retry'}</Button></section>
+}
+
+function OperationalSummary() {
+  const campaign = useAdminAivexCampaignSettings()
+  const labels = { scheduled: 'Scheduled', open: 'Open', closed: 'Closed', disabled: 'Disabled' }
+  return <aside><section className="adm-panel adm-settings-note adm-operational-summary"><CalendarClock size={22}/><span className="adm-eyebrow">Active programmes</span><h2>AIVEX Edition 02</h2>
+    {campaign.loading && !campaign.settings
+      ? <p role="status">Loading the operational campaign…</p>
+      : campaign.settings
+        ? <><StatusBadge tone={campaign.settings.status}>{labels[campaign.settings.status] || campaign.settings.status}</StatusBadge><dl><div><dt>Registration opens</dt><dd>{formatCampaignDateTime(campaign.settings.registrationOpenAt, 'en')}</dd></div><div><dt>Registration closes</dt><dd>{formatCampaignDateTime(campaign.settings.registrationCloseAt, 'en')}</dd></div><div><dt>Timezone</dt><dd>{campaign.settings.timeZone}</dd></div></dl></>
+        : <div role="alert"><p>{campaign.error || 'The operational campaign is unavailable.'}</p><Button type="button" variant="secondary" onClick={campaign.refresh}>Retry</Button></div>}
+  </section></aside>
+}
+
+function WorkspacePreferences({ addToast }) {
+  const { preferences, saving, updatePreferences } = useAdminPreferences()
+  const [draft, setDraft] = useState(() => ({ tableDensity: preferences.tableDensity, reviewNotificationsEnabled: preferences.reviewNotificationsEnabled }))
+  const [error, setError] = useState('')
+  const changed = draft.tableDensity !== preferences.tableDensity || draft.reviewNotificationsEnabled !== preferences.reviewNotificationsEnabled
+  const save = async (event) => {
+    event.preventDefault()
+    if (saving || !changed) return
+    setError('')
+    const result = await updatePreferences(draft)
+    if (!result.ok) return setError(result.message || 'Unable to save workspace preferences.')
+    addToast('Workspace preferences saved', 'Your authenticated preferences were refreshed from the server.')
+  }
+  return <div className="adm-settings-layout"><form className="adm-panel adm-settings-form" onSubmit={save} aria-busy={saving}><h2>Workspace preferences</h2><p>These preferences follow your administrator account across authenticated browsers and devices.</p><label className="adm-form-field"><span>Table density</span><select value={draft.tableDensity} onChange={(event) => setDraft((current) => ({ ...current, tableDensity: event.target.value }))} disabled={saving}><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></label><label className="adm-setting-toggle"><span><b>Review notifications</b><small>Show the live AIVEX review queue in the notification panel.</small></span><input type="checkbox" checked={draft.reviewNotificationsEnabled} onChange={(event) => setDraft((current) => ({ ...current, reviewNotificationsEnabled: event.target.checked }))} disabled={saving}/></label>{error && <p className="adm-auth-error" role="alert"><CircleAlert size={15}/>{error}</p>}<Button type="submit" disabled={saving || !changed} icon={saving ? <LoaderCircle className="adm-spin" size={16}/> : undefined}>{saving ? 'Saving…' : 'Save preferences'}</Button></form><OperationalSummary/></div>
+}
+
+function AccessAndPrivacy({ addToast, user }) {
+  const { preferences, saving, updatePreferences } = useAdminPreferences()
+  const [viewerTimeout, setViewerTimeout] = useState(preferences.viewerTimeoutSeconds)
+  const [error, setError] = useState('')
+  const changed = viewerTimeout !== preferences.viewerTimeoutSeconds
+  const save = async (event) => {
+    event.preventDefault()
+    if (saving || !changed) return
+    setError('')
+    const result = await updatePreferences({ viewerTimeoutSeconds: viewerTimeout })
+    if (!result.ok) return setError(result.message || 'Unable to save the viewer timeout.')
+    addToast('Viewer timeout saved', 'New confidential viewers will use this server-backed timeout.')
+  }
+  return <div className="adm-settings-layout"><form className="adm-panel adm-settings-form" onSubmit={save} aria-busy={saving}><h2>Administrative access</h2><Facts items={[["Administrator", user.displayName], ['Username', `@${user.username}`], ['Current role', user.role.replaceAll('_', ' ')], ['Session', 'Server verified · HttpOnly cookie']]}/><h3>Confidential viewer</h3><p>Each open, close and verification is recorded. There are no public document URLs or identity thumbnails.</p><label className="adm-form-field"><span>Automatic viewer closure</span><select value={viewerTimeout} onChange={(event) => setViewerTimeout(Number(event.target.value))} disabled={saving}><option value="60">After 1 minute</option><option value="120">After 2 minutes</option><option value="300">After 5 minutes</option></select></label><p className="adm-muted">The selected timeout applies the next time a confidential AIVEX viewer is opened.</p>{error && <p className="adm-auth-error" role="alert"><CircleAlert size={15}/>{error}</p>}<Button type="submit" disabled={saving || !changed} icon={saving ? <LoaderCircle className="adm-spin" size={16}/> : undefined}>{saving ? 'Saving…' : 'Save viewer preference'}</Button></form><PasswordSecurityPanel addToast={addToast}/></div>
+}
+
+function AppearancePreferences({ addToast }) {
+  const { osReducedMotion, preferences, saving, updatePreferences } = useAdminPreferences()
+  const [reducedMotion, setReducedMotion] = useState(preferences.reducedMotion)
+  const [error, setError] = useState('')
+  const changed = reducedMotion !== preferences.reducedMotion
+  const save = async (event) => {
+    event.preventDefault()
+    if (saving || !changed) return
+    setError('')
+    const result = await updatePreferences({ reducedMotion })
+    if (!result.ok) return setError(result.message || 'Unable to save the appearance preference.')
+    addToast('Appearance preference saved', 'Reduced-motion behavior was refreshed from the server.')
+  }
+  return <div className="adm-settings-layout"><form className="adm-panel adm-settings-form" onSubmit={save} aria-busy={saving}><span className="adm-eyebrow">Interface behavior</span><h2>Appearance</h2><p>Only application-wide behavior supported by the administration interface is configurable here.</p><label className="adm-setting-toggle"><span><b>Reduced motion</b><small>Minimize non-essential dashboard animation and transitions.</small></span><input type="checkbox" checked={reducedMotion} onChange={(event) => setReducedMotion(event.target.checked)} disabled={saving}/></label>{osReducedMotion && <p className="adm-motion-note"><ShieldCheck size={15}/>Your operating system already requests reduced motion, so it remains effective regardless of this preference.</p>}{error && <p className="adm-auth-error" role="alert"><CircleAlert size={15}/>{error}</p>}<Button type="submit" disabled={saving || !changed} icon={saving ? <LoaderCircle className="adm-spin" size={16}/> : undefined}>{saving ? 'Saving…' : 'Save appearance'}</Button></form></div>
+}
+
 export function SettingsPage() {
-  const { state, setState, addToast, log, reset } = useAdmin()
+  const { addToast } = useAdmin()
   const { user } = useAdminAuth()
+  const { preferences } = useAdminPreferences()
   const [tab, setTab] = useState('Workspace')
-  const [draft, setDraft] = useState(state.settings)
-  const [action, setAction] = useState(null)
-  const [preview, setPreview] = useState('Ready')
-  const tabs = user.role === 'super_admin' ? ['Workspace', 'AIVEX', 'Access & privacy', 'Design system'] : ['Workspace', 'Access & privacy', 'Design system']
-  const save = (event) => { event.preventDefault(); setState((s) => ({ ...s, settings: draft })); log('Workspace settings updated', draft.campaign); addToast('Settings saved', 'Your local workspace preferences are updated.') }
-  return <div className="adm-page"><PageHeader eyebrow="Workspace · Preferences" title="Settings" description="A few thoughtful defaults to keep your administration running smoothly."/><Tabs items={tabs} value={tab} onChange={setTab}/>
-    {tab === 'Workspace' && <div className="adm-settings-layout"><form className="adm-panel adm-settings-form" onSubmit={save}><h2>Workspace essentials</h2><p>Interface preferences remain local to this browser; authenticated identity is managed separately.</p><label className="adm-form-field"><span>Active campaign</span><input value={draft.campaign} onChange={(e) => setDraft({ ...draft, campaign: e.target.value })} required/></label><label className="adm-form-field"><span>Table density</span><select value={draft.density} onChange={(e) => setDraft({ ...draft, density: e.target.value })}><option>Comfortable</option><option>Compact</option></select></label><label className="adm-setting-toggle"><span><b>Review notifications</b><small>Show pending review items in the notification panel.</small></span><input type="checkbox" checked={draft.reviewAlerts} onChange={(e) => setDraft({ ...draft, reviewAlerts: e.target.checked })}/></label><Button type="submit">Save preferences</Button></form><aside><div className="adm-panel adm-settings-note"><span className="adm-eyebrow">Demo records</span><h2>A clean slate,<br/>when you need one.</h2><p>Reset restores the fictional dashboard records and document versions. It never changes your authenticated account.</p><Button variant="secondary" onClick={() => setAction({ title: 'Reset demo data', danger: true, description: 'This removes changes made to fictional dashboard records and restores their original state. Your account and session are not affected.' })}>Reset demo data</Button></div></aside></div>}
+  const tabs = user.role === 'super_admin' ? ['Workspace', 'AIVEX', 'Access & privacy', 'Appearance'] : ['Workspace', 'Access & privacy', 'Appearance']
+  return <div className="adm-page"><PageHeader eyebrow="Workspace · Preferences" title="Settings" description="Control your workspace, campaign operations and administrative security."/><Tabs items={tabs} value={tab} onChange={setTab}/><PreferencesLoadNotice/>
+    {tab === 'Workspace' && <WorkspacePreferences key={`${preferences.tableDensity}-${preferences.reviewNotificationsEnabled}`} addToast={addToast}/>}
     {tab === 'AIVEX' && user.role === 'super_admin' && <AivexCampaignSettings addToast={addToast}/>}
-    {tab === 'Access & privacy' && <div className="adm-settings-layout"><section className="adm-panel adm-settings-form"><h2>Administrative access</h2><Facts items={[["Administrator", user.displayName], ['Username', `@${user.username}`], ['Current role', user.role.replaceAll('_', ' ')], ['Session', 'Server verified · HttpOnly cookie']]}/><h3>Confidential viewer</h3><p>Each open, close and verification is recorded. There are no public document URLs or identity thumbnails.</p><label className="adm-form-field"><span>Automatic viewer closure</span><select value={state.settings.viewerTimeout} onChange={(e) => { setState((s) => ({ ...s, settings: { ...s.settings, viewerTimeout: Number(e.target.value) } })); addToast('Viewer timeout updated') }}><option value="60">After 1 minute</option><option value="120">After 2 minutes</option><option value="300">After 5 minutes</option></select></label><p className="adm-muted">Authentication and account changes are verified server-side. Credentials and session tokens are never stored in this workspace.</p></section><PasswordSecurityPanel addToast={addToast}/></div>}
-    {tab === 'Design system' && <div className="adm-design-system"><section className="adm-panel adm-settings-form"><p className="adm-eyebrow">Infinity foundation</p><h2>Precise by design.</h2><div className="adm-swatches">{['#002A1E', '#094A36', '#00271B', '#F1EBDD', '#FAF9F5', '#E7DFCF', '#9ED7C4', '#376957', '#B6CEC5', '#638F80', '#0B7657', '#A33627'].map((color) => <div key={color}><i style={{ background: color }}/><code>{color}</code></div>)}</div><div className="adm-type-specimen"><span>Manrope · Interface & reading</span><strong>Rajdhani · 01 234 567</strong><code>JetBrains Mono · AIVEX2-7K9M2P4R</code></div><p>Spacing · 4 / 8 / 12 / 16 / 24 / 32 / 48 / 64 px</p><div className="adm-component-samples"><Button onClick={() => addToast('Primary action', 'The component is interactive.')}>Primary</Button><Button variant="secondary" onClick={() => addToast('Secondary action')}>Secondary</Button><Button variant="text" onClick={() => addToast('Text action')}>Text button</Button><Button variant="danger" onClick={() => setAction({ title: 'Danger action example', danger: true })}>Danger</Button><Button disabled>Disabled</Button></div><div className="adm-component-samples"><StatusBadge>Active</StatusBadge><StatusBadge>In review</StatusBadge><StatusBadge>Corrections needed</StatusBadge><StatusBadge>Declined</StatusBadge><StatusBadge tone="sensitive">Confidential</StatusBadge></div><Progress value={72}/></section><section className="adm-panel adm-settings-form"><h2>Interface states</h2><label className="adm-form-field"><span>Preview a state</span><select value={preview} onChange={(e) => setPreview(e.target.value)}>{['Ready', 'Loading', 'No results', 'No applications', 'Incomplete file', 'Missing file', 'Generation failed', 'Loading error', 'Access denied', 'Action impossible', 'Historical data incomplete'].map((value) => <option key={value}>{value}</option>)}</select></label><StatePreview value={preview} onRetry={() => { setPreview('Ready'); addToast('Demo state resolved') }}/></section></div>}
-    {action && <ActionDialog
-      action={action}
-      onClose={() => setAction(null)}
-      onSubmit={() => { if (action.title === 'Reset demo data') { reset(); setDraft({ ...state.settings, campaign: 'Autumn · 2026/27' }) } else addToast('Action confirmed') }}
-    />}
+    {tab === 'Access & privacy' && <AccessAndPrivacy key={preferences.viewerTimeoutSeconds} addToast={addToast} user={user}/>}
+    {tab === 'Appearance' && <AppearancePreferences key={String(preferences.reducedMotion)} addToast={addToast}/>}
   </div>
 }

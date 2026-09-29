@@ -213,7 +213,7 @@ function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen, language 
 
 const breadcrumbNames = { overview: 'Overview', applications: 'Join applications', members: 'Members', staff: 'Staff', aivex: 'AIVEX files', activity: 'Activity log', settings: 'Settings' }
 
-function Topbar({ setMobileOpen, query, setQuery, notify, onNewAction, language = 'en' }) {
+function Topbar({ setMobileOpen, query, setQuery, notify, hasNotifications, onNewAction, language = 'en' }) {
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const { user } = useAdminAuth()
@@ -230,7 +230,7 @@ function Topbar({ setMobileOpen, query, setQuery, notify, onNewAction, language 
       </div>
       <div className="adm-topbar__right">
         <SearchField value={query} onChange={setQuery} placeholder={t('Search anything…')} label={t('Search anything…')} clearLabel={isArabic ? 'مسح البحث' : 'Clear search'} className="adm-global-search" />
-        <IconButton label={t('Notifications')} className="adm-notification" onClick={notify}><Bell size={18} /><i /></IconButton>
+        <IconButton label={t('Notifications')} className="adm-notification" onClick={notify}><Bell size={18} />{hasNotifications && <i />}</IconButton>
         <Button onClick={onNewAction} icon={<Plus size={16} />}>{t('New action')}</Button>
         <button className="adm-top-profile" aria-label={`${t('Open profile')}: ${user.displayName}`} onClick={() => navigate('/admin/settings')}><Avatar initials={initialsFor(user.displayName)} small /><span><b>{user.displayName}</b><small>@{user.username} · {roleLabel(user.role)}</small></span><ChevronDown size={14} /></button>
       </div>
@@ -238,7 +238,7 @@ function Topbar({ setMobileOpen, query, setQuery, notify, onNewAction, language 
   )
 }
 
-export function AdminShell({ children, collapsed, setCollapsed, mobileOpen, setMobileOpen, query, setQuery, onNotifications, onNewAction }) {
+export function AdminShell({ children, collapsed, setCollapsed, mobileOpen, setMobileOpen, query, setQuery, onNotifications, hasNotifications, onNewAction }) {
   const { pathname, search } = useLocation()
   const language = pathname.startsWith('/admin/aivex') && new URLSearchParams(search).get('lang') === 'ar' ? 'ar' : 'en'
   const isArabic = language === 'ar'
@@ -249,7 +249,7 @@ export function AdminShell({ children, collapsed, setCollapsed, mobileOpen, setM
       <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} language={language} />
       {mobileOpen && <button className="adm-mobile-scrim" aria-label={t('Close navigation')} onClick={() => setMobileOpen(false)} />}
       <div className="adm-workspace">
-        <Topbar setMobileOpen={setMobileOpen} query={query} setQuery={setQuery} notify={onNotifications} onNewAction={onNewAction} language={language} />
+        <Topbar setMobileOpen={setMobileOpen} query={query} setQuery={setQuery} notify={onNotifications} hasNotifications={hasNotifications} onNewAction={onNewAction} language={language} />
         <main className="adm-main" id="admin-content">{children}</main>
         <footer className="adm-global-footer"><span><i />{livePeopleWorkspace ? 'Protected workspace · Live database records' : t('Protected workspace · Live database records')}</span><code>INFINITY / ADMIN · 2026.09</code></footer>
       </div>

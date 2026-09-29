@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, CheckCircle2, ChevronDown, Clock3, Download, Fil
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAdmin } from './AdminStore'
 import { useAdminAuth } from './AdminAuth'
+import { useAdminPreferences } from './AdminPreferences'
 import { useAivexLocale } from './AivexI18n'
 import { DOCUMENT_STATUSES, REGISTRATION_STATUSES, dateLabel, timeLabel } from './adminModel'
 import { Button, ConfidentialNotice, CriticalNotice, EmptyState, IconButton, Modal, PageHeader, Pagination, Progress, SectionHeading, StatusBadge, Tabs } from './AdminUI'
@@ -513,9 +514,12 @@ function AivexDecisionPanel({ team, allowed, locale, onDecision }) {
 }
 
 function SecureViewer({ team, document: file, onClose, onUpdated, onNeedsCorrection, locale, loadDocument, act }) {
-  const { addToast, state } = useAdmin()
+  const { addToast } = useAdmin()
+  const { preferences } = useAdminPreferences()
   const { isArabic, t } = locale
-  const [remaining, setRemaining] = useState(Number(state.settings.viewerTimeout || 120))
+  // Snapshot the authenticated preference when the confidential viewer opens.
+  // Later settings changes intentionally apply to the next viewer session.
+  const [remaining, setRemaining] = useState(preferences.viewerTimeoutSeconds)
   const [zoom, setZoom] = useState(1)
   const [rotation, setRotation] = useState(0)
   const [error, setError] = useState('')

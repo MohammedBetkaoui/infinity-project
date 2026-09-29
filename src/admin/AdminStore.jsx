@@ -9,7 +9,14 @@ export function AdminProvider({ children }) {
   const { user } = useAdminAuth()
   const actor = user?.displayName || 'Authenticated administrator'
   const [state, setState] = useState(() => {
-    try { const saved = JSON.parse(localStorage.getItem(STORE_KEY)); return saved?.version === 3 ? saved : createDemoState() } catch { return createDemoState() }
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORE_KEY))
+      if (saved?.version !== 3) return createDemoState()
+      // Production preferences moved to the authenticated server store. Drop
+      // any stale prototype settings from older browser snapshots.
+      delete saved.settings
+      return saved
+    } catch { return createDemoState() }
   })
   const [toasts, setToasts] = useState([])
   const timers = useRef([])
@@ -50,9 +57,10 @@ export function AdminProvider({ children }) {
     log('Record created', record.name, collection)
     addToast('Record created', `${record.name} is now in the directory.`)
   }, [addToast, log])
-  return <AdminContext.Provider value={{ state, setState, toasts, addToast, update, addRecord, log, reset: () => { setState(createDemoState()); addToast('Demo reset', 'The original fictional records have been restored.') } }}>{children}</AdminContext.Provider>
+  return <AdminContext.Provider value={{ state, setState, toasts, addToast, update, addRecord, log }}>{children}</AdminContext.Provider>
 }
 
-// Shared local prototype state; no remote service is called.
+// Legacy local record state. Authenticated preferences and production data
+// have their own server-backed providers and must never be added here.
 // eslint-disable-next-line react-refresh/only-export-components
 export function useAdmin() { return useContext(AdminContext) }

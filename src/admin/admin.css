@@ -1041,6 +1041,22 @@
 .adm-form-field > span small { margin-left: auto; color: var(--adm-muted); font-size: 8px; font-weight: 500; }
 .adm-password-settings .adm-button { margin-top: 18px; }
 .adm-password-settings .adm-auth-error { margin-top: 13px; }
+.adm-preferences-error { display: flex; align-items: center; gap: 12px; margin-top: 16px; padding: 14px 16px; border-color: rgba(163,54,39,.28); }
+.adm-preferences-error > svg { flex: 0 0 auto; color: var(--adm-error); }
+.adm-preferences-error > div { flex: 1; }
+.adm-preferences-error b { font-size: 10px; }
+.adm-preferences-error p { margin: 3px 0 0; color: var(--adm-muted); font-size: 8px; }
+.adm-operational-summary { display: grid; justify-items: start; gap: 10px; }
+.adm-operational-summary > svg { color: var(--adm-green); }
+.adm-operational-summary > h2 { margin-bottom: 2px; }
+.adm-operational-summary dl { width: 100%; margin: 8px 0 0; border-top: 1px solid var(--adm-line); }
+.adm-operational-summary dl div { display: grid; gap: 3px; padding: 10px 0; border-bottom: 1px solid var(--adm-line); }
+.adm-operational-summary dt { color: var(--adm-muted); font-size: 8px; }
+.adm-operational-summary dd { margin: 0; font: 9px 'JetBrains Mono', monospace; }
+.adm-motion-note { display: flex; align-items: flex-start; gap: 8px; padding: 11px; color: var(--adm-green) !important; background: rgba(158,215,196,.12); border: 1px solid rgba(9,74,54,.14); }
+.adm-motion-note svg { flex: 0 0 auto; }
+.adm-notification-error { display: grid; justify-items: start; gap: 10px; }
+.adm-notification-error p { margin: 0; color: var(--adm-error); }
 .adm-setting-toggle { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin: 18px 0; padding: 13px 0; border-block: 1px solid var(--adm-line); }
 .adm-setting-toggle span { display: grid; }
 .adm-setting-toggle small { color: var(--adm-muted); font-size: 8px; }
@@ -1556,6 +1572,7 @@
   .adm-app *, .adm-app *::before, .adm-app *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
   .adm-login::before, .adm-login-backdrop::before, .adm-login-emblem .infinity-mark-signal, .adm-login-medallion .infinity-mark-signal, .adm-login-badge > span::after, .adm-login .adm-login-submit.is-loading::after { animation: none !important; }
 }
+.adm-reduced-motion *, .adm-reduced-motion *::before, .adm-reduced-motion *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 
 /* AIVEX Arabic locale ------------------------------------------------------ */
 .adm-ltr { display: inline-block; direction: ltr; unicode-bidi: isolate; text-align: left; }
