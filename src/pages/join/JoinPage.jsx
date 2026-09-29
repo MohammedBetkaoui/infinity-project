@@ -26,7 +26,7 @@ const STORAGE_KEY = 'infinity-membership-draft-v4'
 const OUTDATED_STORAGE_KEYS = ['infinity-membership-draft-v1', 'infinity-membership-draft-v2', 'infinity-membership-draft-v3']
 const FORM_VERSION = 4
 // Public site key (VITE_). The secret key only exists server-side.
-const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim() || ''
+const TURNSTILE_SITE_KEY = import.meta.env.TURNSTILE_SITE_KEY?.trim() || ''
 const TURNSTILE_FAILED = 'We couldn’t verify the security check. Please try again.'
 const INSTAGRAM_URL = 'https://www.instagram.com/club_.infinity/'
 

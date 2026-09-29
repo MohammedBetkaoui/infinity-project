@@ -401,7 +401,7 @@ test('browser code holds no server secret, no direct database client and no raw 
   for (const path of applicantViews) assert.doesNotMatch(await read(path), /dangerouslySetInnerHTML|\.innerHTML\s*=|insertAdjacentHTML/, path)
 
   const example = await read('.env.example')
-  for (const name of ['SUPABASE_SECRET_KEY', 'TURNSTILE_SECRET_KEY', 'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN', 'RATE_LIMIT_HASH_SECRET', 'VITE_TURNSTILE_SITE_KEY', 'ADMIN_RATE_LIMIT_SECRET']) {
+  for (const name of ['SUPABASE_SECRET_KEY', 'TURNSTILE_SECRET_KEY', 'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN', 'RATE_LIMIT_HASH_SECRET', 'TURNSTILE_SITE_KEY', 'ADMIN_RATE_LIMIT_SECRET']) {
     assert.match(example, new RegExp(`^${name}=$`, 'm'), `${name} must be an empty placeholder`)
   }
 })
