@@ -390,6 +390,7 @@ test('browser code holds no server secret, no direct database client and no raw 
 
   // Vite only inlines variables with these prefixes; no server-only name may match one.
   const prefixes = JSON.parse((await read('vite.config.js')).match(/envPrefix:\s*(\[[^\]]+\])/)[1].replaceAll("'", '"'))
+  assert.equal(prefixes.some((prefix) => 'TURNSTILE_SITE_KEY'.startsWith(prefix)), true, 'the public Turnstile site key is exposed to the client')
   for (const name of serverOnly) assert.equal(prefixes.some((prefix) => name.startsWith(prefix)), false, name)
 
   // Applicant values render as React text, never as markup.

@@ -3,10 +3,10 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  // Expose the public form endpoints to the client. Kept narrow on purpose:
-  // server secrets (SUPABASE_*, secrets, passwords) never match these
-  // prefixes and are therefore never inlined into the browser bundle.
-  envPrefix: ['VITE_', 'INFINITY_', 'AIVEX_'],
+  // Expose only the public form configuration to the client. The narrow
+  // TURNSTILE_SITE_ prefix makes TURNSTILE_SITE_KEY available without ever
+  // matching the server-only TURNSTILE_SECRET_KEY.
+  envPrefix: ['VITE_', 'INFINITY_', 'AIVEX_', 'TURNSTILE_SITE_'],
   server: {
     // Dev only (ignored by `vite build`): forward /api to the local
     // functions runner (`npm run dev:api`). In production Vercel serves
