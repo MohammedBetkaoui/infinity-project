@@ -104,11 +104,33 @@ html[data-page='aivex']::-webkit-scrollbar-thumb { border: 2px solid #1a1114; bo
 .axr-form-paper[dir='rtl'] .axr-stepper-track i { transform-origin: right; }
 .axr-form-paper[dir='rtl']::before { left: auto; right: 0; }
 .axr-form-paper[dir='rtl'] .axr-upload-actions, .axr-form-paper[dir='rtl'] .axr-alert-actions { flex-direction: row-reverse; }
+.axr-form-paper[dir='rtl'] .axr-campaign-back svg { transform: rotate(180deg); }
 .axr-form-step { min-height: 530px; }
 .axr-form-paper .af-step-heading h2 { font-size: clamp(39px, 4vw, 54px); }
 .axr-form-paper :is(h2, article)[tabindex='-1']:focus { outline: none; }
 .axr-alert-actions { display: flex; flex-wrap: wrap; gap: 11px 19px; margin-top: 10px; }
 .axr-alert-actions :is(button, a) { display: inline-flex; align-items: center; gap: 7px; border-bottom: 1px solid currentColor; color: var(--ax-wine); font-size: 9px; font-weight: 700; }
+
+/* Public campaign gate. The full registration form is not mounted until the
+   server-confirmed campaign state is open. */
+.axr-campaign-state { display: flex; flex-direction: column; align-items: flex-start; min-height: 520px; padding-top: clamp(22px, 4vw, 46px); }
+.axr-campaign-kicker { color: var(--af-accent); font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.axr-form-paper .axr-campaign-state h2 { max-width: 13ch; margin-top: 15px; font-family: Rajdhani, sans-serif; font-size: clamp(42px, 5vw, 62px); font-weight: 600; letter-spacing: -.04em; line-height: .96; }
+.axr-campaign-copy { max-width: 52ch; margin-top: 22px !important; color: var(--af-muted); font-size: 13px; line-height: 1.8; }
+.axr-campaign-period { display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: center; align-self: stretch; gap: 12px; margin-top: 29px; padding: 16px 17px; border-block: 1px solid var(--af-line-strong); color: var(--af-accent); }
+.axr-campaign-period > span { display: grid; gap: 4px; min-width: 0; }
+.axr-campaign-period small { color: var(--af-muted); font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.axr-campaign-period strong { color: var(--af-ink); font-family: Rajdhani, sans-serif; font-size: clamp(18px, 2.4vw, 24px); font-weight: 650; line-height: 1.2; }
+.axr-campaign-note { max-width: 58ch; margin-top: 25px !important; color: var(--af-ink); font-size: 12px; line-height: 1.8; }
+.axr-campaign-back, .axr-campaign-retry { display: inline-flex; align-items: center; gap: 9px; margin-top: 29px; }
+.axr-campaign-loading { gap: 15px; padding-top: 50px; }
+.axr-campaign-skeleton-title, .axr-campaign-skeleton-line, .axr-campaign-skeleton-card { overflow: hidden; background: #4f001d12; }
+.axr-campaign-skeleton-title::after, .axr-campaign-skeleton-line::after, .axr-campaign-skeleton-card::after { display: block; width: 50%; height: 100%; content: ''; background: linear-gradient(90deg, transparent, #ffffff9c, transparent); animation: axr-campaign-shimmer 1.4s ease-in-out infinite; }
+.axr-campaign-skeleton-title { width: min(390px, 80%); height: 58px; margin-bottom: 8px; }
+.axr-campaign-skeleton-line { width: min(510px, 96%); height: 13px; }
+.axr-campaign-skeleton-line.is-short { width: min(340px, 72%); }
+.axr-campaign-skeleton-card { width: 100%; height: 78px; margin-top: 18px; border-block: 1px solid var(--af-line); }
+@keyframes axr-campaign-shimmer { from { transform: translateX(-110%); } to { transform: translateX(220%); } }
 
 .axr-paper-nav { display: flex; margin: -22px 0 18px; }
 .axr-paper-back { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; color: var(--af-muted); font-size: 11px; font-weight: 650; transition: color .2s, gap .2s; }

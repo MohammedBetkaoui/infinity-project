@@ -2,7 +2,11 @@ import { createServerAdminAuthService, requireAdminSession } from './_lib/admin-
 import { createServerAdminApplicationsService } from './_lib/admin-applications.js'
 import { createServerAdminPeopleService } from './_lib/admin-people.js'
 import { createServerAdminAivexService } from './_lib/admin-aivex.js'
+import {
+  createServerAdminAivexCampaignSettingsService, validateAivexCampaignSettingsBody,
+} from './_lib/admin-aivex-campaign-settings.js'
 import { createServerAdminOverviewService } from './_lib/admin-overview.js'
+import { AIVEX_EDITION } from '../shared/aivex/contract-v4.js'
 import { canAccessApplications } from './_lib/admin-applications-permissions.js'
 import { canAccessPeople } from './_lib/admin-people-permissions.js'
 import {
@@ -18,7 +22,7 @@ import {
   validateAdminIdentityUploadFinalizeBody, validateAdminIdentityUploadInitBody,
   validateAivexActionBody, validateAivexAttendanceBody, validateAivexPurgeBody,
 } from './_lib/admin-aivex-validation.js'
-import { readJsonBody } from './_lib/http.js'
+import { isJsonContentType, readJsonBody } from './_lib/http.js'
 import { getClientIp } from './_lib/security.js'
 import {
   adminAuthEnabled,
@@ -417,6 +421,7 @@ function sendAdminDocument(res, document) {
 
 export function createAdminAivexHandler({
   createService = createServerAdminAivexService,
+  createSettingsService = createServerAdminAivexCampaignSettingsService,
   createAuthService = createServerAdminAuthService,
   requireSession = requireAdminSession,
   env = process.env,
@@ -446,12 +451,42 @@ export function createAdminAivexHandler({
     const identityFinalizeMatch = path.match(/^aivex\/(AIVEX[1-9][0-9]?-[0-9A-HJKMNP-TV-Z]{8})\/identity-upload\/finalize$/)
     const purgeAll = path === 'aivex/purge'
     const attendancePath = path === 'aivex/attendance'
+    const settingsPath = path === 'aivex/settings'
 
     if (req.method === 'POST' && !trustedOrigin(req, env)) {
       return sendAdminJson(res, 403, { success: false, message: 'Request rejected.' })
     }
 
     try {
+      if (settingsPath) {
+        if (session.user.role !== 'super_admin') {
+          return sendAdminJson(res, 403, { success: false, message: 'This action is restricted to the super administrator.' })
+        }
+        const settingsService = createSettingsService()
+        if (req.method === 'GET') {
+          const result = await settingsService.get(AIVEX_EDITION, session.user)
+          if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: 'This action is restricted to the super administrator.' })
+          if (!result.settings) return sendAdminJson(res, 404, { success: false, message: 'AIVEX campaign settings were not found.' })
+          return sendAdminJson(res, 200, { success: true, settings: result.settings })
+        }
+        if (req.method === 'POST') {
+          if (!isJsonContentType(req)) {
+            return sendAdminJson(res, 415, { success: false, message: 'Unsupported request.' })
+          }
+          const parsed = validateAivexCampaignSettingsBody(await readJsonBody(req, MAX_AIVEX_BODY_BYTES))
+          if (!parsed.ok) {
+            return sendAdminJson(res, 400, {
+              success: false, message: parsed.message, ...(parsed.field ? { field: parsed.field } : {}),
+            })
+          }
+          const result = await settingsService.update(AIVEX_EDITION, parsed.value, session.user)
+          if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: 'This action is restricted to the super administrator.' })
+          return sendAdminJson(res, 200, { success: true, settings: result.settings })
+        }
+        res.setHeader('Allow', 'GET, POST')
+        return sendAdminJson(res, 405, { success: false, message: 'Method not allowed.' })
+      }
+
       const service = createService()
       if (path === 'aivex' && req.method === 'GET') {
         const parsed = parseAivexListOptions(url.searchParams)
@@ -550,13 +585,16 @@ export function createAdminAivexHandler({
       }
 
       const isAivexPath = path === 'aivex' || path.startsWith('aivex/')
-      res.setHeader('Allow', attendancePath ? 'GET, POST' : actionMatch || identityInitMatch || identityFinalizeMatch || purgeAll ? 'POST' : 'GET')
+      res.setHeader('Allow', attendancePath || settingsPath ? 'GET, POST' : actionMatch || identityInitMatch || identityFinalizeMatch || purgeAll ? 'POST' : 'GET')
       return sendAdminJson(res, isAivexPath ? 405 : 404, {
         success: false,
         message: isAivexPath ? 'Method not allowed.' : 'Not found.',
       })
     } catch (error) {
-      safeAdminAuthLog(purgeAll ? 'aivex_purge_all' : attendancePath ? 'aivex_attendance' : 'aivex', error)
+      safeAdminAuthLog(purgeAll ? 'aivex_purge_all' : settingsPath ? 'aivex_campaign_settings' : attendancePath ? 'aivex_attendance' : 'aivex', error)
+      if (settingsPath && error?.code === '42501') {
+        return sendAdminJson(res, 403, { success: false, message: 'This action is restricted to the super administrator.' })
+      }
       if (purgeAll && ['55P03', '57014'].includes(error?.code)) {
         return sendAdminJson(res, 409, {
           success: false,
@@ -571,6 +609,8 @@ export function createAdminAivexHandler({
         ...(purgeAll ? { code: 'aivex_purge_failed', reference: adminFailureReference(error) } : {}),
         message: purgeAll
           ? 'Unable to delete the AIVEX files right now.'
+          : settingsPath
+            ? 'Unable to save the AIVEX campaign settings right now.'
           : actionMatch || (attendancePath && req.method === 'POST')
             ? 'Unable to save this AIVEX action right now.'
             : 'Unable to load AIVEX administration right now.',

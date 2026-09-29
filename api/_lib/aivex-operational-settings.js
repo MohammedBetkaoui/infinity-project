@@ -1,7 +1,10 @@
 // Authoritative campaign gates. The frontend may mirror these states for UX,
 // but only these server-side decisions authorize registration/upload work.
+import {
+  AIVEX_BUSINESS_TIME_ZONE, campaignStatusFor, formatAlgiersTimestamp,
+} from '../../shared/aivex/campaign-schedule.js'
 
-export const AIVEX_TIME_ZONE = 'Africa/Algiers'
+export const AIVEX_TIME_ZONE = AIVEX_BUSINESS_TIME_ZONE
 
 const SETTINGS_COLUMNS = [
   'edition', 'registration_enabled', 'registration_open_at', 'registration_close_at',
@@ -39,6 +42,18 @@ export function canRegister(settings, now = new Date()) {
   if (timestamp < settings.registrationOpenAt.getTime()) return { ok: false, status: 'registration_not_open' }
   if (timestamp > settings.registrationCloseAt.getTime()) return { ok: false, status: 'registration_closed' }
   return { ok: true }
+}
+
+export function publicRegistrationStatus(settings, now = new Date()) {
+  const status = campaignStatusFor(settings, now)
+  return {
+    success: true,
+    edition: Number(settings?.edition || 0),
+    status,
+    registrationEnabled: settings?.registrationEnabled === true,
+    registrationOpenAt: formatAlgiersTimestamp(settings?.registrationOpenAt) || null,
+    registrationCloseAt: formatAlgiersTimestamp(settings?.registrationCloseAt) || null,
+  }
 }
 
 export function canUploadSignedDocument(settings, now = new Date()) {

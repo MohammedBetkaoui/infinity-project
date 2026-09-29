@@ -4,6 +4,7 @@ import { ArrowLeft, Copy } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import useMotionPreference from '../../../hooks/useMotionPreference'
 import { MOTION_EASE } from '../../../lib/motion'
+import CampaignStatusPanel from './CampaignStatusPanel'
 import DelegationStep from './DelegationStep'
 import InstitutionStep from './InstitutionStep'
 import { SECTIONS, STEP, STUDENT_COUNT, institutionLabel } from './registrationModel'
@@ -13,6 +14,7 @@ import RegistrationStepper from './RegistrationStepper'
 import RegistrationSuccess from './RegistrationSuccess'
 import ReviewStep from './ReviewStep'
 import StudentsStep from './StudentsStep'
+import useAivexCampaignStatus from './useAivexCampaignStatus'
 import useCompetitionRegistration from './useCompetitionRegistration'
 
 const INSTAGRAM_URL = 'https://www.instagram.com/club_.infinity/'
@@ -31,6 +33,7 @@ export default function CompetitionRegistration() {
   const reduced = useMotionPreference()
   const [lang, setLang] = useState(readLang)
   const t = getRegistrationStrings(lang)
+  const campaign = useAivexCampaignStatus()
   const registration = useCompetitionRegistration(lang)
   const { step, status, transfer, team, activityOfficial, result, sectionComplete, completeCount } = registration
   const [copied, setCopied] = useState(false)
@@ -65,6 +68,15 @@ export default function CompetitionRegistration() {
   }
   const paperLabel = done ? t.paperReceived : registration.hasDraft ? t.paperDraft : t.paperDefault
   const stepMotion = reduced ? { duration: .01 } : { duration: .36, ease: MOTION_EASE.smooth }
+
+  if (campaign.status !== 'open') {
+    return (
+      <RegistrationLayout phase={0} signals={{ done: false, ready: 0, total: Object.keys(SECTIONS).length + STUDENT_COUNT }}
+        paperLabel={t.campaignPaperStatus} reduced={reduced} lang={lang} onLang={setLang} t={t}>
+        <CampaignStatusPanel campaign={campaign} lang={lang} t={t} />
+      </RegistrationLayout>
+    )
+  }
 
   return (
     <RegistrationLayout phase={done ? t.steps.length : step} signals={signals} paperLabel={paperLabel} reduced={reduced}
