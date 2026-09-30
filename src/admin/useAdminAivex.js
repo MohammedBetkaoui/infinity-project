@@ -13,7 +13,11 @@ import { createListCache } from './adminListCache.js'
 const SEARCH_DEBOUNCE_MS = 350
 const LIST_CACHE_TTL_MS = 60 * 1000
 const listCache = createListCache({ ttlMs: LIST_CACHE_TTL_MS })
-const clearListCache = () => listCache.clear()
+const acceptedStudentListCache = createListCache({ ttlMs: LIST_CACHE_TTL_MS })
+const clearListCache = () => {
+  listCache.clear()
+  acceptedStudentListCache.clear()
+}
 
 const REGISTRATION_KEYS = Object.freeze({
   Submitted: 'submitted', 'Under review': 'under_review', Approved: 'approved',
@@ -46,6 +50,22 @@ function queryString({ page, limit, search, filters, sort }) {
     gender: GENDER_KEYS[filters.gender] || filters.gender,
     dateFrom: filters.dateFrom,
     dateTo: filters.dateTo,
+  }
+  for (const [key, value] of Object.entries(values)) if (value) params.set(key, value)
+  for (const [key, value] of [...params.entries()]) if (!value) params.delete(key)
+  return params.toString()
+}
+
+function acceptedStudentQueryString({ page, limit, search, filters, sort }) {
+  const params = new URLSearchParams({
+    page: String(page), limit: String(limit), edition: String(filters.edition || 2),
+    q: search || '', sort,
+  })
+  const values = {
+    gender: GENDER_KEYS[filters.gender] || filters.gender,
+    wilaya: wilayaCode(filters.wilaya),
+    institution: filters.institution,
+    bacYear: filters.bacYear,
   }
   for (const [key, value] of Object.entries(values)) if (value) params.set(key, value)
   for (const [key, value] of [...params.entries()]) if (!value) params.delete(key)
@@ -85,6 +105,47 @@ export function useAdminAivexExport() {
       }
     } catch {
       return { ok: false, message: 'Unable to reach the AIVEX export service.' }
+    } finally {
+      setExporting(false)
+    }
+  }, [exporting, requestRaw])
+
+  return { exporting, exportCsv }
+}
+
+export function useAdminAivexAcceptedStudentsExport() {
+  const { requestRaw } = useAdminAuth()
+  const [exporting, setExporting] = useState(false)
+
+  const exportCsv = useCallback(async ({ search, filters, sort }) => {
+    if (exporting) return { ok: false, message: 'An export is already being prepared.' }
+    setExporting(true)
+    try {
+      const query = acceptedStudentQueryString({ page: 1, limit: 50, search, filters, sort })
+      const response = await requestRaw(`/api/admin/aivex/students/export?${query}`)
+      if (!response.ok) {
+        let message = 'Unable to export the filtered accepted students.'
+        try { message = (await response.json()).message || message } catch { /* Keep the safe fallback. */ }
+        return { ok: false, message }
+      }
+      const blob = await response.blob()
+      const disposition = response.headers.get('content-disposition') || ''
+      const fileName = /filename="([^"\r\n]+)"/i.exec(disposition)?.[1] || 'aivex-edition-02-accepted-students.csv'
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      return {
+        ok: true,
+        rows: Number(response.headers.get('x-aivex-export-rows') || 0),
+        truncated: response.headers.get('x-aivex-export-truncated') === 'true',
+      }
+    } catch {
+      return { ok: false, message: 'Unable to reach the accepted-student export service.' }
     } finally {
       setExporting(false)
     }
@@ -154,6 +215,75 @@ export function useAdminAivex({ page, limit = 12, search, filters, sort, enabled
     clearListCache()
     setRefreshKey((value) => value + 1)
   }, [])
+  return { ...state, loading: enabled && (state.loading || state.resolvedKey !== requestKey), refresh }
+}
+
+const acceptedStudentListValue = (body, limit) => ({
+  records: body.data || [],
+  pagination: body.pagination || { page: 1, limit, total: 0, pages: 1 },
+  summary: body.summary || { total: 0, female: 0, male: 0, unknown: 0, teams: 0 },
+  facets: body.facets || { wilayas: [], institutions: [], bacYears: [] },
+  canExport: body.canExport === true,
+})
+
+export function useAdminAivexAcceptedStudents({ page, limit = 20, search, filters, sort, enabled = false }) {
+  const { request } = useAdminAuth()
+  const [refreshKey, setRefreshKey] = useState(0)
+  const query = useMemo(
+    () => acceptedStudentQueryString({ page, limit, search, filters, sort }),
+    [filters, limit, page, search, sort],
+  )
+  const requestKey = `${query}::${refreshKey}`
+  const [state, setState] = useState(() => ({
+    records: [], pagination: { page: 1, limit, total: 0, pages: 1 },
+    summary: { total: 0, female: 0, male: 0, unknown: 0, teams: 0 },
+    facets: { wilayas: [], institutions: [], bacYears: [] }, canExport: false,
+    loading: true, error: '', resolvedKey: '',
+  }))
+  const lastSearch = useRef(search)
+
+  useEffect(() => {
+    if (!enabled) return undefined
+    const searchChanged = search !== lastSearch.current
+    lastSearch.current = search
+    const cached = acceptedStudentListCache.get(query)
+    if (cached) {
+      let active = true
+      Promise.resolve().then(() => {
+        if (active) setState((current) => (current.resolvedKey === requestKey
+          ? current
+          : { ...cached, loading: false, error: '', resolvedKey: requestKey }))
+      })
+      return () => { active = false }
+    }
+
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => {
+      request(`/api/admin/aivex/students?${query}`, { signal: controller.signal })
+        .then(({ response, body }) => {
+          if (!response.ok) throw new Error(body.message || 'Unable to load accepted students.')
+          const value = acceptedStudentListValue(body, limit)
+          acceptedStudentListCache.set(query, value)
+          setState({ ...value, loading: false, error: '', resolvedKey: requestKey })
+        })
+        .catch((error) => {
+          if (error.name !== 'AbortError') {
+            setState((current) => ({ ...current, loading: false, error: error.message, resolvedKey: requestKey }))
+          }
+        })
+    }, searchChanged && search ? SEARCH_DEBOUNCE_MS : 0)
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [enabled, limit, query, request, requestKey, search])
+
+  const refresh = useCallback(() => {
+    acceptedStudentListCache.clear()
+    setState((current) => ({ ...current, loading: true, error: '' }))
+    setRefreshKey((value) => value + 1)
+  }, [])
+
   return { ...state, loading: enabled && (state.loading || state.resolvedKey !== requestKey), refresh }
 }
 

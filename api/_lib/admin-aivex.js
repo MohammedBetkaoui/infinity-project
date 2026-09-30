@@ -36,6 +36,12 @@ const CSV_COLUMNS = Object.freeze([
   ['Student name', 'full_name'], ['Gender', 'gender'], ['Student phone', 'phone'],
   ['BAC year', 'bac_year'], ['RFID', 'rfid_number'],
 ])
+const ACCEPTED_STUDENT_CSV_COLUMNS = Object.freeze([
+  ['Student name', 'full_name'], ['Gender', 'gender'], ['Phone', 'phone'],
+  ['BAC year', 'bac_year'], ['RFID', 'rfid_number'], ['Team', 'team_name'],
+  ['Reference', 'reference'], ['Student position', 'position'], ['Institution', 'institution_name'],
+  ['Wilaya', 'wilaya'], ['Registration submitted at', 'submitted_at'],
+])
 
 const safeSpreadsheetValue = (value) => {
   const text = String(value ?? '').replace(/\r\n?/g, '\n')
@@ -54,6 +60,19 @@ export function buildAivexCsv(rows) {
       gender: GENDER_LABELS[row.gender] || '',
     }
     lines.push(CSV_COLUMNS.map(([, key]) => csvCell(normalized[key])).join(','))
+  }
+  return `\uFEFF${lines.join('\r\n')}\r\n`
+}
+
+export function buildAcceptedAivexStudentsCsv(rows) {
+  const lines = [ACCEPTED_STUDENT_CSV_COLUMNS.map(([heading]) => csvCell(heading)).join(',')]
+  for (const row of rows) {
+    const normalized = {
+      ...row,
+      wilaya: [row.wilaya_code, row.wilaya_name].filter(Boolean).join(' · '),
+      gender: GENDER_LABELS[row.gender] || '',
+    }
+    lines.push(ACCEPTED_STUDENT_CSV_COLUMNS.map(([, key]) => csvCell(normalized[key])).join(','))
   }
   return `\uFEFF${lines.join('\r\n')}\r\n`
 }
@@ -158,6 +177,24 @@ function mapOverview(row) {
       row.signed_document_verified === true,
     ],
     studentCardsVerified: row.student_cards_verified === true,
+  }
+}
+
+function mapAcceptedStudent(row) {
+  return {
+    id: `${row.reference}-${row.position}`,
+    reference: row.reference,
+    teamName: row.team_name,
+    institutionName: row.institution_name,
+    wilaya: [row.wilaya_code, row.wilaya_name].filter(Boolean).join(' · '),
+    wilayaCode: row.wilaya_code,
+    submittedAt: row.submitted_at,
+    position: Number(row.position),
+    name: row.full_name,
+    phone: row.phone,
+    gender: row.gender || null,
+    bacYear: Number(row.bac_year),
+    rfid: row.rfid_number,
   }
 }
 
@@ -534,6 +571,34 @@ export function createAdminAivexService({ store, documentStore, now = () => new 
       }
     },
 
+    async acceptedStudents(options, user) {
+      const result = await store.acceptedStudentsPage(options)
+      const rows = Array.isArray(result.rows) ? result.rows : []
+      const total = Number(result.total || 0)
+      return {
+        data: rows.map(mapAcceptedStudent),
+        pagination: {
+          page: options.page,
+          limit: options.limit,
+          total,
+          pages: Math.max(1, Math.ceil(total / options.limit)),
+        },
+        summary: {
+          total: Number(result.summary?.total || 0),
+          female: Number(result.summary?.female || 0),
+          male: Number(result.summary?.male || 0),
+          unknown: Number(result.summary?.unknown || 0),
+          teams: Number(result.summary?.teams || 0),
+        },
+        facets: {
+          wilayas: Array.isArray(result.facets?.wilayas) ? result.facets.wilayas : [],
+          institutions: Array.isArray(result.facets?.institutions) ? result.facets.institutions : [],
+          bacYears: Array.isArray(result.facets?.bacYears) ? result.facets.bacYears : [],
+        },
+        canExport: canExportAivex(user.role),
+      }
+    },
+
     async export(options, user) {
       if (!canExportAivex(user.role)) {
         return { ok: false, status: 403, message: 'Only an administrator can export AIVEX registrations.' }
@@ -543,6 +608,20 @@ export function createAdminAivexService({ store, documentStore, now = () => new 
         ok: true,
         csv: buildAivexCsv(result.rows),
         fileName: `aivex-edition-${String(options.edition).padStart(2, '0')}-filtered.csv`,
+        rowCount: result.rows.length,
+        truncated: result.truncated,
+      }
+    },
+
+    async exportAcceptedStudents(options, user) {
+      if (!canExportAivex(user.role)) {
+        return { ok: false, status: 403, message: 'Only an administrator can export accepted AIVEX students.' }
+      }
+      const result = await store.exportAcceptedStudents(options, user.id)
+      return {
+        ok: true,
+        csv: buildAcceptedAivexStudentsCsv(result.rows),
+        fileName: `aivex-edition-${String(options.edition).padStart(2, '0')}-accepted-students.csv`,
         rowCount: result.rows.length,
         truncated: result.truncated,
       }

@@ -195,6 +195,40 @@ export function createAdminAivexStore(supabase) {
       }
     },
 
+    async acceptedStudentsPage(options) {
+      const { data, error } = await supabase.rpc('admin_list_accepted_aivex_students', {
+        p_edition: options.edition,
+        p_page: options.page,
+        p_limit: options.limit,
+        p_query: safeSearch(options.q) || null,
+        p_gender: options.gender || null,
+        p_wilaya: options.wilaya || null,
+        p_institution: options.institution || null,
+        p_bac_year: options.bacYear || null,
+        p_sort: options.sort,
+      })
+      if (error) fail('aivex_accepted_students_list', error)
+      return data || { rows: [], total: 0, summary: {}, facets: {} }
+    },
+
+    async exportAcceptedStudents(options, adminUserId) {
+      const { data, error } = await supabase.rpc('admin_export_accepted_aivex_students', {
+        p_admin_user_id: adminUserId,
+        p_edition: options.edition,
+        p_query: safeSearch(options.q) || null,
+        p_gender: options.gender || null,
+        p_wilaya: options.wilaya || null,
+        p_institution: options.institution || null,
+        p_bac_year: options.bacYear || null,
+        p_sort: options.sort,
+      })
+      if (error) fail('aivex_accepted_students_export', error)
+      return {
+        rows: Array.isArray(data?.rows) ? data.rows : [],
+        truncated: data?.truncated === true,
+      }
+    },
+
     async generatedDocuments(registrationId) {
       const { data, error } = await supabase
         .from('aivex_generated_documents')

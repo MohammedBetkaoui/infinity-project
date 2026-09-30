@@ -3,6 +3,7 @@ import { ADMIN_AIVEX_ACTIONS } from './admin-aivex-permissions.js'
 import { CORRECTION_ITEMS as CORRECTION_ITEM_LIST } from '../../shared/aivex/correction-items.js'
 import {
   IDENTITY_CARD_POLICY, canonicalCardMime,
+  BAC_YEAR_RANGE,
   DOCUMENT_STATUSES as AIVEX_DOCUMENT_STATUSES,
   REGISTRATION_STATUSES as AIVEX_REGISTRATION_STATUSES,
   STUDENT_GENDERS,
@@ -26,6 +27,11 @@ const CORRECTION_DECISIONS = new Set(['verified', 'rejected'])
 const IDENTITY_DOCUMENT_KEYS = new Set(['delegation-leader', 'driver'])
 const FILE_EXTENSION_RE = /\.([a-z0-9]+)$/i
 const ATTENDANCE_STATUSES = new Set(['expected', 'present', 'absent'])
+const ACCEPTED_STUDENT_SORTS = new Set([
+  'name_asc', 'name_desc', 'gender_asc', 'gender_desc', 'team_asc', 'team_desc',
+  'institution_asc', 'institution_desc', 'wilaya_asc', 'wilaya_desc',
+  'bac_asc', 'bac_desc', 'submitted_asc', 'submitted_desc',
+])
 
 const single = (params, name) => {
   const values = params.getAll(name)
@@ -68,6 +74,39 @@ export function parseAivexAttendanceEdition(params) {
   const edition = rawEdition || '2'
   if (!/^\d{1,2}$/.test(edition) || Number(edition) < 1) return { ok: false }
   return { ok: true, value: Number(edition) }
+}
+
+export function parseAcceptedAivexStudentOptions(params) {
+  const raw = Object.fromEntries([
+    'q', 'gender', 'wilaya', 'institution', 'bacYear', 'edition', 'sort',
+  ].map((key) => [key, single(params, key)]))
+  if (Object.values(raw).some((value) => value === null)) return { ok: false }
+
+  const pageText = single(params, 'page') || '1'
+  const limitText = single(params, 'limit') || '20'
+  if (!/^\d+$/.test(pageText) || !/^\d+$/.test(limitText)) return { ok: false }
+  const page = Number(pageText)
+  const limit = Number(limitText)
+  if (page < 1 || page > 100000 || limit < 1 || limit > 50) return { ok: false }
+  if (raw.q.length > 120 || raw.wilaya.length > 120 || raw.institution.length > 180) return { ok: false }
+  if (raw.gender && !STUDENT_GENDERS.includes(raw.gender)) return { ok: false }
+  if (raw.bacYear && (!/^\d{4}$/.test(raw.bacYear)
+    || Number(raw.bacYear) < BAC_YEAR_RANGE.min || Number(raw.bacYear) > BAC_YEAR_RANGE.max)) return { ok: false }
+  if (raw.edition && (!/^\d{1,2}$/.test(raw.edition) || Number(raw.edition) < 1)) return { ok: false }
+  const sort = raw.sort || 'name_asc'
+  if (!ACCEPTED_STUDENT_SORTS.has(sort)) return { ok: false }
+
+  return {
+    ok: true,
+    value: {
+      ...raw,
+      bacYear: raw.bacYear ? Number(raw.bacYear) : null,
+      edition: raw.edition ? Number(raw.edition) : 2,
+      page,
+      limit,
+      sort,
+    },
+  }
 }
 
 export function validateAivexActionBody(body) {

@@ -21,7 +21,8 @@ import {
   validatePeopleBulkBody, validatePeopleCreateBody,
 } from './_lib/admin-people-validation.js'
 import {
-  isAivexDocumentKey, isAivexReference, parseAivexAttendanceEdition, parseAivexListOptions,
+  isAivexDocumentKey, isAivexReference, parseAcceptedAivexStudentOptions,
+  parseAivexAttendanceEdition, parseAivexListOptions,
   validateAdminIdentityUploadFinalizeBody, validateAdminIdentityUploadInitBody,
   validateAivexActionBody, validateAivexAttendanceBody, validateAivexPurgeBody,
 } from './_lib/admin-aivex-validation.js'
@@ -529,6 +530,8 @@ export function createAdminAivexHandler({
     const attendancePath = path === 'aivex/attendance'
     const settingsPath = path === 'aivex/settings'
     const exportPath = path === 'aivex/export'
+    const acceptedStudentsPath = path === 'aivex/students'
+    const acceptedStudentsExportPath = path === 'aivex/students/export'
 
     if (req.method === 'POST' && !trustedOrigin(req, env)) {
       return sendAdminJson(res, 403, { success: false, message: 'Request rejected.' })
@@ -565,6 +568,21 @@ export function createAdminAivexHandler({
       }
 
       const service = createService()
+      if (acceptedStudentsExportPath && req.method === 'GET') {
+        const parsed = parseAcceptedAivexStudentOptions(url.searchParams)
+        if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid accepted-student filters.' })
+        const result = await service.exportAcceptedStudents(parsed.value, session.user)
+        if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: result.message })
+        return sendAdminCsv(res, result)
+      }
+
+      if (acceptedStudentsPath && req.method === 'GET') {
+        const parsed = parseAcceptedAivexStudentOptions(url.searchParams)
+        if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid accepted-student filters.' })
+        const result = await service.acceptedStudents(parsed.value, session.user)
+        return sendAdminJson(res, 200, { success: true, ...result })
+      }
+
       if (exportPath && req.method === 'GET') {
         const parsed = parseAivexListOptions(url.searchParams)
         if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid AIVEX filters.' })
