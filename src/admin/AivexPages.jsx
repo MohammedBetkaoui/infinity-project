@@ -1,5 +1,5 @@
 import { useCallback, useDeferredValue, useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, CheckCircle2, ChevronDown, Clock3, Download, FileCheck2, FileText, FolderClosed, GraduationCap, Languages, LockKeyhole, Maximize2, RefreshCw, RotateCw, ShieldCheck, Trash2, TriangleAlert, Upload, UserCheck, UsersRound, UserX, ZoomIn, ZoomOut } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CheckCircle2, ChevronDown, Clock3, Download, FileCheck2, FileText, FolderClosed, GraduationCap, Languages, LockKeyhole, Maximize2, RefreshCw, RotateCw, Search, ShieldCheck, Trash2, TriangleAlert, Upload, UserCheck, UsersRound, UserX, ZoomIn, ZoomOut } from 'lucide-react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAdmin } from './AdminStore'
 import { useAdminAuth } from './AdminAuth'
@@ -19,6 +19,11 @@ const AIVEX_QUEUES = [
   { label: 'Under review', filter: 'Under review', count: 'under_review' },
   { label: 'Corrections requested', filter: 'Corrections needed', count: 'changes_required' },
   { label: 'Team accepted', filter: 'Validated', count: 'validated' },
+]
+const AIVEX_WORKSPACES = [
+  { key: 'files', icon: FileCheck2, label: 'Administrative files', copy: 'Review and corrections' },
+  { key: 'attendance', icon: UsersRound, label: 'Participation', copy: 'Accepted teams and arrivals' },
+  { key: 'students', icon: GraduationCap, label: 'Accepted students', copy: 'Final accepted-team roster' },
 ]
 const TABLE_SORT_KEYS = Object.freeze({
   ref: 'reference', name: 'team', institution: 'institution', manager: 'team',
@@ -77,6 +82,16 @@ function AivexSkeleton({ label }) {
   </div>
 }
 
+function AivexMetrics({ items, loading, label }) {
+  return <div className="adm-aivex-metrics" aria-label={label}>
+    {items.map(({ key, icon: Icon, label: itemLabel, value, meta }) => <article key={key} className={`is-${key}`}>
+      {Icon && <span className="adm-aivex-metrics__icon"><Icon size={18}/></span>}
+      <span className="adm-aivex-metrics__copy"><b>{itemLabel}</b>{meta && <small>{meta}</small>}</span>
+      <strong>{loading ? '—' : value}</strong>
+    </article>)}
+  </div>
+}
+
 function AivexCardGrid({ records, onOpen, locale, pagination, onPageChange, order, onOrder }) {
   const { t, isArabic } = locale
   return <section className="adm-aivex-board" aria-label={t('AIVEX files')}>
@@ -128,26 +143,25 @@ function AivexAttendanceWorkspace({ attendance, locale, onOpen, addToast }) {
   }
 
   const stats = [
-    { key: 'accepted', icon: UsersRound, label: 'Accepted teams' },
-    { key: 'present', icon: UserCheck, label: 'Teams present' },
-    { key: 'absent', icon: UserX, label: 'Teams absent' },
-    { key: 'expected', icon: Clock3, label: 'Awaiting arrival' },
+    { key: 'accepted', icon: UsersRound, label: t('Accepted teams'), value: attendance.summary.accepted || 0, meta: `${rate}% ${t('Arrival rate')}` },
+    { key: 'present', icon: UserCheck, label: t('Teams present'), value: attendance.summary.present || 0 },
+    { key: 'expected', icon: Clock3, label: t('Awaiting arrival'), value: attendance.summary.expected || 0 },
+    { key: 'absent', icon: UserX, label: t('Teams absent'), value: attendance.summary.absent || 0 },
   ]
+  const statusCounts = {
+    all: attendance.summary.accepted || 0,
+    expected: attendance.summary.expected || 0,
+    present: attendance.summary.present || 0,
+    absent: attendance.summary.absent || 0,
+  }
 
-  return <section className="adm-attendance" aria-label={t('AIVEX participation')}>
-    <div className="adm-attendance-hero">
-      <div><span>{t('Competition operations')}</span><h2>{t('Accepted-team participation')}</h2><p>{t('Confirm arrivals at the University of Bordj Bou Arreridj without changing the administrative file.')}</p></div>
-      <div className="adm-attendance-rate"><strong>{rate}%</strong><span>{t('Arrival rate')}</span></div>
-    </div>
-    <div className="adm-attendance-stats">
-      {stats.map(({ key, icon: Icon, label }) => <article key={key} className={`is-${key}`}><Icon size={20}/><span>{t(label)}</span><strong>{attendance.summary[key] || 0}</strong></article>)}
-    </div>
+  return <section id="aivex-panel-attendance" className="adm-attendance" role="tabpanel" aria-labelledby="aivex-tab-attendance">
+    <AivexMetrics items={stats} loading={attendance.loading} label={t('Accepted-team participation')}/>
     <div className="adm-attendance-toolbar">
-      <label><span className="sr-only">{t('Search accepted teams')}</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('Search team, reference or institution…')}/></label>
-      <div role="group" aria-label={t('Filter attendance')}>
-        {ATTENDANCE_FILTERS.map((status) => <button type="button" key={status} className={statusFilter === status ? 'is-active' : ''} aria-pressed={statusFilter === status} onClick={() => setStatusFilter(status)}>{t(status === 'all' ? 'All accepted' : status === 'expected' ? 'Awaiting arrival' : status === 'present' ? 'Present' : 'Absent')}</button>)}
+      <label className="adm-attendance-search"><Search size={17}/><span className="sr-only">{t('Search accepted teams')}</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('Search team, reference or institution…')}/><small aria-live="polite">{teams.length}</small></label>
+      <div className="adm-attendance-filters" role="group" aria-label={t('Filter attendance')}>
+        {ATTENDANCE_FILTERS.map((status) => <button type="button" key={status} className={statusFilter === status ? 'is-active' : ''} aria-pressed={statusFilter === status} onClick={() => setStatusFilter(status)}><span>{t(status === 'all' ? 'All accepted' : status === 'expected' ? 'Awaiting arrival' : status === 'present' ? 'Present' : 'Absent')}</span><strong>{statusCounts[status]}</strong></button>)}
       </div>
-      <Button variant="secondary" onClick={attendance.refresh} disabled={attendance.loading} icon={<RefreshCw size={15}/>}>{t('Refresh attendance')}</Button>
     </div>
     {attendance.error ? <div className="adm-state-error" role="alert"><TriangleAlert size={22}/><h3>{t('Attendance could not be loaded')}</h3><p>{t(attendance.error)}</p><Button variant="secondary" onClick={attendance.refresh}>{t('Try again')}</Button></div>
       : attendance.loading ? <AivexSkeleton label={t('Loading accepted teams')}/>
@@ -172,10 +186,11 @@ function AivexAttendanceWorkspace({ attendance, locale, onOpen, addToast }) {
 function AcceptedStudentsWorkspace({ students, locale, search, onSearch, filters, onFilters, tableSort, onSort, onPageChange, onOpen }) {
   const { t, isArabic } = locale
   const stats = [
-    { key: 'total', label: 'Accepted students' },
+    { key: 'teams', icon: UsersRound, label: 'Accepted teams' },
+    { key: 'total', label: 'Accepted students', icon: GraduationCap },
     { key: 'female', label: 'Women' },
     { key: 'male', label: 'Men' },
-  ]
+  ].map(({ key, label, ...item }) => ({ ...item, key, label: t(label), value: students.summary[key] || 0 }))
   const toolbarLabels = isArabic ? {
     search: 'البحث في الطلبة المقبولين', clearSearch: 'مسح البحث', all: 'الكل',
     liveScope: t('Live scope'), matchingRecords: (count) => `${count} طالب مطابق`,
@@ -185,14 +200,8 @@ function AcceptedStudentsWorkspace({ students, locale, search, onSearch, filters
     close: 'إغلاق عوامل التصفية',
   } : {}
 
-  return <section className="adm-accepted-students" aria-label={t('Accepted AIVEX students')}>
-    <div className="adm-accepted-students__hero">
-      <div><span>{t('Final administrative acceptance')}</span><h2>{t('Accepted students directory')}</h2><p>{t('Students appear here only after their team has been fully approved and its administrative file validated.')}</p></div>
-      <div><strong>{students.loading ? '—' : students.summary.teams || 0}</strong><span>{t('Accepted teams')}</span></div>
-    </div>
-    <div className="adm-accepted-students__stats" aria-label={t('Accepted-student totals')}>
-      {stats.map(({ key, label }) => <article key={key} className={`is-${key}`}><span>{t(label)}</span><strong>{students.loading ? '—' : students.summary[key] || 0}</strong></article>)}
-    </div>
+  return <section id="aivex-panel-students" className="adm-accepted-students" role="tabpanel" aria-labelledby="aivex-tab-students">
+    <AivexMetrics items={stats} loading={students.loading} label={t('Accepted-student totals')}/>
     {students.summary.unknown > 0 && <p className="adm-accepted-students__historical"><TriangleAlert size={15}/>{t('Some historical students have no recorded gender. They are included in the total only.')} <strong>{students.summary.unknown}</strong></p>}
     <div className="adm-work-panel">
       <RecordToolbar search={search} onSearch={onSearch} placeholder={t('Search student, team, reference, institution, phone or RFID…')} filters={filters} onFilters={onFilters} resultCount={students.pagination.total} filterLabel={t('All filters')} getOptionLabel={t} labels={toolbarLabels} quickDefinitions={[
@@ -223,8 +232,8 @@ export function AivexListPage({ globalQuery }) {
   const { addToast } = useAdmin()
   const locale = useAivexLocale()
   const { language, isArabic, dir, t, setLanguage, path } = locale
-  const [params] = useSearchParams()
-  const [workspace, setWorkspace] = useState('files')
+  const [params, setParams] = useSearchParams()
+  const workspace = params.get('view') === 'participation' ? 'attendance' : params.get('view') === 'students' ? 'students' : 'files'
   const [search, setSearch] = useState('')
   const deferredSearch = useDeferredValue(`${search} ${globalQuery}`.trim())
   const [filters, setFilters] = useState(params.get('document') ? { document: params.get('document') } : {})
@@ -269,6 +278,13 @@ export function AivexListPage({ globalQuery }) {
     return () => query.removeEventListener('change', syncView)
   }, [])
   const activeView = mobileCardsOnly ? 'cards' : view
+  const changeWorkspace = (value) => {
+    const next = new URLSearchParams(params)
+    if (value === 'files') next.delete('view')
+    else next.set('view', value === 'attendance' ? 'participation' : value)
+    if (value !== 'files') next.delete('document')
+    setParams(next)
+  }
   const resetPage = useCallback((callback) => { callback(); setPage(1) }, [])
   const updateCardOrder = (value) => resetPage(() => { setCardOrder(value); setSort(CARD_SORTS[value] || 'attention_asc') })
   const updateTableSort = (value) => resetPage(() => {
@@ -360,14 +376,12 @@ export function AivexListPage({ globalQuery }) {
 
   return <div className={`adm-page adm-aivex-page ${isArabic ? 'is-arabic' : ''}`} dir={dir} lang={language}>
     <PageHeader eyebrow={t('AIVEX · Edition 02')} title={t(pageTitle)} description={t(pageDescription)} actions={<div className="adm-aivex-header-actions"><AivexLanguageSwitch language={language} setLanguage={setLanguage} t={t}/><Button variant="secondary" onClick={refreshWorkspace} disabled={workspaceLoading} icon={<RefreshCw size={15}/>}>{t(refreshLabel)}</Button>{workspace === 'files' && ['super_admin', 'administrator'].includes(user?.role) && <Button variant="secondary" onClick={downloadCsv} disabled={loading || exporting} icon={<Download size={15}/>}>{t(exporting ? 'Exporting…' : 'Export filtered CSV')}</Button>}{workspace === 'students' && ['super_admin', 'administrator'].includes(user?.role) && <Button variant="secondary" onClick={downloadAcceptedStudentsCsv} disabled={acceptedStudents.loading || exportingStudents} icon={<Download size={15}/>}>{t(exportingStudents ? 'Exporting…' : 'Export filtered students')}</Button>}{workspace === 'files' && user?.role === 'super_admin' && <Button variant="danger" onClick={() => setPurgeOpen(true)} icon={<Trash2 size={15}/>}>{t('Delete all team files')}</Button>}</div>}/>
-    <nav className="adm-aivex-workspaces" aria-label={t('AIVEX workspace')}>
-      <button type="button" className={workspace === 'files' ? 'is-active' : ''} aria-pressed={workspace === 'files'} onClick={() => setWorkspace('files')}><FileCheck2 size={18}/><span><b>{t('Administrative files')}</b><small>{t('Review and corrections')}</small></span></button>
-      <button type="button" className={workspace === 'attendance' ? 'is-active' : ''} aria-pressed={workspace === 'attendance'} onClick={() => setWorkspace('attendance')}><UsersRound size={18}/><span><b>{t('Participation')}</b><small>{t('Accepted teams and arrivals')}</small></span><strong>{attendance.summary.accepted || summary.documentCounts?.validated || 0}</strong></button>
-      <button type="button" className={workspace === 'students' ? 'is-active' : ''} aria-pressed={workspace === 'students'} onClick={() => setWorkspace('students')}><GraduationCap size={18}/><span><b>{t('Accepted students')}</b><small>{t('Final accepted-team roster')}</small></span><strong>{acceptedStudents.loading ? '—' : acceptedStudents.summary.total}</strong></button>
+    <nav className="adm-aivex-workspaces" role="tablist" aria-label={t('AIVEX workspace')}>
+      {AIVEX_WORKSPACES.map(({ key, icon: Icon, label, copy }) => <button id={`aivex-tab-${key}`} key={key} type="button" role="tab" aria-selected={workspace === key} aria-controls={`aivex-panel-${key}`} tabIndex={workspace === key ? 0 : -1} className={workspace === key ? 'is-active' : ''} onClick={() => changeWorkspace(key)}><Icon size={18}/><span><b>{t(label)}</b><small>{t(copy)}</small></span></button>)}
     </nav>
     {workspace === 'attendance' ? <AivexAttendanceWorkspace attendance={attendance} locale={locale} addToast={addToast} onOpen={(team) => navigate(path(`/admin/aivex/${team.reference}`))}/>
       : workspace === 'students' ? <AcceptedStudentsWorkspace students={acceptedStudents} locale={locale} search={studentSearch} onSearch={(value) => { setStudentSearch(value); setStudentPage(1) }} filters={studentFilters} onFilters={(value) => { setStudentFilters(value); setStudentPage(1) }} tableSort={studentTableSort} onSort={updateStudentTableSort} onPageChange={setStudentPage} onOpen={(student) => navigate(path(`/admin/aivex/${student.reference}`))}/>
-        : <>
+        : <section id="aivex-panel-files" className="adm-aivex-files" role="tabpanel" aria-labelledby="aivex-tab-files">
     <nav className="adm-case-queues" aria-label={t('Filter team files')}>
       {AIVEX_QUEUES.map((queue) => <button key={queue.count} type="button" aria-pressed={(filters.document || '') === queue.filter} className={(filters.document || '') === queue.filter ? 'is-active' : ''} onClick={() => resetPage(() => setFilters({ ...filters, document: queue.filter }))}><span>{t(queue.label)}</span><b>{queue.count === 'all' ? summary.registered || 0 : summary.documentCounts?.[queue.count] || 0}</b></button>)}
     </nav>
@@ -387,7 +401,7 @@ export function AivexListPage({ globalQuery }) {
       </>}
     </div>
     <div className="adm-security-footnote"><LockKeyhole size={14}/><p>{t('Identity documents are visible only inside the confidential viewer. Every consultation is logged.')}</p></div>
-    </>}
+    </section>}
     <Modal open={purgeOpen} onClose={closePurge} className="adm-aivex-purge-modal" closeLabel={isArabic ? 'إغلاق' : 'Close'} eyebrow={t('Irreversible operation')} title={t('Delete every AIVEX team file?')} footer={<><Button variant="secondary" onClick={closePurge} disabled={purgeBusy}>{t('Cancel')}</Button><Button variant="danger" type="submit" form="aivex-purge-form" disabled={purgeBusy || !purgePassword || !purgeAcknowledged} icon={<Trash2 size={16}/>}>{t(purgeBusy ? 'Deleting securely…' : 'Delete permanently')}</Button></>}>
       <form id="aivex-purge-form" className="adm-aivex-purge-form" onSubmit={submitPurge}>
         <div className="adm-aivex-purge-warning"><TriangleAlert size={22}/><div><b>{t('This action cannot be undone.')}</b><p>{t('Every team file, student record, Magic Link, correction, review and private document will be permanently deleted.')}</p></div></div>
