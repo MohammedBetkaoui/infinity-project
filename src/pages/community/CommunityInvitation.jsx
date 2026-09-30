@@ -6,8 +6,12 @@ export default function CommunityInvitation() {
   return (
     <section className="community-invitation" aria-labelledby="community-invitation-title">
       <div className="page-container">
+        <p className="community-section-index community-section-index-dark" data-animated-text=""><span>03 / Belong</span><span>Your next chapter</span></p>
         <div className="community-invitation-layout">
-          <h2 id="community-invitation-title">The next person<br />could be you.</h2>
+          <div>
+            <p className="community-invitation-overline">There is room for your perspective</p>
+            <h2 id="community-invitation-title">The next person<br />could be you.</h2>
+          </div>
           <div className="community-invitation-copy">
             <p>You do not need a perfect portfolio to start a conversation. Tell us what you would like to learn and where you hope to contribute.</p>
             <div className="community-invitation-actions"><Link className="community-join-link" to="/join">Apply to join Infinity</Link><a className="community-editorial-link" href={communityInstagram} target="_blank" rel="noreferrer">Follow announcements <ArrowUpRight size={15} /></a></div>

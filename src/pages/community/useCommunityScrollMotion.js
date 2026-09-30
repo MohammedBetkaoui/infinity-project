@@ -5,7 +5,7 @@ export default function useCommunityScrollMotion(pageRef) {
     const page = pageRef.current
     page.querySelectorAll('.team-gallery-heading h2, .community-life-intro h2, .community-invitation h2')
       .forEach((title) => motion.revealText(title))
-    page.querySelectorAll('.team-gallery-heading > p, .community-life-intro > p, .community-invitation-copy > p')
+    page.querySelectorAll('.team-gallery-heading > p, .community-life-intro > p:not(.community-life-overline), .community-invitation-copy > p')
       .forEach((copy) => motion.revealText(copy, { type: 'lines' }))
     // Scroll owns the outer frame; Framer Motion owns the inner, draggable portrait.
     // In viewport mode (like Home) the group enters together when the stage

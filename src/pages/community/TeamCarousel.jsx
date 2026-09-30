@@ -43,8 +43,14 @@ export default function TeamCarousel() {
   return (
     <LayoutGroup id={groupId}>
       <section ref={sectionRef} id="meet-infiniters" className="team-gallery" aria-labelledby="community-people-title" data-in-view={inView} data-modal-open={viewerIndex !== null}>
+        <div className="page-container">
+          <p className="community-section-index community-section-index-dark" data-animated-text=""><span>01 / People</span><span>{String(communityPortraits.length).padStart(2, '0')} portraits</span></p>
+        </div>
         <div className="page-container team-gallery-heading">
-          <h2 id="community-people-title">Meet the Infiniters.</h2>
+          <div>
+            <p className="team-gallery-overline" data-animated-text="">The people behind the work</p>
+            <h2 id="community-people-title">Meet the Infiniters.</h2>
+          </div>
           <p>Behind the workshops, the visuals and the shared projects: students who give the club their time, their skills and their own way of seeing things.</p>
         </div>
 
@@ -108,7 +114,7 @@ export default function TeamCarousel() {
             </div>
           </div>
           <TeamNameSelector members={communityPortraits} activeIndex={activeIndex} onSelect={(index) => goTo(index)} carouselId={carouselId} reduced={reduced} />
-          <p className="team-gallery-footnote">A few faces from the club, in their own frames. There is a place here for yours, too.</p>
+          <p className="team-gallery-footnote" data-animated-text=""><span>Portrait archive / Infinity Club</span><span>A few faces from the club, in their own frames. There is a place here for yours, too.</span></p>
         </div>
 
         <AnimatePresence>
