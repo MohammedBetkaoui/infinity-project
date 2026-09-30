@@ -15,7 +15,7 @@ function CardLink({ event, className, labelledBy, children }) {
     : <Link to={event.href} className={className} aria-labelledby={labelledBy} {...newTab}>{children}</Link>
 }
 
-export default function EventCard({ cell, priority = false }) {
+export default function EventCard({ cell, index, priority = false }) {
   const { event, variant } = cell
   const featured = variant === 'featured'
   const linked = Boolean(event.href)
@@ -38,14 +38,15 @@ export default function EventCard({ cell, priority = false }) {
         </div>
         <div className="event-card-body">
           <p className="event-card-meta">
-            <span>{event.category}</span>
+            <span className="event-card-index">{String(index).padStart(2, '0')}</span>
+            <span className="event-card-category">{event.category}</span>
             {event.status === 'upcoming' && <span className="event-card-status">Upcoming</span>}
           </p>
           <div className="event-card-heading">
             <h3 id={titleId}>{event.title}</h3>
             {linked && !featured && <ArrowUpRight className="event-card-arrow" size={20} strokeWidth={1.6} aria-hidden="true" />}
           </div>
-          <p className="event-card-edition">{event.edition || event.year}</p>
+          <p className="event-card-edition"><span>{event.edition || event.year}</span><span>{event.year}</span></p>
           {event.description && <p className="event-card-description">{event.description}</p>}
           {linked && (featured ? (
             <span className="event-card-action" id={actionId}>

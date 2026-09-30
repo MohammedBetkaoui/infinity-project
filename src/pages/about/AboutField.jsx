@@ -4,7 +4,7 @@ import { Plus } from 'lucide-react'
 import useMotionPreference from '../../hooks/useMotionPreference'
 import { SPRINGS } from '../../lib/motion'
 
-export default function AboutField({ pole }) {
+export default function AboutField({ pole, index }) {
   const [open, setOpen] = useState(false)
   const id = useId()
   const reduced = useMotionPreference()
@@ -13,7 +13,8 @@ export default function AboutField({ pole }) {
   return (
     <li className="about-field" data-open={open}>
       <h3>
-        <button id={`${id}-button`} type="button" aria-expanded={open} aria-controls={`${id}-detail`} onClick={() => setOpen(!open)}>
+        <button id={`${id}-button`} type="button" aria-expanded={open} aria-controls={`${id}-detail`} onClick={() => setOpen((current) => !current)}>
+          <span className="about-field-number" aria-hidden="true">{String(index).padStart(2, '0')}</span>
           <Icon className="about-field-icon" aria-hidden="true" />
           <span>{pole.title}</span>
           <motion.span className="about-field-toggle" aria-hidden="true" animate={{ rotate: open ? 45 : 0 }} transition={reduced ? { duration: 0 } : SPRINGS.control}>

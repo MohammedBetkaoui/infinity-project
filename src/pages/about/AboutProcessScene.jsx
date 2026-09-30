@@ -3,7 +3,7 @@ const route = 'M64 96C102 27 243 42 268 102C293 162 369 151 408 206C457 281 300 
 export default function AboutProcessScene() {
   return (
     <figure className="about-process-scene">
-      <div className="about-scene-top"><span>Inside the workshop</span><span aria-hidden="true">INFINITY</span></div>
+      <div className="about-scene-top" data-animated-text=""><span><i /> Inside the workshop</span><span aria-hidden="true">INFINITY / METHOD</span></div>
       <svg viewBox="0 0 480 380" fill="none" aria-hidden="true">
         <path className="about-process-guide" d={route} />
         <path className="about-process-ink" d={route} />
@@ -33,7 +33,7 @@ export default function AboutProcessScene() {
         </g>
         <circle className="about-process-head" r="4" />
       </svg>
-      <figcaption>
+      <figcaption data-animated-text="">
         <span>A working idea, in any discipline.</span>
         <span className="about-scene-indicators" aria-hidden="true"><i /><i /><i /></span>
       </figcaption>

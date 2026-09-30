@@ -11,7 +11,7 @@ export default function EventYearSection({ year, events, isLatest }) {
       </header>
       <div className="events-year-grid">
         {layoutYear(events).map((cell, index) => (
-          <EventCard key={cell.event.id} cell={cell} priority={isLatest && index === 0} />
+          <EventCard key={cell.event.id} cell={cell} index={index + 1} priority={isLatest && index === 0} />
         ))}
       </div>
     </section>

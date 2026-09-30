@@ -5,9 +5,9 @@ import useScrollAnimations from '../../hooks/useScrollAnimations'
 export default function useEventsPageMotion(pageRef) {
   useScrollAnimations(pageRef, ({ revealText, revealSection, revealAllText }) => {
     const page = pageRef.current
-    page.querySelectorAll('.events-archive-intro h2, .events-year-title, .events-cta h2')
+    page.querySelectorAll('.events-archive-intro h2, .events-year-title, .events-cta h2, .events-empty h3')
       .forEach((title) => revealText(title))
-    page.querySelectorAll('.events-archive-intro p, .events-cta p')
+    page.querySelectorAll('.events-archive-intro > p, .events-cta-copy > p, .events-empty p')
       .forEach((copy) => revealText(copy, { type: 'lines' }))
     page.querySelectorAll('.events-year').forEach((year) => {
       revealSection(year.querySelectorAll('.event-card'), {
