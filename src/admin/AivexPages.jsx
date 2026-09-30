@@ -8,7 +8,7 @@ import { useAivexLocale } from './AivexI18n'
 import { DOCUMENT_STATUSES, REGISTRATION_STATUSES, dateLabel, timeLabel } from './adminModel'
 import { Button, ConfidentialNotice, CriticalNotice, EmptyState, IconButton, Modal, PageHeader, Pagination, Progress, SectionHeading, StatusBadge, Tabs } from './AdminUI'
 import { ActionDialog, Facts, History, RecordTable, RecordToolbar } from './AdminRecords'
-import { useAdminAivex, useAdminAivexActions, useAdminAivexAttendance } from './useAdminAivex'
+import { useAdminAivex, useAdminAivexActions, useAdminAivexAttendance, useAdminAivexExport } from './useAdminAivex'
 import { aivexDateLabel, aivexFilePresentation } from './aivexPresentation'
 import './aivex-admin.css'
 
@@ -190,6 +190,7 @@ export function AivexListPage({ globalQuery }) {
   const [purgeError, setPurgeError] = useState('')
   const [purgeReference, setPurgeReference] = useState('')
   const { purgeAll } = useAdminAivexActions()
+  const { exporting, exportCsv } = useAdminAivexExport()
   const { records: teams, pagination, summary, facets, loading, error, refresh } = useAdminAivex({
     page, search: deferredSearch, filters, sort, enabled: workspace === 'files',
   })
@@ -245,9 +246,22 @@ export function AivexListPage({ globalQuery }) {
         : `${result.deletedRegistrations} team files and all private documents were deleted.`,
     )
   }
+  const downloadCsv = async () => {
+    const result = await exportCsv({ search: deferredSearch, filters, sort })
+    if (!result.ok) {
+      addToast(t('CSV export failed'), t(result.message))
+      return
+    }
+    addToast(
+      t('CSV export ready'),
+      result.truncated
+        ? t('The export reached its safety limit. Narrow the filters and export again.')
+        : t('The filtered AIVEX registrations were downloaded.'),
+    )
+  }
 
   return <div className={`adm-page adm-aivex-page ${isArabic ? 'is-arabic' : ''}`} dir={dir} lang={language}>
-    <PageHeader eyebrow={t('AIVEX · Edition 02')} title={t('AIVEX files')} description={t('Find a team, review its file and follow up on corrections.')} actions={<div className="adm-aivex-header-actions"><AivexLanguageSwitch language={language} setLanguage={setLanguage} t={t}/><Button variant="secondary" onClick={workspace === 'attendance' ? attendance.refresh : refresh} disabled={workspace === 'attendance' ? attendance.loading : loading} icon={<RefreshCw size={15}/>}>{t(workspace === 'attendance' ? 'Refresh attendance' : 'Refresh files')}</Button>{workspace === 'files' && user?.role === 'super_admin' && <Button variant="danger" onClick={() => setPurgeOpen(true)} icon={<Trash2 size={15}/>}>{t('Delete all team files')}</Button>}</div>}/>
+    <PageHeader eyebrow={t('AIVEX · Edition 02')} title={t('AIVEX files')} description={t('Find a team, review its file and follow up on corrections.')} actions={<div className="adm-aivex-header-actions"><AivexLanguageSwitch language={language} setLanguage={setLanguage} t={t}/><Button variant="secondary" onClick={workspace === 'attendance' ? attendance.refresh : refresh} disabled={workspace === 'attendance' ? attendance.loading : loading} icon={<RefreshCw size={15}/>}>{t(workspace === 'attendance' ? 'Refresh attendance' : 'Refresh files')}</Button>{workspace === 'files' && ['super_admin', 'administrator'].includes(user?.role) && <Button variant="secondary" onClick={downloadCsv} disabled={loading || exporting} icon={<Download size={15}/>}>{t(exporting ? 'Exporting…' : 'Export filtered CSV')}</Button>}{workspace === 'files' && user?.role === 'super_admin' && <Button variant="danger" onClick={() => setPurgeOpen(true)} icon={<Trash2 size={15}/>}>{t('Delete all team files')}</Button>}</div>}/>
     <nav className="adm-aivex-workspaces" aria-label={t('AIVEX workspace')}>
       <button type="button" className={workspace === 'files' ? 'is-active' : ''} aria-pressed={workspace === 'files'} onClick={() => setWorkspace('files')}><FileCheck2 size={18}/><span><b>{t('Administrative files')}</b><small>{t('Review and corrections')}</small></span></button>
       <button type="button" className={workspace === 'attendance' ? 'is-active' : ''} aria-pressed={workspace === 'attendance'} onClick={() => setWorkspace('attendance')}><UsersRound size={18}/><span><b>{t('Participation')}</b><small>{t('Accepted teams and arrivals')}</small></span><strong>{attendance.summary.accepted || summary.documentCounts?.validated || 0}</strong></button>
@@ -259,7 +273,7 @@ export function AivexListPage({ globalQuery }) {
     <div className="adm-work-panel"><RecordToolbar search={search} onSearch={(value) => resetPage(() => setSearch(value))} placeholder={t('Search reference, team, institution or person…')} filters={filters} onFilters={(value) => resetPage(() => setFilters(value))} resultCount={pagination.total} filterLabel={t('All filters')} getOptionLabel={t} labels={isArabic ? { search: 'البحث في ملفات AIVEX', clearSearch: 'مسح البحث', all: 'الكل', recordView: 'طريقة عرض السجلات', tableView: t('Table view'), cardView: t('Card view'), liveScope: t('Live scope'), matchingRecords: (count) => `${count} سجل مطابق`, removeFilter: 'إزالة عامل تصفية', allIncluded: t('All records included'), clearAll: t('Clear all'), drawerTitle: t('Refine records'), drawerEyebrow: t('Search & filters'), reset: t('Reset filters'), showResults: (count) => `عرض ${count} نتيجة`, drawerSummary: 'سجل مطابق للمعايير الحالية. تظهر التغييرات مباشرة.', close: 'إغلاق عوامل التصفية' } : {}} quickDefinitions={[
       { key: 'document', label: t('Document stage'), shortLabel: t('Stage'), allLabel: t('All stages'), options: DOCUMENT_STATUSES },
     ]} view={activeView} onView={mobileCardsOnly ? undefined : changeView} definitions={[
-      { key: 'registration', label: t('Registration status'), options: REGISTRATION_STATUSES }, { key: 'document', label: t('Document status'), options: DOCUMENT_STATUSES }, { key: 'wilaya', label: t('Wilaya'), options: facets.wilayas || [] }, { key: 'institution', label: t('Institution'), options: facets.institutions || [] }, { key: 'complete', label: t('Completeness'), options: ['Complete', 'Incomplete'] }, { key: 'signedLabel', label: t('Signed document'), options: ['Present', 'Absent'] }, { key: 'dateFrom', label: t('Submitted from'), type: 'date', options: [] }, { key: 'dateTo', label: t('Submitted until'), type: 'date', options: [] },
+      { key: 'registration', label: t('Registration status'), options: REGISTRATION_STATUSES }, { key: 'document', label: t('Document status'), options: DOCUMENT_STATUSES }, { key: 'gender', label: t('Student gender'), options: ['Male', 'Female'] }, { key: 'wilaya', label: t('Wilaya'), options: facets.wilayas || [] }, { key: 'institution', label: t('Institution'), options: facets.institutions || [] }, { key: 'complete', label: t('Completeness'), options: ['Complete', 'Incomplete'] }, { key: 'signedLabel', label: t('Signed document'), options: ['Present', 'Absent'] }, { key: 'dateFrom', label: t('Submitted from'), type: 'date', options: [] }, { key: 'dateTo', label: t('Submitted until'), type: 'date', options: [] },
     ]}/>
       {error ? <div className="adm-state-error adm-aivex-error" role="alert"><TriangleAlert size={24}/><h3>{t('AIVEX files could not be loaded')}</h3><p>{t(error)}</p><Button onClick={refresh} variant="secondary" icon={<RefreshCw size={15}/>}>{t('Try again')}</Button></div> : loading ? <AivexSkeleton label={t('Loading AIVEX files')}/> : activeView === 'cards' ? <AivexCardGrid records={teams} locale={locale} pagination={pagination} onPageChange={setPage} order={cardOrder} onOrder={updateCardOrder} onOpen={(team) => navigate(path(`/admin/aivex/${team.ref}`))}/> : <>
         <RecordTable className="adm-aivex-table-view" records={teams} controlledSort={tableSort} onSortChange={updateTableSort} pagination={pagination} onPageChange={setPage} locale={isArabic ? 'ar' : 'en'} labels={isArabic ? { open: 'فتح', record: 'السجل', openFile: t('Open file'), openRecord: 'فتح السجل', empty: t('No matching records'), emptyCopy: t('Adjust the search or remove one of the active filters.'), pagination: paginationLabels(true, t) } : {}} rowClassName={(team) => ['Generation issue', 'Corrections needed', 'Expired'].includes(team.document) ? 'is-aivex-attention' : team.document === 'Validated' ? 'is-aivex-validated' : ''} onOpen={(team) => navigate(path(`/admin/aivex/${team.ref}`))} columns={[
@@ -935,7 +949,23 @@ export function AivexDetailPage() {
         { id: 'delegation-leader', title: 'Delegation leader', name: team.leader, phone: team.leaderPhone, rfid: team.leaderRfid },
         { id: 'driver', title: 'Driver', name: team.driver, phone: team.driverPhone, rfid: team.driverRfid },
       ].map((person) => { const identity = team.docs.find((document) => document.id === person.id); return <div key={person.id}><h3>{t(person.title)}</h3><Facts missingLabel={t('Not provided')} items={[[t('Full name'), <Ltr>{person.name}</Ltr>], [t('Phone'), <Ltr>{person.phone}</Ltr>], ['RFID', <code><Ltr>{person.rfid}</Ltr></code>], [t('Identity card'), <AivexStatus value={identity.status} t={t}/>]]}/><button className="adm-text-action" disabled={!identity.canOpen} onClick={() => openFile(identity)}><LockKeyhole size={14}/>{t('Review document')}</button></div> })}</div></section>
-      <section className="adm-panel adm-dossier-section"><SectionHeading index="04" title={t('Student roster')} meta={t('Exactly 3 students')}/><div className="adm-student-roster">{team.students.map((student, index) => { const studentCard = team.docs.find((document) => document.id === `student-${index + 1}`); return <article key={student.position}><header><span>{student.position}</span><h3><Ltr>{student.name}</Ltr></h3><AivexStatus value={studentCard.status} t={t}/></header><Facts missingLabel={t('Not provided')} items={[[t('Phone'), <Ltr>{student.phone}</Ltr>], [t('Baccalaureate year'), <Ltr>{student.bac}</Ltr>], [t('RFID · 8 digits'), <code><Ltr>{student.rfid}</Ltr></code>], [t('Document review'), t(documentOutcomeLabel(studentCard.status))]]}/><button className="adm-text-action" disabled={!studentCard.canOpen} onClick={() => openFile(studentCard)}><LockKeyhole size={14}/>{t('Review student card')} <ArrowRight size={14}/></button></article> })}</div></section>
+      <section className="adm-panel adm-dossier-section">
+        <SectionHeading index="04" title={t('Student roster')} meta={t('Exactly 3 students')}/>
+        <div className="adm-student-roster">{team.students.map((student, index) => {
+          const studentCard = team.docs.find((document) => document.id === `student-${index + 1}`)
+          return <article key={student.position}>
+            <header><span>{student.position}</span><h3><Ltr>{student.name}</Ltr></h3><AivexStatus value={studentCard.status} t={t}/></header>
+            <Facts missingLabel={t('Not provided')} items={[
+              [t('Phone'), <Ltr>{student.phone}</Ltr>],
+              [t('Gender'), student.gender ? t(student.gender === 'female' ? 'Female' : 'Male') : ''],
+              [t('Baccalaureate year'), <Ltr>{student.bac}</Ltr>],
+              [t('RFID · 8 digits'), <code><Ltr>{student.rfid}</Ltr></code>],
+              [t('Document review'), t(documentOutcomeLabel(studentCard.status))],
+            ]}/>
+            <button className="adm-text-action" disabled={!studentCard.canOpen} onClick={() => openFile(studentCard)}><LockKeyhole size={14}/>{t('Review student card')} <ArrowRight size={14}/></button>
+          </article>
+        })}</div>
+      </section>
     </div><aside className="adm-dossier-aside"><div className="adm-dossier-summary"><span className="adm-eyebrow">{t('Next step')}</span><h2>{t(presentation.title)}</h2><p>{t(presentation.copy)}</p><Button onClick={() => setTab(presentation.tab)} icon={<ArrowRight size={16}/>}>{t(presentation.action)}</Button></div><section className="adm-panel adm-aside-docs"><h3>{t('Document centre')}</h3><p><FileText size={16}/>{isArabic ? `${team.docs.length} وثيقة مسجلة` : `${team.docs.length} documents on record`}</p><p><LockKeyhole size={16}/>{isArabic ? `${team.docs.filter((document) => ['student', 'identity'].includes(document.category)).length} وثائق هوية سرية` : `${team.docs.filter((document) => ['student', 'identity'].includes(document.category)).length} confidential identity files`}</p><button className="adm-text-action" onClick={() => setTab('Documents')}>{t('Browse documents')} <ArrowRight size={15}/></button></section><AivexConfidentialNotice t={t}/></aside></div>}
     {tab === 'Documents' && <div className="adm-documents-page"><AivexConfidentialNotice t={t}/>{[
       ['official', 'A', 'Participation form', 'Download the form to be signed by the institution.'],

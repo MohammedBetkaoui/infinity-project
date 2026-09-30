@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { Readable } from 'node:stream'
 import test from 'node:test'
-import { createAdminAivexService } from '../api/_lib/admin-aivex.js'
-import { canAccessAivexDocuments, canManageAivex } from '../api/_lib/admin-aivex-permissions.js'
+import { buildAivexCsv, createAdminAivexService } from '../api/_lib/admin-aivex.js'
+import { canAccessAivexDocuments, canExportAivex, canManageAivex } from '../api/_lib/admin-aivex-permissions.js'
 import {
   isAivexDocumentKey, isAivexReference, parseAivexListOptions, validateAivexActionBody,
 } from '../api/_lib/admin-aivex-validation.js'
@@ -40,7 +40,7 @@ const registration = {
 
 const students = [1, 2, 3].map((position) => ({
   position, full_name: `Student ${position}`, phone: `+21355511122${position}`,
-  bac_year: 2023, rfid_number: `0000000${position}`,
+  gender: position === 2 ? 'female' : 'male', bac_year: 2023, rfid_number: `0000000${position}`,
   student_card_path: `${REGISTRATION_ID}/student-${position}.jpg`, student_card_mime: 'image/jpeg',
   student_card_size_bytes: 2048, created_at: '2026-09-20T09:00:00.000Z', updated_at: '2026-09-20T09:00:00.000Z',
 }))
@@ -49,6 +49,7 @@ class MemoryAivexStore {
   constructor() {
     this.audits = []
     this.actions = []
+    this.exportInput = null
   }
   async list() { return { rows: [overview], count: 1 } }
   async summaryRows() { return [overview] }
@@ -63,6 +64,13 @@ class MemoryAivexStore {
   async corrections() { return [] }
   async correctionItems() { return [] }
   async audit() { return [...this.audits] }
+  async exportRows(options, adminUserId) {
+    this.exportInput = { options, adminUserId }
+    return {
+      rows: students.map((student) => ({ ...overview, ...student })),
+      truncated: false,
+    }
+  }
   async applyAction(input) { this.actions.push(input); return NOW.toISOString() }
   async auditEvent(input) { this.audits.push({ action: input.action, sensitivity: input.sensitivity, metadata: input.metadata, created_at: input.now.toISOString(), administrator: { display_name: 'AIVEX Administrator' } }) }
   async resolveDocument(_registration, key) {
@@ -87,16 +95,19 @@ function response() {
     end(value) {
       this.rawBody = value
       if (Buffer.isBuffer(value)) return
+      if (String(this.headers['content-type'] || '').startsWith('text/csv')) { this.body = value; return }
       this.body = value ? JSON.parse(value) : null
     },
   }
 }
 
 test('AIVEX query and mutation validation accept only the production contract', () => {
-  const parsed = parseAivexListOptions(new URLSearchParams('page=2&limit=12&edition=2&registration=under_review&document=signed_document_uploaded&sort=attention_asc'))
+  const parsed = parseAivexListOptions(new URLSearchParams('page=2&limit=12&edition=2&registration=under_review&document=signed_document_uploaded&gender=female&sort=attention_asc'))
   assert.equal(parsed.ok, true)
   assert.equal(parsed.value.page, 2)
   assert.equal(parsed.value.edition, 2)
+  assert.equal(parsed.value.gender, 'female')
+  assert.equal(parseAivexListOptions(new URLSearchParams('gender=unknown')).ok, false)
   assert.equal(parseAivexListOptions(new URLSearchParams('document=unknown')).ok, false)
   assert.equal(parseAivexListOptions(new URLSearchParams('limit=500')).ok, false)
   assert.equal(isAivexReference(REFERENCE), true)
@@ -119,6 +130,8 @@ test('AIVEX permissions keep critical decisions away from reviewers', () => {
   assert.equal(canManageAivex('super_admin', 'cancel_registration'), true)
   assert.equal(canAccessAivexDocuments('reviewer'), true)
   assert.equal(canAccessAivexDocuments('unknown'), false)
+  assert.equal(canExportAivex('administrator'), true)
+  assert.equal(canExportAivex('reviewer'), false)
 })
 
 test('list and detail expose public references and metadata, never database ids or private paths', async () => {
@@ -130,6 +143,7 @@ test('list and detail expose public references and metadata, never database ids 
   const detail = await service.detail(REFERENCE, ADMIN)
   assert.equal(detail.ref, REFERENCE)
   assert.equal(detail.students.length, 3)
+  assert.equal(detail.students[1].gender, 'female')
   assert.equal(detail.canValidate, true)
   assert.deepEqual(detail.reviewSummary.groups.map(({ key, ready }) => ({ key, ready })), [
     { key: 'team', ready: true },
@@ -143,6 +157,52 @@ test('list and detail expose public references and metadata, never database ids 
   assert.doesNotMatch(serialized, new RegExp(REGISTRATION_ID))
   assert.doesNotMatch(serialized, /private-leader|private-driver|student_card_path|checksum|sha256/i)
   assert(detail.docs.every((document) => !('path' in document)))
+})
+
+test('filtered AIVEX CSV export is administrator-only, forwards gender filters and neutralizes spreadsheet formulas', async () => {
+  const store = new MemoryAivexStore()
+  const service = createAdminAivexService({ store, now: () => NOW })
+  const options = { page: 1, limit: 12, edition: 2, q: '', gender: 'female', sort: 'submitted_desc' }
+  const denied = await service.export(options, { ...ADMIN, role: 'reviewer' })
+  assert.equal(denied.status, 403)
+  assert.equal(store.exportInput, null)
+
+  const result = await service.export(options, ADMIN)
+  assert.equal(result.ok, true)
+  assert.equal(store.exportInput.options.gender, 'female')
+  assert.equal(store.exportInput.adminUserId, ADMIN.id)
+  assert.match(result.csv, /^\uFEFF"Reference","Edition","Team"/)
+  assert.match(result.csv, /"Female"/)
+  assert.doesNotMatch(result.csv, /student_card_path|registration_id|private/i)
+
+  const protectedCsv = buildAivexCsv([{ ...overview, team_name: '=HYPERLINK("https://invalid")', ...students[0] }])
+  assert.match(protectedCsv, /"'=HYPERLINK\(""https:\/\/invalid""\)"/)
+})
+
+test('GET AIVEX export requires an authenticated administrator and returns no-store CSV', async () => {
+  const store = new MemoryAivexStore()
+  const service = createAdminAivexService({ store, now: () => NOW })
+  const env = { ADMIN_AIVEX_API_ENABLED: 'true', NODE_ENV: 'production' }
+  const url = '/api/admin-auth?__admin_path=aivex/export&edition=2&gender=female&sort=submitted_desc'
+
+  const unauthenticated = createAdminAivexHandler({ createService: () => service, requireSession: async () => null, env })
+  const unauthenticatedRes = response()
+  await unauthenticated(request('GET', url), unauthenticatedRes)
+  assert.equal(unauthenticatedRes.statusCode, 401)
+
+  const reviewer = createAdminAivexHandler({ createService: () => service, requireSession: async () => ({ user: { ...ADMIN, role: 'reviewer' } }), env })
+  const reviewerRes = response()
+  await reviewer(request('GET', url), reviewerRes)
+  assert.equal(reviewerRes.statusCode, 403)
+
+  const administrator = createAdminAivexHandler({ createService: () => service, requireSession: async () => ({ user: ADMIN }), env })
+  const exportRes = response()
+  await administrator(request('GET', url), exportRes)
+  assert.equal(exportRes.statusCode, 200)
+  assert.match(exportRes.headers['content-type'], /^text\/csv/)
+  assert.match(exportRes.headers['cache-control'], /no-store/)
+  assert.match(exportRes.headers['content-disposition'], /aivex-edition-02-filtered\.csv/)
+  assert.match(exportRes.body, /"Female"/)
 })
 
 test('AIVEX review summary turns technical checks into clear administrative blockers', async () => {

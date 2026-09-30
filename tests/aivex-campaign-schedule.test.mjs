@@ -71,6 +71,7 @@ const validPayload = () => ({
     position,
     fullName: ['Sara Meziane', 'Yacine Amrane', 'Lina Khelifi'][position - 1],
     phone: `055000000${position}`,
+    gender: position === 2 ? 'male' : 'female',
     bacYear: 2021 + position,
     rfid: `0000000${position}`,
     studentCard: `studentCard_${position}`,

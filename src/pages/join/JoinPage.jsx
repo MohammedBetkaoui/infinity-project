@@ -156,7 +156,6 @@ export default function JoinPage() {
                 <span>Application received</span>
                 <h2>Welcome to the first step.</h2>
                 <p>Your {joinTypeLabel(joinType).toLowerCase()} application has reached Infinity Club. Keep this reference if you need to follow up.</p>
-                <strong>{form.result?.reference}</strong>
                 <button type="button" className="af-button af-button-secondary" onClick={form.reset}><RotateCcw size={14} /> Start another application</button>
               </motion.div>
             ) : (

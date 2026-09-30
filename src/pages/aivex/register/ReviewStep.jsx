@@ -3,7 +3,7 @@ import { ChevronDown, FileCheck2, Pencil } from 'lucide-react'
 import { OTHER_INSTITUTION_ID } from '../../../data/algeriaHigherEducation'
 import { IDENTITY_CARD_POLICY } from '../../../../shared/aivex/contract-v4.js'
 import { STEP, describeCardFile, institutionLabel, wilayaLabel } from './registrationModel'
-import { getRoleLabel } from './registrationI18n'
+import { getGenderLabel, getRoleLabel } from './registrationI18n'
 import PrivacyNotice from './PrivacyNotice'
 import StepHeading from './StepHeading'
 import { fieldId, recordId } from './useCompetitionRegistration'
@@ -63,6 +63,7 @@ function ReviewStudent({ student, onEdit, editText, t }) {
       </div>
       <dl className="axr-review-record-grid">
         <ReviewItem label={t.revPhone} value={student.phone.trim()} t={t} />
+        <ReviewItem label={t.revGender} value={getGenderLabel(student.gender, t)} t={t} />
         <ReviewItem label={t.revBacYear} value={student.bacYear} t={t} />
         <ReviewItem label={t.revRfid} value={student.rfid.trim()} t={t} />
         <div className="axr-review-item axr-review-document">

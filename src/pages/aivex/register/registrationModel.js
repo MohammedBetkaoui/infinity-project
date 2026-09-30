@@ -3,7 +3,7 @@ import {
 } from '../../../data/algeriaHigherEducation.js'
 import {
   ACTIVITY_OFFICIAL_ROLES, AIVEX_FORM_VERSION, AIVEX_STUDENT_COUNT, BAC_YEAR_RANGE, IDENTITY_CARD_POLICY, IDENTITY_CARD_SUBJECTS, LIMITS,
-  STUDENT_CARD_POLICY, bacYearChoices, buildRegistrationPayloadV4, canonicalCardMime, identityCardField, identityCardFileIssue,
+  STUDENT_CARD_POLICY, STUDENT_GENDERS, bacYearChoices, buildRegistrationPayloadV4, canonicalCardMime, identityCardField, identityCardFileIssue,
   isValidBacYear, isValidDelegationRfid, isValidEmail, isValidPhoneInput, isValidStudentRfid, normalizeBacYear, normalizeEmail,
   normalizeRfid, normalizeText, personNameIssue, studentCardField, studentCardFileIssue, within,
 } from '../../../../shared/aivex/contract-v4.js'
@@ -14,7 +14,7 @@ import {
 // decides NOTHING about what a valid phone, RFID, BAC year or name is. The form
 // is the UX layer; the API is the authority and validates everything again.
 
-export { AIVEX_FORM_VERSION as FORM_VERSION, AIVEX_STUDENT_COUNT as STUDENT_COUNT, bacYearChoices }
+export { AIVEX_FORM_VERSION as FORM_VERSION, AIVEX_STUDENT_COUNT as STUDENT_COUNT, STUDENT_GENDERS, bacYearChoices }
 export const CARD_TYPES = Object.keys(STUDENT_CARD_POLICY.types)
 // Identity cards accept fewer types than student cards (no WEBP).
 export const IDENTITY_CARD_TYPES = Object.keys(IDENTITY_CARD_POLICY.types)
@@ -33,9 +33,9 @@ export const SECTIONS = {
   identityDocuments: { step: STEP.delegation, fields: [...IDENTITY_CARD_SUBJECTS] },
 }
 // Same order as the student record renders them.
-export const STUDENT_FIELDS = ['fullName', 'phone', 'bacYear', 'rfid', 'studentCard']
+export const STUDENT_FIELDS = ['fullName', 'phone', 'gender', 'bacYear', 'rfid', 'studentCard']
 // Typed student answers kept in the tab's draft. The card files never are.
-export const STUDENT_TEXT_FIELDS = ['fullName', 'phone', 'bacYear', 'rfid']
+export const STUDENT_TEXT_FIELDS = ['fullName', 'phone', 'gender', 'bacYear', 'rfid']
 
 export const DRAFT_KEY = 'aivex-registration-draft-v4'
 // Drafts of the previous forms (v3 held national ID numbers): deleted on
@@ -168,6 +168,7 @@ export function studentIssues(student, students = [], L) {
   return collect([
     ['fullName', nameIssue(student.fullName, L, { student: true })],
     ['phone', phoneIssue(student.phone, L)],
+    ['gender', STUDENT_GENDERS.includes(student.gender) ? '' : msg(L, 'errGenderRequired', 'Gender is required.')],
     ['bacYear', !text(student.bacYear) ? msg(L, 'errBacYearRequired', 'BAC year is required.')
       : isValidBacYear(normalizeBacYear(student.bacYear)) ? '' : msg(L, 'errBacYearInvalid', `The BAC year must be between ${BAC_YEAR_RANGE.min} and ${BAC_YEAR_RANGE.max}.`)],
     ['rfid', studentRfidIssue(student.rfid, L) || (shared ? msg(L, 'errRfidShared', 'Each student needs their own RFID.') : '')],
@@ -233,7 +234,7 @@ export function buildSummary({ team, activityOfficial, delegationHead, driver, s
     '',
     ...students.map((student) => [
       `Student ${String(student.position).padStart(2, '0')}: ${text(student.fullName) || 'Unnamed'}`,
-      `   BAC: ${text(student.bacYear) || '-'} · ${text(student.phone) || '-'}`,
+      `   Gender: ${student.gender === 'female' ? 'Female' : student.gender === 'male' ? 'Male' : '-'} · BAC: ${text(student.bacYear) || '-'} · ${text(student.phone) || '-'}`,
       `   Student card: ${student.studentCard ? 'attached' : 'missing'}`,
     ].join('\n')),
   ].join('\n')

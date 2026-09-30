@@ -96,6 +96,7 @@ export function createAdminAivexStore(supabase) {
         p_institution: options.institution || null,
         p_complete: options.complete || null,
         p_signed: options.signed || null,
+        p_gender: options.gender || null,
         p_date_from: options.dateFrom || null,
         p_date_to: options.dateTo || null,
         p_sort: options.sort,
@@ -143,7 +144,7 @@ export function createAdminAivexStore(supabase) {
     },
 
     async detailBundle(reference) {
-      const { data, error } = await supabase.rpc('admin_get_aivex_detail', {
+      const { data, error } = await supabase.rpc('admin_get_aivex_detail_v2', {
         p_reference: reference,
       })
       if (error && missingRpc(error)) return null
@@ -164,11 +165,34 @@ export function createAdminAivexStore(supabase) {
     async students(registrationId) {
       const { data, error } = await supabase
         .from('aivex_students')
-        .select('position, full_name, phone, bac_year, rfid_number, student_card_path, student_card_mime, student_card_size_bytes, created_at, updated_at')
+        .select('position, full_name, phone, gender, bac_year, rfid_number, student_card_path, student_card_mime, student_card_size_bytes, created_at, updated_at')
         .eq('registration_id', registrationId)
         .order('position', { ascending: true })
       if (error) fail('aivex_students', error)
       return data || []
+    },
+
+    async exportRows(options, adminUserId) {
+      const { data, error } = await supabase.rpc('admin_export_aivex_cases', {
+        p_admin_user_id: adminUserId,
+        p_edition: options.edition,
+        p_query: safeSearch(options.q) || null,
+        p_registration_status: options.registration || null,
+        p_document_status: options.document || null,
+        p_wilaya: options.wilaya || null,
+        p_institution: options.institution || null,
+        p_complete: options.complete || null,
+        p_signed: options.signed || null,
+        p_gender: options.gender || null,
+        p_date_from: options.dateFrom || null,
+        p_date_to: options.dateTo || null,
+        p_sort: options.sort,
+      })
+      if (error) fail('aivex_export', error)
+      return {
+        rows: Array.isArray(data?.rows) ? data.rows : [],
+        truncated: data?.truncated === true,
+      }
     },
 
     async generatedDocuments(registrationId) {

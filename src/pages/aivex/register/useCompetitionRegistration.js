@@ -2,7 +2,7 @@ import { useEffect, useMemo, useReducer, useRef } from 'react'
 import { isApplicationDeliveryConfigured, submitAivexRegistrationV4 } from '../../../lib/applicationSubmission'
 import { OTHER_INSTITUTION_ID, findInstitution, findWilaya } from '../../../data/algeriaHigherEducation'
 import {
-  IDENTITY_CARD_SUBJECTS, createRegistrationStateV4, identityCardUploadName, isUuidV4, studentCardUploadName,
+  IDENTITY_CARD_SUBJECTS, STUDENT_GENDERS, createRegistrationStateV4, identityCardUploadName, isUuidV4, studentCardUploadName,
 } from '../../../../shared/aivex/contract-v4.js'
 import {
   DRAFT_KEY, LEGACY_DRAFT_KEYS, SECTIONS, SECTION_ISSUES, STEP, STUDENT_COUNT, STUDENT_FIELDS, STUDENT_TEXT_FIELDS,
@@ -65,6 +65,7 @@ function restore() {
       return {
         ...student,
         ...typed,
+        gender: STUDENT_GENDERS.includes(typed.gender) ? typed.gender : '',
         // The select only offers the edition's years: a draft holding another one is not restored.
         bacYear: offeredYears.includes(typed.bacYear) ? typed.bacYear : '',
         droppedCard: typeof draft.students[index]?.droppedCard === 'string' ? draft.students[index].droppedCard : null,

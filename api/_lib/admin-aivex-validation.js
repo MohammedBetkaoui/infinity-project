@@ -5,6 +5,7 @@ import {
   IDENTITY_CARD_POLICY, canonicalCardMime,
   DOCUMENT_STATUSES as AIVEX_DOCUMENT_STATUSES,
   REGISTRATION_STATUSES as AIVEX_REGISTRATION_STATUSES,
+  STUDENT_GENDERS,
 } from '../../shared/aivex/contract-v4.js'
 
 const REGISTRATION_STATUSES = new Set(AIVEX_REGISTRATION_STATUSES)
@@ -37,7 +38,7 @@ export const isAivexDocumentKey = (value) => DOCUMENT_KEY_RE.test(String(value |
 export function parseAivexListOptions(params) {
   const raw = Object.fromEntries([
     'q', 'registration', 'document', 'wilaya', 'institution', 'complete',
-    'signed', 'dateFrom', 'dateTo', 'edition', 'sort',
+    'signed', 'gender', 'dateFrom', 'dateTo', 'edition', 'sort',
   ].map((key) => [key, single(params, key)]))
   if (Object.values(raw).some((value) => value === null)) return { ok: false }
 
@@ -52,6 +53,7 @@ export function parseAivexListOptions(params) {
   if (raw.document && !DOCUMENT_STATUSES.has(raw.document)) return { ok: false }
   if (raw.complete && !COMPLETENESS.has(raw.complete)) return { ok: false }
   if (raw.signed && !PRESENCE.has(raw.signed)) return { ok: false }
+  if (raw.gender && !STUDENT_GENDERS.includes(raw.gender)) return { ok: false }
   if (raw.dateFrom && !DATE_RE.test(raw.dateFrom)) return { ok: false }
   if (raw.dateTo && !DATE_RE.test(raw.dateTo)) return { ok: false }
   if (raw.edition && (!/^\d{1,2}$/.test(raw.edition) || Number(raw.edition) < 1)) return { ok: false }

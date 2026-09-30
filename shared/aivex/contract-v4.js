@@ -35,6 +35,7 @@ export const STUDENT_POSITIONS = frozen(Array.from({ length: AIVEX_STUDENT_COUNT
 // --- Enums (values stored in the database, never UI labels) --------------
 
 export const ACTIVITY_OFFICIAL_ROLES = frozen(['sub_director_activities', 'activities_officer'])
+export const STUDENT_GENDERS = frozen(['male', 'female'])
 
 export const REGISTRATION_STATUSES = frozen(['submitted', 'under_review', 'approved', 'rejected', 'cancelled'])
 export const DEFAULT_REGISTRATION_STATUS = 'submitted'
@@ -66,7 +67,7 @@ export const V4_FIELDS = Object.freeze({
   institution: frozen(['id', 'name', 'custom']),
   activityOfficial: frozen(['role', 'fullName', 'email', 'phone']),
   person: frozen(['fullName', 'phone', 'rfid', 'idCard']),
-  student: frozen(['position', 'fullName', 'phone', 'bacYear', 'rfid', 'studentCard']),
+  student: frozen(['position', 'fullName', 'phone', 'gender', 'bacYear', 'rfid', 'studentCard']),
 })
 
 // Owned by the server: sending one of them is a contract violation.
@@ -541,6 +542,9 @@ function readStudents(raw) {
     if (!fullName.ok) return fullName
     const phone = readPhone(student.phone, label, `${base}.phone`)
     if (!phone.ok) return phone
+    if (!STUDENT_GENDERS.includes(student.gender)) {
+      return fail(`${label}: gender is required.`, `${base}.gender`)
+    }
 
     // The payload carries an integer: '2023', 'BAC 2023' or '2023/2024' are refused.
     if (student.bacYear === undefined || student.bacYear === null || student.bacYear === '') {
@@ -559,7 +563,10 @@ function readStudents(raw) {
     const cardField = studentCardField(position)
     if (student.studentCard !== cardField) return fail(`${label}: the student card must be sent as "${cardField}".`, `${base}.studentCard`)
 
-    students.push({ position, fullName: fullName.value, phone: phone.value, bacYear: student.bacYear, rfid: rfid.value, studentCard: cardField })
+    students.push({
+      position, fullName: fullName.value, phone: phone.value, gender: student.gender,
+      bacYear: student.bacYear, rfid: rfid.value, studentCard: cardField,
+    })
   }
   return pass(students)
 }
@@ -642,6 +649,7 @@ export const createStudentStateV4 = (position) => ({
   position,
   fullName: '',
   phone: '',
+  gender: '',
   bacYear: '',
   rfid: '',
   studentCard: null,
@@ -700,6 +708,7 @@ export function buildRegistrationPayloadV4(state) {
       position: student.position,
       fullName: normalizePersonName(student.fullName),
       phone: normalizePhone(student.phone),
+      gender: student.gender,
       bacYear: normalizeBacYear(student.bacYear),
       rfid: normalizeRfid(student.rfid),
       studentCard: studentCardField(student.position),

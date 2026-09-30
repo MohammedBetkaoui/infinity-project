@@ -126,6 +126,10 @@ const en = {
   studentRole: 'Student',
   studentPlaceholder: ({ number }) => `Student ${number}`,
   studentNamePlaceholder: 'As written on the student card',
+  genderLabel: 'Gender',
+  selectGender: 'Select gender',
+  genderMale: 'Male',
+  genderFemale: 'Female',
   // BAC year
   bacYearLabel: 'BAC year',
   selectBacYear: 'Select year',
@@ -182,6 +186,7 @@ const en = {
   revEmail: 'Email',
   revPhone: 'Phone',
   revRfid: 'RFID',
+  revGender: 'Gender',
   revBacYear: 'BAC year',
   revStudentCard: 'Student card',
   edit: 'Edit',
@@ -251,6 +256,7 @@ const en = {
   errRfidInvalid: 'Use at most 64 characters, as written.',
   errStudentRfidInvalid: 'The student RFID must contain exactly 8 digits.',
   errRfidShared: 'Each student needs their own RFID.',
+  errGenderRequired: 'Gender is required.',
   errBacYearRequired: 'BAC year is required.',
   errBacYearInvalid: 'The BAC year must be between 2019 and 2026.',
   errCardRequired: 'Student card is required.',
@@ -377,6 +383,10 @@ const fr = {
   studentRole: 'Étudiant',
   studentPlaceholder: ({ number }) => `Étudiant ${number}`,
   studentNamePlaceholder: 'Tel qu’écrit sur la carte d’étudiant',
+  genderLabel: 'Genre',
+  selectGender: 'Sélectionner le genre',
+  genderMale: 'Homme',
+  genderFemale: 'Femme',
   bacYearLabel: 'Année du BAC',
   selectBacYear: 'Sélectionner l’année',
   bacYearHint: 'Année d’obtention du baccalauréat (2019 à 2026).',
@@ -429,6 +439,7 @@ const fr = {
   revEmail: 'E-mail',
   revPhone: 'Téléphone',
   revRfid: 'RFID',
+  revGender: 'Genre',
   revBacYear: 'Année du BAC',
   revStudentCard: 'Carte d’étudiant',
   edit: 'Modifier',
@@ -495,6 +506,7 @@ const fr = {
   errRfidInvalid: 'Au plus 64 caractères, tel qu’écrit.',
   errStudentRfidInvalid: 'Le RFID étudiant doit contenir exactement 8 chiffres.',
   errRfidShared: 'Chaque étudiant doit avoir son propre RFID.',
+  errGenderRequired: 'Le genre est requis.',
   errBacYearRequired: 'L’année du BAC est requise.',
   errBacYearInvalid: 'L’année du BAC doit être comprise entre 2019 et 2026.',
   errCardRequired: 'La carte d’étudiant est requise.',
@@ -622,6 +634,10 @@ const ar = {
   studentRole: 'طالب',
   studentPlaceholder: ({ number }) => `الطالب ${number}`,
   studentNamePlaceholder: 'كما هو مكتوب على بطاقة الطالب',
+  genderLabel: 'الجنس',
+  selectGender: 'اختر الجنس',
+  genderMale: 'ذكر',
+  genderFemale: 'أنثى',
   bacYearLabel: 'سنة البكالوريا',
   selectBacYear: 'اختر السنة',
   bacYearHint: 'سنة الحصول على شهادة البكالوريا (من 2019 إلى 2026).',
@@ -674,6 +690,7 @@ const ar = {
   revEmail: 'البريد الإلكتروني',
   revPhone: 'الهاتف',
   revRfid: 'RFID',
+  revGender: 'الجنس',
   revBacYear: 'سنة البكالوريا',
   revStudentCard: 'بطاقة الطالب',
   edit: 'تعديل',
@@ -740,6 +757,7 @@ const ar = {
   errRfidInvalid: '64 حرفاً على الأكثر، كما هو مكتوب.',
   errStudentRfidInvalid: 'يجب أن يتكون رقم RFID الخاص بالطالب من 8 أرقام بالضبط.',
   errRfidShared: 'كل طالب يحتاج رقم RFID خاصاً به.',
+  errGenderRequired: 'الجنس مطلوب.',
   errBacYearRequired: 'سنة البكالوريا مطلوبة.',
   errBacYearInvalid: 'يجب أن تكون سنة البكالوريا بين 2019 و2026.',
   errCardRequired: 'بطاقة الطالب مطلوبة.',
@@ -764,6 +782,20 @@ export function getBacYearOptions(t, years) {
     { value: '', label: t.selectBacYear },
     ...years.map((year) => ({ value: String(year), label: String(year) })),
   ]
+}
+
+export function getGenderOptions(t) {
+  return [
+    { value: '', label: t.selectGender },
+    { value: 'male', label: t.genderMale },
+    { value: 'female', label: t.genderFemale },
+  ]
+}
+
+export function getGenderLabel(value, t) {
+  if (value === 'male') return t.genderMale
+  if (value === 'female') return t.genderFemale
+  return ''
 }
 
 export function getRoleOptions(t) {

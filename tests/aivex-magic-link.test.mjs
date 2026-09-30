@@ -179,7 +179,7 @@ const syntheticPayload = (submissionId, teamName) => ({
   driver: { fullName: 'Phase Five A Test Driver', phone: '0555000002', rfid: 'TEST-DRIVER-0001', idCard: 'driverIdCard' },
   students: [1, 2, 3].map((position) => ({
     position, fullName: `Phase Five A Test Student ${['One', 'Two', 'Three'][position - 1]}`, phone: `055500000${position + 2}`,
-    bacYear: 2021, rfid: `9000000${position}`, studentCard: `studentCard_${position}`,
+    gender: position === 2 ? 'male' : 'female', bacYear: 2021, rfid: `9000000${position}`, studentCard: `studentCard_${position}`,
   })),
   consent: true,
 })

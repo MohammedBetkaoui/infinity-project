@@ -480,6 +480,21 @@ function sendAdminDocument(res, document) {
   res.end(document.buffer)
 }
 
+function sendAdminCsv(res, exportResult) {
+  const body = exportResult.csv
+  res.statusCode = 200
+  res.setHeader('Cache-Control', 'no-store, private')
+  res.setHeader('Pragma', 'no-cache')
+  res.setHeader('Vary', 'Cookie, Origin')
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+  res.setHeader('Content-Disposition', `attachment; filename="${safeDownloadName(exportResult.fileName)}"`)
+  res.setHeader('Content-Length', String(Buffer.byteLength(body, 'utf8')))
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.setHeader('X-AIVEX-Export-Rows', String(exportResult.rowCount))
+  if (exportResult.truncated) res.setHeader('X-AIVEX-Export-Truncated', 'true')
+  res.end(body)
+}
+
 export function createAdminAivexHandler({
   createService = createServerAdminAivexService,
   createSettingsService = createServerAdminAivexCampaignSettingsService,
@@ -513,6 +528,7 @@ export function createAdminAivexHandler({
     const purgeAll = path === 'aivex/purge'
     const attendancePath = path === 'aivex/attendance'
     const settingsPath = path === 'aivex/settings'
+    const exportPath = path === 'aivex/export'
 
     if (req.method === 'POST' && !trustedOrigin(req, env)) {
       return sendAdminJson(res, 403, { success: false, message: 'Request rejected.' })
@@ -549,6 +565,14 @@ export function createAdminAivexHandler({
       }
 
       const service = createService()
+      if (exportPath && req.method === 'GET') {
+        const parsed = parseAivexListOptions(url.searchParams)
+        if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid AIVEX filters.' })
+        const result = await service.export(parsed.value, session.user)
+        if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: result.message })
+        return sendAdminCsv(res, result)
+      }
+
       if (path === 'aivex' && req.method === 'GET') {
         const parsed = parseAivexListOptions(url.searchParams)
         if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid AIVEX filters.' })

@@ -2,7 +2,7 @@ import { createServerSupabaseClient } from './aivex-server.js'
 import { createSupabaseDocumentStore } from './aivex-document-store.js'
 import { generateOfficialDocuments } from './aivex-document-generation.js'
 import {
-  allowedAivexActions, canAccessAivexDocuments, canManageAivex, canManageAivexAttendance, canPurgeAllAivex,
+  allowedAivexActions, canAccessAivexDocuments, canExportAivex, canManageAivex, canManageAivexAttendance, canPurgeAllAivex,
 } from './admin-aivex-permissions.js'
 import { createAdminAivexStore } from './admin-aivex-store.js'
 import { CORRECTION_ITEM_DOCUMENT_KEY } from '../../shared/aivex/correction-items.js'
@@ -27,6 +27,36 @@ const ROLE_LABELS = Object.freeze({
   sub_director_activities: 'Deputy director of activities',
   activities_officer: 'Activities manager',
 })
+const GENDER_LABELS = Object.freeze({ male: 'Male', female: 'Female' })
+
+const CSV_COLUMNS = Object.freeze([
+  ['Reference', 'reference'], ['Edition', 'edition'], ['Team', 'team_name'], ['Wilaya', 'wilaya'],
+  ['Institution', 'institution_name'], ['Registration status', 'registration_status'],
+  ['Document status', 'document_status'], ['Submitted at', 'submitted_at'], ['Student position', 'position'],
+  ['Student name', 'full_name'], ['Gender', 'gender'], ['Student phone', 'phone'],
+  ['BAC year', 'bac_year'], ['RFID', 'rfid_number'],
+])
+
+const safeSpreadsheetValue = (value) => {
+  const text = String(value ?? '').replace(/\r\n?/g, '\n')
+  return /^[\s]*[=+\-@\t]/.test(text) ? `'${text}` : text
+}
+const csvCell = (value) => `"${safeSpreadsheetValue(value).replace(/"/g, '""')}"`
+
+export function buildAivexCsv(rows) {
+  const lines = [CSV_COLUMNS.map(([heading]) => csvCell(heading)).join(',')]
+  for (const row of rows) {
+    const normalized = {
+      ...row,
+      wilaya: [row.wilaya_code, row.wilaya_name].filter(Boolean).join(' · '),
+      registration_status: REGISTRATION_LABELS[row.registration_status] || row.registration_status,
+      document_status: DOCUMENT_LABELS[row.document_status] || row.document_status,
+      gender: GENDER_LABELS[row.gender] || '',
+    }
+    lines.push(CSV_COLUMNS.map(([, key]) => csvCell(normalized[key])).join(','))
+  }
+  return `\uFEFF${lines.join('\r\n')}\r\n`
+}
 const ACTION_TITLES = Object.freeze({
   start_review: 'File moved to review',
   approve_registration: 'Registration approved',
@@ -399,7 +429,7 @@ export function createAdminAivexService({ store, documentStore, now = () => new 
       students: students.map((student) => ({
         position: String(student.position).padStart(2, '0'),
         name: student.full_name, phone: student.phone,
-        bac: String(student.bac_year), rfid: student.rfid_number,
+        gender: student.gender || null, bac: String(student.bac_year), rfid: student.rfid_number,
       })),
       docs,
       documentsVerified,
@@ -475,6 +505,9 @@ export function createAdminAivexService({ store, documentStore, now = () => new 
           }
         }
       }
+      if (options.gender) {
+        throw Object.assign(new Error('aivex_gender_filter_requires_migration'), { stage: 'aivex-list', code: 'configuration_error' })
+      }
       const [{ rows, count }, summaryRows] = await Promise.all([
         store.list(options), store.summaryRows(options.edition),
       ])
@@ -498,6 +531,20 @@ export function createAdminAivexService({ store, documentStore, now = () => new 
           institutions: [...new Set(summaryRows.map((row) => row.institution_name).filter(Boolean))].sort(),
         },
         role: user.role,
+      }
+    },
+
+    async export(options, user) {
+      if (!canExportAivex(user.role)) {
+        return { ok: false, status: 403, message: 'Only an administrator can export AIVEX registrations.' }
+      }
+      const result = await store.exportRows(options, user.id)
+      return {
+        ok: true,
+        csv: buildAivexCsv(result.rows),
+        fileName: `aivex-edition-${String(options.edition).padStart(2, '0')}-filtered.csv`,
+        rowCount: result.rows.length,
+        truncated: result.truncated,
       }
     },
 

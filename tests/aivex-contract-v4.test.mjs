@@ -62,6 +62,7 @@ const validPayload = (overrides = {}) => ({
     position,
     fullName: STUDENT_NAMES[position - 1],
     phone: `0550 00 00 0${position}`,
+    gender: position === 2 ? 'male' : 'female',
     bacYear: 2021 + position,
     rfid: studentRfid(position),
     studentCard: `studentCard_${position}`,
@@ -454,6 +455,7 @@ const filledState = () => {
   state.students.forEach((student) => Object.assign(student, {
     fullName: STUDENT_NAMES[student.position - 1],
     phone: `0550 00 00 0${student.position}`,
+    gender: student.position === 2 ? 'male' : 'female',
     bacYear: String(2021 + student.position),
     rfid: ` ${studentRfid(student.position)} `,
     studentCard: new File([IMAGES.png], `IMG_000${student.position}.PNG`, { type: 'image/png' }),
@@ -620,13 +622,13 @@ test('contract: the card check is the same in the form and in the API', async ()
 test('form: three fixed students, RFID + BAC year, text-only draft under the v4 key', () => {
   const state = createRegistrationStateV4()
   assert.deepEqual(state.students, [1, 2, 3].map((position) => ({
-    id: `student-${position}`, position, fullName: '', phone: '', bacYear: '', rfid: '', studentCard: null,
+    id: `student-${position}`, position, fullName: '', phone: '', gender: '', bacYear: '', rfid: '', studentCard: null,
   })))
   assert.deepEqual(state.delegationHead, { fullName: '', phone: '', rfid: '', idCard: null })
   assert.deepEqual(state.driver, { fullName: '', phone: '', rfid: '', idCard: null })
   assert.deepEqual(SECTIONS.delegationHead.fields, ['fullName', 'phone', 'rfid'])
-  assert.deepEqual(STUDENT_FIELDS, ['fullName', 'phone', 'bacYear', 'rfid', 'studentCard'])
-  assert.deepEqual(STUDENT_TEXT_FIELDS, ['fullName', 'phone', 'bacYear', 'rfid'])
+  assert.deepEqual(STUDENT_FIELDS, ['fullName', 'phone', 'gender', 'bacYear', 'rfid', 'studentCard'])
+  assert.deepEqual(STUDENT_TEXT_FIELDS, ['fullName', 'phone', 'gender', 'bacYear', 'rfid'])
   assert.equal(DRAFT_KEY, 'aivex-registration-draft-v4')
   assert.deepEqual(LEGACY_DRAFT_KEYS, ['aivex-registration-draft-v1', 'aivex-registration-draft-v2', 'aivex-registration-draft-v3'])
 

@@ -27,6 +27,7 @@ const DOCUMENT_KEYS = Object.freeze({
 })
 const COMPLETENESS_KEYS = Object.freeze({ Complete: 'complete', Incomplete: 'incomplete' })
 const PRESENCE_KEYS = Object.freeze({ Present: 'present', Absent: 'absent' })
+const GENDER_KEYS = Object.freeze({ Male: 'male', Female: 'female' })
 
 const wilayaCode = (value) => /^\d{2}\s*·/.test(value || '') ? value.slice(0, 2) : value
 
@@ -42,12 +43,54 @@ function queryString({ page, limit, search, filters, sort }) {
     institution: filters.institution,
     complete: COMPLETENESS_KEYS[filters.complete] || filters.complete,
     signed: PRESENCE_KEYS[filters.signedLabel] || filters.signedLabel,
+    gender: GENDER_KEYS[filters.gender] || filters.gender,
     dateFrom: filters.dateFrom,
     dateTo: filters.dateTo,
   }
   for (const [key, value] of Object.entries(values)) if (value) params.set(key, value)
   for (const [key, value] of [...params.entries()]) if (!value) params.delete(key)
   return params.toString()
+}
+
+export function useAdminAivexExport() {
+  const { requestRaw } = useAdminAuth()
+  const [exporting, setExporting] = useState(false)
+
+  const exportCsv = useCallback(async ({ search, filters, sort }) => {
+    if (exporting) return { ok: false, message: 'An export is already being prepared.' }
+    setExporting(true)
+    try {
+      const query = queryString({ page: 1, limit: 50, search, filters, sort })
+      const response = await requestRaw(`/api/admin/aivex/export?${query}`)
+      if (!response.ok) {
+        let message = 'Unable to export the filtered AIVEX registrations.'
+        try { message = (await response.json()).message || message } catch { /* Keep the safe fallback. */ }
+        return { ok: false, message }
+      }
+      const blob = await response.blob()
+      const disposition = response.headers.get('content-disposition') || ''
+      const fileName = /filename="([^"\r\n]+)"/i.exec(disposition)?.[1] || 'aivex-edition-02-filtered.csv'
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      return {
+        ok: true,
+        rows: Number(response.headers.get('x-aivex-export-rows') || 0),
+        truncated: response.headers.get('x-aivex-export-truncated') === 'true',
+      }
+    } catch {
+      return { ok: false, message: 'Unable to reach the AIVEX export service.' }
+    } finally {
+      setExporting(false)
+    }
+  }, [exporting, requestRaw])
+
+  return { exporting, exportCsv }
 }
 
 const listValue = (body, limit) => ({

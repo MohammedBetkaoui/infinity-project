@@ -6,7 +6,9 @@
 >
 > **Mise à jour 2026-09-23 — documents d'identité de la délégation (§8b).** Toute *nouvelle* inscription joint l'image de la carte nationale d'identité du chef de délégation et du chauffeur (5 images au total avec les 3 cartes étudiantes). **Le contrat reste en version 4** : l'ajout est purement additif (deux clés dans des objets déjà fermés, deux parties multipart, huit colonnes NULLables), l'API et le formulaire sont déployés ensemble, et une page périmée reçoit déjà un 400 « rechargez la page ». **Déploiement : appliquer `20260923120000_aivex_v4_identity_documents.sql` AVANT de déployer ce code** (§14).
 >
-> **Mise à jour 2026-09-23 — règles de validation de l'édition 2 (§5b).** Téléphone : **10 chiffres, 05 / 06 / 07** (`+213…` refusé). RFID **étudiant** : **exactement 8 chiffres** (celui du chef de délégation et du chauffeur reste borné à 1–64). Année du BAC : **2019 à 2026**, fixe. Noms de personnes : **lettres Unicode et espaces**, 3–120. Toutes ces règles n'existent qu'une fois, dans le contrat partagé, et l'API les réapplique avant toute écriture. **Aucune migration** : les colonnes stockent déjà ces valeurs (§5b).
+> **Mise à jour 2026-10-13 — genre des étudiants.** Chaque nouvelle inscription porte pour chacun des trois étudiants une valeur canonique obligatoire `male` ou `female`. La migration avant ajoute la colonne nullable afin de ne pas inventer cette information pour les dossiers historiques ; le contrat et l'API la rendent obligatoire pour toute nouvelle inscription.
+>
+> **Mise à jour 2026-09-23 — règles de validation de l'édition 2 (§5b).** Téléphone : **10 chiffres, 05 / 06 / 07** (`+213…` refusé). RFID **étudiant** : **exactement 8 chiffres** (celui du chef de délégation et du chauffeur reste borné à 1–64). Année du BAC : **2019 à 2026**, fixe. Noms de personnes : **lettres Unicode et espaces**, 3–120. Toutes ces règles n'existent qu'une fois, dans le contrat partagé, et l'API les réapplique avant toute écriture.
 
 | Élément | Fichier |
 |---|---|
@@ -35,7 +37,7 @@ Cartes d'identité      → pièces de vérification   (bucket privé aivex-id-c
 
 | Classe | Usage | Champs |
 |---|---|---|
-| **OFFICIAL DATA** | PostgreSQL, Word/PDF, administration | équipe, wilaya, établissement, responsable des activités, chef de délégation, chauffeur, étudiants (nom, téléphone, année du BAC, RFID), référence |
+| **OFFICIAL DATA** | PostgreSQL, Word/PDF, administration | équipe, wilaya, établissement, responsable des activités, chef de délégation, chauffeur, étudiants (nom, téléphone, genre, année du BAC, RFID), référence |
 | **INTERNAL VERIFICATION DATA** | Contrôle d'identité par l'administration | `students[].studentCard` (photo de la carte), `delegationHead.idCard`, `driver.idCard` (image de la carte nationale d'identité) |
 
 ## 2. Architecture
@@ -77,9 +79,9 @@ Le contrat partagé est **pur** (ni React, ni `window`, ni Supabase, ni `process
   "delegationHead": { "fullName": "…", "phone": "…", "rfid": "…", "idCard": "delegationHeadIdCard" },
   "driver": { "fullName": "…", "phone": "…", "rfid": "…", "idCard": "driverIdCard" },
   "students": [
-    { "position": 1, "fullName": "…", "phone": "…", "bacYear": 2023, "rfid": "…", "studentCard": "studentCard_1" },
-    { "position": 2, "fullName": "…", "phone": "…", "bacYear": 2023, "rfid": "…", "studentCard": "studentCard_2" },
-    { "position": 3, "fullName": "…", "phone": "…", "bacYear": 2024, "rfid": "…", "studentCard": "studentCard_3" }
+    { "position": 1, "fullName": "…", "phone": "…", "gender": "female", "bacYear": 2023, "rfid": "…", "studentCard": "studentCard_1" },
+    { "position": 2, "fullName": "…", "phone": "…", "gender": "male", "bacYear": 2023, "rfid": "…", "studentCard": "studentCard_2" },
+    { "position": 3, "fullName": "…", "phone": "…", "gender": "female", "bacYear": 2024, "rfid": "…", "studentCard": "studentCard_3" }
   ],
   "consent": true
 }
@@ -121,6 +123,7 @@ Une seule source de règles (`contract-v4.js`) : le formulaire les applique cham
 | RFID chef de délégation / chauffeur | **chaîne** (un nombre est refusé), trim, 1–64, sans caractère de contrôle, zéros initiaux conservés |
 | RFID étudiant | **chaîne**, trim, `^[0-9]{8}$` : **exactement 8 chiffres**, zéros initiaux conservés ; distincts dans l'équipe — §5b |
 | `students` | tableau d'**exactement 3**, positions `1, 2, 3` dans l'ordre |
+| `students[i].gender` | chaîne canonique obligatoire : `male` ou `female` |
 | `students[i].bacYear` | **entier de 2019 à 2026**, fixe pour l'édition (le sélecteur propose exactement ces années) — §5b |
 | `students[i].studentCard` | `=== "studentCard_{i+1}"` |
 | `delegationHead.idCard` / `driver.idCard` | `=== "delegationHeadIdCard"` / `=== "driverIdCard"` |
@@ -201,7 +204,7 @@ Contrôles des documents d'identité (`aivex_registrations_delegation_head_id_ca
 
 ### 6.2 `public.aivex_students`
 
-`id`, `registration_id` (FK `ON DELETE CASCADE`), `edition` (copiée du parent par trigger), `position` (1–3), `full_name`, `phone`, `bac_year`, `rfid_number`, `student_card_path`, `student_card_mime`, `student_card_size_bytes`, `created_at`, `updated_at`.
+`id`, `registration_id` (FK `ON DELETE CASCADE`), `edition` (copiée du parent par trigger), `position` (1–3), `full_name`, `phone`, `gender`, `bac_year`, `rfid_number`, `student_card_path`, `student_card_mime`, `student_card_size_bytes`, `created_at`, `updated_at`.
 
 - `UNIQUE (registration_id, position)`, `UNIQUE (registration_id, rfid_number)` ; **pas** de `UNIQUE (edition, rfid_number)` (décision métier non prise).
 - Trigger différé : une inscription a 0 ou 3 étudiants au COMMIT (l'API insère les 3 lignes en une requête).

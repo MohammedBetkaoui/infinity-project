@@ -54,9 +54,9 @@ const validPayload = () => ({
   delegationHead: { fullName: 'Karim Haddad', phone: '0661234567', rfid: '00471236', idCard: 'delegationHeadIdCard' },
   driver: { fullName: 'Nabil Saidi', phone: '0770123456', rfid: 'A1B2C3D4', idCard: 'driverIdCard' },
   students: [
-    { position: 1, fullName: 'Betkaoui Mohammed', phone: '0550000001', bacYear: 2022, rfid: '00123456', studentCard: 'studentCard_1' },
-    { position: 2, fullName: 'عبد الرحمان', phone: '0550000002', bacYear: 2023, rfid: '12345678', studentCard: 'studentCard_2' },
-    { position: 3, fullName: 'محمد أمين', phone: '0550000003', bacYear: 2024, rfid: '98765432', studentCard: 'studentCard_3' },
+    { position: 1, fullName: 'Betkaoui Mohammed', phone: '0550000001', gender: 'male', bacYear: 2022, rfid: '00123456', studentCard: 'studentCard_1' },
+    { position: 2, fullName: 'عبد الرحمان', phone: '0550000002', gender: 'male', bacYear: 2023, rfid: '12345678', studentCard: 'studentCard_2' },
+    { position: 3, fullName: 'محمد أمين', phone: '0550000003', gender: 'female', bacYear: 2024, rfid: '98765432', studentCard: 'studentCard_3' },
   ],
   consent: true,
 })
@@ -212,7 +212,7 @@ test('STUDENT RFID: unique inside a registration, in the form and in the API', (
   refuses(change((p) => { p.students[1].rfid = ` ${p.students[0].rfid} ` }), 'students[1].rfid')
 
   const students = [1, 2, 3].map((position) => ({
-    id: `student-${position}`, position, fullName: 'Betkaoui Mohammed', phone: '0550000001', bacYear: '2022', rfid: `1234567${position}`, studentCard: { type: 'image/png', size: 10 },
+    id: `student-${position}`, position, fullName: 'Betkaoui Mohammed', phone: '0550000001', gender: 'male', bacYear: '2022', rfid: `1234567${position}`, studentCard: { type: 'image/png', size: 10 },
   }))
   assert.deepEqual(studentIssues(students[1], students), {})
   const clash = students.map((student) => ({ ...student, rfid: ' 12345678 ' }))
@@ -592,7 +592,7 @@ const fuzzStudentRfids = (next) => Array.from({ length: 700 }, (_, index) => {
 })
 
 const formStudents = () => [1, 2, 3].map((position) => ({
-  id: `student-${position}`, position, fullName: 'Betkaoui Mohammed', phone: '0550000001', bacYear: '2022', rfid: `1234567${position}`, studentCard: { type: 'image/png', size: 10 },
+  id: `student-${position}`, position, fullName: 'Betkaoui Mohammed', phone: '0550000001', gender: 'male', bacYear: '2022', rfid: `1234567${position}`, studentCard: { type: 'image/png', size: 10 },
 }))
 
 test('AGREEMENT: on hundreds of generated values, the form and the API accept and refuse exactly the same', () => {
@@ -661,7 +661,7 @@ test('AGREEMENT: the form sends the canonical value the API stores', () => {
   Object.assign(state.delegationHead, { fullName: 'Karim\u00a0Haddad', phone: '0661-23-45-67', rfid: ' 00471236 ' })
   Object.assign(state.driver, { fullName: 'Nabil Saidi', phone: '0770.12.34.56', rfid: 'A1B2C3D4' })
   state.students.forEach((student, index) => Object.assign(student, {
-    fullName: ['Betkaoui  Mohammed', 'عبد   الرحمان', 'محمد أمين'][index], phone: `0550 00 00 0${index + 1}`, bacYear: '2022', rfid: ` 0000000${index + 1} `,
+    fullName: ['Betkaoui  Mohammed', 'عبد   الرحمان', 'محمد أمين'][index], phone: `0550 00 00 0${index + 1}`, gender: index === 2 ? 'female' : 'male', bacYear: '2022', rfid: ` 0000000${index + 1} `,
   }))
   state.consent = true
 

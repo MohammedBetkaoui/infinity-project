@@ -155,6 +155,7 @@ export function toStudentRows(registrationId, registration, stored) {
       position: student.position,
       full_name: student.fullName,
       phone: student.phone,
+      gender: student.gender,
       bac_year: student.bacYear,
       rfid_number: student.rfid,
       student_card_path: card.path,

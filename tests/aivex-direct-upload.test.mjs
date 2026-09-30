@@ -32,7 +32,7 @@ const validPayload = () => ({
   driver: { fullName: 'Nabil Saidi', phone: '0770112233', rfid: 'A1B2C3D4', idCard: 'driverIdCard' },
   students: [1, 2, 3].map((position) => ({
     position, fullName: ['Sara Meziane', 'Yacine Amrane', 'Lina Khelifi'][position - 1], phone: `055000000${position}`,
-    bacYear: 2021 + position, rfid: `0000000${position}`, studentCard: `studentCard_${position}`,
+    gender: position === 2 ? 'male' : 'female', bacYear: 2021 + position, rfid: `0000000${position}`, studentCard: `studentCard_${position}`,
   })),
   consent: true,
 })

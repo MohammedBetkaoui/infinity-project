@@ -2,7 +2,7 @@ import ApplicationField from '../../../components/forms/ApplicationField'
 import { studentFieldProps } from './fieldProps'
 import RecordCard from './RecordCard'
 import { STUDENT_COUNT, bacYearChoices } from './registrationModel'
-import { getBacYearOptions } from './registrationI18n'
+import { getBacYearOptions, getGenderOptions } from './registrationI18n'
 import StepHeading from './StepHeading'
 import StudentCardUpload from './StudentCardUpload'
 import { recordId, studentFieldId } from './useCompetitionRegistration'
@@ -26,6 +26,7 @@ function StudentsReadout({ complete, t }) {
 export default function StudentsStep({ registration, reduced, t }) {
   const { students, completeCount, studentErrors, studentError, setStudent, touch } = registration
   const bacYears = getBacYearOptions(t, bacYearChoices())
+  const genders = getGenderOptions(t)
 
   return (
     <>
@@ -48,7 +49,10 @@ export default function StudentsStep({ registration, reduced, t }) {
                   autoComplete="off" placeholder={t.phonePlaceholder} hint={t.phoneHint} />
               </div>
               <div className="af-grid-two">
+                <ApplicationField {...field('gender')} label={t.genderLabel} as="select" options={genders} />
                 <ApplicationField {...field('bacYear')} label={t.bacYearLabel} as="select" options={bacYears} hint={t.bacYearHint} />
+              </div>
+              <div>
                 {/* Digits only, but never type="number" (it would drop the leading zeros) and no maxLength
                     (a pasted value must fail visibly, not be silently cut to 8 characters). */}
                 <ApplicationField {...field('rfid')} label={t.rfidLabel} inputMode="numeric" autoComplete="off" spellCheck={false}
