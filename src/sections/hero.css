@@ -2,7 +2,7 @@
   position: relative;
   overflow: clip;
   isolation: isolate;
-  background: radial-gradient(ellipse at 50% 42%, #094a3666, transparent 63%), #002a1e;
+  background: #002a1e;
   color: #f1ebdd;
 }
 .home-hero[data-hero-mode='pinned'],
@@ -16,9 +16,18 @@
 .home-hero[data-hero-mode='flow'] .home-hero-mark-depth,
 .home-hero[data-hero-mode='flow'] .home-hero-mark { will-change: transform; }
 
-.home-hero-inner { display: flex; flex-direction: column; min-height: min(850px, 100svh); padding-top: 128px; }
+.home-hero-shader-overlay {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 50% 48%, rgb(0 42 30 / .42), rgb(0 42 30 / .12) 48%, transparent 76%),
+    linear-gradient(90deg, rgb(0 42 30 / .25), transparent 34% 66%, rgb(0 42 30 / .28));
+}
+.home-hero-inner { position: relative; z-index: 3; display: flex; flex-direction: column; min-height: min(850px, 100svh); padding-top: 128px; }
 .home-hero-scene { position: relative; display: grid; place-items: center; flex: 1; padding-block: 70px 76px; perspective: 1200px; }
-.home-hero-copy { position: relative; z-index: 1; text-align: center; }
+.home-hero-copy { position: relative; z-index: 3; text-align: center; }
 .home-hero-copy:focus-within,
 .home-hero-foot:focus-within { opacity: 1 !important; transform: none !important; }
 .home-hero-brand { margin-bottom: 23px; font-size: 13px; font-weight: 650; letter-spacing: .075em; color: #b9d3c8; }
@@ -32,7 +41,7 @@
 .home-hero-join:hover { background: #cde5d9; border-color: #cde5d9; }
 .home-hero-join:focus-visible { outline-color: #f1ebdd; outline-offset: 5px; }
 
-.home-hero-art { position: absolute; inset: 0 -3%; pointer-events: none; }
+.home-hero-art { position: absolute; z-index: 2; inset: 0 -3%; pointer-events: none; }
 .home-hero-mark-depth { position: absolute; width: min(82%, clamp(750px, 52vw, 1200px)); left: 50%; top: 43%; transform: translate(-50%, -50%); transform-style: preserve-3d; }
 .home-hero-mark { transform: rotate(0deg); transform-origin: 50% 50%; transform-style: preserve-3d; backface-visibility: hidden; }
 .home-hero-mark .infinity-mark { overflow: visible; }

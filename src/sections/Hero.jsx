@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import { Link } from 'react-router-dom'
 import InfinityArtwork from '../components/InfinityArtwork'
+import InfinityLiquidMetal from '../components/InfinityLiquidMetal'
 import useHeroMotion from '../hooks/useHeroMotion'
 import './hero.css'
 
@@ -10,6 +11,8 @@ export default function Hero() {
 
   return (
     <section id="accueil" ref={sectionRef} className="home-hero" aria-labelledby="home-hero-title">
+      <InfinityLiquidMetal variant="home" />
+      <div className="home-hero-shader-overlay" aria-hidden="true" />
       <div className="page-container home-hero-inner">
         <div className="home-hero-scene">
           <InfinityArtwork />

@@ -15,6 +15,7 @@ export default function EventsHero() {
       className="events-page-hero page-hero-editorial"
       title="Events"
       titleId="events-page-title"
+      shaderVariant="events"
       eyebrow="Ideas become experiences"
       railLabel="Infinity Club / Events"
       railMeta="Programme & archive · BBA"

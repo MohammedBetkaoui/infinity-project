@@ -1,0 +1,37 @@
+.infinity-liquid-metal {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 70% 35%, rgb(9 74 54 / .55), transparent 65%),
+    #002a1e;
+}
+
+.infinity-liquid-metal::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgb(0 42 30 / .58), transparent 22%);
+}
+
+.infinity-liquid-metal-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .35s ease;
+}
+
+.infinity-liquid-metal[data-webgl='ready'] .infinity-liquid-metal-canvas { opacity: 1; }
+.infinity-liquid-metal[data-webgl='fallback'] .infinity-liquid-metal-canvas,
+.infinity-liquid-metal[data-webgl='context-lost'] .infinity-liquid-metal-canvas { opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .infinity-liquid-metal-canvas { transition: none; }
+}

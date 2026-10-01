@@ -1,5 +1,6 @@
 import { ArrowDown } from 'lucide-react'
 import { useRef } from 'react'
+import InfinityLiquidMetal from './InfinityLiquidMetal'
 import usePageHeroMotion from '../hooks/usePageHeroMotion'
 import './page-hero.css'
 
@@ -17,6 +18,7 @@ export default function PageHero({
   railMeta = 'MI Faculty, Bordj Bou Arreridj',
   facts = emptyFacts,
   signature,
+  shaderVariant,
   className = '',
 }) {
   const heroRef = useRef(null)
@@ -24,6 +26,8 @@ export default function PageHero({
 
   return (
     <section ref={heroRef} className={`page-hero ${className}`} aria-labelledby={titleId}>
+      {shaderVariant ? <InfinityLiquidMetal variant={shaderVariant} /> : null}
+      {shaderVariant ? <div className={`page-hero-shader-overlay page-hero-shader-overlay--${shaderVariant}`} aria-hidden="true" /> : null}
       <div className="page-container">
         <div className="page-hero-rail">
           <span>{railLabel}</span>

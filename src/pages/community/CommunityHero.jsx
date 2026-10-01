@@ -14,6 +14,7 @@ export default function CommunityHero() {
       className="community-page-hero page-hero-editorial page-hero-editorial-wide"
       title="Community"
       titleId="community-page-title"
+      shaderVariant="community"
       eyebrow="The people make the place"
       railLabel="Infinity Club / Community"
       railMeta="Different talents · One direction"

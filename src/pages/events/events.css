@@ -30,19 +30,16 @@
   isolation: isolate;
   padding-top: 124px;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 84% 23%, rgb(31 128 95 / .22), transparent 30%),
-    radial-gradient(ellipse at 12% 100%, rgb(11 118 87 / .14), transparent 42%),
-    #002a1e;
+  background: #002a1e;
 }
 .events-page-hero::before {
   position: absolute;
-  z-index: -1;
+  z-index: 2;
   inset: 0;
   content: '';
   background-image:
-    linear-gradient(rgb(158 215 196 / .045) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(158 215 196 / .045) 1px, transparent 1px);
+    linear-gradient(rgb(158 215 196 / .02) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(158 215 196 / .02) 1px, transparent 1px);
   background-size: 72px 72px;
   mask-image: linear-gradient(to bottom, black, transparent 88%);
   pointer-events: none;

@@ -14,6 +14,7 @@ export default function AboutHero() {
       className="about-page-hero page-hero-editorial"
       title="About"
       titleId="about-page-title"
+      shaderVariant="about"
       eyebrow="People first. Technology with purpose."
       railLabel="Infinity Club / About"
       railMeta="Student-led · Bordj Bou Arreridj"

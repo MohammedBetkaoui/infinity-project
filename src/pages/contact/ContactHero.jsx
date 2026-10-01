@@ -12,6 +12,7 @@ export default function ContactHero() {
       className="contact-page-hero page-hero-editorial"
       title="Contact"
       titleId="contact-page-title"
+      shaderVariant="contact"
       eyebrow="A conversation can start something"
       railLabel="Infinity Club / Contact"
       railMeta="Open to ideas · Open to people"
