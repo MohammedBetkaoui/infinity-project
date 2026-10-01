@@ -54,7 +54,7 @@ function watchText(target, instance, reading) {
 // One choreography on every viewport: phones play the same masked rises,
 // tilts, depth, wipes and parallax as desktop. `compact` survives only as an
 // API field (responsive hooks may still read it); nothing below branches on it.
-export function createScrollAnimations(scope, { reduced, canPin }) {
+export function createScrollAnimations(scope, { reduced, canPin, compact = false }) {
   const cleanups = []
   const select = gsap.utils.selector(scope)
   const element = (ref) => typeof ref === 'string' ? select(ref)[0] : ref?.current || ref
@@ -413,7 +413,7 @@ export function createScrollAnimations(scope, { reduced, canPin }) {
   }
 
   return {
-    gsap, ScrollTrigger, reduced, canPin, select, element,
+    gsap, ScrollTrigger, reduced, canPin, compact, select, element,
     revealText, revealAllText, revealSection, parallaxElement, countUp, pinSection,
     cleanup: () => { cleanups.reverse().forEach((cleanup) => cleanup()) },
   }

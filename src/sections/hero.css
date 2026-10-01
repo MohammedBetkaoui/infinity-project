@@ -76,7 +76,11 @@
   .home-hero-description { margin-top: 25px; font-size: 13px; }
   .home-hero-actions { gap: 21px; }
   .home-hero-mark-depth { width: 96%; top: 39%; }
-  .home-hero-mark .infinity-mark-signal { opacity: .4; }
+  .home-hero-mark .infinity-mark-signal {
+    stroke-dasharray: .16 .84;
+    stroke-linecap: round;
+    opacity: .58;
+  }
   .home-hero-spark-one { left: 0; top: 23%; }
   .home-hero-spark-three { left: 2%; bottom: 16%; }
   .home-hero-spark-four { right: 0; bottom: 21%; }

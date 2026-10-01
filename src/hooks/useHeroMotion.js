@@ -7,6 +7,7 @@ export default function useHeroMotion(sectionRef) {
     const art = select('.home-hero-art')[0]
     const markDepth = select('.home-hero-mark-depth')[0]
     const mark = select('.home-hero-mark')[0]
+    const markSignal = select('.infinity-mark-signal')[0]
     const sparks = select('.home-hero-spark')
     const foot = select('.home-hero-foot')[0]
 
@@ -88,36 +89,97 @@ export default function useHeroMotion(sectionRef) {
         .to(art, { opacity: 0, duration: .1, ease: 'none' }, .9)
     } else {
       section.dataset.heroMode = 'flow'
-      // Touch and short layouts keep native flow while preserving the same
-      // horizontal expansion story with transform-only motion.
-      gsap.timeline({
+      const flowTravel = () => compact
+        ? Math.min(section.offsetHeight * .62, window.innerHeight * .56)
+        : section.offsetHeight * .92
+      const flowExitScale = () => compact ? Math.min(exitScale(), 4.65) : exitScale()
+      const flow = gsap.timeline({
         defaults: { ease: 'none' },
         scrollTrigger: {
           id: 'infinity-hero-flow',
           trigger: section,
           start: 'top top',
           end: 'bottom top',
-          scrub: true,
+          // A short catch-up softens touch-scroll impulses without making the
+          // artwork feel detached from the reader's gesture.
+          scrub: compact ? .55 : true,
           invalidateOnRefresh: true,
         },
       })
-        .fromTo(markDepth, { y: 0 }, {
-          y: () => section.offsetHeight * .92,
+
+      flow.fromTo(markDepth, { y: 0 }, {
+          y: flowTravel,
           duration: 1,
-          ease: 'none',
+          ease: compact ? 'power1.inOut' : 'none',
           force3D: true,
         }, 0)
-        .fromTo(markDepth, { scale: 1, opacity: 1 }, {
-          scale: exitScale,
-          opacity: .12,
-          duration: .58,
-          ease: 'power2.in',
-          force3D: true,
-        }, .42)
-        .to(copy, { y: -18, scale: .96, opacity: .08, duration: .42, ease: 'power2.in' }, .2)
-        .to(foot, { y: 8, opacity: 0, duration: .24, ease: 'power2.in' }, .38)
-        .to(sparks, { opacity: 0, duration: .24 }, .44)
-        .to(art, { opacity: 0, duration: .1, ease: 'none' }, .9)
+
+      if (compact) {
+        // Mobile keeps the existing expansion narrative, but gives it three
+        // readable beats: settle, cross the viewport, then dissolve before
+        // the next section. Every effect remains transform/opacity based.
+        flow
+          .fromTo(markDepth, { scale: 1, opacity: 1 }, {
+            scale: 1.055,
+            opacity: 1,
+            duration: .28,
+            ease: 'sine.inOut',
+            force3D: true,
+          }, 0)
+          .to(markDepth, {
+            scale: flowExitScale,
+            duration: .58,
+            ease: 'power3.in',
+            force3D: true,
+          }, .32)
+          .to(markDepth, {
+            opacity: .06,
+            duration: .42,
+            ease: 'power2.inOut',
+          }, .48)
+          .fromTo(mark, { rotationX: 0, rotationY: 0 }, {
+            rotationX: -2.4,
+            rotationY: 1.2,
+            duration: .36,
+            ease: 'sine.inOut',
+            force3D: true,
+          }, .04)
+          .to(mark, {
+            rotationX: 0,
+            rotationY: 0,
+            duration: .44,
+            ease: 'power2.in',
+            force3D: true,
+          }, .4)
+          .to(markSignal, { strokeDashoffset: -.94, opacity: .68, duration: .7, ease: 'none' }, .04)
+          .to(markSignal, { opacity: 0, duration: .18, ease: 'power2.in' }, .7)
+          .to(copy, { y: -24, scale: .955, opacity: 0, duration: .38, ease: 'power2.in' }, .24)
+          .to(foot, { y: 8, opacity: 0, duration: .28, ease: 'power2.in' }, .38)
+          .to(sparks, {
+            x: (index) => index % 2 ? 24 : -19,
+            y: (index) => index % 2 ? -56 : 42,
+            scale: .7,
+            opacity: 0,
+            duration: .5,
+            ease: 'power2.out',
+            force3D: true,
+          }, .16)
+          .to(art, { opacity: 0, duration: .16, ease: 'none' }, .82)
+      } else {
+        // Short desktop layouts retain the established native-flow version.
+        flow
+          .fromTo(markDepth, { scale: 1, opacity: 1 }, {
+            scale: exitScale,
+            opacity: .12,
+            duration: .58,
+            ease: 'power2.in',
+            force3D: true,
+          }, .42)
+          .to(copy, { y: -18, scale: .96, opacity: .08, duration: .42, ease: 'power2.in' }, .2)
+          .to(foot, { y: 8, opacity: 0, duration: .24, ease: 'power2.in' }, .38)
+          .to(sparks, { opacity: 0, duration: .24 }, .44)
+          .to(art, { opacity: 0, duration: .1, ease: 'none' }, .9)
+      }
     }
 
     const finishIntro = () => { if (scrollY > 12) introduction.progress(1) }

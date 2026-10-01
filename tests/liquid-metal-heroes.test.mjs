@@ -70,3 +70,20 @@ test('hero handoffs blend into each following section without changing flow', as
   assert.match(communityStyles, /linear-gradient\(to bottom, #03271d/)
   assert.doesNotMatch(`${pageHeroStyles}\n${homeStyles}`, /margin-bottom:\s*-/)
 })
+
+test('the Home emblem keeps its expansion story with a touch-smoothed mobile sequence', async () => {
+  const motion = await read('src/hooks/useHeroMotion.js')
+  const scrollAnimations = await read('src/lib/scrollAnimations.js')
+  const styles = await read('src/sections/hero.css')
+
+  assert.match(scrollAnimations, /createScrollAnimations\(scope, \{ reduced, canPin, compact = false \}\)/)
+  assert.match(scrollAnimations, /gsap, ScrollTrigger, reduced, canPin, compact/)
+  assert.match(motion, /scrub: compact \? \.55 : true/)
+  assert.match(motion, /scale: 1\.055/)
+  assert.match(motion, /Math\.min\(exitScale\(\), 4\.65\)/)
+  assert.match(motion, /scale: flowExitScale/)
+  assert.match(motion, /opacity: \.06/)
+  assert.match(motion, /select\('\.infinity-mark-signal'\)/)
+  assert.match(motion, /strokeDashoffset: -\.94/)
+  assert.match(styles, /stroke-dasharray: \.16 \.84/)
+})
