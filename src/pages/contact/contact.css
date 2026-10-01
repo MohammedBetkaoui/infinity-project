@@ -58,8 +58,11 @@
   padding-block: var(--contact-space) 34px;
   color: var(--contact-ink);
   background-color: var(--contact-paper);
-  background-image: radial-gradient(rgb(0 42 30 / .065) .65px, transparent .65px);
-  background-size: 6px 6px;
+  background-image:
+    linear-gradient(to bottom, #315f4f 0, #b6cec5 58px, var(--contact-paper) 118px, transparent 118px),
+    radial-gradient(rgb(0 42 30 / .065) .65px, transparent .65px);
+  background-repeat: no-repeat, repeat;
+  background-size: 100% 118px, 6px 6px;
 }
 .contact-directory-layout {
   display: grid;

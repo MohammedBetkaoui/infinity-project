@@ -51,3 +51,22 @@ test('existing hero content and semantic headings remain intact', async () => {
   assert.match(pageHero, /className="page-hero-facts"/)
   assert.match(pageHero, /className="page-hero-jump"/)
 })
+
+test('hero handoffs blend into each following section without changing flow', async () => {
+  const pageHeroStyles = await read('src/components/page-hero.css')
+  const homeStyles = await read('src/sections/hero.css')
+  const indexStyles = await read('src/index.css')
+  const aboutStyles = await read('src/pages/about/about.css')
+  const eventsStyles = await read('src/pages/events/events.css')
+  const contactStyles = await read('src/pages/contact/contact.css')
+  const communityStyles = await read('src/pages/community/team-carousel.css')
+
+  assert.match(pageHeroStyles, /\.page-hero::after[^}]+position: absolute/s)
+  assert.match(homeStyles, /\.home-hero::after[^}]+#003828/s)
+  assert.match(indexStyles, /\.poles-section[^}]+#003828/s)
+  for (const styles of [aboutStyles, eventsStyles, contactStyles]) {
+    assert.match(styles, /linear-gradient\(to bottom, #315f4f 0, #b6cec5 58px/)
+  }
+  assert.match(communityStyles, /linear-gradient\(to bottom, #03271d/)
+  assert.doesNotMatch(`${pageHeroStyles}\n${homeStyles}`, /margin-bottom:\s*-/)
+})

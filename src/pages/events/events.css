@@ -179,8 +179,11 @@
   padding-block: clamp(70px, 8vw, 112px) clamp(84px, 9vw, 132px);
   color: var(--events-ink);
   background-color: var(--events-paper);
-  background-image: radial-gradient(rgb(0 42 30 / .07) .65px, transparent .65px);
-  background-size: 6px 6px;
+  background-image:
+    linear-gradient(to bottom, #315f4f 0, #b6cec5 58px, var(--events-paper) 118px, transparent 118px),
+    radial-gradient(rgb(0 42 30 / .07) .65px, transparent .65px);
+  background-repeat: no-repeat, repeat;
+  background-size: 100% 118px, 6px 6px;
 }
 .events-archive-eyebrow {
   display: flex;

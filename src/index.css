@@ -212,7 +212,11 @@ footer .infinity-mark-signal { stroke: #9ed7c4; opacity: .88; }
 .section-intro { display: flex; justify-content: space-between; gap: 32px; align-items: end; margin-bottom: 46px; }
 .section-intro h2 { max-width: 16ch; }
 .section-intro > p { max-width: 40ch; font-size: 13px; line-height: 1.9; color: #b6cec5; }
-.poles-section { background: #003828; }
+.poles-section {
+  background:
+    linear-gradient(to bottom, #003828, #064432 92px, #003828 188px),
+    #003828;
+}
 .poles-stage { transform-origin: center top; }
 .poles-explorer { display: grid; grid-template-columns: 1.05fr 1fr; gap: 64px; align-items: start; }
 .pole-tabs { border-top: 1px solid #638f8050; }

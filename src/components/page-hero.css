@@ -2,6 +2,8 @@
   --hero-cream: #f1ebdd;
   --hero-muted: #b6cec5;
   --hero-mint: #9ed7c4;
+  --hero-transition-mid: #094a36;
+  --hero-transition-end: #315f4f;
   position: relative;
   isolation: isolate;
   padding-top: 126px;
@@ -10,6 +12,20 @@
   /* Narrow engines (iOS first paint) must never compose the hero sideways:
      clip the section and forbid grid blowout from nowrap SplitText words. */
   overflow: clip;
+}
+.page-hero::after {
+  position: absolute;
+  z-index: 2;
+  inset: auto 0 0;
+  height: clamp(76px, 9vw, 126px);
+  content: '';
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    rgb(0 42 30 / 0) 0%,
+    var(--hero-transition-mid) 64%,
+    var(--hero-transition-end) 100%
+  );
 }
 .page-hero > .page-container { position: relative; z-index: 3; }
 .page-hero-shader-overlay {
@@ -30,6 +46,10 @@
   background:
     linear-gradient(90deg, rgb(0 42 30 / .48), rgb(0 42 30 / .2) 52%, rgb(0 42 30 / .35)),
     linear-gradient(to bottom, rgb(0 42 30 / .45), transparent 28%);
+}
+.page-hero.community-page-hero {
+  --hero-transition-mid: #07382a;
+  --hero-transition-end: #03271d;
 }
 .page-hero-shader-overlay--events {
   background:
@@ -229,6 +249,7 @@
   .page-hero-summary { margin-top: 6px; }
   .page-hero-jump { margin-top: 8px; }
   .page-hero.page-hero-editorial { min-height: auto; padding-top: 104px; }
+  .page-hero::after { height: 72px; }
   .page-hero.page-hero-editorial::before { display: none; }
   .page-hero-editorial .page-hero-rail { padding-bottom: 14px; font-size: 8px; }
   .page-hero-editorial .page-hero-layout { grid-template-columns: 1fr; gap: 34px; padding-block: 44px 48px; }
