@@ -8,6 +8,17 @@ import { cancelScrollRefresh, requestScrollRefresh } from '../lib/scrollRefresh'
 
 gsap.registerPlugin(ScrollTrigger)
 
+// The incoming Poles section is translated during the Hero's pinned dive.
+// Its measured rectangle is transient; the end of that timeline is its
+// settled anchor position. Other anchors retain their existing header offset.
+function anchorDestination(target) {
+  const hero = ScrollTrigger.getById('home-hero-logo')
+  if (target.id === 'poles' && hero?.trigger?.dataset.logoScroll === 'pinned') {
+    return { destination: hero.end, offset: 0 }
+  }
+  return { destination: target, offset: ['accueil', 'competition'].includes(target.id) ? 0 : -96 }
+}
+
 export default function useLenis() {
   const lenisRef = useRef(null)
   const { pathname, hash } = useLocation()
@@ -62,9 +73,13 @@ export default function useLenis() {
           }
           target.focus({ preventScroll: true })
         }
-        const offset = ['accueil', 'competition'].includes(target.id) ? 0 : -96
-        if (lenisRef.current) lenisRef.current.scrollTo(target, { offset, duration: .72, force: true, onComplete: focus })
-        else { window.scrollTo({ top: target.getBoundingClientRect().top + scrollY + offset, behavior: 'instant' }); focus() }
+        const { destination, offset } = anchorDestination(target)
+        if (lenisRef.current) lenisRef.current.scrollTo(destination, { offset, duration: .72, force: true, onComplete: focus })
+        else {
+          const top = typeof destination === 'number' ? destination : destination.getBoundingClientRect().top + scrollY
+          window.scrollTo({ top: top + offset, behavior: 'instant' })
+          focus()
+        }
         if (location.hash !== anchor.hash) history.pushState(null, '', anchor.hash)
       })
     }
@@ -92,9 +107,12 @@ export default function useLenis() {
       const target = document.getElementById(decodeURIComponent(hash.slice(1)))
       if (!target) return
       ScrollTrigger.refresh()
-      const offset = ['accueil', 'competition'].includes(target.id) ? 0 : -96
-      if (lenisRef.current) lenisRef.current.scrollTo(target, { offset, immediate: true, force: true })
-      else window.scrollTo({ top: target.getBoundingClientRect().top + scrollY + offset, behavior: 'instant' })
+      const { destination, offset } = anchorDestination(target)
+      if (lenisRef.current) lenisRef.current.scrollTo(destination, { offset, immediate: true, force: true })
+      else {
+        const top = typeof destination === 'number' ? destination : destination.getBoundingClientRect().top + scrollY
+        window.scrollTo({ top: top + offset, behavior: 'instant' })
+      }
     }
     const observer = new ResizeObserver(([entry]) => {
       const size = `${Math.round(entry.contentRect.width)}:${Math.round(entry.contentRect.height)}`

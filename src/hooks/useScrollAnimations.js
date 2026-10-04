@@ -1,5 +1,6 @@
 import { useEffectEvent, useLayoutEffect, useState } from 'react'
 import gsap from 'gsap'
+import { deferSetup } from '../lib/deferredSetup'
 import { createScrollAnimations } from '../lib/scrollAnimations'
 import { requestScrollRefresh } from '../lib/scrollRefresh'
 
@@ -24,10 +25,14 @@ export default function useScrollAnimations(scopeRef, configure, { enabled = tru
       all: 'all', reduced: '(prefers-reduced-motion: reduce)',
       compact: '(max-width: 767px), (pointer: coarse)',
       spacious: '(min-width: 1024px) and (min-height: 760px)',
-    }, ({ conditions }) => {
+    }, (context) => {
+      const { conditions } = context
       const api = createScrollAnimations(scopeRef.current, {
         compact: conditions.compact, reduced: conditions.reduced,
         canPin: conditions.spacious && !conditions.compact && !conditions.reduced,
+        // A setup that runs later still belongs to this scene: added to its
+        // context, it is reverted with everything else.
+        defer: (target, setup) => deferSetup(target, (inView) => context.add(() => setup(inView))),
       })
       const cleanup = configureScene(api)
       requestScrollRefresh()

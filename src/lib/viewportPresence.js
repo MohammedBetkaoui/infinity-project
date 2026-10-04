@@ -16,10 +16,24 @@ const observerPairs = new Map()
 // stay put instead of replaying its entrance.
 const lastState = new WeakMap()
 
+// Read once per frame: a page registers dozens of blocks in one go, and each
+// read after a split would force a fresh style and layout pass.
+let insetFrame = 0
+let inset = 0
 function headerInset() {
+  if (insetFrame) return inset
   const header = document.querySelector('.site-header')
-  if (!header || getComputedStyle(header).position !== 'fixed') return 0
-  return Math.max(0, Math.round(header.getBoundingClientRect().bottom))
+  inset = !header || getComputedStyle(header).position !== 'fixed'
+    ? 0
+    : Math.max(0, Math.round(header.getBoundingClientRect().bottom))
+  insetFrame = requestAnimationFrame(() => { insetFrame = 0 })
+  return inset
+}
+
+// A block prepared while already on screen (see deferredSetup) is shown as it
+// is: hiding it first would make it blink before its entrance.
+export function markInView(target) {
+  lastState.set(target, 'in')
 }
 
 // 'above' when the block pokes out of (or sits beyond) the top edge; anything

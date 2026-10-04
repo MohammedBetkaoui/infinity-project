@@ -3,6 +3,7 @@ export const HERO_ENERGY_DURATION = 10.5
 // Both currents approach the crossing before the letters start to illuminate.
 export const HERO_ENERGY_START = .43
 export const HERO_LIGHT_EVENT = 'infinity:hero-light'
+export const HERO_SCROLL_EVENT = 'infinity:hero-scroll'
 
 export function heroTitleLightAt(elapsed) {
   const progress = (start, finish) => {

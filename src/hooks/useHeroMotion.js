@@ -46,7 +46,11 @@ export default function useHeroMotion(sectionRef) {
       heroHeight = Math.max(1, box.height)
       if (title) {
         const titleBox = title.getBoundingClientRect()
-        hero.style.setProperty('--hero-symbol-center', `${(titleBox.top + titleBox.height / 2 - box.top) / heroHeight * 100}%`)
+        // Centre the compact background on the title's layout position, not
+        // its temporary upward translation during the scroll dissolve.
+        const transform = getComputedStyle(title).transform
+        const shiftY = transform === 'none' ? 0 : new DOMMatrixReadOnly(transform).m42
+        hero.style.setProperty('--hero-symbol-center', `${(titleBox.top - shiftY + titleBox.height / 2 - box.top) / heroHeight * 100}%`)
       }
       updateScrollTarget()
     }

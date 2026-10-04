@@ -3,7 +3,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { SplitText } from 'gsap/SplitText'
 import { SCROLL_MOTION, VIEWPORT_MOTION } from './animationSettings'
 import { requestScrollRefresh } from './scrollRefresh'
-import { watchPresence } from './viewportPresence'
+import { markInView, watchPresence } from './viewportPresence'
 
 gsap.registerPlugin(ScrollTrigger, SplitText)
 
@@ -54,7 +54,9 @@ function watchText(target, instance, reading) {
 // One choreography on every viewport: phones play the same masked rises,
 // tilts, depth, wipes and parallax as desktop. `compact` survives only as an
 // API field (responsive hooks may still read it); nothing below branches on it.
-export function createScrollAnimations(scope, { reduced, canPin, compact = false }) {
+// `defer(element, setup)`, when given, lets presence-driven blocks far below
+// the fold be prepared later (see deferredSetup and useScrollAnimations).
+export function createScrollAnimations(scope, { reduced, canPin, compact = false, defer = null }) {
   const cleanups = []
   const select = gsap.utils.selector(scope)
   const element = (ref) => typeof ref === 'string' ? select(ref)[0] : ref?.current || ref
@@ -85,12 +87,25 @@ export function createScrollAnimations(scope, { reduced, canPin, compact = false
     if (!viewport && options.scroll !== false && !options.once && target.closest(STICKY_TEXT_SCOPE)) {
       options = { ...options, once: true }
     }
-    let unwatch = null
     // Display headings rise word by word inside line masks; body copy
     // illuminates word by word like an editorial reading state.
     const reading = (options.type || 'words') !== 'words'
     target.dataset.motionText = reading ? 'reading' : 'display'
     cleanups.push(() => { delete target.dataset.motionText })
+    // Presence-driven copy far below the fold is split once its turn comes:
+    // splitting it all as the route opens would stall the hero's intro.
+    if (viewport && defer) {
+      cleanups.push(defer(target, (inView) => {
+        if (inView) markInView(target)
+        splitText(target, options, reading, viewport)
+      }))
+      return null
+    }
+    return splitText(target, options, reading, viewport)
+  }
+
+  function splitText(target, options, reading, viewport) {
+    let unwatch = null
     const split = SplitText.create(target, {
       type: 'lines,words',
       mask: 'lines', autoSplit: true, aria: 'auto',
@@ -286,7 +301,20 @@ export function createScrollAnimations(scope, { reduced, canPin, compact = false
       cleanups.push(() => { delete target.dataset.motionReveal })
     })
     if (viewportDriven(targets[0])) {
-      watchSections(targets, mode, options)
+      const host = element(options.trigger)
+      if (!defer) watchSections(targets, mode, options)
+      // A group entering together waits as one, keyed on its trigger.
+      else if (host) {
+        cleanups.push(defer(host, (inView) => {
+          if (inView) markInView(host)
+          watchSections(targets, mode, options)
+        }))
+      } else {
+        targets.forEach((target) => cleanups.push(defer(target, (inView) => {
+          if (inView) markInView(target)
+          watchSections([target], mode, options)
+        })))
+      }
       return null
     }
     const trigger = settings(targets[0], options)

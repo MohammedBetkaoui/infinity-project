@@ -11,31 +11,39 @@
    the Hero share one colour, so only the emblem and the Hero's light change. */
 .home-loader-backdrop { position: absolute; inset: 0; background: #002a1e; }
 .home-loader-mark { position: relative; width: clamp(64px, 5.8vw, 88px); }
-.home-loader-mark svg { display: block; width: 100%; height: auto; animation: home-loader-in .9s var(--ease-smooth) .08s backwards; }
-/* A dim emblem while it charges; the handoff fills it to the Hero's mint. */
-.home-loader-shape path { fill: #9ed7c4; fill-opacity: .22; }
-.home-loader-mark .home-loader-signal {
+/* A dim emblem while it charges; the handoff brings it to the Hero's mint. */
+.home-loader-shape { display: block; width: 100%; height: auto; opacity: .22; animation: home-loader-in .9s var(--ease-smooth) .08s backwards; }
+.home-loader-shape path { fill: #9ed7c4; }
+/* The running light: a conic highlight turning behind a mask of the contour.
+   Rotation, mask and glow are all composited, so the light keeps its pace
+   while the page mounts underneath; a stroke-dashoffset light is repainted by
+   the main thread and stopped with every long task of the page. */
+.home-loader-glow {
   position: absolute;
   inset: 0;
-  overflow: visible;
-  animation-delay: .32s;
-  /* On the <svg> box, so the glow is measured in CSS pixels, not in the
-     2350-unit artwork space. */
   filter: drop-shadow(0 0 3px rgb(158 215 196 / .85));
+  animation: home-loader-in .9s var(--ease-smooth) .32s backwards;
 }
-.home-loader-signal path {
-  fill: none;
-  stroke: #e7f5ee;
-  stroke-width: 44;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-dasharray: .17 .83;
-  animation: home-loader-run 1.7s linear infinite;
+.home-loader-signal {
+  position: absolute;
+  inset: 0;
+  -webkit-mask: var(--contour) center / 100% 100% no-repeat;
+  mask: var(--contour) center / 100% 100% no-repeat;
+}
+/* A square around the emblem's centre, large enough to cover it at any angle. */
+.home-loader-sweep {
+  position: absolute;
+  top: 50%;
+  left: -10%;
+  width: 120%;
+  aspect-ratio: 1;
+  margin-top: -60%;
+  background: conic-gradient(transparent 0turn .7turn, rgb(231 245 238 / .4) .88turn, #f4fbf7 .985turn, transparent 1turn);
+  animation: home-loader-orbit 1.7s linear infinite;
 }
 @keyframes home-loader-in { from { opacity: 0; transform: scale(.92); } }
-@keyframes home-loader-run { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -1; } }
+@keyframes home-loader-orbit { to { transform: rotate(1turn); } }
 @media (prefers-reduced-motion: reduce) {
-  .home-loader-mark svg { animation: none; }
-  .home-loader-shape path { fill-opacity: 1; }
-  .home-loader-mark .home-loader-signal { display: none; }
+  .home-loader-shape { opacity: 1; animation: none; }
+  .home-loader-glow { display: none; }
 }

@@ -16,6 +16,7 @@
 .home-hero-lines[data-render='webgl'] canvas { opacity: 1; }
 .home-hero-lines[data-render='webgl'] .home-hero-lines-still { visibility: hidden; }
 .home-hero-lines-still { fill: none; stroke: #80b49f; stroke-width: 1; }
+.home-hero-lines[data-motion='scroll'] .home-hero-lines-still > g { will-change: transform; }
 .home-hero-lines-still path:nth-child(3n) { stroke: #9ed7c4; }
 .home-hero-lines-still .home-hero-lines-still-light { stroke: #cde5d9; opacity: .66; filter: drop-shadow(0 0 2px #9ed7c4); }
 .home-hero-lines-still.is-compact { display: none; }

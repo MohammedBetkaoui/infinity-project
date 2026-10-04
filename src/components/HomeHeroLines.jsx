@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import useMotionPreference from '../hooks/useMotionPreference'
-import { HERO_ENERGY_DURATION, HERO_ENERGY_START, HERO_LIGHT_EVENT, homeLinesFragmentShader, homeLinesVertexShader, measureRibbon, ribbonPath } from '../lib/homeHeroLines'
+import { heroZoomProgress } from '../lib/heroLogoZoom'
+import { HERO_ENERGY_DURATION, HERO_ENERGY_START, HERO_LIGHT_EVENT, HERO_SCROLL_EVENT, homeLinesFragmentShader, homeLinesVertexShader, measureRibbon, ribbonPath } from '../lib/homeHeroLines'
 import './home-hero-lines.css'
 
 const staticRibbons = [false, true].map(compact => ({
@@ -58,11 +59,75 @@ export default function HomeHeroLines({ held = false }) {
     if (!layer || !canvas || !hero) return undefined
     layer.dataset.render = 'static'
     layer.dataset.motion = reduced ? 'reduced' : 'paused'
+    const initialScrollFrame = hero.homeHeroScrollFrame
+    let scrollProgress = 0
+    let scrollZoom = true
+    let scrollFocusX = hero.clientWidth / 2
+    let scrollFocusY = hero.clientHeight / 2
+    let applyScrollFrame = () => undefined
+    const staticFrames = Array.from(layer.querySelectorAll('.home-hero-lines-still'), svg => ({
+      svg, group: svg.firstElementChild, left: 0, top: 0, width: 0, height: 0,
+    }))
+    let canvasLeft = 0
+    let canvasTop = 0
+    const cacheLayout = () => {
+      const heroBounds = hero.getBoundingClientRect()
+      const canvasBounds = canvas.getBoundingClientRect()
+      canvasLeft = canvasBounds.left - heroBounds.left
+      canvasTop = canvasBounds.top - heroBounds.top
+      staticFrames.forEach(frame => {
+        const bounds = frame.svg.getBoundingClientRect()
+        frame.left = bounds.left - heroBounds.left
+        frame.top = bounds.top - heroBounds.top
+        frame.width = bounds.width
+        frame.height = bounds.height
+      })
+    }
+    const depthScale = () => scrollZoom ? 1 + .5 * Math.min(1, heroZoomProgress(scrollProgress)) : 1
+    const updateStaticZoom = () => {
+      const scale = reduced ? 1 : depthScale()
+      staticFrames.forEach(({ group, left, top, width, height }) => {
+        if (scale === 1) { group.removeAttribute('transform'); return }
+        if (!width || !height) return
+        const x = (scrollFocusX - left) / width * 1000
+        const y = (scrollFocusY - top) / height * 1000
+        group.setAttribute('transform', `translate(${x} ${y}) scale(${scale}) translate(${-x} ${-y})`)
+      })
+    }
+    const resizeStatic = () => { cacheLayout(); updateStaticZoom() }
+    const handleScroll = event => {
+      const wasScrolling = scrollProgress > 0
+      scrollProgress = Math.min(1, Math.max(0, Number(event.detail?.progress) || 0))
+      scrollZoom = event.detail?.zoom !== false
+      if (event.detail?.layoutChanged) cacheLayout()
+      if (Number.isFinite(event.detail?.focusX)) scrollFocusX = event.detail.focusX
+      if (Number.isFinite(event.detail?.focusY)) scrollFocusY = event.detail.focusY
+      layer.dataset.scrollProgress = String(scrollProgress)
+      if (!reduced && (scrollProgress > 0 || layer.dataset.render === 'static')) {
+        layer.dataset.motion = scrollProgress > 0 && scrollProgress < 1 ? 'scroll' : 'paused'
+      }
+      updateStaticZoom()
+      applyScrollFrame(wasScrolling)
+    }
+    cacheLayout()
+    hero.addEventListener(HERO_SCROLL_EVENT, handleScroll)
+    // SVG remains scroll-driven when WebGL is unavailable or loses its context.
+    window.addEventListener('resize', resizeStatic, { passive: true })
+    const removeScrollListeners = () => {
+      hero.removeEventListener(HERO_SCROLL_EVENT, handleScroll)
+      window.removeEventListener('resize', resizeStatic)
+      staticFrames.forEach(({ group }) => group.removeAttribute('transform'))
+      delete layer.dataset.scrollProgress
+    }
     const notifyLight = (mode, elapsed = 0, delta = 0) => {
       hero.dispatchEvent(new CustomEvent(HERO_LIGHT_EVENT, { detail: { mode, elapsed, delta } }))
     }
     // Reduced motion uses the SVG, without a GPU context or a frame loop.
-    if (reduced) { notifyLight('static'); return undefined }
+    if (reduced) {
+      if (initialScrollFrame) handleScroll({ detail: initialScrollFrame })
+      notifyLight('static')
+      return removeScrollListeners
+    }
 
     const compactMedia = window.matchMedia('(max-width: 767px), (pointer: coarse)')
     const fineMedia = window.matchMedia('(hover: hover) and (pointer: fine)')
@@ -93,12 +158,16 @@ export default function HomeHeroLines({ held = false }) {
     let targetMouseY = .5
     let hover = 0
     let targetHover = 0
+    let ambientScrollLight = 0
+    let ambientScrollActive = 0
+    let frozenScrollLight = 0
+    let frozenScrollActive = 0
 
     const stop = () => {
       if (frame) window.cancelAnimationFrame(frame)
       frame = 0
       lastTimestamp = 0
-      layer.dataset.motion = 'paused'
+      layer.dataset.motion = scrollProgress > 0 && scrollProgress < 1 ? 'scroll' : 'paused'
     }
     const release = () => {
       if (gl && !lost) {
@@ -140,13 +209,14 @@ export default function HomeHeroLines({ held = false }) {
       }
     }
     const resize = () => {
+      cacheLayout()
       if (!program || lost) return
       // CSS gives the compact symbol its own proportional frame. Measure that
       // frame so WebGL and the static SVG share the same responsive silhouette.
       width = Math.max(1, canvas.clientWidth)
       height = Math.max(1, canvas.clientHeight)
       compact = compactMedia.matches
-      if (compact) { pointerX = 0; pointerY = 0; targetX = 0; targetY = 0; hover = 0; targetHover = 0 }
+      if (compact && !scrollProgress) { pointerX = 0; pointerY = 0; targetX = 0; targetY = 0; hover = 0; targetHover = 0 }
       // Bound the pixel budget; mobile also halves geometry and refresh rate.
       const dpr = Math.min(window.devicePixelRatio || 1, compact ? 1 : 1.5)
       const scale = Math.min(dpr, Math.sqrt((compact ? 420000 : 1600000) / (width * height)))
@@ -167,6 +237,9 @@ export default function HomeHeroLines({ held = false }) {
       let offset = 0
       const lineCount = compact ? 4 : 7
       const halfWidth = compact ? 4.5 : 9
+      const focusX = scrollFocusX - canvasLeft
+      const focusY = scrollFocusY - canvasTop
+      const scale = depthScale()
       for (let line = 0; line < lineCount; line++) {
         for (const [sideIndex, side] of [[0, -1], [1, 1]]) {
           const curve = curves[sideIndex * lineCount + line]
@@ -190,9 +263,17 @@ export default function HomeHeroLines({ held = false }) {
             const opacity = (.3 + line / lineCount * .28) * Math.sin(progress * Math.PI) ** .45
             const travel = side === 1 ? curve.distances[point] / totalLength
               : (rightLength + curve.length - curve.distances[point]) / totalLength
+            // Expand the centreline in CSS pixels before adding its normal:
+            // ribbon ink and glow keep the same thickness throughout the zoom.
+            const x = focusX + (curve.positions[point * 2] + pointerX - focusX) * scale
+            const y = focusY + (curve.positions[point * 2 + 1] + pointerY - focusY) * scale
             for (const edge of [-1, 1]) {
-              vertices[offset++] = (curve.positions[point * 2] + normalX * edge + pointerX) / width * 2 - 1
-              vertices[offset++] = 1 - (curve.positions[point * 2 + 1] + normalY * edge + pointerY) / height * 2
+              // Keep the original arithmetic at scale 1, including the first
+              // ambient frame before the scroll choreography begins.
+              const screenX = scale === 1 ? curve.positions[point * 2] + normalX * edge + pointerX : x + normalX * edge
+              const screenY = scale === 1 ? curve.positions[point * 2 + 1] + normalY * edge + pointerY : y + normalY * edge
+              vertices[offset++] = screenX / width * 2 - 1
+              vertices[offset++] = 1 - screenY / height * 2
               vertices[offset++] = edge
               vertices[offset++] = opacity
               // A 0.14s delay from one fibre to the next gives the fine head
@@ -210,8 +291,12 @@ export default function HomeHeroLines({ held = false }) {
       gl.uniform1f(lightLocations.uIntro, .52 + .48 * (1 - Math.exp(-elapsed / .45)))
       gl.uniform1f(lightLocations.uCompact, compact ? 1 : 0)
       gl.uniform1f(lightLocations.uHover, hover)
-      gl.uniform1f(lightLocations.uScroll, Number(hero.style.getPropertyValue('--hero-light-scroll')) || 0)
-      gl.uniform1f(lightLocations.uScrollActive, Number(hero.style.getPropertyValue('--hero-light-scroll-active')) || 0)
+      if (!scrollProgress) {
+        ambientScrollLight = Number(hero.style.getPropertyValue('--hero-light-scroll')) || 0
+        ambientScrollActive = Number(hero.style.getPropertyValue('--hero-light-scroll-active')) || 0
+      }
+      gl.uniform1f(lightLocations.uScroll, scrollProgress > 0 ? frozenScrollLight : ambientScrollLight)
+      gl.uniform1f(lightLocations.uScrollActive, scrollProgress > 0 ? frozenScrollActive : ambientScrollActive)
       gl.uniform2f(lightLocations.uPointer, mouseX, mouseY)
       gl.uniform2f(lightLocations.uSize, width, height)
       const stripSize = points * 2
@@ -220,7 +305,7 @@ export default function HomeHeroLines({ held = false }) {
     }
     const tick = timestamp => {
       frame = 0
-      if (disposed || !visible || document.hidden || lost || !program) return
+      if (disposed || scrollProgress > 0 || !visible || document.hidden || lost || !program) return
       const delta = lastTimestamp ? timestamp - lastTimestamp : 0
       if (!lastTimestamp || delta >= (compact ? 1000 / 24 : 1000 / 30) - 1) {
         // Resetting the timestamp on pause avoids a jump when resuming.
@@ -238,7 +323,7 @@ export default function HomeHeroLines({ held = false }) {
       frame = window.requestAnimationFrame(tick)
     }
     const start = () => {
-      if (disposed || frame || !visible || document.hidden || lost || !program) return
+      if (disposed || scrollProgress > 0 || frame || !visible || document.hidden || lost || !program) return
       // Held: draw the first frame (so WebGL replaces the still SVG under the
       // loader) without starting the clock.
       if (heldRef.current) { draw(); return }
@@ -247,11 +332,13 @@ export default function HomeHeroLines({ held = false }) {
     }
     const handleResize = () => {
       resize()
-      if (visible && !document.hidden) draw()
+      if (hero.homeHeroScrollFrame) handleScroll({ detail: hero.homeHeroScrollFrame })
+      else updateStaticZoom()
+      if (visible && !document.hidden && (!scrollProgress || !hero.homeHeroScrollFrame)) draw()
       start()
     }
     const handlePointerMove = event => {
-      if (compact || !fineMedia.matches || event.pointerType === 'touch') return
+      if (scrollProgress > 0 || compact || !fineMedia.matches || event.pointerType === 'touch') return
       const bounds = hero.getBoundingClientRect()
       targetMouseX = (event.clientX - bounds.left) / bounds.width
       targetMouseY = (event.clientY - bounds.top) / bounds.height
@@ -259,7 +346,10 @@ export default function HomeHeroLines({ held = false }) {
       targetY = (targetMouseY - .5) * 8
       targetHover = 1
     }
-    const handlePointerLeave = () => { targetX = 0; targetY = 0; targetHover = 0 }
+    const handlePointerLeave = () => {
+      if (scrollProgress > 0) return
+      targetX = 0; targetY = 0; targetHover = 0
+    }
     const handleVisibility = () => { if (document.hidden) stop(); else start() }
     const handleContextLost = event => {
       event.preventDefault()
@@ -276,8 +366,34 @@ export default function HomeHeroLines({ held = false }) {
       start()
     }
 
-    if (!initialize()) { fallback(); return undefined }
+    applyScrollFrame = wasScrolling => {
+      if (scrollProgress > 0) {
+        if (!wasScrolling) {
+          // Freeze the current ambient frame once. No clock, pointer damping,
+          // or independent render loop may evolve while the timeline scrubs.
+          frozenScrollLight = ambientScrollLight
+          frozenScrollActive = ambientScrollActive
+          targetX = pointerX; targetY = pointerY
+          targetMouseX = mouseX; targetMouseY = mouseY; targetHover = hover
+        }
+        stop()
+        draw()
+      } else {
+        // Draw the exact held frame at zero, then resume its ambient clock.
+        if (wasScrolling) { layer.dataset.motion = 'paused'; draw() }
+        start()
+      }
+    }
+
+    if (!initialize()) {
+      fallback()
+      if (initialScrollFrame) handleScroll({ detail: initialScrollFrame })
+      return removeScrollListeners
+    }
     resize()
+    // Parent layout effects can publish before this passive effect mounts.
+    // Restore that frame before any observer is allowed to start the clock.
+    if (initialScrollFrame) handleScroll({ detail: initialScrollFrame })
     const resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(handleResize) : null
     resizeObserver?.observe(layer)
     const observer = typeof IntersectionObserver === 'function' ? new IntersectionObserver(([entry]) => {
@@ -310,6 +426,7 @@ export default function HomeHeroLines({ held = false }) {
       canvas.removeEventListener('webglcontextrestored', handleContextRestored)
       release()
       layer.dataset.render = 'static'
+      removeScrollListeners()
     }
   }, [reduced])
 
@@ -317,10 +434,12 @@ export default function HomeHeroLines({ held = false }) {
     <div ref={layerRef} className="home-hero-lines" data-render="static" aria-hidden="true">
       {staticRibbons.map(({ compact, paths }) => (
         <svg key={String(compact)} className={`home-hero-lines-still${compact ? ' is-compact' : ''}`} viewBox="0 0 1000 1000" preserveAspectRatio="none" focusable="false">
-          {paths.map(({ key, d, opacity }) => <path key={key} d={d} opacity={opacity} vectorEffect="non-scaling-stroke" />)}
-          {paths.filter(({ line }) => Math.abs(line - (compact ? 1.5 : 3)) <= 1).map(({ key, d, side, line }) => (
-            <path key={`light:${key}`} className="home-hero-lines-still-light" d={d} pathLength="1" strokeDasharray="0.18 0.82" strokeDashoffset={-(side === 1 ? .1 : .61) - line * .012} vectorEffect="non-scaling-stroke" />
-          ))}
+          <g>
+            {paths.map(({ key, d, opacity }) => <path key={key} d={d} opacity={opacity} vectorEffect="non-scaling-stroke" />)}
+            {paths.filter(({ line }) => Math.abs(line - (compact ? 1.5 : 3)) <= 1).map(({ key, d, side, line }) => (
+              <path key={`light:${key}`} className="home-hero-lines-still-light" d={d} pathLength="1" strokeDasharray="0.18 0.82" strokeDashoffset={-(side === 1 ? .1 : .61) - line * .012} vectorEffect="non-scaling-stroke" />
+            ))}
+          </g>
         </svg>
       ))}
       <canvas ref={canvasRef} aria-hidden="true" />

@@ -68,7 +68,7 @@ const navigate = async (destination = url, introPause = 850) => {
   }
 }
 const sample = () => evaluate(`(() => {
-  const hero = document.querySelector('#accueil')
+  const hero = document.querySelector('.home-hero')
   const layer = document.querySelector('.home-hero-lines')
   const canvas = layer.querySelector('canvas')
   const rect = node => {
@@ -204,7 +204,7 @@ try {
   // Rotate the same mounted hero: no page reload or replay of the title reveal.
   await viewport(390, 844, true, 3)
   await navigate()
-  await waitFor('document.querySelector("#accueil").dataset.titleLit === "true"')
+  await waitFor('document.querySelector(".home-hero").dataset.titleLit === "true"')
   await viewport(844, 390, true, 3)
   await pause(350)
   const landscape = await sample()

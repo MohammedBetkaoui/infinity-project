@@ -25,7 +25,7 @@
   height: 100%;
   pointer-events: none;
   opacity: 0;
-  transition: opacity .35s ease;
+  transition: opacity .6s ease;
 }
 
 .infinity-liquid-metal[data-webgl='ready'] .infinity-liquid-metal-canvas { opacity: 1; }

@@ -12,44 +12,51 @@ const variants = {
 
 const fallbackVariant = variants.home
 
+// The page opens on the CSS fallback: the context is created once the title's
+// rise has done most of its travel, so the two never share a frame budget.
+const SETUP_DELAY_MS = 450
+// Frames slower than this were held up by the main thread (a route mounting),
+// not by the GPU: they say nothing about the quality the device can afford.
+const STALLED_FRAME_MS = 50
+
+const whenIdle = (callback) => {
+  if (typeof window.requestIdleCallback === 'function') {
+    const handle = window.requestIdleCallback(callback, { timeout: 600 })
+    return () => window.cancelIdleCallback(handle)
+  }
+  const handle = window.setTimeout(callback, 0)
+  return () => window.clearTimeout(handle)
+}
+
 function compileShader(gl, type, source) {
   const shader = gl.createShader(type)
   if (!shader) return null
   gl.shaderSource(shader, source)
   gl.compileShader(shader)
-  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    gl.deleteShader(shader)
-    return null
-  }
   return shader
 }
 
+// Compiles and links without asking for the result: asking blocks the main
+// thread until the driver is done (about 250 ms for this shader on Direct3D).
+// The status is read once the driver reports completion (see programSettled).
 function createProgram(gl) {
   const vertexShader = compileShader(gl, gl.VERTEX_SHADER, liquidMetalVertexShader)
   const fragmentShader = compileShader(gl, gl.FRAGMENT_SHADER, liquidMetalFragmentShader)
-  if (!vertexShader || !fragmentShader) {
-    if (vertexShader) gl.deleteShader(vertexShader)
-    if (fragmentShader) gl.deleteShader(fragmentShader)
-    return null
+  const program = vertexShader && fragmentShader ? gl.createProgram() : null
+  if (program) {
+    gl.attachShader(program, vertexShader)
+    gl.attachShader(program, fragmentShader)
+    gl.linkProgram(program)
   }
-
-  const program = gl.createProgram()
-  if (!program) {
-    gl.deleteShader(vertexShader)
-    gl.deleteShader(fragmentShader)
-    return null
-  }
-  gl.attachShader(program, vertexShader)
-  gl.attachShader(program, fragmentShader)
-  gl.linkProgram(program)
-  gl.deleteShader(vertexShader)
-  gl.deleteShader(fragmentShader)
-
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    gl.deleteProgram(program)
-    return null
-  }
+  if (vertexShader) gl.deleteShader(vertexShader)
+  if (fragmentShader) gl.deleteShader(fragmentShader)
   return program
+}
+
+// With KHR_parallel_shader_compile the driver compiles in the background and
+// can be polled; without it the status read waits, as it always did.
+function programSettled(gl, program, parallel) {
+  return !parallel || gl.getProgramParameter(program, parallel.COMPLETION_STATUS_KHR)
 }
 
 export default function InfinityLiquidMetal({ variant = 'home' }) {
@@ -68,9 +75,13 @@ export default function InfinityLiquidMetal({ variant = 'home' }) {
     const coarsePointerMedia = window.matchMedia('(pointer: coarse)')
     let gl = null
     let program = null
+    let parallel = null
     let positionBuffer = null
     let locations = null
     let frame = 0
+    let setupFrame = 0
+    let cancelSetup = null
+    let disposed = false
     let visible = true
     let reduced = reducedMedia.matches
     let contextLost = false
@@ -84,6 +95,8 @@ export default function InfinityLiquidMetal({ variant = 'home' }) {
     let targetPointerY = .5
     let frameAverage = 16.7
     let measuredFrames = 0
+    // The first frames share the main thread with the page settling in.
+    let warmupFrames = 24
     let qualityScale = 1
 
     const setFallback = () => {
@@ -91,6 +104,7 @@ export default function InfinityLiquidMetal({ variant = 'home' }) {
       canvas.style.opacity = '0'
     }
 
+    // Context and program, without waiting for the driver to compile.
     const initialize = () => {
       gl = canvas.getContext('webgl', {
         alpha: false,
@@ -101,9 +115,19 @@ export default function InfinityLiquidMetal({ variant = 'home' }) {
         powerPreference: 'low-power',
       }) || canvas.getContext('experimental-webgl')
       if (!gl) return false
-
+      parallel = gl.getExtension('KHR_parallel_shader_compile')
       program = createProgram(gl)
-      if (!program) return false
+      return Boolean(program)
+    }
+
+    // Once the program is linked: geometry, uniforms, and the canvas fades in
+    // over the CSS fallback it replaces.
+    const completeSetup = () => {
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        gl.deleteProgram(program)
+        program = null
+        return false
+      }
       positionBuffer = gl.createBuffer()
       if (!positionBuffer) return false
 
@@ -175,7 +199,8 @@ export default function InfinityLiquidMetal({ variant = 'home' }) {
       if (lastTimestamp) {
         const frameDuration = timestamp - lastTimestamp
         elapsed += Math.min(frameDuration / 1000, .05)
-        if (measuredFrames < 46) {
+        if (warmupFrames > 0) warmupFrames -= 1
+        else if (measuredFrames < 46 && frameDuration < STALLED_FRAME_MS) {
           frameAverage += (frameDuration - frameAverage) * .08
           measuredFrames += 1
           if (measuredFrames === 20 && frameAverage > 25) {
@@ -199,7 +224,7 @@ export default function InfinityLiquidMetal({ variant = 'home' }) {
     }
 
     const start = () => {
-      if (frame || !visible || document.hidden || reduced || contextLost || !program) return
+      if (frame || !visible || document.hidden || reduced || contextLost || !locations) return
       frame = window.requestAnimationFrame(tick)
     }
 
@@ -242,18 +267,15 @@ export default function InfinityLiquidMetal({ variant = 'home' }) {
       if (reduced) drawStillFrame()
       else start()
     }
-    const handleContextLost = (event) => {
-      event.preventDefault()
-      contextLost = true
-      stop()
-      layer.dataset.webgl = 'context-lost'
-    }
-    const handleContextRestored = () => {
-      contextLost = false
-      program = null
-      positionBuffer = null
-      locations = null
-      if (!initialize()) {
+    // Polled once per frame until the driver is done, then the first frame.
+    const awaitProgram = () => {
+      setupFrame = 0
+      if (disposed || contextLost || !program) return
+      if (!programSettled(gl, program, parallel)) {
+        setupFrame = window.requestAnimationFrame(awaitProgram)
+        return
+      }
+      if (!completeSetup()) {
         setFallback()
         return
       }
@@ -264,18 +286,35 @@ export default function InfinityLiquidMetal({ variant = 'home' }) {
         start()
       }
     }
+    const boot = () => {
+      cancelSetup = null
+      if (disposed) return
+      if (!initialize()) {
+        setFallback()
+        return
+      }
+      awaitProgram()
+    }
 
-    if (!initialize()) {
-      setFallback()
-      return undefined
+    const handleContextLost = (event) => {
+      event.preventDefault()
+      contextLost = true
+      stop()
+      window.cancelAnimationFrame(setupFrame)
+      setupFrame = 0
+      layer.dataset.webgl = 'context-lost'
     }
-    resize(true)
+    const handleContextRestored = () => {
+      contextLost = false
+      program = null
+      positionBuffer = null
+      locations = null
+      boot()
+    }
+
     layer.dataset.motion = reduced ? 'static' : 'animated'
-    if (reduced) drawStillFrame()
-    else {
-      draw()
-      start()
-    }
+    const setupTimer = window.setTimeout(() => { cancelSetup = whenIdle(boot) }, SETUP_DELAY_MS)
+    cancelSetup = () => window.clearTimeout(setupTimer)
 
     const resizeObserver = typeof ResizeObserver === 'function'
       ? new ResizeObserver(() => {
@@ -303,6 +342,9 @@ export default function InfinityLiquidMetal({ variant = 'home' }) {
     canvas.addEventListener('webglcontextrestored', handleContextRestored)
 
     return () => {
+      disposed = true
+      cancelSetup?.()
+      window.cancelAnimationFrame(setupFrame)
       stop()
       resizeObserver?.disconnect()
       intersectionObserver?.disconnect()

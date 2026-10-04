@@ -14,6 +14,41 @@
   pointer-events: none;
   background: linear-gradient(to bottom, rgb(0 42 30 / 0), #003828 100%);
 }
+/* Scroll stage of the logo sequence (useHeroLogoScroll). Pinned, the Hero
+   sticks while the runway scrolls by, then leaves with it; otherwise (reduced
+   motion, short screens) the runway is absent and the stage is just the Hero.
+   Sticky rather than a script pin: the compositor holds it, so touch scrolling
+   cannot shake it at either end of the pin. */
+.home-hero-runway { display: none; }
+.home-hero-stage[data-logo-scroll="pinned"] > .home-hero { position: sticky; top: 0; }
+/* Static overlap: the incoming section is in its final native position at
+   progress 1. Only its transform changes during the last 30% of the timeline. */
+.home-hero-stage[data-logo-scroll="pinned"] + .poles-section {
+  position: relative;
+  z-index: 3;
+  min-height: 100svh;
+  margin-top: calc(-1 * var(--home-hero-overlap, 100svh));
+}
+.home-hero-stage[data-logo-scroll="pinned"] + .poles-section::before {
+  position: absolute;
+  inset: auto 0 100%;
+  height: 48px;
+  content: '';
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgb(0 56 40 / 0), #003828);
+}
+/* The scroll-driven entrance owns visibility; timed text/card reveals must
+   not add another, non-reversible entrance to this incoming section. */
+.home-hero-stage[data-logo-scroll="pinned"] + .poles-section .motion-text-word,
+.home-hero-stage[data-logo-scroll="pinned"] + .poles-section .pole-tab,
+.home-hero-stage[data-logo-scroll="pinned"] + .poles-section .pole-detail-host {
+  opacity: 1 !important;
+  transform: none !important;
+}
+/* #003828 is the Hero's own bottom edge: where a collapsing mobile address bar
+   uncovers the runway under the pinned Hero, it reads as the same surface.
+   Rounded to the pixel, so the sections after it keep whole-pixel positions. */
+.home-hero-stage[data-logo-scroll="pinned"] > .home-hero-runway { --runway: 130vh; display: block; height: var(--runway); height: round(var(--runway), 1px); background: #003828; }
 .home-hero-inner { position: relative; z-index: 2; display: flex; flex-direction: column; min-height: 100svh; padding-top: 112px; }
 /* The mark under the actions takes the place of most of the scene's bottom
    padding (margin-top + height = the former 54px), so the title and the
@@ -21,7 +56,8 @@
    mark off the foot when a short screen makes the Hero overflow. */
 .home-hero-scene { display: grid; place-items: center; flex: 1; min-width: 0; padding-block: 40px 12px; }
 .home-hero-copy { width: 100%; min-width: 0; text-align: center; }
-.home-hero-copy:focus-within { opacity: 1 !important; transform: none !important; }
+/* Keyboard focus on an action faded by the logo sequence brings it back. */
+.home-hero-actions:has(:focus-visible) { opacity: 1 !important; transform: none !important; }
 .home-hero-brand { margin-bottom: 24px; font-size: 12px; font-weight: 650; letter-spacing: .18em; color: #9ed7c4; }
 .home-hero h1 { font-family: Rajdhani, sans-serif; font-size: clamp(76px, 8.4vw, 124px); font-weight: 600; letter-spacing: -.045em; line-height: .96; }
 .home-hero-line { display: block; padding: .02em 0 .06em; }
@@ -57,8 +93,15 @@
 .home-hero-actions .text-link { min-height: 44px; color: #f1ebdd; border-color: rgb(128 180 159 / .55); }
 .home-hero-actions .text-link:hover { color: #9ed7c4; border-color: #9ed7c4; }
 /* Where the home loader's emblem lands (see HomeLoader): 28px + 26px tall. */
-.home-hero-mark { display: block; width: 48px; margin: 28px auto 0; color: #9ed7c4; }
+.home-hero-mark { position: relative; display: block; width: 48px; margin: 28px auto 0; color: #9ed7c4; }
 .home-hero-mark svg { display: block; width: 100%; height: auto; }
+/* Hollow twin of the emblem, stacked on the filled one and invisible at rest.
+   It zooms inside its own coordinates (overflow visible, clipped by the Hero),
+   where non-scaling-stroke keeps the contour at 1.5px at any scale. */
+.home-hero-mark .home-hero-mark-outline { position: absolute; inset: 0; height: 100%; overflow: visible; opacity: 0; pointer-events: none; }
+/* The zoom layer turns around its own centre: the logo's geometric centre. */
+.home-hero-mark-outline g { transform-box: fill-box; transform-origin: 50% 50%; }
+.home-hero-mark-outline path { fill: none; stroke: currentColor; stroke-width: 1.5px; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 .home-hero a:focus-visible { outline: 2px solid #f1ebdd; outline-offset: 5px; box-shadow: none; }
 .home-hero-foot { position: relative; display: flex; justify-content: space-between; align-items: center; gap: 20px; padding-block: 12px 18px; border-top: 1px solid rgb(158 215 196 / .16); font-size: 11px; color: #80b49f; }
 .home-hero-foot a { display: flex; align-items: center; gap: 10px; min-height: 44px; color: #9ed7c4; transition: color .24s; }
@@ -71,6 +114,7 @@
   .home-hero h1 { font-size: clamp(72px, 10.6vw, 102px); }
 }
 @media (max-width: 767px) {
+  .home-hero-stage[data-logo-scroll="pinned"] > .home-hero-runway { --runway: 100vh; }
   .home-hero::after { height: 72px; }
   .home-hero-inner { padding-top: 94px; }
   .home-hero-scene { padding-block: 30px 12px; }
