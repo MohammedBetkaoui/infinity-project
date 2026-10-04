@@ -158,10 +158,6 @@ export default function HomeHeroLines({ held = false }) {
     let targetMouseY = .5
     let hover = 0
     let targetHover = 0
-    let ambientScrollLight = 0
-    let ambientScrollActive = 0
-    let frozenScrollLight = 0
-    let frozenScrollActive = 0
 
     const stop = () => {
       if (frame) window.cancelAnimationFrame(frame)
@@ -291,12 +287,10 @@ export default function HomeHeroLines({ held = false }) {
       gl.uniform1f(lightLocations.uIntro, .52 + .48 * (1 - Math.exp(-elapsed / .45)))
       gl.uniform1f(lightLocations.uCompact, compact ? 1 : 0)
       gl.uniform1f(lightLocations.uHover, hover)
-      if (!scrollProgress) {
-        ambientScrollLight = Number(hero.style.getPropertyValue('--hero-light-scroll')) || 0
-        ambientScrollActive = Number(hero.style.getPropertyValue('--hero-light-scroll-active')) || 0
-      }
-      gl.uniform1f(lightLocations.uScroll, scrollProgress > 0 ? frozenScrollLight : ambientScrollLight)
-      gl.uniform1f(lightLocations.uScrollActive, scrollProgress > 0 ? frozenScrollActive : ambientScrollActive)
+      // The reflection that follows the scroll (see useHeroMotion) stays live
+      // through the scroll sequence too.
+      gl.uniform1f(lightLocations.uScroll, Number(hero.style.getPropertyValue('--hero-light-scroll')) || 0)
+      gl.uniform1f(lightLocations.uScrollActive, Number(hero.style.getPropertyValue('--hero-light-scroll-active')) || 0)
       gl.uniform2f(lightLocations.uPointer, mouseX, mouseY)
       gl.uniform2f(lightLocations.uSize, width, height)
       const stripSize = points * 2
@@ -305,7 +299,7 @@ export default function HomeHeroLines({ held = false }) {
     }
     const tick = timestamp => {
       frame = 0
-      if (disposed || scrollProgress > 0 || !visible || document.hidden || lost || !program) return
+      if (disposed || scrollProgress >= 1 || !visible || document.hidden || lost || !program) return
       const delta = lastTimestamp ? timestamp - lastTimestamp : 0
       if (!lastTimestamp || delta >= (compact ? 1000 / 24 : 1000 / 30) - 1) {
         // Resetting the timestamp on pause avoids a jump when resuming.
@@ -323,11 +317,11 @@ export default function HomeHeroLines({ held = false }) {
       frame = window.requestAnimationFrame(tick)
     }
     const start = () => {
-      if (disposed || scrollProgress > 0 || frame || !visible || document.hidden || lost || !program) return
+      if (disposed || scrollProgress >= 1 || frame || !visible || document.hidden || lost || !program) return
       // Held: draw the first frame (so WebGL replaces the still SVG under the
       // loader) without starting the clock.
       if (heldRef.current) { draw(); return }
-      layer.dataset.motion = 'animated'
+      layer.dataset.motion = scrollProgress > 0 ? 'scroll' : 'animated'
       frame = window.requestAnimationFrame(tick)
     }
     const handleResize = () => {
@@ -368,21 +362,20 @@ export default function HomeHeroLines({ held = false }) {
 
     applyScrollFrame = wasScrolling => {
       if (scrollProgress > 0) {
+        // The pointer stops steering the lines once the sequence starts: the
+        // zoom and its focus come from the scroll alone. The light currents
+        // keep their clock, so the symbol stays alive while it scrubs.
         if (!wasScrolling) {
-          // Freeze the current ambient frame once. No clock, pointer damping,
-          // or independent render loop may evolve while the timeline scrubs.
-          frozenScrollLight = ambientScrollLight
-          frozenScrollActive = ambientScrollActive
           targetX = pointerX; targetY = pointerY
           targetMouseX = mouseX; targetMouseY = mouseY; targetHover = hover
         }
-        stop()
+        // Drawn on the scroll frame itself, in step with the logo; the clock
+        // rests once the Hero is fully covered.
         draw()
-      } else {
-        // Draw the exact held frame at zero, then resume its ambient clock.
-        if (wasScrolling) { layer.dataset.motion = 'paused'; draw() }
-        start()
-      }
+        if (scrollProgress >= 1) stop()
+        else start()
+      } else start()
+      if (frame) layer.dataset.motion = scrollProgress > 0 ? 'scroll' : 'animated'
     }
 
     if (!initialize()) {
