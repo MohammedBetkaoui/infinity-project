@@ -19,7 +19,8 @@
 .home-hero-lines[data-motion='scroll'] .home-hero-lines-still > g { will-change: transform; }
 .home-hero-lines-still path:nth-child(3n) { stroke: #9ed7c4; }
 .home-hero-lines-still .home-hero-lines-still-light { stroke: #cde5d9; opacity: .66; filter: drop-shadow(0 0 2px #9ed7c4); }
-.home-hero-lines-still.is-compact { display: none; }
+.home-hero-lines-still.is-compact,
+.home-hero-lines-still.is-portrait { display: none; }
 .home-hero-lines-shade {
   background:
     radial-gradient(ellipse 34% 65% at 50% 48%, #002a1e 20%, rgb(0 42 30 / .78) 48%, rgb(0 42 30 / .15) 100%),
@@ -36,27 +37,31 @@
     height: min(72vw, 62%);
     transform: translateY(-50%);
   }
+  /* The lower loops reach the foot here: the bottom fade starts later. */
   .home-hero-lines-shade {
     background:
       radial-gradient(ellipse 36% 18% at 50% var(--hero-symbol-center, 44%), #002a1e 18%, rgb(0 42 30 / .8) 52%, transparent 100%),
-      linear-gradient(to bottom, rgb(0 42 30 / .5), transparent 28% 68%, #002a1e 96%);
+      linear-gradient(to bottom, rgb(0 42 30 / .5), transparent 28% 84%, rgb(0 42 30 / .9) 100%);
   }
 }
-/* Portrait phones and tablets: a frame much wider than the screen, so the
-   loops overflow both sides as on desktop and only the crossing shows whole,
-   on the logo, under the copy (sized in HomeHeroLines). The shade keeps the
-   title on a dark ground and fades the loops towards the foot. */
+/* Portrait phones and tablets: the portrait variant of the symbol. The
+   canvases cover the Hero as on desktop and draw it in place, centred on the
+   logo (HomeHeroLines); the still SVG gets the same box and, through a mask,
+   the same dimming over the copy. The shade keeps the title on a dark ground
+   and fades the loops towards the foot. */
 @media (max-width: 1023.98px) and (orientation: portrait) {
   .home-hero-lines-still { display: none; }
-  .home-hero-lines-still.is-compact { display: block; }
-  .home-hero-lines canvas,
-  .home-hero-lines-still.is-compact {
+  .home-hero-lines-still.is-portrait {
+    display: block;
     inset: auto;
     top: var(--lines-crossing, 72%);
-    left: 50%;
-    width: var(--lines-frame-width, 240vw);
-    height: var(--lines-frame-height, 100vw);
+    left: var(--lines-crossing-x, 50%);
+    width: var(--lines-frame-width, 140vw);
+    height: var(--lines-frame-height, 93vw);
     transform: translate(-50%, -50%);
+    /* Clear inside the copy block, opaque beyond its soft edge. */
+    -webkit-mask-image: radial-gradient(var(--lines-mask-rx, 0) var(--lines-mask-ry, 0) at var(--lines-mask-x, 50%) var(--lines-mask-y, 0), rgb(0 0 0 / .14) 78%, #000 122%);
+    mask-image: radial-gradient(var(--lines-mask-rx, 0) var(--lines-mask-ry, 0) at var(--lines-mask-x, 50%) var(--lines-mask-y, 0), rgb(0 0 0 / .14) 78%, #000 122%);
   }
   .home-hero-lines-shade {
     background:

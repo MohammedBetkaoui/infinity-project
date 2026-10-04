@@ -1,99 +1,124 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { test } from 'node:test'
-import { HERO_BREAKPOINTS, HERO_PROFILES, portraitFrame } from '../src/lib/heroLayouts.js'
-import { beamSpan, measureRibbon, ribbonPoint } from '../src/lib/homeHeroLines.js'
+import { HERO_BREAKPOINTS, HERO_PROFILES, portraitSymbol } from '../src/lib/heroLayouts.js'
+import { beamSpan, measureRibbon, PORTRAIT_ASPECT, ribbonPoint } from '../src/lib/homeHeroLines.js'
 
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8')
 
-// Layouts measured on the Home hero (CSS px): viewport, logo centre, paragraph box.
+// Layouts measured on the Home hero (CSS px): viewport, logo centre, copy block (brand to buttons).
 const portraits = [
-  { name: 'iPhone 13 Pro, toolbars', profile: 'mobile', hero: [390, 664], mark: 519.5, text: [40, 345, 350, 415] },
-  { name: 'iPhone 13 Pro, full', profile: 'mobile', hero: [390, 844], mark: 609.5, text: [40, 435, 350, 505] },
-  { name: 'iPhone SE', profile: 'mobile', hero: [375, 667], mark: 519, text: [33, 344, 342, 414] },
-  { name: 'iPhone Pro Max', profile: 'mobile', hero: [430, 932], mark: 659, text: [60, 484, 370, 554] },
-  { name: 'iPad', profile: 'tablet', hero: [768, 1024], mark: 741, text: [146, 566, 622, 620] },
-  { name: 'iPad Air', profile: 'tablet', hero: [820, 1180], mark: 825, text: [172, 650, 648, 704] },
+  { name: 'iPhone 13 Pro, toolbars', profile: 'mobile', hero: [390, 664], logo: [195, 519.5], copy: [20, 205, 370, 490] },
+  { name: 'iPhone 13 Pro, full', profile: 'mobile', hero: [390, 844], logo: [195, 609.5], copy: [20, 295, 370, 580] },
+  { name: 'iPhone SE', profile: 'mobile', hero: [375, 667], logo: [187.5, 519], copy: [20, 209, 355, 489] },
+  { name: 'iPhone Pro Max', profile: 'mobile', hero: [430, 932], logo: [215, 659], copy: [20, 334, 410, 629] },
+  { name: 'iPad', profile: 'tablet', hero: [768, 1024], logo: [384, 741], copy: [32, 362, 736, 700] },
 ]
 
-const frameOf = ({ profile, hero: [width, height], mark, text: [left, , right, bottom] }) => portraitFrame(
-  HERO_PROFILES[profile], { width, height }, mark,
-  { bottom, halfWidth: Math.max(width / 2 - left, right - width / 2) },
+const symbolOf = ({ profile, hero: [width, height], logo: [x, y], copy: [left, top, right, bottom] }) => portraitSymbol(
+  HERO_PROFILES[profile], { width, height }, { x, y }, { left, top, width: right - left, height: bottom - top },
 )
 
-test('desktop keeps its validated values; phones and tablets end the logo before the next section rises', () => {
+test('desktop keeps its validated values; phones and tablets follow its dissolve rule', () => {
   assert.deepEqual(HERO_PROFILES.desktop, { logoExit: 'frame', outlineFade: [.7, .9] })
   assert.equal(HERO_BREAKPOINTS.desktop, '(min-width: 1024px)')
   for (const name of ['mobile', 'tablet']) {
-    const { logoExit, outlineFade: [from, to] } = HERO_PROFILES[name]
+    const { logoExit, outlineFade, beamLength } = HERO_PROFILES[name]
     assert.equal(logoExit, 'largest')
-    // The next section starts rising at .7 and covers half the screen near .85.
-    assert(from < to && to <= .72, `${name} contour fades out by ${to}`)
+    // Between .7 and .9 the dissolving logo and the rising section show together.
+    assert.deepEqual(outlineFade, [.7, .9])
+    // Beam wake ~20–25% of the path (the desktop wake is 19% of it).
+    assert(.19 * beamLength >= .2 && .19 * beamLength <= .25)
   }
 })
 
-test('the portrait symbol overflows the screen, crosses on the logo and stays clear of the copy', () => {
-  for (const layout of portraits) {
-    const [width, height] = layout.hero
-    const frame = frameOf(layout)
-    const share = frame.width / width
-    const { min, max } = HERO_PROFILES[layout.profile].frame
-    assert(share >= min - 1e-9 && share <= max + 1e-9, `${layout.name}: ${share}`)
-    assert.equal(frame.crossing, layout.mark)
-    const left = (width - frame.width) / 2
-    const top = frame.crossing - frame.height / 2
-    let leftEdge = Infinity
-    let rightEdge = -Infinity
-    for (let line = 0; line < 4; line++) {
-      for (const side of [-1, 1]) {
-        for (let step = 0; step <= 600; step++) {
-          const point = ribbonPoint(step / 600, side, line, 0, true)
-          const x = left + point.x * frame.width
-          const y = top + point.y * frame.height
-          leftEdge = Math.min(leftEdge, x)
-          rightEdge = Math.max(rightEdge, x)
-          const [textLeft, textTop, textRight, textBottom] = layout.text
-          assert(!(x >= textLeft && x <= textRight && y >= textTop && y <= textBottom), `${layout.name}: a fibre crosses the paragraph`)
-        }
+test('the portrait variant is the same symbol, taller: seven fibres, one crossing, 1.5 wide for 1 tall', () => {
+  for (let line = 0; line < 7; line++) {
+    for (const side of [-1, 1]) {
+      for (const progress of [0, 1]) {
+        const point = ribbonPoint(progress, side, line, 12, 'portrait')
+        assert(Math.abs(point.x - .5) < 1e-12 && Math.abs(point.y - .5) < 1e-12)
       }
     }
-    // The loops leave the screen on both sides, as on desktop.
-    assert(leftEdge < 0 && rightEdge > width, `${layout.name}: loops ${leftEdge}..${rightEdge}`)
-    assert(frame.height <= height)
+  }
+  // The middle fibre spans as much of the frame's width as of its height,
+  // so the drawn symbol keeps the frame's 1.5 proportion.
+  let [left, right, top, bottom] = [1, 0, 1, 0]
+  for (const side of [-1, 1]) {
+    for (let step = 0; step <= 400; step++) {
+      const { x, y } = ribbonPoint(step / 400, side, 3, 0, 'portrait')
+      left = Math.min(left, x); right = Math.max(right, x); top = Math.min(top, y); bottom = Math.max(bottom, y)
+    }
+  }
+  const aspect = (right - left) * PORTRAIT_ASPECT / (bottom - top)
+  assert(aspect > 1.4 && aspect < 1.6, `aspect ${aspect}`)
+})
+
+test('on 375–430px and 768px portraits the loops overflow a little, the crossing sits under the logo, the copy is masked', () => {
+  for (const layout of portraits) {
+    const [width] = layout.hero
+    const symbol = symbolOf(layout)
+    const { min, max } = HERO_PROFILES[layout.profile].symbol
+    const share = symbol.width / width
+    assert(share >= min - 1e-9 && share <= max + 1e-9, `${layout.name}: ${share}`)
+    assert(share >= 1.2 && share <= 1.5)
+    assert.deepEqual([symbol.x, symbol.y], layout.logo)
+    // Curvature in view: the tops of the loops are on screen, their ends just off it.
+    let outer = 0
+    let tops = 0
+    for (const side of [-1, 1]) {
+      for (let step = 0; step <= 400; step++) {
+        const point = ribbonPoint(step / 400, side, 3, 0, 'portrait')
+        const x = symbol.x + (point.x - .5) * symbol.width
+        outer = Math.max(outer, Math.max(-x, x - width))
+        if (step === 100 || step === 300) tops += x > 0 && x < width ? 1 : 0
+      }
+    }
+    assert(outer > 0 && outer < width * .25, `${layout.name}: loops overflow by ${outer}px`)
+    assert.equal(tops, 4, `${layout.name}: loop tops and bottoms on screen`)
+    // The mask is centred on the copy block and covers it.
+    const [left, top, right, bottom] = layout.copy
+    assert.equal(symbol.mask.x, (left + right) / 2)
+    assert.equal(symbol.mask.y, (top + bottom) / 2)
+    assert(symbol.mask.halfWidth >= (right - left) / 2 && symbol.mask.halfHeight >= (bottom - top) / 2)
   }
 })
 
-test('the beams follow the enlarged loops and still cross the centre at .3', () => {
+test('the portrait beams start at the upper strokes, cross under the logo near .3, glide with a ~24% wake', () => {
   for (const layout of portraits) {
-    const frame = frameOf(layout)
-    for (let line = 0; line < 4; line++) {
+    const symbol = symbolOf(layout)
+    for (let line = 0; line < 7; line++) {
       const lobe = side => {
-        const distances = new Float32Array(97)
-        measureRibbon(new Float32Array(194), distances, side, line, 0, true, frame.width, frame.height)
+        const distances = new Float32Array(129)
+        measureRibbon(new Float32Array(258), distances, side, line, 0, 'portrait', 0, 0, { left: 0, top: 0, width: symbol.width, height: symbol.height })
         return distances
       }
       const span = beamSpan(lobe(-1), lobe(1))
       const crossing = .15 + .7 * span.a.upper / span.lengthA
-      assert(Math.abs(crossing - .3) < .01, `${layout.name}: crossing at ${crossing}`)
-      // A path several hundred pixels long, so the light reads as a beam.
-      assert(span.lengthA > 300, `${layout.name}: ${span.lengthA}px`)
+      assert(crossing > .28 && crossing < .34, `${layout.name}: crossing at ${crossing}`)
+      assert(Math.abs(span.lengthA - span.lengthB) / span.lengthA < .03)
+      assert(span.lengthA > 250, `${layout.name}: ${span.lengthA}px`)
     }
   }
 })
 
-test('the Hero keeps its height when a mobile toolbar slides, with a short pin and a readable foot', async () => {
+test('the pin, the dissolve and the toolbar: shorter runways, svh heights, width-only relayout', async () => {
   const css = await read('src/sections/hero.css')
   const lines = await read('src/components/home-hero-lines.css')
+  const component = await read('src/components/HomeHeroLines.jsx')
   const scroll = await read('src/hooks/useHeroLogoScroll.js')
   const lenis = await read('src/hooks/useLenis.js')
   assert.match(css, /min-height: 100vh; min-height: 100svh;/)
-  assert.match(css, /--runway: 100svh/)
-  assert.match(css, /--runway: 115svh/)
+  assert.match(css, /--runway: 120svh/)
+  assert.match(css, /--runway: 125svh/)
   assert.match(css, /--runway: 130vh/)
   assert.match(css, /env\(safe-area-inset-bottom\)/)
   assert.match(css, /@media \(max-width: 399\.98px\)[^}]+\.home-hero-foot > span \{ display: none; \}/s)
-  assert.match(css, /font-size: 12px; white-space: nowrap/)
   assert.match(lines, /@media \(max-width: 1023\.98px\) and \(orientation: portrait\)/)
+  assert.match(lines, /\.home-hero-lines-still\.is-portrait/)
+  // The variant is chosen by orientation, and the symbol follows the logo.
+  assert.match(component, /window\.matchMedia\(LINES_PORTRAIT\)/)
+  assert.match(component, /symbol \? 'portrait' : compact/)
   assert.match(lenis, /ScrollTrigger\.config\(\{ ignoreMobileResize: true \}\)/)
   assert.match(scroll, /\.\.\.HERO_BREAKPOINTS/)
 })

@@ -115,21 +115,23 @@
   .home-hero-inner { padding-top: 104px; }
   .home-hero h1 { font-size: clamp(72px, 10.6vw, 102px); }
 }
-/* Phones and tablets: a shorter pin than desktop's 130vh, so a thumb is not
-   kept scrolling, and room for notches and home indicators (zero unless the
-   page opts into viewport-fit=cover). */
+/* Phones and tablets: a pin a little shorter than desktop's 130vh, so a thumb
+   is not kept scrolling, yet long enough for the last 30% (the logo's
+   dissolve under the rising next section) to read as on desktop. Plus room
+   for notches and home indicators (zero unless the page opts into
+   viewport-fit=cover). */
 @media (max-width: 767.98px) {
-  .home-hero-stage[data-logo-scroll="pinned"] > .home-hero-runway { --runway: 100vh; }
+  .home-hero-stage[data-logo-scroll="pinned"] > .home-hero-runway { --runway: 120vh; }
 }
 @media (min-width: 768px) and (max-width: 1023.98px) {
-  .home-hero-stage[data-logo-scroll="pinned"] > .home-hero-runway { --runway: 115vh; }
+  .home-hero-stage[data-logo-scroll="pinned"] > .home-hero-runway { --runway: 125vh; }
 }
 @supports (height: 100svh) {
   @media (min-width: 768px) and (max-width: 1023.98px) {
-    .home-hero-stage[data-logo-scroll="pinned"] > .home-hero-runway { --runway: 115svh; }
+    .home-hero-stage[data-logo-scroll="pinned"] > .home-hero-runway { --runway: 125svh; }
   }
   @media (max-width: 767.98px) {
-    .home-hero-stage[data-logo-scroll="pinned"] > .home-hero-runway { --runway: 100svh; }
+    .home-hero-stage[data-logo-scroll="pinned"] > .home-hero-runway { --runway: 120svh; }
   }
 }
 @media (max-width: 1023.98px) {

@@ -13,7 +13,29 @@ export function heroTitleLightAt(elapsed) {
   return { first: progress(.85, 2.7), second: progress(.45, 2.6) }
 }
 
-export function ribbonPoint(progress, side, line, time = 0, compact = false) {
+// Portrait phones and tablets: the same symbol drawn for a tall screen. Seven
+// fibres like desktop, in a frame 1.5 times as wide as it is tall, so both
+// loops keep their curvature in view; its crossing sits at the frame centre.
+export const PORTRAIT_ASPECT = 1.5
+
+function portraitPoint(progress, side, line, time) {
+  const angle = progress * Math.PI
+  const spread = line - 3
+  const breath = Math.sin(side * .7) * .006
+    + (Math.sin(time * .13 + side * .7) - Math.sin(side * .7)) * .003
+  const radius = .47 + spread * .012 + breath
+  return {
+    x: .5 + side * radius * Math.sin(angle) + Math.sin(time * .09) * .003 * Math.sin(angle),
+    y: .5 - side * (.47 + spread * .018) * Math.sin(angle * 2)
+      + spread * .02 * Math.sin(angle) + Math.sin(angle) * .014
+      + Math.sin(time * .11) * Math.sin(angle * 2) * Math.sin(angle) * .004,
+  }
+}
+
+// variant: false (desktop), true (compact) or 'portrait'.
+export function ribbonPoint(progress, side, line, time = 0, variant = false) {
+  if (variant === 'portrait') return portraitPoint(progress, side, line, time)
+  const compact = variant === true
   const angle = progress * Math.PI
   const spread = line - (compact ? 1.5 : 3)
   // Keep the desktop silhouette; compact loops fit inside the screen gutters.
@@ -30,13 +52,19 @@ export function ribbonPoint(progress, side, line, time = 0, compact = false) {
 
 // Screen-space arc length makes the energy travel at a constant speed even
 // through tight turns, at different aspect ratios and while the curve breathes.
-export function measureRibbon(points, distances, side, line, time, compact, width, height) {
+// `frame` places the symbol inside the canvas (the portrait variant, centred
+// on the logo); without it the symbol spans the whole canvas.
+export function measureRibbon(points, distances, side, line, time, variant, width, height, frame = null) {
   const count = distances.length
+  const left = frame ? frame.left : 0
+  const top = frame ? frame.top : 0
+  const frameWidth = frame ? frame.width : width
+  const frameHeight = frame ? frame.height : height
   let length = 0
   for (let index = 0; index < count; index++) {
-    const point = ribbonPoint(index / (count - 1), side, line, time, compact)
-    points[index * 2] = point.x * width
-    points[index * 2 + 1] = point.y * height
+    const point = ribbonPoint(index / (count - 1), side, line, time, variant)
+    points[index * 2] = left + point.x * frameWidth
+    points[index * 2 + 1] = top + point.y * frameHeight
     if (index) length += Math.hypot(points[index * 2] - points[(index - 1) * 2], points[index * 2 + 1] - points[(index - 1) * 2 + 1])
     distances[index] = length
   }
@@ -80,9 +108,9 @@ export function beamCoordinates(side, distance, span) {
     : [(span.a.upper - fromEnd) / span.lengthA, (span.b.upper + distance) / span.lengthB]
 }
 
-export function ribbonPath(side, line, compact = false) {
+export function ribbonPath(side, line, variant = false) {
   return Array.from({ length: 97 }, (_, index) => {
-    const { x, y } = ribbonPoint(index / 96, side, line, 0, compact)
+    const { x, y } = ribbonPoint(index / 96, side, line, 0, variant)
     return `${index ? 'L' : 'M'}${(x * 1000).toFixed(2)},${(y * 1000).toFixed(2)}`
   }).join(' ')
 }
@@ -128,6 +156,9 @@ export const homeLinesFragmentShader = `
   uniform float uBeam;
   uniform float uBeamAlpha;
   uniform float uBeamsOnly;
+  uniform float uBeamLength;
+  uniform vec4 uTextMask;
+  uniform float uTextMaskStrength;
   uniform vec2 uPointer;
   uniform vec2 uSize;
 
@@ -156,7 +187,9 @@ export const homeLinesFragmentShader = `
     // the crossing as a single point; the centre fibres carry them, a little
     // dimmer than the logo's contour. With uBeamsOnly at 0 nothing changes.
     float beamFibre = (1.0 - smoothstep(0.008, 0.024, abs(vOffset))) * uBeamAlpha * 0.75;
-    vec2 beam = max(current(uBeam - vBeam.x), current(uBeam - vBeam.y)) * beamFibre;
+    // Longer wake on portrait screens (uBeamLength), where the path is short.
+    float beamLength = uBeamLength > 0.0 ? uBeamLength : 1.0;
+    vec2 beam = max(current((uBeam - vBeam.x) / beamLength), current((uBeam - vBeam.y) / beamLength)) * beamFibre;
     float head = mix(max(max(first.x, second.x) * uIntro, scrollReflection), beam.x, uBeamsOnly);
     float trail = mix(max(max(first.y, second.y) * uIntro, scrollReflection), beam.y, uBeamsOnly);
     vec2 mouseDistance = (vScreen - uPointer) * uSize;
@@ -170,6 +203,15 @@ export const homeLinesFragmentShader = `
     // gains a halo on hover; the trajectory and global brightness stay calm.
     float alpha = ink * (vOpacity * (1.0 - uBeamsOnly) + trail * 0.32) + core * head * 0.3
       + halo * max(head, trail * 0.6) * mix(0.28, 0.14, uCompact) * (1.0 + nearby * 0.65);
+    // Portrait: a soft rounded-rectangle mask over the copy dims the fibres
+    // that pass behind the text or the buttons to a faint trace (the
+    // silhouette stays whole, as under the desktop's central shade), and
+    // lifts with the copy.
+    if (uTextMaskStrength > 0.0) {
+      vec2 offset = abs(vScreen * uSize - uTextMask.xy) / uTextMask.zw;
+      float reach = pow(pow(offset.x, 4.0) + pow(offset.y, 4.0), 0.25);
+      alpha *= 1.0 - (1.0 - smoothstep(0.78, 1.14, reach)) * uTextMaskStrength * 0.86;
+    }
     gl_FragColor = vec4(color, min(alpha, 0.94));
   }
 `

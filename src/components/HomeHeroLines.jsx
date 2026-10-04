@@ -1,23 +1,24 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import useMotionPreference from '../hooks/useMotionPreference'
-import { HERO_BREAKPOINTS, HERO_PROFILES, LINES_COMPACT, LINES_WIDE, portraitFrame } from '../lib/heroLayouts'
+import { HERO_BREAKPOINTS, HERO_PROFILES, LINES_COMPACT, LINES_PORTRAIT, portraitSymbol } from '../lib/heroLayouts'
 import { onLayoutResize } from '../lib/viewportResize'
 import { heroBeamOpacity, heroBeamProgress, heroZoomProgress } from '../lib/heroLogoZoom'
 import { beamCoordinates, beamSpan, HERO_ENERGY_DURATION, HERO_ENERGY_START, HERO_LIGHT_EVENT, HERO_SCROLL_EVENT, homeLinesFragmentShader, homeLinesVertexShader, measureRibbon, ribbonPath } from '../lib/homeHeroLines'
 import './home-hero-lines.css'
 
-const staticRibbons = [false, true].map(compact => ({
-  compact,
-  paths: [-1, 1].flatMap(side => Array.from({ length: compact ? 4 : 7 }, (_, line) => ({
-    key: `${side}:${line}`, side, line, d: ribbonPath(side, line, compact),
-    opacity: .28 + line * (compact ? .07 : .04),
+// Desktop, compact and portrait variants of the still symbol (see LINES_*).
+const staticRibbons = [[false, ''], [true, ' is-compact'], ['portrait', ' is-portrait']].map(([variant, modifier]) => ({
+  variant, modifier, centre: variant === true ? 1.5 : 3,
+  paths: [-1, 1].flatMap(side => Array.from({ length: variant === true ? 4 : 7 }, (_, line) => ({
+    key: `${side}:${line}`, side, line, d: ribbonPath(side, line, variant),
+    opacity: .28 + line * (variant === true ? .07 : .04),
   }))),
 }))
 
 // Position, edge, opacity, fibre offset, loop travel, beam A and B coordinates.
 const VERTEX_FLOATS = 8
 const VERTEX_LAYOUT = [['aPosition', 2, 0], ['aEdge', 1, 2], ['aOpacity', 1, 3], ['aOffset', 1, 4], ['aTravel', 1, 5], ['aBeam', 2, 6]]
-const LIGHT_UNIFORMS = ['uIntro', 'uCompact', 'uHover', 'uPointer', 'uSize', 'uScroll', 'uScrollActive', 'uBeam', 'uBeamAlpha', 'uBeamsOnly']
+const LIGHT_UNIFORMS = ['uIntro', 'uCompact', 'uHover', 'uPointer', 'uSize', 'uScroll', 'uScrollActive', 'uBeam', 'uBeamAlpha', 'uBeamsOnly', 'uBeamLength', 'uTextMask', 'uTextMaskStrength']
 const CONTEXT_OPTIONS = {
   alpha: true, antialias: false, depth: false, stencil: false,
   preserveDrawingBuffer: false, powerPreference: 'low-power',
@@ -91,6 +92,10 @@ export default function HomeHeroLines({ held = false }) {
   const beamCanvasRef = useRef(null)
   const heldRef = useRef(held)
   const resumeRef = useRef(null)
+  // Portrait symbol and copy mask, in Hero pixels (null off portrait), and
+  // the redraw the canvas effect registers for when they change.
+  const symbolRef = useRef(null)
+  const relayoutRef = useRef(null)
   const reduced = useMotionPreference()
 
   // While the home loader covers the Hero, the scene waits on its first frame:
@@ -100,53 +105,76 @@ export default function HomeHeroLines({ held = false }) {
     if (!held) resumeRef.current?.()
   }, [held])
 
-  // Portrait phones and tablets: the symbol is drawn in a frame much wider
-  // than the screen (its loops overflow both sides, as on desktop), centred,
-  // with its crossing on the logo and its upper loops under the paragraph.
-  // The canvases and the static SVG read the frame from these properties.
+  // Portrait phones and tablets draw the portrait variant of the symbol, its
+  // crossing right under the logo, with a soft mask over the copy (see
+  // portraitSymbol). The canvases cover the Hero and draw it in place; the
+  // still SVG is placed with these properties.
   useLayoutEffect(() => {
     const layer = layerRef.current
     const hero = layer?.parentElement
     if (!layer || !hero) return undefined
-    const wide = window.matchMedia(LINES_WIDE)
+    const portrait = window.matchMedia(LINES_PORTRAIT)
     const tablet = window.matchMedia(HERO_BREAKPOINTS.tablet)
-    const properties = ['--lines-frame-width', '--lines-frame-height', '--lines-crossing']
+    const properties = ['--lines-frame-width', '--lines-frame-height', '--lines-crossing-x', '--lines-crossing',
+      '--lines-mask-x', '--lines-mask-y', '--lines-mask-rx', '--lines-mask-ry']
     const place = () => {
       const mark = hero.querySelector('.home-hero-mark')
-      if (!wide.matches || !mark) { properties.forEach(name => layer.style.removeProperty(name)); return }
-      const text = hero.querySelector('.home-hero-description')
-      const size = { width: hero.clientWidth, height: hero.clientHeight }
-      const logo = layoutBox(mark, hero)
-      const copy = text && layoutBox(text, hero)
-      const frame = portraitFrame(HERO_PROFILES[tablet.matches ? 'tablet' : 'mobile'], size, logo.y + logo.height / 2, copy && {
-        bottom: copy.y + copy.height,
-        halfWidth: Math.max(size.width / 2 - copy.x, copy.x + copy.width - size.width / 2),
-      })
-      layer.style.setProperty('--lines-frame-width', `${Math.round(frame.width)}px`)
-      layer.style.setProperty('--lines-frame-height', `${Math.round(frame.height)}px`)
-      layer.style.setProperty('--lines-crossing', `${Math.round(frame.crossing)}px`)
+      if (!portrait.matches || !mark) {
+        symbolRef.current = null
+        properties.forEach(name => layer.style.removeProperty(name))
+        relayoutRef.current?.()
+        return
+      }
+      const box = node => node && layoutBox(node, hero)
+      const logo = box(mark)
+      // The copy block, brand to buttons, measured on its visible parts.
+      const parts = ['.home-hero-brand', '.home-hero-line > span', '.home-hero-description', '.home-hero-join', '.home-hero-actions .text-link']
+        .flatMap(selector => [...hero.querySelectorAll(selector)]).map(box).filter(part => part.width && part.height)
+      const left = Math.min(...parts.map(part => part.x))
+      const top = Math.min(...parts.map(part => part.y))
+      const right = Math.max(...parts.map(part => part.x + part.width))
+      const bottom = Math.max(...parts.map(part => part.y + part.height))
+      const profile = HERO_PROFILES[tablet.matches ? 'tablet' : 'mobile']
+      const symbol = portraitSymbol(profile, { width: hero.clientWidth, height: hero.clientHeight },
+        { x: logo.x + logo.width / 2, y: logo.y + logo.height / 2 },
+        parts.length ? { left, top, width: right - left, height: bottom - top } : null)
+      symbolRef.current = { ...symbol, beamLength: profile.beamLength }
+      const px = value => `${Math.round(value)}px`
+      layer.style.setProperty('--lines-frame-width', px(symbol.width))
+      layer.style.setProperty('--lines-frame-height', px(symbol.height))
+      layer.style.setProperty('--lines-crossing-x', px(symbol.x))
+      layer.style.setProperty('--lines-crossing', px(symbol.y))
+      if (symbol.mask) {
+        // Relative to the still SVG, which is centred on the crossing.
+        layer.style.setProperty('--lines-mask-x', px(symbol.mask.x - symbol.x + symbol.width / 2))
+        layer.style.setProperty('--lines-mask-y', px(symbol.mask.y - symbol.y + symbol.height / 2))
+        // An ellipse a little larger than the canvas's rounded rectangle.
+        layer.style.setProperty('--lines-mask-rx', px(symbol.mask.halfWidth * 1.12))
+        layer.style.setProperty('--lines-mask-ry', px(symbol.mask.halfHeight * 1.12))
+      }
+      relayoutRef.current?.()
     }
     place()
-    // Webfonts and wrapping move the paragraph and the logo (the paragraph can
-    // change width alone); the address bar of a phone does not (svh), so only
-    // width changes count (onLayoutResize).
+    // Webfonts and wrapping move the copy and the logo; the address bar of a
+    // phone does not (svh), so only width changes count (onLayoutResize).
     let disposed = false
     document.fonts?.ready.then(() => { if (!disposed) place() })
     const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(place) : null
-    for (const selector of ['.home-hero-copy', '.home-hero-description']) {
+    for (const selector of ['.home-hero-copy', '.home-hero-description', '.home-hero h1']) {
       const node = hero.querySelector(selector)
       if (node) observer?.observe(node)
     }
     const removeResize = onLayoutResize(place)
-    wide.addEventListener('change', place)
+    portrait.addEventListener('change', place)
     tablet.addEventListener('change', place)
     return () => {
       disposed = true
       observer?.disconnect()
       removeResize()
-      wide.removeEventListener('change', place)
+      portrait.removeEventListener('change', place)
       tablet.removeEventListener('change', place)
       properties.forEach(name => layer.style.removeProperty(name))
+      symbolRef.current = null
     }
   }, [])
 
@@ -163,6 +191,7 @@ export default function HomeHeroLines({ held = false }) {
     let scrollZoom = true
     let scrollFocusX = hero.clientWidth / 2
     let scrollFocusY = hero.clientHeight / 2
+    let hasFocus = false
     let applyScrollFrame = () => undefined
     const staticFrames = Array.from(layer.querySelectorAll('.home-hero-lines-still'), svg => ({
       svg, group: svg.firstElementChild, left: 0, top: 0, width: 0, height: 0,
@@ -185,12 +214,17 @@ export default function HomeHeroLines({ held = false }) {
     const depthScale = () => scrollZoom ? 1 + .5 * Math.min(1, heroZoomProgress(scrollProgress)) : 1
     const updateStaticZoom = () => {
       const scale = reduced ? 1 : depthScale()
-      staticFrames.forEach(({ group, left, top, width, height }) => {
-        if (scale === 1) { group.removeAttribute('transform'); return }
+      staticFrames.forEach(({ svg, group, left, top, width, height }) => {
+        // The portrait still is centred on the crossing, which travels with
+        // the logo; the other stills spread around the logo where they are.
+        const portraitStill = svg.classList.contains('is-portrait')
+        const moves = portraitStill && hasFocus && symbolRef.current
+        if (scale === 1 && !moves) { group.removeAttribute('transform'); return }
         if (!width || !height) return
         const x = (scrollFocusX - left) / width * 1000
         const y = (scrollFocusY - top) / height * 1000
-        group.setAttribute('transform', `translate(${x} ${y}) scale(${scale}) translate(${-x} ${-y})`)
+        const [fromX, fromY] = moves ? [500, 500] : [x, y]
+        group.setAttribute('transform', `translate(${x} ${y}) scale(${scale}) translate(${-fromX} ${-fromY})`)
       })
     }
     const resizeStatic = () => { cacheLayout(); updateStaticZoom() }
@@ -199,7 +233,7 @@ export default function HomeHeroLines({ held = false }) {
       scrollProgress = Math.min(1, Math.max(0, Number(event.detail?.progress) || 0))
       scrollZoom = event.detail?.zoom !== false
       if (event.detail?.layoutChanged) cacheLayout()
-      if (Number.isFinite(event.detail?.focusX)) scrollFocusX = event.detail.focusX
+      if (Number.isFinite(event.detail?.focusX)) { scrollFocusX = event.detail.focusX; hasFocus = true }
       if (Number.isFinite(event.detail?.focusY)) scrollFocusY = event.detail.focusY
       layer.dataset.scrollProgress = String(scrollProgress)
       if (!reduced && (scrollProgress > 0 || layer.dataset.render === 'static')) {
@@ -229,10 +263,13 @@ export default function HomeHeroLines({ held = false }) {
     }
 
     const compactMedia = window.matchMedia(LINES_COMPACT)
-    const wideMedia = window.matchMedia(LINES_WIDE)
-    let wide = wideMedia.matches
+    const portraitMedia = window.matchMedia(LINES_PORTRAIT)
     const fineMedia = window.matchMedia('(hover: hover) and (pointer: fine)')
-    let compact = compactMedia.matches
+    // false: desktop symbol, true: compact (touch screens from 1024px),
+    // 'portrait': the portrait variant.
+    const pickVariant = () => portraitMedia.matches ? 'portrait' : compactMedia.matches
+    let variant = pickVariant()
+    let compact = variant === true
     let gl = null
     let program = null
     let buffer = null
@@ -323,18 +360,18 @@ export default function HomeHeroLines({ held = false }) {
       // frame so WebGL and the static SVG share the same responsive silhouette.
       width = Math.max(1, canvas.clientWidth)
       height = Math.max(1, canvas.clientHeight)
-      compact = compactMedia.matches
-      wide = wideMedia.matches
-      if (compact && !scrollProgress) { pointerX = 0; pointerY = 0; targetX = 0; targetY = 0; hover = 0; targetHover = 0 }
-      // Bound the pixel budget. The wide portrait frame keeps the compact
-      // fibres but gets a sharp backing store and smoother curves: only its
-      // ribbons are shaded, whatever its size off screen.
-      const dpr = Math.min(window.devicePixelRatio || 1, wide ? 2 : compact ? 1 : 1.5)
-      const scale = Math.min(dpr, Math.sqrt((wide ? 1500000 : compact ? 420000 : 1600000) / (width * height)))
+      variant = pickVariant()
+      compact = variant === true
+      if (variant && !scrollProgress) { pointerX = 0; pointerY = 0; targetX = 0; targetY = 0; hover = 0; targetHover = 0 }
+      // Bound the pixel budget; the compact symbol also halves geometry and
+      // refresh rate. Portrait screens are small: a sharp backing store fits.
+      const portrait = variant === 'portrait'
+      const dpr = Math.min(window.devicePixelRatio || 1, portrait ? 2 : compact ? 1 : 1.5)
+      const scale = Math.min(dpr, Math.sqrt((portrait ? 1500000 : compact ? 420000 : 1600000) / (width * height)))
       canvas.width = Math.max(1, Math.round(width * scale))
       canvas.height = Math.max(1, Math.round(height * scale))
       gl.viewport(0, 0, canvas.width, canvas.height)
-      points = wide ? 97 : compact ? 65 : 129
+      points = compact ? 65 : 129
       vertices = new Float32Array(2 * (compact ? 4 : 7) * points * 2 * VERTEX_FLOATS)
       curves = Array.from({ length: (compact ? 4 : 7) * 2 }, () => ({
         positions: new Float32Array(points * 2), distances: new Float32Array(points), length: 0,
@@ -349,20 +386,26 @@ export default function HomeHeroLines({ held = false }) {
         beams.gl.bufferData(beams.gl.ARRAY_BUFFER, vertices.byteLength, beams.gl.DYNAMIC_DRAW)
         beams.drawn = false
       }
-      layer.dataset.quality = compact ? 'mobile' : 'desktop'
+      layer.dataset.quality = portrait ? 'portrait' : compact ? 'mobile' : 'desktop'
     }
     const draw = () => {
       if (!program || lost || !vertices) return
       let offset = 0
       const lineCount = compact ? 4 : 7
       const halfWidth = compact ? 4.5 : 9
-      const focusX = scrollFocusX - canvasLeft
-      const focusY = scrollFocusY - canvasTop
+      // Portrait: the symbol is centred on the logo, wherever the timeline
+      // has taken it, and spreads around that same point.
+      const symbol = variant === 'portrait' ? symbolRef.current : null
+      const centreX = symbol && !hasFocus ? symbol.x : scrollFocusX
+      const centreY = symbol && !hasFocus ? symbol.y : scrollFocusY
+      const focusX = centreX - canvasLeft
+      const focusY = centreY - canvasTop
       const scale = depthScale()
+      const place = symbol && { left: focusX - symbol.width / 2, top: focusY - symbol.height / 2, width: symbol.width, height: symbol.height }
       for (let line = 0; line < lineCount; line++) {
         for (const [sideIndex, side] of [[0, -1], [1, 1]]) {
           const curve = curves[sideIndex * lineCount + line]
-          curve.length = measureRibbon(curve.positions, curve.distances, side, line, elapsed, compact, width, height)
+          curve.length = measureRibbon(curve.positions, curve.distances, side, line, elapsed, symbol ? 'portrait' : compact, width, height, place)
         }
       }
       // Beam paths per fibre, from the lengths just measured.
@@ -421,13 +464,22 @@ export default function HomeHeroLines({ held = false }) {
       gl.uniform1f(lightLocations.uScrollActive, Number(hero.style.getPropertyValue('--hero-light-scroll-active')) || 0)
       gl.uniform2f(lightLocations.uPointer, mouseX, mouseY)
       gl.uniform2f(lightLocations.uSize, width, height)
+      applyTextMask(gl, lightLocations, symbol)
       const stripSize = points * 2
       for (let strip = 0; strip < lineCount * 2; strip++) gl.drawArrays(gl.TRIANGLE_STRIP, strip * stripSize, stripSize)
       layer.dataset.render = 'webgl'
-      drawBeams(stripSize, lineCount * 2)
+      drawBeams(stripSize, lineCount * 2, symbol)
+    }
+    // The copy mask, portrait only: full while the copy is shown, lifted as it
+    // fades (by .15 in the pinned sequence, over the scroll in the simple fade).
+    const applyTextMask = (context, locations, symbol) => {
+      const mask = symbol?.mask
+      const strength = mask ? 1 - Math.min(1, scrollProgress / (scrollZoom ? .15 : 1)) : 0
+      context.uniform1f(locations.uTextMaskStrength, strength)
+      if (mask) context.uniform4f(locations.uTextMask, mask.x - canvasLeft, mask.y - canvasTop, mask.halfWidth, mask.halfHeight)
     }
     // The beams follow the scroll sequence only: at rest their canvas is empty.
-    const drawBeams = (stripSize, strips) => {
+    const drawBeams = (stripSize, strips, symbol) => {
       if (!beams || beamsLost) return
       const beamGl = beams.gl
       const alpha = scrollZoom ? heroBeamOpacity(scrollProgress) : 0
@@ -444,6 +496,8 @@ export default function HomeHeroLines({ held = false }) {
       beamGl.uniform1f(beams.lights.uHover, hover)
       beamGl.uniform2f(beams.lights.uPointer, mouseX, mouseY)
       beamGl.uniform2f(beams.lights.uSize, width, height)
+      beamGl.uniform1f(beams.lights.uBeamLength, symbol?.beamLength || 1)
+      applyTextMask(beamGl, beams.lights, symbol)
       beamGl.clear(beamGl.COLOR_BUFFER_BIT)
       for (let strip = 0; strip < strips; strip++) beamGl.drawArrays(beamGl.TRIANGLE_STRIP, strip * stripSize, stripSize)
       beams.drawn = true
@@ -452,7 +506,7 @@ export default function HomeHeroLines({ held = false }) {
       frame = 0
       if (disposed || scrollProgress >= 1 || !visible || document.hidden || lost || !program) return
       const delta = lastTimestamp ? timestamp - lastTimestamp : 0
-      if (!lastTimestamp || delta >= (compact && !wide ? 1000 / 24 : 1000 / 30) - 1) {
+      if (!lastTimestamp || delta >= (compact ? 1000 / 24 : 1000 / 30) - 1) {
         // Resetting the timestamp on pause avoids a jump when resuming.
         elapsed += delta / 1000
         const damping = 1 - Math.exp(-Math.max(delta, 33) / 260)
@@ -483,7 +537,7 @@ export default function HomeHeroLines({ held = false }) {
       start()
     }
     const handlePointerMove = event => {
-      if (scrollProgress > 0 || compact || !fineMedia.matches || event.pointerType === 'touch') return
+      if (scrollProgress > 0 || variant || !fineMedia.matches || event.pointerType === 'touch') return
       const bounds = hero.getBoundingClientRect()
       targetMouseX = (event.clientX - bounds.left) / bounds.width
       targetMouseY = (event.clientY - bounds.top) / bounds.height
@@ -552,8 +606,7 @@ export default function HomeHeroLines({ held = false }) {
     if (initialScrollFrame) handleScroll({ detail: initialScrollFrame })
     const resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(handleResize) : null
     resizeObserver?.observe(layer)
-    // The portrait frame resizes the canvas without resizing the layer.
-    resizeObserver?.observe(canvas)
+    relayoutRef.current = handleResize
     const observer = typeof IntersectionObserver === 'function' ? new IntersectionObserver(([entry]) => {
       visible = entry.isIntersecting
       if (visible) start(); else stop()
@@ -562,7 +615,7 @@ export default function HomeHeroLines({ held = false }) {
     else { visible = true; start() }
     const removeResize = onLayoutResize(handleResize)
     compactMedia.addEventListener('change', handleResize)
-    wideMedia.addEventListener('change', handleResize)
+    portraitMedia.addEventListener('change', handleResize)
     hero.addEventListener('pointermove', handlePointerMove, { passive: true })
     hero.addEventListener('pointerleave', handlePointerLeave, { passive: true })
     document.addEventListener('visibilitychange', handleVisibility)
@@ -579,8 +632,9 @@ export default function HomeHeroLines({ held = false }) {
       observer?.disconnect()
       resizeObserver?.disconnect()
       removeResize()
+      relayoutRef.current = null
       compactMedia.removeEventListener('change', handleResize)
-      wideMedia.removeEventListener('change', handleResize)
+      portraitMedia.removeEventListener('change', handleResize)
       hero.removeEventListener('pointermove', handlePointerMove)
       hero.removeEventListener('pointerleave', handlePointerLeave)
       document.removeEventListener('visibilitychange', handleVisibility)
@@ -597,11 +651,11 @@ export default function HomeHeroLines({ held = false }) {
 
   return (
     <div ref={layerRef} className="home-hero-lines" data-render="static" aria-hidden="true">
-      {staticRibbons.map(({ compact, paths }) => (
-        <svg key={String(compact)} className={`home-hero-lines-still${compact ? ' is-compact' : ''}`} viewBox="0 0 1000 1000" preserveAspectRatio="none" focusable="false">
+      {staticRibbons.map(({ variant, modifier, centre, paths }) => (
+        <svg key={String(variant)} className={`home-hero-lines-still${modifier}`} viewBox="0 0 1000 1000" preserveAspectRatio="none" focusable="false">
           <g>
             {paths.map(({ key, d, opacity }) => <path key={key} d={d} opacity={opacity} vectorEffect="non-scaling-stroke" />)}
-            {paths.filter(({ line }) => Math.abs(line - (compact ? 1.5 : 3)) <= 1).map(({ key, d, side, line }) => (
+            {paths.filter(({ line }) => Math.abs(line - centre) <= 1).map(({ key, d, side, line }) => (
               <path key={`light:${key}`} className="home-hero-lines-still-light" d={d} pathLength="1" strokeDasharray="0.18 0.82" strokeDashoffset={-(side === 1 ? .1 : .61) - line * .012} vectorEffect="non-scaling-stroke" />
             ))}
           </g>
