@@ -23,7 +23,9 @@ export default function useHeroLogoScroll(stageRef) {
       const controls = gsap.utils.toArray('.home-hero-actions, .home-hero-foot', stage)
       const fill = stage.querySelector('.home-hero-mark .infinity-club-mark')
       const outline = stage.querySelector('.home-hero-mark-outline')
-      const lines = gsap.utils.toArray('.home-hero-lines canvas, .home-hero-lines-still', stage)
+      // The beams' canvas keeps its own opacity (see HomeHeroLines): they fade
+      // with the logo, not with the dimmed lines.
+      const lines = gsap.utils.toArray('.home-hero-lines canvas:not(.home-hero-lines-beams), .home-hero-lines-still', stage)
       const next = stage.nextElementSibling
       stage.dataset.logoScroll = conditions.pinned ? 'pinned' : 'faded'
       requestScrollRefresh()

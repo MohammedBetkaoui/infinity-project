@@ -43,6 +43,43 @@ export function measureRibbon(points, distances, side, line, time, compact, widt
   return length
 }
 
+// Scroll beams. Each continues one of the two upper strokes from the point
+// where it fades out before the crossing (BEAM_START along its lobe, counted
+// from the crossing end), runs through the crossing onto the other lobe and
+// follows its lower branch down to its lowest point (BEAM_END): A from the
+// upper left to the lower right, B its mirror. Lobe progress runs from the
+// crossing (0) round the lobe and back to it (1).
+export const BEAM_START = .94
+export const BEAM_END = .75
+
+function distanceAt(distances, progress) {
+  const index = progress * (distances.length - 1)
+  const lower = Math.floor(index)
+  const upper = Math.min(distances.length - 1, lower + 1)
+  return distances[lower] + (distances[upper] - distances[lower]) * (index - lower)
+}
+
+// Lengths of both paths for one fibre, from its two lobes' cumulative
+// distances (see measureRibbon). B uses the mirror positions of A.
+export function beamSpan(leftDistances, rightDistances) {
+  const left = leftDistances.at(-1)
+  const right = rightDistances.at(-1)
+  const a = { upper: left - distanceAt(leftDistances, BEAM_START), lower: right - distanceAt(rightDistances, BEAM_END) }
+  const b = { upper: distanceAt(rightDistances, 1 - BEAM_START), lower: distanceAt(leftDistances, 1 - BEAM_END) }
+  return { left, right, a, b, lengthA: a.upper + a.lower, lengthB: b.upper + b.lower }
+}
+
+// Position of a ribbon point along each beam path: 0 at its start, 1 at its
+// end, the crossing in between. Values keep growing (or falling) beyond both
+// ends, so a point off the path never lies under a beam.
+export function beamCoordinates(side, distance, span) {
+  const total = side === 1 ? span.right : span.left
+  const fromEnd = total - distance
+  return side === 1
+    ? [(span.a.upper + fromEnd) / span.lengthA, (span.b.upper - distance) / span.lengthB]
+    : [(span.a.upper - fromEnd) / span.lengthA, (span.b.upper + distance) / span.lengthB]
+}
+
 export function ribbonPath(side, line, compact = false) {
   return Array.from({ length: 97 }, (_, index) => {
     const { x, y } = ribbonPoint(index / 96, side, line, 0, compact)
@@ -56,13 +93,16 @@ export const homeLinesVertexShader = `
   attribute float aOpacity;
   attribute float aOffset;
   attribute float aTravel;
+  attribute vec2 aBeam;
   varying float vEdge;
   varying float vOpacity;
   varying float vOffset;
   varying float vTravel;
+  varying vec2 vBeam;
   varying vec2 vScreen;
   void main() {
     vEdge = aEdge;
+    vBeam = aBeam;
     vOpacity = aOpacity;
     vOffset = aOffset;
     vTravel = aTravel;
@@ -77,6 +117,7 @@ export const homeLinesFragmentShader = `
   varying float vOpacity;
   varying float vOffset;
   varying float vTravel;
+  varying vec2 vBeam;
   varying vec2 vScreen;
   uniform float uPhase;
   uniform float uIntro;
@@ -84,6 +125,9 @@ export const homeLinesFragmentShader = `
   uniform float uHover;
   uniform float uScroll;
   uniform float uScrollActive;
+  uniform float uBeam;
+  uniform float uBeamAlpha;
+  uniform float uBeamsOnly;
   uniform vec2 uPointer;
   uniform vec2 uSize;
 
@@ -106,8 +150,15 @@ export const homeLinesFragmentShader = `
     vec2 second = current(fract(uPhase + 0.46 - vTravel - vOffset + 1.0));
     float scrollDistance = abs(fract(vTravel - uScroll + 0.5) - 0.5);
     float scrollReflection = (1.0 - smoothstep(0.012, 0.09, scrollDistance)) * uScrollActive * 0.3;
-    float head = max(max(first.x, second.x) * uIntro, scrollReflection);
-    float trail = max(max(first.y, second.y) * uIntro, scrollReflection);
+    // Scroll beams (uBeamsOnly, drawn on their own canvas above the centre
+    // shade): the same head and wake as the currents, placed by the timeline
+    // along each beam path. All fibres share one position, so both beams meet
+    // the crossing as a single point; the centre fibres carry them, a little
+    // dimmer than the logo's contour. With uBeamsOnly at 0 nothing changes.
+    float beamFibre = (1.0 - smoothstep(0.008, 0.024, abs(vOffset))) * uBeamAlpha * 0.75;
+    vec2 beam = max(current(uBeam - vBeam.x), current(uBeam - vBeam.y)) * beamFibre;
+    float head = mix(max(max(first.x, second.x) * uIntro, scrollReflection), beam.x, uBeamsOnly);
+    float trail = mix(max(max(first.y, second.y) * uIntro, scrollReflection), beam.y, uBeamsOnly);
     vec2 mouseDistance = (vScreen - uPointer) * uSize;
     float nearby = exp(-dot(mouseDistance, mouseDistance) / 10000.0) * uHover;
     float haloRadius = mix(3.4, 1.8, uCompact) * (1.0 + nearby * 0.3);
@@ -117,7 +168,7 @@ export const homeLinesFragmentShader = `
     color = mix(color, vec3(205.0, 229.0, 217.0) / 255.0, head * core);
     // The silhouette remains underneath the currents. Only the local wake
     // gains a halo on hover; the trajectory and global brightness stay calm.
-    float alpha = ink * (vOpacity + trail * 0.32) + core * head * 0.3
+    float alpha = ink * (vOpacity * (1.0 - uBeamsOnly) + trail * 0.32) + core * head * 0.3
       + halo * max(head, trail * 0.6) * mix(0.28, 0.14, uCompact) * (1.0 + nearby * 0.65);
     gl_FragColor = vec4(color, min(alpha, 0.94));
   }

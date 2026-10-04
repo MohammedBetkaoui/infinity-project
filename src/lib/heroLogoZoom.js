@@ -27,6 +27,23 @@ export function heroLogoScale(progress, finalScale) {
   return finalScale ** clamp((progress - .15) / .7)
 }
 
+// Position of the two light beams along their paths (see homeHeroLines):
+// still until .15, then the same progression as the logo's zoom exponent, so
+// they cross the centre as the logo starts to grow (~.3) and reach the lower
+// corners at .85, as it leaves the screen. Not clamped above 1: the beams
+// keep gliding while they fade.
+export function heroBeamProgress(progress) {
+  return Math.max(0, (progress - .15) / .7)
+}
+
+const smooth = value => value * value * (3 - 2 * value)
+
+// The beams appear as they set off (.15–.2) and fade out exactly with the
+// logo's contour (linear, .7–.9), while the next section covers the Hero.
+export function heroBeamOpacity(progress) {
+  return smooth(clamp((progress - .15) / .05)) * (1 - clamp((progress - .7) / .2))
+}
+
 // Points along the contour, relative to the emblem centre.
 export function sampleContour(path, center, count = 256) {
   const length = path.getTotalLength()

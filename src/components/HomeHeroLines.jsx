@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import useMotionPreference from '../hooks/useMotionPreference'
-import { heroZoomProgress } from '../lib/heroLogoZoom'
-import { HERO_ENERGY_DURATION, HERO_ENERGY_START, HERO_LIGHT_EVENT, HERO_SCROLL_EVENT, homeLinesFragmentShader, homeLinesVertexShader, measureRibbon, ribbonPath } from '../lib/homeHeroLines'
+import { heroBeamOpacity, heroBeamProgress, heroZoomProgress } from '../lib/heroLogoZoom'
+import { beamCoordinates, beamSpan, HERO_ENERGY_DURATION, HERO_ENERGY_START, HERO_LIGHT_EVENT, HERO_SCROLL_EVENT, homeLinesFragmentShader, homeLinesVertexShader, measureRibbon, ribbonPath } from '../lib/homeHeroLines'
 import './home-hero-lines.css'
 
 const staticRibbons = [false, true].map(compact => ({
@@ -11,6 +11,15 @@ const staticRibbons = [false, true].map(compact => ({
     opacity: .28 + line * (compact ? .07 : .04),
   }))),
 }))
+
+// Position, edge, opacity, fibre offset, loop travel, beam A and B coordinates.
+const VERTEX_FLOATS = 8
+const VERTEX_LAYOUT = [['aPosition', 2, 0], ['aEdge', 1, 2], ['aOpacity', 1, 3], ['aOffset', 1, 4], ['aTravel', 1, 5], ['aBeam', 2, 6]]
+const LIGHT_UNIFORMS = ['uIntro', 'uCompact', 'uHover', 'uPointer', 'uSize', 'uScroll', 'uScrollActive', 'uBeam', 'uBeamAlpha', 'uBeamsOnly']
+const CONTEXT_OPTIONS = {
+  alpha: true, antialias: false, depth: false, stencil: false,
+  preserveDrawingBuffer: false, powerPreference: 'low-power',
+}
 
 function createProgram(gl) {
   const shaders = []
@@ -38,9 +47,34 @@ function createProgram(gl) {
   }
 }
 
+// Program, buffer, vertex layout and blending of one lines canvas.
+function prepareCanvas(gl) {
+  const program = createProgram(gl)
+  const buffer = program && gl.createBuffer()
+  if (!buffer) {
+    if (program) gl.deleteProgram(program)
+    return null
+  }
+  gl.useProgram(program)
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
+  for (const [name, size, offset] of VERTEX_LAYOUT) {
+    const location = gl.getAttribLocation(program, name)
+    gl.enableVertexAttribArray(location)
+    gl.vertexAttribPointer(location, size, gl.FLOAT, false, VERTEX_FLOATS * 4, offset * 4)
+  }
+  gl.enable(gl.BLEND)
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+  gl.clearColor(0, 0, 0, 0)
+  return {
+    program, buffer, phase: gl.getUniformLocation(program, 'uPhase'),
+    lights: Object.fromEntries(LIGHT_UNIFORMS.map(name => [name, gl.getUniformLocation(program, name)])),
+  }
+}
+
 export default function HomeHeroLines({ held = false }) {
   const layerRef = useRef(null)
   const canvasRef = useRef(null)
+  const beamCanvasRef = useRef(null)
   const heldRef = useRef(held)
   const resumeRef = useRef(null)
   const reduced = useMotionPreference()
@@ -55,6 +89,7 @@ export default function HomeHeroLines({ held = false }) {
   useEffect(() => {
     const layer = layerRef.current
     const canvas = canvasRef.current
+    const beamCanvas = beamCanvasRef.current
     const hero = layer?.parentElement
     if (!layer || !canvas || !hero) return undefined
     layer.dataset.render = 'static'
@@ -176,28 +211,39 @@ export default function HomeHeroLines({ held = false }) {
       lightLocations = null
     }
     const fallback = () => { stop(); layer.dataset.render = 'static'; notifyLight('static') }
+    // The beams' own canvas sits above the centre shade, which would hide the
+    // crossing they pass through. Same program, same vertices, same draw: the
+    // beams stay on the fibres and follow their zoom. Without it there are
+    // simply no beams.
+    let beams = null
+    let beamsLost = false
+    const initBeams = () => {
+      try {
+        const beamGl = beamCanvas.getContext('webgl', CONTEXT_OPTIONS)
+        const prepared = beamGl && prepareCanvas(beamGl)
+        beams = prepared ? { gl: beamGl, ...prepared, drawn: false } : null
+        beams?.gl.uniform1f(beams.lights.uBeamsOnly, 1)
+      } catch {
+        beams = null
+      }
+    }
+    const releaseBeams = () => {
+      if (beams && !beamsLost) {
+        beams.gl.deleteBuffer(beams.buffer)
+        beams.gl.deleteProgram(beams.program)
+      }
+      beams = null
+    }
     const initialize = () => {
       try {
-        gl = canvas.getContext('webgl', {
-          alpha: true, antialias: false, depth: false, stencil: false,
-          preserveDrawingBuffer: false, powerPreference: 'low-power',
-        })
+        gl = canvas.getContext('webgl', CONTEXT_OPTIONS)
         if (!gl) return false
-        program = createProgram(gl)
-        buffer = gl.createBuffer()
-        if (!program || !buffer) { release(); return false }
-        gl.useProgram(program)
-        gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
-        phaseLocation = gl.getUniformLocation(program, 'uPhase')
-        lightLocations = Object.fromEntries(['uIntro', 'uCompact', 'uHover', 'uPointer', 'uSize', 'uScroll', 'uScrollActive'].map(name => [name, gl.getUniformLocation(program, name)]))
-        for (const [name, size, offset] of [['aPosition', 2, 0], ['aEdge', 1, 2], ['aOpacity', 1, 3], ['aOffset', 1, 4], ['aTravel', 1, 5]]) {
-          const location = gl.getAttribLocation(program, name)
-          gl.enableVertexAttribArray(location)
-          gl.vertexAttribPointer(location, size, gl.FLOAT, false, 24, offset * 4)
-        }
-        gl.enable(gl.BLEND)
-        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
-        gl.clearColor(0, 0, 0, 0)
+        const prepared = prepareCanvas(gl)
+        if (!prepared) { release(); return false }
+        program = prepared.program
+        buffer = prepared.buffer
+        phaseLocation = prepared.phase
+        lightLocations = prepared.lights
         return true
       } catch {
         release()
@@ -220,12 +266,20 @@ export default function HomeHeroLines({ held = false }) {
       canvas.height = Math.max(1, Math.round(height * scale))
       gl.viewport(0, 0, canvas.width, canvas.height)
       points = compact ? 65 : 129
-      vertices = new Float32Array(2 * (compact ? 4 : 7) * points * 2 * 6)
+      vertices = new Float32Array(2 * (compact ? 4 : 7) * points * 2 * VERTEX_FLOATS)
       curves = Array.from({ length: (compact ? 4 : 7) * 2 }, () => ({
         positions: new Float32Array(points * 2), distances: new Float32Array(points), length: 0,
       }))
       gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
       gl.bufferData(gl.ARRAY_BUFFER, vertices.byteLength, gl.DYNAMIC_DRAW)
+      if (beams && !beamsLost) {
+        beamCanvas.width = canvas.width
+        beamCanvas.height = canvas.height
+        beams.gl.viewport(0, 0, canvas.width, canvas.height)
+        beams.gl.bindBuffer(beams.gl.ARRAY_BUFFER, beams.buffer)
+        beams.gl.bufferData(beams.gl.ARRAY_BUFFER, vertices.byteLength, beams.gl.DYNAMIC_DRAW)
+        beams.drawn = false
+      }
       layer.dataset.quality = compact ? 'mobile' : 'desktop'
     }
     const draw = () => {
@@ -242,6 +296,8 @@ export default function HomeHeroLines({ held = false }) {
           curve.length = measureRibbon(curve.positions, curve.distances, side, line, elapsed, compact, width, height)
         }
       }
+      // Beam paths per fibre, from the lengths just measured.
+      const spans = Array.from({ length: lineCount }, (_, line) => beamSpan(curves[line].distances, curves[lineCount + line].distances))
       for (const [sideIndex, side] of [[0, -1], [1, 1]]) {
         for (let line = 0; line < lineCount; line++) {
           const curve = curves[sideIndex * lineCount + line]
@@ -259,6 +315,7 @@ export default function HomeHeroLines({ held = false }) {
             const opacity = (.3 + line / lineCount * .28) * Math.sin(progress * Math.PI) ** .45
             const travel = side === 1 ? curve.distances[point] / totalLength
               : (rightLength + curve.length - curve.distances[point]) / totalLength
+            const [beamA, beamB] = beamCoordinates(side, curve.distances[point], spans[line])
             // Expand the centreline in CSS pixels before adding its normal:
             // ribbon ink and glow keep the same thickness throughout the zoom.
             const x = focusX + (curve.positions[point * 2] + pointerX - focusX) * scale
@@ -276,6 +333,8 @@ export default function HomeHeroLines({ held = false }) {
               // about 3–5 neighbouring bright lines, followed by a softer wake.
               vertices[offset++] = (line - (lineCount - 1) / 2) * .013
               vertices[offset++] = travel
+              vertices[offset++] = beamA
+              vertices[offset++] = beamB
             }
           }
         }
@@ -296,6 +355,29 @@ export default function HomeHeroLines({ held = false }) {
       const stripSize = points * 2
       for (let strip = 0; strip < lineCount * 2; strip++) gl.drawArrays(gl.TRIANGLE_STRIP, strip * stripSize, stripSize)
       layer.dataset.render = 'webgl'
+      drawBeams(stripSize, lineCount * 2)
+    }
+    // The beams follow the scroll sequence only: at rest their canvas is empty.
+    const drawBeams = (stripSize, strips) => {
+      if (!beams || beamsLost) return
+      const beamGl = beams.gl
+      const alpha = scrollZoom ? heroBeamOpacity(scrollProgress) : 0
+      if (!alpha) {
+        if (beams.drawn) beamGl.clear(beamGl.COLOR_BUFFER_BIT)
+        beams.drawn = false
+        return
+      }
+      beamGl.bindBuffer(beamGl.ARRAY_BUFFER, beams.buffer)
+      beamGl.bufferSubData(beamGl.ARRAY_BUFFER, 0, vertices)
+      beamGl.uniform1f(beams.lights.uBeam, heroBeamProgress(scrollProgress))
+      beamGl.uniform1f(beams.lights.uBeamAlpha, alpha)
+      beamGl.uniform1f(beams.lights.uCompact, compact ? 1 : 0)
+      beamGl.uniform1f(beams.lights.uHover, hover)
+      beamGl.uniform2f(beams.lights.uPointer, mouseX, mouseY)
+      beamGl.uniform2f(beams.lights.uSize, width, height)
+      beamGl.clear(beamGl.COLOR_BUFFER_BIT)
+      for (let strip = 0; strip < strips; strip++) beamGl.drawArrays(beamGl.TRIANGLE_STRIP, strip * stripSize, stripSize)
+      beams.drawn = true
     }
     const tick = timestamp => {
       frame = 0
@@ -350,6 +432,17 @@ export default function HomeHeroLines({ held = false }) {
       lost = true
       fallback()
     }
+    const handleBeamsLost = event => {
+      event.preventDefault()
+      beamsLost = true
+    }
+    const handleBeamsRestored = () => {
+      beamsLost = false
+      beams = null
+      initBeams()
+      resize()
+      if (visible && !document.hidden) draw()
+    }
     const handleContextRestored = () => {
       lost = false
       buffer = null
@@ -383,6 +476,7 @@ export default function HomeHeroLines({ held = false }) {
       if (initialScrollFrame) handleScroll({ detail: initialScrollFrame })
       return removeScrollListeners
     }
+    initBeams()
     resize()
     // Parent layout effects can publish before this passive effect mounts.
     // Restore that frame before any observer is allowed to start the clock.
@@ -402,6 +496,8 @@ export default function HomeHeroLines({ held = false }) {
     document.addEventListener('visibilitychange', handleVisibility)
     canvas.addEventListener('webglcontextlost', handleContextLost)
     canvas.addEventListener('webglcontextrestored', handleContextRestored)
+    beamCanvas.addEventListener('webglcontextlost', handleBeamsLost)
+    beamCanvas.addEventListener('webglcontextrestored', handleBeamsRestored)
     resumeRef.current = start
 
     return () => {
@@ -417,6 +513,9 @@ export default function HomeHeroLines({ held = false }) {
       document.removeEventListener('visibilitychange', handleVisibility)
       canvas.removeEventListener('webglcontextlost', handleContextLost)
       canvas.removeEventListener('webglcontextrestored', handleContextRestored)
+      beamCanvas.removeEventListener('webglcontextlost', handleBeamsLost)
+      beamCanvas.removeEventListener('webglcontextrestored', handleBeamsRestored)
+      releaseBeams()
       release()
       layer.dataset.render = 'static'
       removeScrollListeners()
@@ -437,6 +536,7 @@ export default function HomeHeroLines({ held = false }) {
       ))}
       <canvas ref={canvasRef} aria-hidden="true" />
       <div className="home-hero-lines-shade" />
+      <canvas ref={beamCanvasRef} className="home-hero-lines-beams" aria-hidden="true" />
     </div>
   )
 }
