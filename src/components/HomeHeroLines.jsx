@@ -37,10 +37,19 @@ function createProgram(gl) {
   }
 }
 
-export default function HomeHeroLines() {
+export default function HomeHeroLines({ held = false }) {
   const layerRef = useRef(null)
   const canvasRef = useRef(null)
+  const heldRef = useRef(held)
+  const resumeRef = useRef(null)
   const reduced = useMotionPreference()
+
+  // While the home loader covers the Hero, the scene waits on its first frame:
+  // the currents, and the title light that follows them, start at the handoff.
+  useEffect(() => {
+    heldRef.current = held
+    if (!held) resumeRef.current?.()
+  }, [held])
 
   useEffect(() => {
     const layer = layerRef.current
@@ -230,6 +239,9 @@ export default function HomeHeroLines() {
     }
     const start = () => {
       if (disposed || frame || !visible || document.hidden || lost || !program) return
+      // Held: draw the first frame (so WebGL replaces the still SVG under the
+      // loader) without starting the clock.
+      if (heldRef.current) { draw(); return }
       layer.dataset.motion = 'animated'
       frame = window.requestAnimationFrame(tick)
     }
@@ -281,8 +293,10 @@ export default function HomeHeroLines() {
     document.addEventListener('visibilitychange', handleVisibility)
     canvas.addEventListener('webglcontextlost', handleContextLost)
     canvas.addEventListener('webglcontextrestored', handleContextRestored)
+    resumeRef.current = start
 
     return () => {
+      resumeRef.current = null
       disposed = true
       stop()
       observer?.disconnect()

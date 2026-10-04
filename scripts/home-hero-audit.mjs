@@ -57,6 +57,11 @@ const viewport = async (width, height, touch = false, dpr = 1) => {
 const navigate = async (destination = url, introPause = 850) => {
   await send('Page.navigate', { url: destination })
   await waitFor('document.readyState !== "loading" && !!document.querySelector(".home-hero-lines") && !!window.__homeHeroAudit')
+  // The home loader holds the Hero's light until it hands over: the arrival is
+  // measured from the handoff, everything else once the page is interactive.
+  await waitFor(introPause
+    ? '!document.querySelector(".home-loader")'
+    : '!document.querySelector(".home-loader") || !!document.querySelector(".home-loader").dataset.handoff')
   if (introPause) {
     await evaluate('document.fonts.ready.then(() => true)')
     await pause(introPause)

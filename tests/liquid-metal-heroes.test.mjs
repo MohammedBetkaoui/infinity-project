@@ -10,7 +10,7 @@ test('Home has a dedicated background; the four page heroes keep their shared sh
   const sharedComponent = await read('src/components/InfinityLiquidMetal.jsx')
   const shader = await read('src/lib/liquidMetalShader.js')
 
-  assert.match(home, /<HomeHeroLines \/>/)
+  assert.match(home, /<HomeHeroLines\b[^>]*\/>/)
   assert.doesNotMatch(home, /InfinityLiquidMetal/)
   assert.match(pageHero, /<InfinityLiquidMetal variant=\{shaderVariant\}/)
   assert.equal((sharedComponent.match(/gl\.createProgram\(/g) || []).length, 1, 'one WebGL program is created by the shared helper')

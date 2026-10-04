@@ -1,7 +1,9 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import useHomeIntro from './hooks/useHomeIntro'
 import useHomeScrollMotion from './hooks/useHomeScrollMotion'
 import AnimationProvider from './components/AnimationProvider'
+import HomeLoader from './components/HomeLoader'
 import Navbar from './components/Navbar'
 import ScrollExperience from './components/ScrollExperience'
 import RouteScrollReset from './components/RouteScrollReset'
@@ -25,9 +27,9 @@ const AivexStatusPage = lazy(() => import('./pages/aivex/status/AivexStatusPage'
 // Back-office: its own chunk, so none of it ships with the public site.
 const AdminApp = lazy(() => import('./admin/AdminApp'))
 
-function SitePage({ children, mainRef, motionTrigger }) {
+function SitePage({ children, mainRef, motionTrigger, busy = false }) {
   return (
-      <div className="min-h-screen overflow-clip bg-background text-text-primary">
+      <div className="min-h-screen overflow-clip bg-background text-text-primary" inert={busy || undefined} aria-busy={busy || undefined}>
         <ScrollExperience />
         <Navbar />
         <main ref={mainRef} data-motion-trigger={motionTrigger}>{children}</main>
@@ -38,17 +40,21 @@ function SitePage({ children, mainRef, motionTrigger }) {
 
 function HomePage() {
   const mainRef = useRef(null)
+  const intro = useHomeIntro()
   useHomeScrollMotion(mainRef)
   // Home text reveals on presence: readable the moment it is on screen.
   return (
-    <SitePage mainRef={mainRef} motionTrigger="viewport">
-      <Hero />
-      <Poles />
-      <Events />
-      <ClubLife />
-      <FAQ />
-      <Contact />
-    </SitePage>
+    <>
+      {intro.loading && <HomeLoader ready={intro.ready} onComplete={intro.complete} />}
+      <SitePage mainRef={mainRef} motionTrigger="viewport" busy={intro.loading}>
+        <Hero introHeld={intro.loading && !intro.ready} />
+        <Poles />
+        <Events />
+        <ClubLife />
+        <FAQ />
+        <Contact />
+      </SitePage>
+    </>
   )
 }
 

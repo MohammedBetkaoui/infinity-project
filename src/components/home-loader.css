@@ -1,0 +1,41 @@
+.home-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  display: grid;
+  place-items: center;
+  /* Touch scrolling would move the Hero (and the emblem's slot) underneath. */
+  touch-action: none;
+}
+/* Same ground as the document and the Hero: the first paint, the loader and
+   the Hero share one colour, so only the emblem and the Hero's light change. */
+.home-loader-backdrop { position: absolute; inset: 0; background: #002a1e; }
+.home-loader-mark { position: relative; width: clamp(64px, 5.8vw, 88px); }
+.home-loader-mark svg { display: block; width: 100%; height: auto; animation: home-loader-in .9s var(--ease-smooth) .08s backwards; }
+/* A dim emblem while it charges; the handoff fills it to the Hero's mint. */
+.home-loader-shape path { fill: #9ed7c4; fill-opacity: .22; }
+.home-loader-mark .home-loader-signal {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  animation-delay: .32s;
+  /* On the <svg> box, so the glow is measured in CSS pixels, not in the
+     2350-unit artwork space. */
+  filter: drop-shadow(0 0 3px rgb(158 215 196 / .85));
+}
+.home-loader-signal path {
+  fill: none;
+  stroke: #e7f5ee;
+  stroke-width: 44;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: .17 .83;
+  animation: home-loader-run 1.7s linear infinite;
+}
+@keyframes home-loader-in { from { opacity: 0; transform: scale(.92); } }
+@keyframes home-loader-run { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -1; } }
+@media (prefers-reduced-motion: reduce) {
+  .home-loader-mark svg { animation: none; }
+  .home-loader-shape path { fill-opacity: 1; }
+  .home-loader-mark .home-loader-signal { display: none; }
+}

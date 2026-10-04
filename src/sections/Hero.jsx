@@ -1,16 +1,19 @@
 import { useRef } from 'react'
 import { Link } from 'react-router-dom'
 import HomeHeroLines from '../components/HomeHeroLines'
+import InfinityClubMark from '../components/InfinityClubMark'
 import useHeroMotion from '../hooks/useHeroMotion'
 import './hero.css'
 
-export default function Hero() {
+// introHeld: the home loader still covers the Hero, so its currents and title
+// light wait for the handoff instead of playing out underneath.
+export default function Hero({ introHeld = false }) {
   const sectionRef = useRef(null)
   useHeroMotion(sectionRef)
 
   return (
     <section id="accueil" ref={sectionRef} className="home-hero" aria-labelledby="home-hero-title">
-      <HomeHeroLines />
+      <HomeHeroLines held={introHeld} />
       <div className="page-container home-hero-inner">
         <div className="home-hero-scene">
           <div className="home-hero-copy">
@@ -24,6 +27,8 @@ export default function Hero() {
               <Link to="/join" className="home-hero-join" data-ripple>Join the club</Link>
               <Link to="/about" className="text-link">Discover Infinity</Link>
             </div>
+            {/* Landing slot of the home loader's emblem (see HomeLoader). */}
+            <span className="home-hero-mark" data-home-logo-target aria-hidden="true"><InfinityClubMark /></span>
           </div>
         </div>
         <div className="home-hero-foot">
