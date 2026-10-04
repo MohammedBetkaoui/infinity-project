@@ -3,6 +3,8 @@ dist/
 .browser-motion-audit/
 .browser-about-profile/
 .browser-admin-audit/
+.browser-home-hero/
+.browser-home-hero-profile/
 
 !.env.example
 .env

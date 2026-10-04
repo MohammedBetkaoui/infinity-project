@@ -4,13 +4,14 @@ import { test } from 'node:test'
 
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8')
 
-test('the five public heroes use one shared liquid-metal component and shader', async () => {
+test('Home has a dedicated background; the four page heroes keep their shared shader', async () => {
   const home = await read('src/sections/Hero.jsx')
   const pageHero = await read('src/components/PageHero.jsx')
   const sharedComponent = await read('src/components/InfinityLiquidMetal.jsx')
   const shader = await read('src/lib/liquidMetalShader.js')
 
-  assert.match(home, /<InfinityLiquidMetal variant="home"/)
+  assert.match(home, /<HomeHeroLines \/>/)
+  assert.doesNotMatch(home, /InfinityLiquidMetal/)
   assert.match(pageHero, /<InfinityLiquidMetal variant=\{shaderVariant\}/)
   assert.equal((sharedComponent.match(/gl\.createProgram\(/g) || []).length, 1, 'one WebGL program is created by the shared helper')
   assert.match(shader, /for \(int octave = 0; octave < 6; octave\+\+\)/)
@@ -46,7 +47,8 @@ test('existing hero content and semantic headings remain intact', async () => {
   assert.match(home, /aria-label="No Limits For Infiniters"/)
   assert.match(home, />Join the club</)
   assert.match(home, />Discover Infinity</)
-  assert.match(home, /<InfinityArtwork \/>/)
+  assert.match(home, /A student tech community at MI Faculty, BBA\./)
+  assert.match(home, /Learn, build and explore AI, development and design together\./)
   assert.match(pageHero, /<h1 id=\{titleId\}/)
   assert.match(pageHero, /className="page-hero-facts"/)
   assert.match(pageHero, /className="page-hero-jump"/)
@@ -69,21 +71,4 @@ test('hero handoffs blend into each following section without changing flow', as
   }
   assert.match(communityStyles, /linear-gradient\(to bottom, #03271d/)
   assert.doesNotMatch(`${pageHeroStyles}\n${homeStyles}`, /margin-bottom:\s*-/)
-})
-
-test('the Home emblem keeps its expansion story with a touch-smoothed mobile sequence', async () => {
-  const motion = await read('src/hooks/useHeroMotion.js')
-  const scrollAnimations = await read('src/lib/scrollAnimations.js')
-  const styles = await read('src/sections/hero.css')
-
-  assert.match(scrollAnimations, /createScrollAnimations\(scope, \{ reduced, canPin, compact = false \}\)/)
-  assert.match(scrollAnimations, /gsap, ScrollTrigger, reduced, canPin, compact/)
-  assert.match(motion, /scrub: compact \? \.55 : true/)
-  assert.match(motion, /scale: 1\.055/)
-  assert.match(motion, /Math\.min\(exitScale\(\), 4\.65\)/)
-  assert.match(motion, /scale: flowExitScale/)
-  assert.match(motion, /opacity: \.06/)
-  assert.match(motion, /select\('\.infinity-mark-signal'\)/)
-  assert.match(motion, /strokeDashoffset: -\.94/)
-  assert.match(styles, /stroke-dasharray: \.16 \.84/)
 })

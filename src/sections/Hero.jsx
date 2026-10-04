@@ -1,7 +1,6 @@
 import { useRef } from 'react'
 import { Link } from 'react-router-dom'
-import InfinityArtwork from '../components/InfinityArtwork'
-import InfinityLiquidMetal from '../components/InfinityLiquidMetal'
+import HomeHeroLines from '../components/HomeHeroLines'
 import useHeroMotion from '../hooks/useHeroMotion'
 import './hero.css'
 
@@ -11,18 +10,16 @@ export default function Hero() {
 
   return (
     <section id="accueil" ref={sectionRef} className="home-hero" aria-labelledby="home-hero-title">
-      <InfinityLiquidMetal variant="home" />
-      <div className="home-hero-shader-overlay" aria-hidden="true" />
+      <HomeHeroLines />
       <div className="page-container home-hero-inner">
         <div className="home-hero-scene">
-          <InfinityArtwork />
           <div className="home-hero-copy">
             <p className="home-hero-brand">Infinity Club</p>
             <h1 id="home-hero-title" aria-label="No Limits For Infiniters">
               <span className="home-hero-line" aria-hidden="true"><span>No Limits</span></span>
               <span className="home-hero-line" aria-hidden="true"><span>For Infiniters.</span></span>
             </h1>
-            <p className="home-hero-description">A place for curious minds.<br />To learn, build and go further together.</p>
+            <p className="home-hero-description">A student tech community at MI Faculty, BBA.<br />Learn, build and explore AI, development and design together.</p>
             <div className="home-hero-actions">
               <Link to="/join" className="home-hero-join" data-ripple>Join the club</Link>
               <Link to="/about" className="text-link">Discover Infinity</Link>

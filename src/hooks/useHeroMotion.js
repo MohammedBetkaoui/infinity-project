@@ -1,192 +1,91 @@
-import useScrollAnimations from './useScrollAnimations'
+import { useLayoutEffect, useRef } from 'react'
+import useMotionPreference from './useMotionPreference'
+import { HERO_LIGHT_EVENT, heroTitleLightAt } from '../lib/homeHeroLines'
+
+const clamp = value => Math.min(1, Math.max(0, value))
 
 export default function useHeroMotion(sectionRef) {
-  useScrollAnimations(sectionRef, ({ gsap, select, revealText, pinSection, compact, reduced }) => {
-    const section = sectionRef.current
-    const copy = select('.home-hero-copy')
-    const art = select('.home-hero-art')[0]
-    const markDepth = select('.home-hero-mark-depth')[0]
-    const mark = select('.home-hero-mark')[0]
-    const markSignal = select('.infinity-mark-signal')[0]
-    const sparks = select('.home-hero-spark')
-    const foot = select('.home-hero-foot')[0]
+  const acquired = useRef({ first: 0, second: 0 })
+  const reduced = useMotionPreference()
 
-    if (reduced) {
-      gsap.from(copy, { opacity: .4, duration: .2 })
-      return
-    }
+  useLayoutEffect(() => {
+    const hero = sectionRef.current
+    if (!hero) return undefined
+    const title = hero.querySelector('h1')
+    const lines = hero.querySelectorAll('.home-hero-line > span')
+    const initial = acquired.current
+    let scrollTarget = 0
+    let scrollCurrent = 0
+    let scrollActivity = 0
+    let scrollImpulse = false
+    let heroTop = 0
+    let heroHeight = 1
 
-    select('.home-hero-line > span').forEach((line, index) => revealText(line, { scroll: false, delay: .12 + index * .14 }))
-    const introduction = gsap.timeline()
-      .from(select('.home-hero-brand'), { opacity: 0, duration: .4 }, .05)
-      .from(select('.home-hero-description, .home-hero-actions'), { opacity: 0, y: 8, stagger: .08, duration: .48 }, .42)
-      .from(mark, { scale: 1.08, opacity: 0, duration: .86, ease: 'power3.out' }, 0)
-
-    const exitScale = () => {
-      const width = Math.max(markDepth.offsetWidth, 1)
-      const height = Math.max(markDepth.offsetHeight, width * 236 / 432)
-      // The mark stays horizontal, so height is the limiting axis on tall screens.
-      // This measured overscan lets its contour leave every edge cleanly.
-      const cover = Math.max(document.documentElement.clientWidth / width, window.innerHeight / height)
-      return Math.max(compact ? 3.1 : 3.2, cover * (compact ? 1.28 : 1.34))
-    }
-
-    gsap.set(markDepth, { transformOrigin: '50% 50%', force3D: true })
-    gsap.set(mark, { rotation: 0, transformOrigin: '50% 50%', force3D: true })
-    const scene = pinSection(section, .96, {
-      pin: select('.home-hero-inner')[0],
-      id: 'infinity-hero',
-      scrub: true,
-      pinSpacing: false,
-    })
-
-    if (scene) {
-      section.dataset.heroMode = 'pinned'
-      scene
-        .addLabel('breathe', 0)
-        .fromTo(markDepth, { scale: 1, y: 0, opacity: 1 }, {
-          scale: 1.045,
-          y: 0,
-          opacity: 1,
-          duration: .4,
-          ease: 'sine.inOut',
-          force3D: true,
-        }, 'breathe')
-        .to(sparks, {
-          x: (index) => index % 2 ? 34 : -27,
-          y: (index) => index % 2 ? -42 : 31,
-          duration: .72,
-          ease: 'power1.inOut',
-          force3D: true,
-        }, 'breathe')
-        .to(copy, {
-          y: -12,
-          scale: .985,
-          opacity: .74,
-          duration: .26,
-          ease: 'power2.inOut',
-          force3D: true,
-        }, .14)
-        .addLabel('cross', .4)
-        .to(markDepth, {
-          scale: exitScale,
-          y: 0,
-          duration: .6,
-          ease: 'power2.in',
-          force3D: true,
-        }, 'cross')
-        .to(copy, {
-          y: -28,
-          scale: .92,
-          opacity: 0,
-          duration: .25,
-          ease: 'power2.in',
-          force3D: true,
-        }, 'cross')
-        .to(foot, { y: 9, opacity: 0, duration: .18, ease: 'power2.in' }, .12)
-        .to(sparks, { opacity: 0, duration: .2, ease: 'power2.in' }, .58)
-        // The mark is already beyond every edge before this optical dissolve.
-        .to(art, { opacity: 0, duration: .1, ease: 'none' }, .9)
-    } else {
-      section.dataset.heroMode = 'flow'
-      const flowTravel = () => compact
-        ? Math.min(section.offsetHeight * .62, window.innerHeight * .56)
-        : section.offsetHeight * .92
-      const flowExitScale = () => compact ? Math.min(exitScale(), 4.65) : exitScale()
-      const flow = gsap.timeline({
-        defaults: { ease: 'none' },
-        scrollTrigger: {
-          id: 'infinity-hero-flow',
-          trigger: section,
-          start: 'top top',
-          end: 'bottom top',
-          // A short catch-up softens touch-scroll impulses without making the
-          // artwork feel detached from the reader's gesture.
-          scrub: compact ? .55 : true,
-          invalidateOnRefresh: true,
-        },
-      })
-
-      flow.fromTo(markDepth, { y: 0 }, {
-          y: flowTravel,
-          duration: 1,
-          ease: compact ? 'power1.inOut' : 'none',
-          force3D: true,
-        }, 0)
-
-      if (compact) {
-        // Mobile keeps the existing expansion narrative, but gives it three
-        // readable beats: settle, cross the viewport, then dissolve before
-        // the next section. Every effect remains transform/opacity based.
-        flow
-          .fromTo(markDepth, { scale: 1, opacity: 1 }, {
-            scale: 1.055,
-            opacity: 1,
-            duration: .28,
-            ease: 'sine.inOut',
-            force3D: true,
-          }, 0)
-          .to(markDepth, {
-            scale: flowExitScale,
-            duration: .58,
-            ease: 'power3.in',
-            force3D: true,
-          }, .32)
-          .to(markDepth, {
-            opacity: .06,
-            duration: .42,
-            ease: 'power2.inOut',
-          }, .48)
-          .fromTo(mark, { rotationX: 0, rotationY: 0 }, {
-            rotationX: -2.4,
-            rotationY: 1.2,
-            duration: .36,
-            ease: 'sine.inOut',
-            force3D: true,
-          }, .04)
-          .to(mark, {
-            rotationX: 0,
-            rotationY: 0,
-            duration: .44,
-            ease: 'power2.in',
-            force3D: true,
-          }, .4)
-          .to(markSignal, { strokeDashoffset: -.94, opacity: .68, duration: .7, ease: 'none' }, .04)
-          .to(markSignal, { opacity: 0, duration: .18, ease: 'power2.in' }, .7)
-          .to(copy, { y: -24, scale: .955, opacity: 0, duration: .38, ease: 'power2.in' }, .24)
-          .to(foot, { y: 8, opacity: 0, duration: .28, ease: 'power2.in' }, .38)
-          .to(sparks, {
-            x: (index) => index % 2 ? 24 : -19,
-            y: (index) => index % 2 ? -56 : 42,
-            scale: .7,
-            opacity: 0,
-            duration: .5,
-            ease: 'power2.out',
-            force3D: true,
-          }, .16)
-          .to(art, { opacity: 0, duration: .16, ease: 'none' }, .82)
-      } else {
-        // Short desktop layouts retain the established native-flow version.
-        flow
-          .fromTo(markDepth, { scale: 1, opacity: 1 }, {
-            scale: exitScale,
-            opacity: .12,
-            duration: .58,
-            ease: 'power2.in',
-            force3D: true,
-          }, .42)
-          .to(copy, { y: -18, scale: .96, opacity: .08, duration: .42, ease: 'power2.in' }, .2)
-          .to(foot, { y: 8, opacity: 0, duration: .24, ease: 'power2.in' }, .38)
-          .to(sparks, { opacity: 0, duration: .24 }, .44)
-          .to(art, { opacity: 0, duration: .1, ease: 'none' }, .9)
+    const renderTitle = () => {
+      for (const [index, key] of ['first', 'second'].entries()) {
+        const value = initial[key]
+        lines[index]?.style.setProperty('--title-light-front', `${value * 120 - 10}%`)
+        // A small travelling mint reflection fades out after the first pass.
+        lines[index]?.style.setProperty('--title-arrival-sheen', String(Math.sin(value * Math.PI) * .44))
       }
+      hero.dataset.titleLit = initial.first === 1 && initial.second === 1 ? 'true' : 'false'
+    }
+    const finish = () => {
+      initial.first = 1
+      initial.second = 1
+      renderTitle()
+    }
+    const updateScrollTarget = () => {
+      const next = clamp((window.scrollY - heroTop) / heroHeight)
+      if (Math.abs(next - scrollTarget) > .0001) scrollImpulse = true
+      scrollTarget = next
+    }
+    const measure = () => {
+      const box = hero.getBoundingClientRect()
+      heroTop = box.top + window.scrollY
+      heroHeight = Math.max(1, box.height)
+      if (title) {
+        const titleBox = title.getBoundingClientRect()
+        hero.style.setProperty('--hero-symbol-center', `${(titleBox.top + titleBox.height / 2 - box.top) / heroHeight * 100}%`)
+      }
+      updateScrollTarget()
+    }
+    const handleLight = ({ detail }) => {
+      if (detail.mode === 'static') { finish(); return }
+      if (detail.mode !== 'frame' || reduced) return
+      const next = heroTitleLightAt(detail.elapsed)
+      // Progress is acquired once. Leaving the hero, media changes and shader
+      // restarts cannot restore the dim title or replay its initial reveal.
+      initial.first = Math.max(initial.first, next.first)
+      initial.second = Math.max(initial.second, next.second)
+      renderTitle()
+      const delta = Math.max(1 / 60, detail.delta)
+      const damping = 1 - Math.exp(-delta / .18)
+      scrollCurrent += (scrollTarget - scrollCurrent) * damping
+      scrollActivity = scrollImpulse ? 1 : scrollActivity * Math.exp(-delta / .65)
+      scrollImpulse = false
+      hero.style.setProperty('--hero-light-scroll', scrollCurrent.toFixed(5))
+      hero.style.setProperty('--hero-light-scroll-active', scrollActivity.toFixed(4))
+      hero.style.setProperty('--title-scroll-front', `${scrollCurrent * 120 - 10}%`)
+      hero.style.setProperty('--title-scroll-sheen', String(scrollActivity * .32))
     }
 
-    const finishIntro = () => { if (scrollY > 12) introduction.progress(1) }
-    window.addEventListener('scroll', finishIntro, { passive: true })
+    measure()
+    if (reduced) finish()
+    else renderTitle()
+    // The shader's paused clock also owns title/reflection updates: no second
+    // RAF, no animation while hidden, and one timeline for light and letters.
+    hero.addEventListener(HERO_LIGHT_EVENT, handleLight)
+    window.addEventListener('scroll', updateScrollTarget, { passive: true })
+    window.addEventListener('resize', measure, { passive: true })
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null
+    observer?.observe(hero)
+    if (title) observer?.observe(title)
     return () => {
-      delete section.dataset.heroMode
-      window.removeEventListener('scroll', finishIntro)
+      hero.removeEventListener(HERO_LIGHT_EVENT, handleLight)
+      window.removeEventListener('scroll', updateScrollTarget)
+      window.removeEventListener('resize', measure)
+      observer?.disconnect()
     }
-  })
+  }, [sectionRef, reduced])
 }
