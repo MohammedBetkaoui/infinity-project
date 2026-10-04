@@ -1,5 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import useMotionPreference from '../hooks/useMotionPreference'
+import { HERO_BREAKPOINTS, HERO_PROFILES, LINES_COMPACT, LINES_WIDE, portraitFrame } from '../lib/heroLayouts'
+import { onLayoutResize } from '../lib/viewportResize'
 import { heroBeamOpacity, heroBeamProgress, heroZoomProgress } from '../lib/heroLogoZoom'
 import { beamCoordinates, beamSpan, HERO_ENERGY_DURATION, HERO_ENERGY_START, HERO_LIGHT_EVENT, HERO_SCROLL_EVENT, homeLinesFragmentShader, homeLinesVertexShader, measureRibbon, ribbonPath } from '../lib/homeHeroLines'
 import './home-hero-lines.css'
@@ -47,6 +49,18 @@ function createProgram(gl) {
   }
 }
 
+// Layout box of a node relative to an ancestor, ignoring CSS transforms (the
+// copy lifts and fades during the scroll sequence).
+function layoutBox(node, ancestor) {
+  let x = 0
+  let y = 0
+  for (let current = node; current && current !== ancestor; current = current.offsetParent) {
+    x += current.offsetLeft
+    y += current.offsetTop
+  }
+  return { x, y, width: node.offsetWidth, height: node.offsetHeight }
+}
+
 // Program, buffer, vertex layout and blending of one lines canvas.
 function prepareCanvas(gl) {
   const program = createProgram(gl)
@@ -85,6 +99,56 @@ export default function HomeHeroLines({ held = false }) {
     heldRef.current = held
     if (!held) resumeRef.current?.()
   }, [held])
+
+  // Portrait phones and tablets: the symbol is drawn in a frame much wider
+  // than the screen (its loops overflow both sides, as on desktop), centred,
+  // with its crossing on the logo and its upper loops under the paragraph.
+  // The canvases and the static SVG read the frame from these properties.
+  useLayoutEffect(() => {
+    const layer = layerRef.current
+    const hero = layer?.parentElement
+    if (!layer || !hero) return undefined
+    const wide = window.matchMedia(LINES_WIDE)
+    const tablet = window.matchMedia(HERO_BREAKPOINTS.tablet)
+    const properties = ['--lines-frame-width', '--lines-frame-height', '--lines-crossing']
+    const place = () => {
+      const mark = hero.querySelector('.home-hero-mark')
+      if (!wide.matches || !mark) { properties.forEach(name => layer.style.removeProperty(name)); return }
+      const text = hero.querySelector('.home-hero-description')
+      const size = { width: hero.clientWidth, height: hero.clientHeight }
+      const logo = layoutBox(mark, hero)
+      const copy = text && layoutBox(text, hero)
+      const frame = portraitFrame(HERO_PROFILES[tablet.matches ? 'tablet' : 'mobile'], size, logo.y + logo.height / 2, copy && {
+        bottom: copy.y + copy.height,
+        halfWidth: Math.max(size.width / 2 - copy.x, copy.x + copy.width - size.width / 2),
+      })
+      layer.style.setProperty('--lines-frame-width', `${Math.round(frame.width)}px`)
+      layer.style.setProperty('--lines-frame-height', `${Math.round(frame.height)}px`)
+      layer.style.setProperty('--lines-crossing', `${Math.round(frame.crossing)}px`)
+    }
+    place()
+    // Webfonts and wrapping move the paragraph and the logo (the paragraph can
+    // change width alone); the address bar of a phone does not (svh), so only
+    // width changes count (onLayoutResize).
+    let disposed = false
+    document.fonts?.ready.then(() => { if (!disposed) place() })
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(place) : null
+    for (const selector of ['.home-hero-copy', '.home-hero-description']) {
+      const node = hero.querySelector(selector)
+      if (node) observer?.observe(node)
+    }
+    const removeResize = onLayoutResize(place)
+    wide.addEventListener('change', place)
+    tablet.addEventListener('change', place)
+    return () => {
+      disposed = true
+      observer?.disconnect()
+      removeResize()
+      wide.removeEventListener('change', place)
+      tablet.removeEventListener('change', place)
+      properties.forEach(name => layer.style.removeProperty(name))
+    }
+  }, [])
 
   useEffect(() => {
     const layer = layerRef.current
@@ -147,10 +211,10 @@ export default function HomeHeroLines({ held = false }) {
     cacheLayout()
     hero.addEventListener(HERO_SCROLL_EVENT, handleScroll)
     // SVG remains scroll-driven when WebGL is unavailable or loses its context.
-    window.addEventListener('resize', resizeStatic, { passive: true })
+    const removeStaticResize = onLayoutResize(resizeStatic)
     const removeScrollListeners = () => {
       hero.removeEventListener(HERO_SCROLL_EVENT, handleScroll)
-      window.removeEventListener('resize', resizeStatic)
+      removeStaticResize()
       staticFrames.forEach(({ group }) => group.removeAttribute('transform'))
       delete layer.dataset.scrollProgress
     }
@@ -164,7 +228,9 @@ export default function HomeHeroLines({ held = false }) {
       return removeScrollListeners
     }
 
-    const compactMedia = window.matchMedia('(max-width: 767px), (pointer: coarse)')
+    const compactMedia = window.matchMedia(LINES_COMPACT)
+    const wideMedia = window.matchMedia(LINES_WIDE)
+    let wide = wideMedia.matches
     const fineMedia = window.matchMedia('(hover: hover) and (pointer: fine)')
     let compact = compactMedia.matches
     let gl = null
@@ -258,14 +324,17 @@ export default function HomeHeroLines({ held = false }) {
       width = Math.max(1, canvas.clientWidth)
       height = Math.max(1, canvas.clientHeight)
       compact = compactMedia.matches
+      wide = wideMedia.matches
       if (compact && !scrollProgress) { pointerX = 0; pointerY = 0; targetX = 0; targetY = 0; hover = 0; targetHover = 0 }
-      // Bound the pixel budget; mobile also halves geometry and refresh rate.
-      const dpr = Math.min(window.devicePixelRatio || 1, compact ? 1 : 1.5)
-      const scale = Math.min(dpr, Math.sqrt((compact ? 420000 : 1600000) / (width * height)))
+      // Bound the pixel budget. The wide portrait frame keeps the compact
+      // fibres but gets a sharp backing store and smoother curves: only its
+      // ribbons are shaded, whatever its size off screen.
+      const dpr = Math.min(window.devicePixelRatio || 1, wide ? 2 : compact ? 1 : 1.5)
+      const scale = Math.min(dpr, Math.sqrt((wide ? 1500000 : compact ? 420000 : 1600000) / (width * height)))
       canvas.width = Math.max(1, Math.round(width * scale))
       canvas.height = Math.max(1, Math.round(height * scale))
       gl.viewport(0, 0, canvas.width, canvas.height)
-      points = compact ? 65 : 129
+      points = wide ? 97 : compact ? 65 : 129
       vertices = new Float32Array(2 * (compact ? 4 : 7) * points * 2 * VERTEX_FLOATS)
       curves = Array.from({ length: (compact ? 4 : 7) * 2 }, () => ({
         positions: new Float32Array(points * 2), distances: new Float32Array(points), length: 0,
@@ -383,7 +452,7 @@ export default function HomeHeroLines({ held = false }) {
       frame = 0
       if (disposed || scrollProgress >= 1 || !visible || document.hidden || lost || !program) return
       const delta = lastTimestamp ? timestamp - lastTimestamp : 0
-      if (!lastTimestamp || delta >= (compact ? 1000 / 24 : 1000 / 30) - 1) {
+      if (!lastTimestamp || delta >= (compact && !wide ? 1000 / 24 : 1000 / 30) - 1) {
         // Resetting the timestamp on pause avoids a jump when resuming.
         elapsed += delta / 1000
         const damping = 1 - Math.exp(-Math.max(delta, 33) / 260)
@@ -483,14 +552,17 @@ export default function HomeHeroLines({ held = false }) {
     if (initialScrollFrame) handleScroll({ detail: initialScrollFrame })
     const resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(handleResize) : null
     resizeObserver?.observe(layer)
+    // The portrait frame resizes the canvas without resizing the layer.
+    resizeObserver?.observe(canvas)
     const observer = typeof IntersectionObserver === 'function' ? new IntersectionObserver(([entry]) => {
       visible = entry.isIntersecting
       if (visible) start(); else stop()
     }, { threshold: 0 }) : null
     if (observer) observer.observe(hero)
     else { visible = true; start() }
-    window.addEventListener('resize', handleResize, { passive: true })
+    const removeResize = onLayoutResize(handleResize)
     compactMedia.addEventListener('change', handleResize)
+    wideMedia.addEventListener('change', handleResize)
     hero.addEventListener('pointermove', handlePointerMove, { passive: true })
     hero.addEventListener('pointerleave', handlePointerLeave, { passive: true })
     document.addEventListener('visibilitychange', handleVisibility)
@@ -506,8 +578,9 @@ export default function HomeHeroLines({ held = false }) {
       stop()
       observer?.disconnect()
       resizeObserver?.disconnect()
-      window.removeEventListener('resize', handleResize)
+      removeResize()
       compactMedia.removeEventListener('change', handleResize)
+      wideMedia.removeEventListener('change', handleResize)
       hero.removeEventListener('pointermove', handlePointerMove)
       hero.removeEventListener('pointerleave', handlePointerLeave)
       document.removeEventListener('visibilitychange', handleVisibility)

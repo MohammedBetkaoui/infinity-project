@@ -1,6 +1,7 @@
 import { useLayoutEffect } from 'react'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
+import { HERO_BREAKPOINTS, HERO_PROFILES } from '../lib/heroLayouts'
 import { diveTransform, exitScale, heroLogoScale, heroTravelProgress, sampleContour } from '../lib/heroLogoZoom'
 import { HERO_SCROLL_EVENT } from '../lib/homeHeroLines'
 import { requestScrollRefresh } from '../lib/scrollRefresh'
@@ -17,7 +18,10 @@ export default function useHeroLogoScroll(stageRef) {
     const stage = stageRef.current
     if (!stage) return undefined
     const media = gsap.matchMedia()
-    media.add({ pinned: PINNED, faded: FADED }, ({ conditions }) => {
+    // The breakpoints are conditions too: crossing one rebuilds the sequence
+    // with that profile, while an address bar sliding changes nothing.
+    media.add({ pinned: PINNED, faded: FADED, ...HERO_BREAKPOINTS }, ({ conditions }) => {
+      const profile = HERO_PROFILES[conditions.desktop ? 'desktop' : conditions.tablet ? 'tablet' : 'mobile']
       const hero = stage.querySelector('.home-hero')
       const copy = gsap.utils.toArray(COPY, stage)
       const controls = gsap.utils.toArray('.home-hero-actions, .home-hero-foot', stage)
@@ -93,9 +97,13 @@ export default function useHeroLogoScroll(stageRef) {
         // four edges.
         const center = [logo.left - frame.left + logo.width / 2, logo.top - frame.top + logo.height / 2]
         const offset = [frame.width / 2 - center[0], height / 2 - center[1]]
+        // Phones and tablets size the exit on the largest side (the height in
+        // portrait), so the logo also leaves by the top and the bottom.
+        const half = [frame.width / 2 / unit, height / 2 / unit]
+        const reach = profile.logoExit === 'largest' ? [Math.max(...half), Math.max(...half)] : half
         geometry = {
           center, offset, unit,
-          scale: exitScale(contour, frame.width / 2 / unit, height / 2 / unit),
+          scale: exitScale(contour, ...reach),
           incomingY: frame.height - runway.offsetHeight * .3,
         }
         // This static overlap puts the next section's native top exactly at
@@ -137,8 +145,9 @@ export default function useHeroLogoScroll(stageRef) {
         .to(copy, { opacity: 0, y: -24, duration: .15, ease: 'power1.in' }, 0)
         .set(controls, { pointerEvents: 'none' }, .15)
         .fromTo(lines, { opacity: 1 }, { opacity: .3, duration: .3, ease: 'power1.in' }, .15)
-        // Full contour until .7, then gone by .9 while the next section covers the Hero.
-        .to(outline, { opacity: 0, duration: .2 }, .7)
+        // Full contour, then gone before the next section covers much of the
+        // Hero (desktop: .7–.9; phones and tablets end earlier, see heroLayouts).
+        .to(outline, { opacity: 0, duration: profile.outlineFade[1] - profile.outlineFade[0] }, profile.outlineFade[0])
         .to(lines, { opacity: 0, duration: .3 }, .7)
 
       // Function-based values refresh with the layout, including when the

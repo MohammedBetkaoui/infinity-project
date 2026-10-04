@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from 'react'
 import useMotionPreference from './useMotionPreference'
+import { onLayoutResize } from '../lib/viewportResize'
 import { HERO_LIGHT_EVENT, heroTitleLightAt } from '../lib/homeHeroLines'
 
 const clamp = value => Math.min(1, Math.max(0, value))
@@ -81,14 +82,14 @@ export default function useHeroMotion(sectionRef) {
     // RAF, no animation while hidden, and one timeline for light and letters.
     hero.addEventListener(HERO_LIGHT_EVENT, handleLight)
     window.addEventListener('scroll', updateScrollTarget, { passive: true })
-    window.addEventListener('resize', measure, { passive: true })
+    const removeResize = onLayoutResize(measure)
     const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null
     observer?.observe(hero)
     if (title) observer?.observe(title)
     return () => {
       hero.removeEventListener(HERO_LIGHT_EVENT, handleLight)
       window.removeEventListener('scroll', updateScrollTarget)
-      window.removeEventListener('resize', measure)
+      removeResize()
       observer?.disconnect()
     }
   }, [sectionRef, reduced])

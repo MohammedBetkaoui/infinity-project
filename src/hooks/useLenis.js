@@ -7,6 +7,9 @@ import { lenisEasing } from '../lib/motion'
 import { cancelScrollRefresh, requestScrollRefresh } from '../lib/scrollRefresh'
 
 gsap.registerPlugin(ScrollTrigger)
+// A mobile address bar sliding resizes the window without changing the
+// svh-based layout: only a new width (or orientation) refreshes the scenes.
+ScrollTrigger.config({ ignoreMobileResize: true })
 
 // The incoming Poles section is translated during the Hero's pinned dive.
 // Its measured rectangle is transient; the end of that timeline is its
