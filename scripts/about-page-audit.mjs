@@ -56,17 +56,24 @@ const scroll = async top => {
   await evaluate(`window.scrollTo({ top: ${top}, behavior: 'instant' })`)
   await pause(140)
 }
+const key = async (key, code, windowsVirtualKeyCode) => {
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key, code, windowsVirtualKeyCode, ...(key === 'Enter' ? { text: '\r', unmodifiedText: '\r' } : {}) })
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode })
+}
 const sample = () => evaluate(`(() => {
-  const path = document.querySelector('.about-process-ink')
-  const progress = 1 - parseFloat(getComputedStyle(path).strokeDashoffset) / path.getTotalLength()
-  const point = path.getPointAtLength(progress * path.getTotalLength())
-  const matrix = document.querySelector('.about-process-head').transform.baseVal.consolidate()?.matrix
+  const tabs = [...document.querySelectorAll('.about-process-stages [role="tab"]')]
+  const panels = [...document.querySelectorAll('.about-process-detail[role="tabpanel"]')]
+  const active = tabs.find(tab => tab.getAttribute('aria-selected') === 'true')
+  const panel = active && document.getElementById(active.getAttribute('aria-controls'))
   return {
-    progress,
-    error: matrix ? Math.hypot(matrix.e - point.x, matrix.f - point.y) : null,
-    sketch: +getComputedStyle(document.querySelector('.about-scene-sketch')).opacity,
-    prototype: +getComputedStyle(document.querySelector('.about-scene-prototype')).opacity,
-    shared: +getComputedStyle(document.querySelector('.about-scene-shared')).opacity,
+    stage: tabs.indexOf(active),
+    title: panel?.querySelector('h3')?.textContent.trim(),
+    copy: panel?.querySelector('.about-method-description')?.textContent.trim(),
+    opacity: panel ? +getComputedStyle(panel).opacity : 0,
+    linked: !!panel && panel.getAttribute('aria-labelledby') === active.id,
+    visibility: panels.length === 3 && panels.filter(item => !item.hidden).length === 1
+      && panels.filter(item => item !== panel).every(item => item.hidden && getComputedStyle(item).display === 'none'),
+    roving: tabs.length === 3 && active?.tabIndex === 0 && tabs.filter(tab => tab !== active).every(tab => tab.tabIndex === -1),
     overflow: document.documentElement.scrollWidth > innerWidth,
     height: document.documentElement.scrollHeight,
     pin: Boolean(document.querySelector('.about-page .pin-spacer')),
@@ -90,41 +97,61 @@ try {
     assert.equal(await evaluate('document.querySelector(".page-hero h1").getAttribute("aria-label")'), 'About.')
     await capture(`about-page-hero-${width}`)
     const range = await evaluate(`(() => {
-      const compact = innerWidth < 768
-      const box = document.querySelector(compact ? '.about-process-scene' : '.about-process-track').getBoundingClientRect()
-      return { start: box.top + scrollY - innerHeight * (compact ? .82 : .65), end: box.bottom + scrollY - innerHeight * (compact ? .35 : .65) }
+      const box = document.querySelector('.about-process-track').getBoundingClientRect()
+      return { start: box.top + scrollY - innerHeight * .3, end: box.bottom + scrollY - innerHeight * .7 }
     })()`)
+    assert.equal(await evaluate('document.querySelector(".about-process").id'), 'about-method')
+    assert.equal(await evaluate('document.querySelector(".about-process-stages").getAttribute("role")'), 'tablist')
+    assert.equal(await evaluate('document.querySelector(".about-process-stages").getAttribute("aria-orientation")'), 'vertical')
+    assert.deepEqual(await evaluate('[...document.querySelectorAll(".about-method-step-name")].map(element => element.textContent.trim())'), ['Question', 'Prototype', 'Shared project'])
+    const titles = ['Question', 'Prototype', 'Shared project']
     const states = []
-    for (const progress of [0, .5, 1, .5, 0]) {
+    for (const stage of [0, 1, 2, 1, 0]) {
+      const progress = stage / 2
       await scroll(range.start + (range.end - range.start) * progress)
+      await evaluate(`document.querySelectorAll('.about-process-stages [role="tab"]')[${stage}].click()`)
+      await until(`document.querySelectorAll('.about-process-stages [role="tab"]')[${stage}].getAttribute('aria-selected') === 'true'`)
+      await pause(350)
       const state = await sample()
       assert(!state.overflow && !state.pin, `${width}: stable reading flow`)
-      assert(Math.abs(state.progress - progress) < .02, `${width}: path follows scroll (${state.progress} vs ${progress})`)
-      assert(state.error < 1, `${width}: the particle remains on the SVG path`)
-      if (progress === .5) assert(state.prototype > .98 && state.sketch < .02 && state.shared < .02, 'The prototype is visible at the middle stage')
-      if (progress === 1) assert(state.shared > .98, 'The shared project completes the sequence')
+      assert.equal(state.stage, stage, `${width}: requested Method stage is selected`)
+      assert.equal(state.title, titles[stage], `${width}: the selected panel has the real stage heading`)
+      assert(state.copy.length > 40, `${width}: the selected panel explains the working step`)
+      assert(state.linked && state.visibility && state.roving, `${width}: tabs control exactly one visible linked panel`)
+      assert(state.opacity > .98, `${width}: the selected panel is fully visible`)
       if (states.length) assert.equal(state.height, states[0].height, 'Animation does not change document height')
       states.push(state)
       if (progress === .5 && states.length === 2) await capture(`about-page-process-${width}`)
     }
-    assert(Math.abs(states[1].progress - states[3].progress) < .002, 'Scroll reversal returns to the same frame')
+    assert.equal(states[1].title, states[3].title, 'Revisiting a stage returns to the same detail')
+    await evaluate('document.querySelectorAll(".about-process-stages [role=tab]")[0].focus({preventScroll:true})')
+    await key('End', 'End', 35)
+    await until('document.querySelectorAll(".about-process-stages [role=tab]")[2].getAttribute("aria-selected") === "true"')
+    assert.equal(await evaluate('document.activeElement === document.querySelectorAll(".about-process-stages [role=tab]")[2]'), true, 'End selects and focuses the final Method tab')
+    await key('ArrowUp', 'ArrowUp', 38)
+    await until('document.querySelectorAll(".about-process-stages [role=tab]")[1].getAttribute("aria-selected") === "true"')
+    await key('Home', 'Home', 36)
+    await until('document.querySelectorAll(".about-process-stages [role=tab]")[0].getAttribute("aria-selected") === "true"')
+    assert.equal(await evaluate('document.activeElement === document.querySelectorAll(".about-process-stages [role=tab]")[0]'), true, 'Home selects and focuses the first Method tab')
     await evaluate('document.querySelector(".about-fields").scrollIntoView()')
     await pause(160)
     await evaluate('document.querySelector(".about-field button").focus()')
     assert.equal(await evaluate('getComputedStyle(document.activeElement).outlineStyle'), 'solid')
-    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 })
-    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 })
+    await key('Enter', 'Enter', 13)
     await pause(650)
     assert.equal(await evaluate('document.querySelector(".about-field button").getAttribute("aria-expanded")'), 'true')
     assert(await evaluate('document.querySelector(".about-field-detail").getBoundingClientRect().height > 20'))
     await capture(`about-page-fields-${width}`)
     report.push({ width, height, states })
-    console.log(`PASS ${width}x${height}: motion, reversal, stable layout, keyboard accordion`)
+    console.log(`PASS ${width}x${height}: Method tabs, reversal, stable layout, keyboard accordion`)
   }
   await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] })
   await pause(300)
   assert.equal(await evaluate('document.querySelector(".about-page").dataset.motion'), 'reduced')
-  assert.equal(await evaluate('getComputedStyle(document.querySelector(".about-scene-shared")).opacity'), '1')
+  const reducedMethod = await sample()
+  assert.equal(reducedMethod.stage, 0)
+  assert(reducedMethod.linked && reducedMethod.visibility && reducedMethod.roving, 'Reduced motion preserves the Method tab contract')
+  assert.equal(reducedMethod.opacity, 1, 'Reduced motion keeps the selected Method panel visible')
   await scroll(0)
   assert.equal(await evaluate('getComputedStyle(document.querySelector(".page-hero-letter")).transform'), 'none')
   assert.equal(await evaluate('document.documentElement.classList.contains("lenis")'), false)
