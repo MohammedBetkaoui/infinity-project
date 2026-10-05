@@ -9,7 +9,7 @@ import TeamLightboxModal from './TeamLightboxModal'
 import useTeamCarousel from './useTeamCarousel'
 import './team-carousel.css'
 
-const initialIndex = Math.max(0, communityPortraits.findIndex((member) => member.role === 'President'))
+const initialIndex = Math.max(0, communityPortraits.findIndex((member) => member.id === 'green-skhara'))
 
 export default function TeamCarousel() {
   const sectionRef = useRef(null)
