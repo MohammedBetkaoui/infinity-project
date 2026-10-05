@@ -1,10 +1,7 @@
 node_modules/
 dist/
-.browser-motion-audit/
-.browser-about-profile/
-.browser-admin-audit/
-.browser-home-hero/
-.browser-home-hero-profile/
+# Local browser profiles and visual-audit captures (cookies, history, screenshots)
+.browser-*/
 
 !.env.example
 .env
