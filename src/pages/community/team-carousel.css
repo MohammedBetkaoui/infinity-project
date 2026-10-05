@@ -9,7 +9,9 @@
   padding-block: clamp(72px, 7vw, 108px) clamp(56px, 6vw, 88px);
   overflow: hidden;
   color: var(--team-cream);
-  background: #071f18;
+  background:
+    linear-gradient(to bottom, #03271d, rgb(3 39 29 / .72) 52px, transparent 124px),
+    #071f18;
 }
 .team-gallery::before {
   position: absolute;
