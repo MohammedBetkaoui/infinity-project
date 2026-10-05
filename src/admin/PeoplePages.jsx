@@ -23,6 +23,7 @@ export function ApplicationSubmittedAt({ value, compact = false }) {
 const titles = { applications: ['People · Join intake', 'Join applications', 'Every new connection starts here. Review, meet and welcome the next Infinity members.'], members: ['Community · Member directory', 'Members', 'The people who make Infinity. Follow their journey, participation and interests.'], staff: ['Operations · Team structure', 'Staff operations', 'Three departments. One shared direction. Keep your team coordinated.'] }
 const unique = (items, key) => [...new Set(items.map((item) => item[key]))].filter(Boolean)
 const Person = ({ record }) => <div className="adm-person-cell"><Avatar initials={record.initials} small/><span><b>{record.name}</b><small>{record.email || record.id}</small></span>{record.status === 'New' && <i title="New application"/>}</div>
+const activityOf = (record, isStaff) => Number(record.activityCount ?? (isStaff ? record.assignedProjects?.length : record.events?.length) ?? 0) || 0
 
 export function PeopleCardGrid({ records, isStaff, selected, onSelect, onBulk, onOpen, pagination, onPageChange }) {
   const [page, setPage] = useState(1)
@@ -36,17 +37,22 @@ export function PeopleCardGrid({ records, isStaff, selected, onSelect, onBulk, o
   const selectAll = visible.length > 0 && visible.every((record) => selected.includes(record.id))
   const toggle = (id) => onSelect(selected.includes(id) ? selected.filter((value) => value !== id) : [...selected, id])
   const togglePage = () => onSelect(selectAll ? selected.filter((id) => !visible.some((record) => record.id === id)) : [...new Set([...selected, ...visible.map((record) => record.id)])])
+  // Bars compare each profile with the most active one on screen; the count stays visible.
+  const maxActivity = Math.max(1, ...visible.map((record) => activityOf(record, isStaff)))
 
   return <section className={`adm-people-board ${isStaff ? 'is-staff' : 'is-members'}`} aria-label={isStaff ? 'Staff cards' : 'Member cards'}>
     <BulkBar count={selected.length} onClear={() => onSelect([])} onStatus={onBulk}/>
     <header className="adm-people-board__head"><div><span>{isStaff ? 'Operational roster' : 'Community directory'}</span><b>{count} {isStaff ? 'staff profiles' : 'member profiles'}</b></div><div><label className="adm-card-select-all"><input type="checkbox" checked={selectAll} onChange={togglePage}/><span>Select this page</span></label>{!remote && <label className="adm-people-board__order"><span>Order by</span><select value={order} onChange={(event) => { setOrder(event.target.value); setPage(1) }}><option value="name">Name</option><option value="status">Status</option><option value="structure">{isStaff ? 'Department' : 'Primary pole'}</option></select></label>}</div></header>
-    {visible.length ? <div className="adm-people-card-grid">{visible.map((record, index) => <article key={record.id} className={`adm-people-card ${selected.includes(record.id) ? 'is-selected' : ''} ${record.status !== 'Active' ? 'is-muted' : ''}`}>
-      <div className="adm-people-card__rail"><code>{record.ref || record.id}</code><span>{isStaff ? `STAFF / ${String((current - 1) * pageSize + index + 1).padStart(2, '0')}` : `MEMBER / ${record.cohort}`}</span><label><input type="checkbox" checked={selected.includes(record.id)} onChange={() => toggle(record.id)}/><span className="sr-only">Select {record.name}</span></label></div>
-      <header className="adm-people-card__identity"><Avatar initials={record.initials}/><div><span>{isStaff ? 'Operational profile' : 'Infinity member'}</span><h3>{record.name}</h3><p>{isStaff ? record.role : `${record.level} · ${record.speciality}`}</p></div><StatusBadge>{record.status}</StatusBadge></header>
-      {isStaff ? <div className="adm-staff-assignment"><div><span>Requested</span><b>{record.requested}</b></div><i><ArrowRight size={14}/></i><div><span>Current department</span><b>{record.department}</b></div></div> : <div className="adm-member-pole"><span>Primary pole</span><b>{record.pole}</b><small>{record.skills || 'Collaborative projects and peer learning'}</small></div>}
-      <dl className="adm-people-card__facts">{isStaff ? <><div><dt>Study level</dt><dd>{record.level}</dd></div><div><dt>Availability</dt><dd>{record.availability}</dd></div><div><dt>Active projects</dt><dd>{record.activityCount ?? record.assignedProjects?.length ?? 0}</dd></div><div><dt>Contact</dt><dd>{record.email}</dd></div></> : <><div><dt>Joined</dt><dd>{record.joined}</dd></div><div><dt>Last activity</dt><dd>{record.last}</dd></div><div><dt>Cohort</dt><dd>{record.cohort}</dd></div><div><dt>Events attended</dt><dd>{record.activityCount ?? record.events?.length ?? 0}</dd></div></>}</dl>
-      <footer><button onClick={() => onOpen(record)}><span>{isStaff ? 'Open operational profile' : 'Open member profile'}</span><ArrowRight size={16}/></button></footer>
-    </article>)}</div> : <EmptyState title={isStaff ? 'No staff profiles match this view' : 'No members match this view'} copy="Adjust the search or remove one of the active filters."/>}
+    {visible.length ? <div className="adm-people-card-grid">{visible.map((record) => {
+      const activity = activityOf(record, isStaff)
+      return <article key={record.id} data-flip-id={record.id} className={`adm-person-card ${selected.includes(record.id) ? 'is-selected' : ''}`}>
+        <div className="adm-person-card__top"><StatusBadge>{record.status}</StatusBadge><label className="adm-person-card__select"><input type="checkbox" checked={selected.includes(record.id)} onChange={() => toggle(record.id)}/><span className="sr-only">Select {record.name}</span></label></div>
+        <header className="adm-person-card__identity"><Avatar initials={record.initials}/><h3>{record.name}</h3><p>{isStaff ? record.role : record.pole}</p><small>{isStaff ? record.department : `${record.level} · ${record.speciality}`}</small></header>
+        <dl className="adm-person-card__stats"><div><dt>{isStaff ? 'Projects' : 'Events'}</dt><dd>{activity}</dd></div><div><dt>{isStaff ? 'Study level' : 'Cohort'}</dt><dd>{isStaff ? record.level : record.cohort}</dd></div></dl>
+        <div className="adm-person-card__meter"><p><span>{isStaff ? 'Project load' : 'Participation'}</span><b>{activity} {isStaff ? (activity === 1 ? 'project' : 'projects') : (activity === 1 ? 'event' : 'events')}</b></p><i role="img" aria-label={`${activity} ${isStaff ? 'projects' : 'events'}, compared with the most active profile shown (${maxActivity})`}><span style={{ width: `${Math.round(activity / maxActivity * 100)}%` }}/></i></div>
+        <footer>{record.email ? <a className="adm-button adm-button--secondary" href={`mailto:${record.email}`}><Mail size={15} aria-hidden="true"/>Email<span className="sr-only"> {record.name}</span></a> : <span className="adm-button adm-button--secondary is-disabled" aria-disabled="true"><Mail size={15} aria-hidden="true"/>Email</span>}<button className="adm-button adm-button--primary" onClick={() => onOpen(record)} aria-label={`${isStaff ? 'Open operational profile' : 'Open member profile'}: ${record.name}`}>Profile<ArrowRight size={15} aria-hidden="true"/></button></footer>
+      </article>
+    })}</div> : <EmptyState title={isStaff ? 'No staff profiles match this view' : 'No members match this view'} copy="Adjust the search or remove one of the active filters."/>}
     {count > 0 && <Pagination current={current} count={count} pageSize={pageSize} onChange={onPageChange || setPage}/>}
   </section>
 }

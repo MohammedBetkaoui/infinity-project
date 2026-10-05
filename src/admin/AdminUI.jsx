@@ -118,12 +118,50 @@ export function Pagination({ current = 1, count = 0, pageSize = 6, onChange = ()
   )
 }
 
-export function Tabs({ items, value, onChange, counts = {}, getLabel = (item) => item }) {
+export function Tabs({ items, value, onChange, counts = {}, getLabel = (item) => item, orientation, className = '', label }) {
+  const vertical = orientation === 'vertical'
+  // Arrow keys move between tabs (vertical lists use up/down as well).
+  const move = (event) => {
+    const keys = vertical ? ['ArrowUp', 'ArrowDown'] : ['ArrowLeft', 'ArrowRight']
+    if (!keys.includes(event.key)) return
+    event.preventDefault()
+    const rtl = getComputedStyle(event.currentTarget).direction === 'rtl'
+    const forward = event.key === 'ArrowDown' || event.key === (rtl ? 'ArrowLeft' : 'ArrowRight')
+    const index = items.indexOf(value)
+    const next = items[(index + (forward ? 1 : -1) + items.length) % items.length]
+    onChange(next)
+    event.currentTarget.querySelector(`[data-tab="${CSS.escape(next)}"]`)?.focus()
+  }
   return (
-    <div className="adm-tabs" role="tablist">
-      {items.map((item) => <button role="tab" aria-selected={value === item} className={value === item ? 'is-active' : ''} key={item} onClick={() => onChange(item)}>{getLabel(item)}{counts[item] != null && <span>{counts[item]}</span>}</button>)}
+    <div className={`adm-tabs ${vertical ? 'is-vertical' : ''} ${className}`.trim()} role="tablist" aria-orientation={vertical ? 'vertical' : undefined} aria-label={label} onKeyDown={move}>
+      {items.map((item) => <button role="tab" data-tab={item} aria-selected={value === item} tabIndex={value === item ? 0 : -1} className={value === item ? 'is-active' : ''} key={item} onClick={() => onChange(item)}>{getLabel(item)}{counts[item] != null && <span>{counts[item]}</span>}</button>)}
     </div>
   )
+}
+
+// A compact pill switch for mutually exclusive views or ranges.
+export function SegmentedControl({ options, value, onChange, label, className = '' }) {
+  const index = Math.max(0, options.findIndex((option) => option.value === value))
+  const move = (event) => {
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return
+    event.preventDefault()
+    const rtl = getComputedStyle(event.currentTarget).direction === 'rtl'
+    const forward = ['ArrowDown', rtl ? 'ArrowLeft' : 'ArrowRight'].includes(event.key)
+    const next = options[(index + (forward ? 1 : -1) + options.length) % options.length]
+    onChange(next.value)
+    event.currentTarget.querySelector(`[data-value="${CSS.escape(next.value)}"]`)?.focus()
+  }
+  return <div className={`adm-segmented ${className}`.trim()} role="radiogroup" aria-label={label} onKeyDown={move} style={{ '--adm-segment': index, '--adm-segments': options.length }}>
+    <span className="adm-segmented__thumb" aria-hidden="true"/>
+    {options.map((option) => <button key={option.value} type="button" role="radio" data-value={option.value} aria-checked={option.value === value} tabIndex={option.value === value ? 0 : -1} className={option.value === value ? 'is-active' : ''} onClick={() => onChange(option.value)}>{option.icon}{option.label}</button>)}
+  </div>
+}
+
+// Filter chips: one choice at a time, each with its live count.
+export function ChipGroup({ options, value, onChange, label }) {
+  return <div className="adm-chips" role="group" aria-label={label}>
+    {options.map((option) => <button key={option.value || 'all'} type="button" aria-pressed={option.value === value} className={option.value === value ? 'is-active' : ''} onClick={() => onChange(option.value)}>{option.label}{option.count != null && <span>{option.count}</span>}</button>)}
+  </div>
 }
 
 export function Modal({ open, onClose, title, eyebrow = 'Confirmation', children, footer, wide = false, className = '', closeLabel = 'Close' }) {
