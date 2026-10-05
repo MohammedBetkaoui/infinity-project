@@ -53,13 +53,13 @@ export function Button({ children, variant = 'primary', icon, className = '', ..
   return <button className={`adm-button adm-button--${variant} ${className}`} {...props}>{children}{icon}</button>
 }
 
-export function SearchField({ value, onChange, placeholder = 'Search', className = '', label = 'Search', clearLabel = 'Clear search' }) {
+export function SearchField({ value, onChange, placeholder = 'Search', className = '', label = 'Search', clearLabel = 'Clear search', shortcut }) {
   return (
     <label className={`adm-search ${className}`}>
       <Search size={17} aria-hidden="true" />
       <span className="sr-only">{label}</span>
-      <input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
-      {value && <button type="button" onClick={() => onChange('')} aria-label={clearLabel}><X size={14} /></button>}
+      <input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} aria-keyshortcuts={shortcut ? 'Control+K Meta+K' : undefined} />
+      {value ? <button type="button" onClick={() => onChange('')} aria-label={clearLabel}><X size={14} /></button> : shortcut && <kbd className="adm-search__hint" aria-hidden="true">{shortcut}</kbd>}
     </label>
   )
 }
@@ -146,7 +146,10 @@ export function ToastStack({ toasts }) {
   return <div className="adm-toasts" aria-live="polite">{toasts.map((toast) => <div className="adm-toast" key={toast.id}><CheckCircle2 size={18} /><div><b>{toast.title}</b><span>{toast.message}</span></div></div>)}</div>
 }
 
-function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen, language = 'en' }) {
+// Apple keyboards show ⌘K; everyone else reads the Ctrl shortcut that works for them.
+const SEARCH_SHORTCUT = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '') ? '⌘K' : 'Ctrl K'
+
+function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen, language = 'en', badges = {} }) {
   const navigate = useNavigate()
   const { user, logout } = useAdminAuth()
   const [signingOut, setSigningOut] = useState(false)
@@ -160,6 +163,7 @@ function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen, language 
   }
   const renderNavItem = (item) => {
     const Icon = icons[item.icon]
+    const badge = badges[item.icon] || 0
     return (
       <NavLink
         key={item.path}
@@ -168,8 +172,9 @@ function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen, language 
         className={({ isActive }) => `${isActive ? 'is-active' : ''} ${item.icon === 'aivex' ? 'is-aivex' : ''}`}
         title={collapsed ? t(item.label) : undefined}
       >
-        <Icon size={18} />
+        <Icon size={19} aria-hidden="true" />
         <span className="adm-nav-label">{t(item.label)}</span>
+        {badge > 0 && <em><span aria-hidden="true">{badge}</span><span className="sr-only">{badge} {t('to review')}</span></em>}
       </NavLink>
     )
   }
@@ -196,47 +201,56 @@ function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen, language 
         </div>
       </nav>
       <div className="adm-sidebar__foot">
-        <span className="adm-sidebar__operator-label">{t('Session holder')} · @{user.username}</span>
-        <button className="adm-admin-profile" onClick={() => navigate('/admin/settings')}>
+        <button className="adm-admin-profile" onClick={() => navigate('/admin/settings')} title={collapsed ? user.displayName : undefined}>
           <Avatar initials={initialsFor(user.displayName)} small />
           <span><b>{user.displayName}</b><small>@{user.username}</small><em>{roleLabel(user.role)}</em></span>
-          <MoreHorizontal size={17} />
+          <MoreHorizontal size={17} aria-hidden="true" />
         </button>
-        <button className="adm-signout" onClick={signOut} disabled={signingOut}><LogOut size={17} /><span>{signingOut ? t('Signing out…') : t('Sign out')}</span></button>
+        <button className="adm-signout" onClick={signOut} disabled={signingOut} title={collapsed ? t('Sign out') : undefined}><LogOut size={18} aria-hidden="true" /><span>{signingOut ? t('Signing out…') : t('Sign out')}</span></button>
+        <button className="adm-collapse" onClick={() => setCollapsed(!collapsed)} aria-label={t(collapsed ? 'Expand sidebar' : 'Collapse navigation')}><ChevronLeft size={18} aria-hidden="true" /><span>{t(collapsed ? 'Expand' : 'Collapse navigation')}</span></button>
       </div>
-      <button className="adm-collapse" onClick={() => setCollapsed(!collapsed)} aria-label={t(collapsed ? 'Expand sidebar' : 'Collapse navigation')}><ChevronLeft size={16} /><span>{t(collapsed ? 'Expand' : 'Collapse navigation')}</span></button>
     </aside>
   )
 }
 
-const breadcrumbNames = { overview: 'Overview', applications: 'Join applications', members: 'Members', staff: 'Staff', aivex: 'AIVEX files', activity: 'Activity log', settings: 'Settings' }
+// A zero-height sentinel tells the sticky bar when it has left the panel's
+// rounded top edge, so it can square its corners and lift with a shadow.
+function useStuckSentinel() {
+  const sentinel = useRef(null)
+  const [stuck, setStuck] = useState(false)
+  useEffect(() => {
+    const node = sentinel.current
+    if (!node || typeof IntersectionObserver === 'undefined') return undefined
+    const observer = new IntersectionObserver(([entry]) => setStuck(!entry.isIntersecting))
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
+  return [sentinel, stuck]
+}
 
 function Topbar({ setMobileOpen, query, setQuery, notify, hasNotifications, onNewAction, language = 'en' }) {
-  const { pathname } = useLocation()
   const navigate = useNavigate()
   const { user } = useAdminAuth()
+  const [sentinel, stuck] = useStuckSentinel()
   const isArabic = language === 'ar'
   const t = (value) => translateAivex(value, language)
-  const parts = pathname.split('/').filter(Boolean)
-  const page = breadcrumbNames[parts[1]] || 'Administration'
-  const teamDetail = parts[1] === 'aivex' && parts[2]
   return (
-    <header className="adm-topbar">
-      <div className="adm-topbar__left">
+    <>
+      <span ref={sentinel} className="adm-topbar-sentinel" aria-hidden="true" />
+      <header className={`adm-topbar ${stuck ? 'is-stuck' : ''}`}>
         <IconButton label={t('Open navigation')} className="adm-menu-trigger" onClick={() => setMobileOpen(true)}><Menu size={20} /></IconButton>
-        <div className="adm-breadcrumb"><span>{t('Infinity administration')}</span><ChevronRight size={13} /><b>{t(page)}</b>{teamDetail && <><ChevronRight size={13} /><b className="adm-breadcrumb__detail">{t('Team file')}</b></>}</div>
-      </div>
-      <div className="adm-topbar__right">
-        <SearchField value={query} onChange={setQuery} placeholder={t('Search anything…')} label={t('Search anything…')} clearLabel={isArabic ? 'مسح البحث' : 'Clear search'} className="adm-global-search" />
-        <IconButton label={t('Notifications')} className="adm-notification" onClick={notify}><Bell size={18} />{hasNotifications && <i />}</IconButton>
-        <Button onClick={onNewAction} icon={<Plus size={16} />}><span className="adm-new-action__label">{t('New action')}</span></Button>
-        <button className="adm-top-profile" aria-label={`${t('Open profile')}: ${user.displayName}`} onClick={() => navigate('/admin/settings')}><Avatar initials={initialsFor(user.displayName)} small /><span><b>{user.displayName}</b><small>@{user.username} · {roleLabel(user.role)}</small></span><ChevronDown size={14} /></button>
-      </div>
-    </header>
+        <SearchField value={query} onChange={setQuery} placeholder={t('Search anything…')} label={t('Search anything…')} clearLabel={isArabic ? 'مسح البحث' : 'Clear search'} className="adm-global-search" shortcut={SEARCH_SHORTCUT} />
+        <div className="adm-topbar__right">
+          <IconButton label={t('Notifications')} className="adm-notification" onClick={notify}><Bell size={19} />{hasNotifications && <i />}</IconButton>
+          <Button onClick={onNewAction} icon={<Plus size={17} />} className="adm-new-action"><span className="adm-new-action__label">{t('New action')}</span></Button>
+          <button className="adm-top-profile" aria-label={`${t('Open profile')}: ${user.displayName}`} onClick={() => navigate('/admin/settings')}><Avatar initials={initialsFor(user.displayName)} small /><span><b>{user.displayName}</b><small>@{user.username} · {roleLabel(user.role)}</small></span></button>
+        </div>
+      </header>
+    </>
   )
 }
 
-export function AdminShell({ children, collapsed, setCollapsed, mobileOpen, setMobileOpen, query, setQuery, onNotifications, hasNotifications, onNewAction }) {
+export function AdminShell({ children, collapsed, setCollapsed, mobileOpen, setMobileOpen, query, setQuery, onNotifications, hasNotifications, onNewAction, badges }) {
   const { pathname, search } = useLocation()
   const language = pathname.startsWith('/admin/aivex') && new URLSearchParams(search).get('lang') === 'ar' ? 'ar' : 'en'
   const isArabic = language === 'ar'
@@ -244,7 +258,7 @@ export function AdminShell({ children, collapsed, setCollapsed, mobileOpen, setM
   const livePeopleWorkspace = ['/admin/applications', '/admin/members', '/admin/staff'].includes(pathname)
   return (
     <div className={`adm-app ${collapsed ? 'is-sidebar-collapsed' : ''} ${isArabic ? 'is-aivex-ar' : ''}`} dir={isArabic ? 'rtl' : 'ltr'} lang={language}>
-      <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} language={language} />
+      <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} language={language} badges={badges} />
       {mobileOpen && <button className="adm-mobile-scrim" aria-label={t('Close navigation')} onClick={() => setMobileOpen(false)} />}
       <div className="adm-workspace">
         <Topbar setMobileOpen={setMobileOpen} query={query} setQuery={setQuery} notify={onNotifications} hasNotifications={hasNotifications} onNewAction={onNewAction} language={language} />
@@ -260,6 +274,7 @@ export function AivexOnlyShell({ children }) {
   const navigate = useNavigate()
   const { user, logout } = useAdminAuth()
   const [signingOut, setSigningOut] = useState(false)
+  const [sentinel, stuck] = useStuckSentinel()
   const language = pathname.startsWith('/admin/aivex') && new URLSearchParams(search).get('lang') === 'ar' ? 'ar' : 'en'
   const isArabic = language === 'ar'
   const t = (value) => translateAivex(value, language)
@@ -272,20 +287,21 @@ export function AivexOnlyShell({ children }) {
 
   return (
     <div className={`adm-app adm-aivex-standalone ${isArabic ? 'is-aivex-ar' : ''}`} dir={isArabic ? 'rtl' : 'ltr'} lang={language}>
-      <header className="adm-aivex-accessbar">
-        <div className="adm-aivex-accessbar__brand" aria-label="Infinity Club AIVEX administration">
-          <span className="adm-aivex-accessbar__mark"><InfinityMark/></span>
-          <span><b>INFINITY</b><small>{t('AIVEX administration')}</small></span>
-        </div>
-        <div className="adm-aivex-accessbar__session">
-          <span className="adm-aivex-accessbar__status"><i/>{t('Secure AIVEX workspace')}</span>
-          <span className="adm-aivex-accessbar__identity"><Avatar initials={initialsFor(user.displayName)} small/><span><b>{user.displayName}</b><small>@{user.username} · {roleLabel(user.role)}</small></span></span>
-          <button className="adm-aivex-accessbar__logout" type="button" onClick={signOut} disabled={signingOut}>
-            <LogOut size={17}/><span>{signingOut ? t('Signing out…') : t('Sign out')}</span>
-          </button>
-        </div>
-      </header>
       <div className="adm-workspace">
+        <span ref={sentinel} className="adm-topbar-sentinel" aria-hidden="true" />
+        <header className={`adm-aivex-accessbar ${stuck ? 'is-stuck' : ''}`}>
+          <div className="adm-aivex-accessbar__brand" aria-label="Infinity Club AIVEX administration">
+            <span className="adm-aivex-accessbar__mark"><InfinityMark/></span>
+            <span><b>INFINITY</b><small>{t('AIVEX administration')}</small></span>
+          </div>
+          <div className="adm-aivex-accessbar__session">
+            <span className="adm-aivex-accessbar__status"><i/>{t('Secure AIVEX workspace')}</span>
+            <span className="adm-aivex-accessbar__identity"><Avatar initials={initialsFor(user.displayName)} small/><span><b>{user.displayName}</b><small>@{user.username} · {roleLabel(user.role)}</small></span></span>
+            <button className="adm-aivex-accessbar__logout" type="button" onClick={signOut} disabled={signingOut}>
+              <LogOut size={17}/><span>{signingOut ? t('Signing out…') : t('Sign out')}</span>
+            </button>
+          </div>
+        </header>
         <main className="adm-main" id="admin-content">{children}</main>
         <footer className="adm-global-footer"><span><i/>{t('Protected AIVEX administration · Live records')}</span></footer>
       </div>
