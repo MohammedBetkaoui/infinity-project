@@ -14,11 +14,11 @@ export function coverflowPose(distance, progress, compact = false) {
   const depth = Math.min(1, Math.abs(distance))
   const direction = Math.sign(distance)
   return {
-    rotateY: -direction * depth * (compact ? 19 : 31),
-    scale: 1 - depth * (compact ? .13 : .17),
-    z: -depth * (compact ? 28 : 72),
-    y: depth * ((compact ? 9 : 17) + (progress - .5) * direction * (compact ? 8 : 26)),
-    shade: depth * .44,
+    rotateY: -direction * depth * (compact ? 10 : 18),
+    scale: 1 - depth * (compact ? .08 : .12),
+    z: -depth * (compact ? 20 : 42),
+    y: depth * ((compact ? 6 : 10) + (progress - .5) * direction * (compact ? 5 : 16)),
+    shade: depth * .54,
     opacity: Math.max(0, Math.min(1, 3.1 - Math.abs(distance))),
   }
 }

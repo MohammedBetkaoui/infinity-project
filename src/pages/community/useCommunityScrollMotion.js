@@ -7,16 +7,9 @@ export default function useCommunityScrollMotion(pageRef) {
       .forEach((title) => motion.revealText(title))
     page.querySelectorAll('.team-gallery-heading > p, .community-life-intro > p:not(.community-life-overline), .community-invitation-copy > p')
       .forEach((copy) => motion.revealText(copy, { type: 'lines' }))
-    // Scroll owns the outer frame; Framer Motion owns the inner, draggable portrait.
-    // In viewport mode (like Home) the group enters together when the stage
-    // does; `trigger` groups, `stagger` cascades.
+    // Reveal the collection together; the draggable frames own their own movement.
     motion.revealSection('.team-frame-reveal', {
       mode: 'depth', trigger: page.querySelector('.team-stage'), stagger: .065,
-    })
-    page.querySelectorAll('.team-frame-scroll').forEach((frame, index) => {
-      motion.parallaxElement(frame, .08 + Math.abs(index - 3) * .035, {
-        trigger: page.querySelector('.team-stage'), axis: 'y',
-      })
     })
     motion.revealSection('.team-caption-row', { mode: 'fade' })
     motion.revealSection('.team-name-selector', { mode: 'fade' })

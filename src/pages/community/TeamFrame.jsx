@@ -1,5 +1,4 @@
 import { motion, useTransform } from 'framer-motion'
-import { Maximize2 } from 'lucide-react'
 import { coverflowPose, TEAM_LAYOUT } from './teamMotion'
 
 export default function TeamFrame({ member, index, initialIndex, active, near, x, step, compact, reduced, onActivate, layoutId }) {
@@ -24,9 +23,6 @@ export default function TeamFrame({ member, index, initialIndex, active, near, x
             aria-label={active ? `View ${member.name}'s portrait full size` : `Select ${member.name}'s portrait`}
             aria-haspopup={active ? 'dialog' : undefined}
             onClick={onActivate}
-            initial="rest"
-            whileHover={reduced ? undefined : 'hover'}
-            whileFocus={reduced ? undefined : 'hover'}
           >
             <motion.img
               layoutId={reduced ? undefined : layoutId}
@@ -41,14 +37,6 @@ export default function TeamFrame({ member, index, initialIndex, active, near, x
             />
             <motion.span className="team-frame-shade" style={{ opacity: shade }} aria-hidden="true" />
             <span className="team-frame-edge" aria-hidden="true" />
-            <motion.span
-              className="team-frame-view"
-              aria-hidden="true"
-              variants={{ rest: { scale: 1 }, hover: { scale: [1, 1.045, 1] } }}
-              transition={{ duration: .34, ease: 'easeOut' }}
-            >
-              <Maximize2 size={14} strokeWidth={1.5} /> View portrait
-            </motion.span>
           </motion.button>
         </motion.div>
       </div></div>
