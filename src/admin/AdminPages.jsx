@@ -1,12 +1,14 @@
-import { useId } from 'react'
+import { useId, useRef } from 'react'
 import {
   ArrowRight, ArrowUpRight, BriefcaseBusiness, Check, Clock3, FileWarning,
   RefreshCw, Trophy, UserRoundPlus, Users,
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
+import AnimatedNumber from './AnimatedNumber'
 import OverviewChart from './OverviewChart'
 import { Avatar, Button, EmptyState, PageHeader, StatusBadge, SectionHeading } from './AdminUI'
 import { initialsOf } from './adminModel'
+import { useCascade, useDonutReveal, useGaugeReveal, useGrow } from './adminMotion'
 import { useAdminOverview } from './useAdminOverview'
 
 const DEPARTMENT_LABELS = Object.freeze({
@@ -84,12 +86,15 @@ function KpiCard({ label, value, copy, route, icon: Icon, hero = false, warning 
       <p className="adm-kpi__label">{label}</p>
       <Link className="adm-kpi__open" to={route} aria-label={`Open ${label}`}><ArrowUpRight size={18} aria-hidden="true"/></Link>
     </header>
-    <div className="adm-kpi__value"><strong>{value}</strong>{children}</div>
+    <div className="adm-kpi__value"><strong><AnimatedNumber value={value}/></strong>{children}</div>
     <p className={`adm-kpi__trend ${warning ? 'is-warning' : ''}`}>{copy}</p>
   </article>
 }
 
 function CommunityDonut({ segments, total }) {
+  const ref = useRef(null)
+  const id = useId()
+  useDonutReveal(ref, total)
   const radius = 58
   const circumference = 2 * Math.PI * radius
   const visible = segments.filter((segment) => segment.value > 0)
@@ -100,25 +105,38 @@ function CommunityDonut({ segments, total }) {
     const share = segment.value / Math.max(1, total)
     return [...list, { ...segment, share, from, to: from + share }]
   }, [])
-  return <div className="adm-donut">
+  // Two half-plane masks rotate into place to draw the ring clockwise (transform only).
+  return <div className="adm-donut" ref={ref}>
     <svg viewBox="0 0 150 150" aria-hidden="true">
+      <defs>
+        <clipPath id={`${id}-right`}><rect x="75" y="-10" width="85" height="170"/></clipPath>
+        <clipPath id={`${id}-left`}><rect x="-10" y="-10" width="85" height="170"/></clipPath>
+        <mask id={`${id}-sweep`} maskUnits="userSpaceOnUse" x="-10" y="-10" width="170" height="170">
+          <g clipPath={`url(#${id}-right)`}><rect className="adm-donut__sweep is-right" x="75" y="-10" width="85" height="170" fill="white"/></g>
+          <g clipPath={`url(#${id}-left)`}><rect className="adm-donut__sweep is-left" x="-10" y="-10" width="85" height="170" fill="white"/></g>
+        </mask>
+      </defs>
       <circle className="adm-donut__track" cx="75" cy="75" r={radius}/>
-      {arcs.map((arc) => <g key={arc.key} className="adm-donut__segment" style={{ '--adm-donut-turn': `${arc.from * 360 - 90}deg` }}>
-        <circle className={arc.key} cx="75" cy="75" r={radius} strokeDasharray={`${Math.max(0, arc.share * circumference - gap)} ${circumference}`}/>
-      </g>)}
+      <g mask={`url(#${id}-sweep)`}>
+        {arcs.map((arc) => <g key={arc.key} className="adm-donut__segment" style={{ '--adm-donut-turn': `${arc.from * 360 - 90}deg` }}>
+          <circle className={arc.key} cx="75" cy="75" r={radius} strokeDasharray={`${Math.max(0, arc.share * circumference - gap)} ${circumference}`}/>
+        </g>)}
+      </g>
     </svg>
-    <div className="adm-donut__total"><strong>{total}</strong><span>people</span></div>
+    <div className="adm-donut__total"><strong><AnimatedNumber value={total}/></strong><span>people</span></div>
   </div>
 }
 
 function PipelineGauge({ validated, review, registered }) {
+  const ref = useRef(null)
   const clip = useId()
+  useGaugeReveal(ref, `${validated}/${review}/${registered}`)
   const radius = 70
   const total = Math.max(1, registered)
   const validatedShare = Math.min(1, validated / total)
   const reviewShare = Math.min(1 - validatedShare, review / total)
   const arc = `M ${90 - radius} 90 A ${radius} ${radius} 0 0 1 ${90 + radius} 90`
-  return <div className="adm-gauge">
+  return <div className="adm-gauge" ref={ref}>
     <svg viewBox="0 0 180 104" aria-hidden="true">
       <defs><clipPath id={clip}><rect x="0" y="0" width="180" height="90"/><rect x="0" y="90" width="90" height="14"/></clipPath></defs>
       <path className="adm-gauge__track" d={arc} pathLength="100"/>
@@ -129,7 +147,7 @@ function PipelineGauge({ validated, review, registered }) {
         </g>
       </g>
     </svg>
-    <div className="adm-gauge__value"><strong>{percent(validated, registered)}%</strong><span>validated</span></div>
+    <div className="adm-gauge__value"><strong><AnimatedNumber value={percent(validated, registered)} suffix="%"/></strong><span>validated</span></div>
   </div>
 }
 
@@ -142,10 +160,13 @@ function OverviewLoading() {
 
 export function OverviewPage() {
   const navigate = useNavigate()
+  const pageRef = useRef(null)
   const { dashboard, loading, error, refresh } = useAdminOverview()
+  useCascade(pageRef, '.adm-kpi, .adm-overview-layout .adm-panel', Boolean(dashboard))
+  useGrow(pageRef, '.adm-pipeline__fill, .adm-department-row__bar span, .adm-study-levels > div > i span', Boolean(dashboard))
 
   if (!dashboard) {
-    return <div className="adm-page adm-overview-page">
+    return <div className="adm-page adm-overview-page" ref={pageRef}>
       <PageHeader eyebrow="Control room · Live data" title="Overview" description="The control point for Infinity Club and AIVEX registrations." actions={<Button variant="secondary" onClick={refresh} disabled={loading} icon={<RefreshCw size={15}/>}>Refresh</Button>}/>
       {loading ? <OverviewLoading/> : <div className="adm-overview-error"><EmptyState title="Overview unavailable" copy={error || 'The live administrative data could not be loaded.'}/><Button variant="secondary" onClick={refresh}>Try again</Button></div>}
     </div>
@@ -192,7 +213,7 @@ export function OverviewPage() {
     { key: 'new', label: 'Pending', value: community.pending },
   ]
 
-  return <div className="adm-page adm-overview-page">
+  return <div className="adm-page adm-overview-page" ref={pageRef}>
     <PageHeader
       eyebrow="Control room · Live data"
       title="Overview"

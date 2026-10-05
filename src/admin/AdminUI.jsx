@@ -11,6 +11,7 @@ import { useAdminAuth } from './AdminAuth'
 import { navItems } from './adminData'
 import { aivexPath, translateAivex } from './AivexI18n'
 import { STATUS_TRANSLATIONS } from './adminModel'
+import { useDialogMotion, usePageFade, useToastMotion } from './adminMotion'
 
 const icons = {
   overview: LayoutDashboard,
@@ -166,11 +167,13 @@ export function ChipGroup({ options, value, onChange, label }) {
 
 export function Modal({ open, onClose, title, eyebrow = 'Confirmation', children, footer, wide = false, className = '', closeLabel = 'Close' }) {
   const ref = useRef(null)
+  const layer = useRef(null)
   const titleId = useId()
   useDialog(ref, open, onClose)
+  useDialogMotion(layer, { kind: 'modal', active: open, exit: !className.includes('is-document-viewer') })
   if (!open) return null
   return (
-    <div className="adm-modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+    <div ref={layer} className="adm-modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <section ref={ref} tabIndex={-1} className={`adm-modal ${wide ? 'is-wide' : ''} ${className}`.trim()} role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <header><div><p className="adm-eyebrow">{eyebrow}</p><h2 id={titleId}>{title}</h2></div><IconButton label={closeLabel} onClick={onClose}><X size={19} /></IconButton></header>
         <div className="adm-modal__body">{children}</div>
@@ -180,8 +183,14 @@ export function Modal({ open, onClose, title, eyebrow = 'Confirmation', children
   )
 }
 
+function Toast({ toast }) {
+  const ref = useRef(null)
+  useToastMotion(ref)
+  return <div ref={ref} className="adm-toast"><CheckCircle2 size={18} /><div><b>{toast.title}</b><span>{toast.message}</span></div></div>
+}
+
 export function ToastStack({ toasts }) {
-  return <div className="adm-toasts" aria-live="polite">{toasts.map((toast) => <div className="adm-toast" key={toast.id}><CheckCircle2 size={18} /><div><b>{toast.title}</b><span>{toast.message}</span></div></div>)}</div>
+  return <div className="adm-toasts" aria-live="polite">{toasts.map((toast) => <Toast key={toast.id} toast={toast}/>)}</div>
 }
 
 // Apple keyboards show ⌘K; everyone else reads the Ctrl shortcut that works for them.
@@ -294,13 +303,15 @@ export function AdminShell({ children, collapsed, setCollapsed, mobileOpen, setM
   const isArabic = language === 'ar'
   const t = (value) => translateAivex(value, language)
   const livePeopleWorkspace = ['/admin/applications', '/admin/members', '/admin/staff'].includes(pathname)
+  const mainRef = useRef(null)
+  usePageFade(mainRef, pathname)
   return (
     <div className={`adm-app ${collapsed ? 'is-sidebar-collapsed' : ''} ${isArabic ? 'is-aivex-ar' : ''}`} dir={isArabic ? 'rtl' : 'ltr'} lang={language}>
       <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} language={language} badges={badges} />
       {mobileOpen && <button className="adm-mobile-scrim" aria-label={t('Close navigation')} onClick={() => setMobileOpen(false)} />}
       <div className="adm-workspace">
         <Topbar setMobileOpen={setMobileOpen} query={query} setQuery={setQuery} notify={onNotifications} hasNotifications={hasNotifications} onNewAction={onNewAction} language={language} />
-        <main className="adm-main" id="admin-content">{children}</main>
+        <main ref={mainRef} className="adm-main" id="admin-content">{children}</main>
         <footer className="adm-global-footer"><span><i />{livePeopleWorkspace ? 'Protected workspace · Live database records' : t('Protected workspace · Live database records')}</span></footer>
       </div>
     </div>
@@ -313,6 +324,8 @@ export function AivexOnlyShell({ children }) {
   const { user, logout } = useAdminAuth()
   const [signingOut, setSigningOut] = useState(false)
   const [sentinel, stuck] = useStuckSentinel()
+  const mainRef = useRef(null)
+  usePageFade(mainRef, pathname)
   const language = pathname.startsWith('/admin/aivex') && new URLSearchParams(search).get('lang') === 'ar' ? 'ar' : 'en'
   const isArabic = language === 'ar'
   const t = (value) => translateAivex(value, language)
@@ -340,7 +353,7 @@ export function AivexOnlyShell({ children }) {
             </button>
           </div>
         </header>
-        <main className="adm-main" id="admin-content">{children}</main>
+        <main ref={mainRef} className="adm-main" id="admin-content">{children}</main>
         <footer className="adm-global-footer"><span><i/>{t('Protected AIVEX administration · Live records')}</span></footer>
       </div>
     </div>
@@ -395,7 +408,9 @@ function useDialog(ref, open, onClose) {
 
 export function Drawer({ title, eyebrow, children, onClose, footer, className = '', closeLabel = 'Close details' }) {
   const ref = useRef(null)
+  const layer = useRef(null)
   const titleId = useId()
   useDialog(ref, true, onClose)
-  return <div className="adm-drawer-layer"><button className="adm-drawer-scrim" onClick={onClose} tabIndex={-1} aria-label={closeLabel} /><aside ref={ref} className={`adm-drawer ${className}`} role="dialog" aria-modal="true" aria-labelledby={titleId}><header className="adm-drawer__head"><div><p className="adm-eyebrow">{eyebrow}</p><h2 id={titleId}>{title}</h2></div><IconButton label={closeLabel} onClick={onClose}><X size={20}/></IconButton></header><div className="adm-drawer__scroll">{children}</div>{footer && <footer className="adm-drawer__actions">{footer}</footer>}</aside></div>
+  useDialogMotion(layer, { kind: 'drawer' })
+  return <div ref={layer} className="adm-drawer-layer"><button className="adm-drawer-scrim" onClick={onClose} tabIndex={-1} aria-label={closeLabel} /><aside ref={ref} className={`adm-drawer ${className}`} role="dialog" aria-modal="true" aria-labelledby={titleId}><header className="adm-drawer__head"><div><p className="adm-eyebrow">{eyebrow}</p><h2 id={titleId}>{title}</h2></div><IconButton label={closeLabel} onClick={onClose}><X size={20}/></IconButton></header><div className="adm-drawer__scroll">{children}</div>{footer && <footer className="adm-drawer__actions">{footer}</footer>}</aside></div>
 }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { ArrowRight, GripVertical, MoreHorizontal } from 'lucide-react'
 import { ActionDialog } from './AdminRecords'
 import { Avatar, StatusBadge } from './AdminUI'
+import { FlipGrid } from './adminMotion'
 import { BOARD_STAGES, applicationActionPayload, applicationMove } from './applicationMoves'
 import { useAdminApplicationActions, useAdminApplications } from './useAdminApplications'
 
@@ -71,9 +72,22 @@ export default function ApplicationsBoard({ search, filters, sort, counts, onOpe
   const { act } = useAdminApplicationActions()
   const [pending, setPending] = useState(null)
   const [drag, setDrag] = useState(null)
+  const [moved, setMoved] = useState(null)
   const dragRef = useRef(null)
   const suppressClick = useRef(false)
   const hintId = useId()
+  const refreshing = columns.some((column) => column.loading)
+  // The first load keeps every column on its skeleton until all six have
+  // answered, so the cards arrive together in one cascade.
+  const settled = columns.every((column) => column.resolvedKey)
+  // While the columns reload after a confirmed move, the card already shows in
+  // its new stage, so Flip can glide it there in a single commit.
+  const override = moved && refreshing ? moved : null
+  const recordsFor = (stage, column) => {
+    if (!override) return column.records
+    const rest = column.records.filter((record) => record.id !== override.id)
+    return stage === override.to ? [override.record, ...rest] : rest
+  }
 
   const requestMove = useCallback((record, stage) => {
     const move = applicationMove(record, stage)
@@ -156,31 +170,35 @@ export default function ApplicationsBoard({ search, filters, sort, counts, onOpe
       payload: applicationActionPayload(pending.move.action, values),
     })
     if (!result.ok) return result.message
+    setMoved({ id: pending.record.id, to: pending.stage, record: result.application || { ...pending.record, status: pending.stage } })
     columns.forEach((column) => column.refresh())
     onChanged()
     addToast(pending.move.title, 'The application and its administrative history were updated.')
     return undefined
   }
 
+  const flipKey = settled && BOARD_STAGES.map((stage, index) => recordsFor(stage, columns[index]).map((record) => record.id).join(',')).join('|')
+
   return <div className="adm-board-wrap">
     <p className="sr-only" id={hintId}>Open the application, or move it with the actions menu. Pointer users can also drag the card to another stage.</p>
-    <div className={`adm-board ${drag ? 'is-dragging' : ''}`}>
+    <FlipGrid className={`adm-board ${drag ? 'is-dragging' : ''}`} flipKey={flipKey}>
       {BOARD_STAGES.map((stage, index) => {
         const column = columns[index]
+        const records = recordsFor(stage, column)
         const total = counts[stage] ?? column.pagination.total
         const state = !drag ? '' : drag.from === stage ? 'is-origin' : drag.allowed.includes(stage) ? (drag.over === stage ? 'is-target' : 'is-droppable') : 'is-blocked'
-        return <section key={stage} className={`adm-board-column is-${STATUS_KEYS[stage]} ${state}`} data-board-stage={stage} aria-label={`${stage}: ${total} applications`}>
+        return <section key={stage} className={`adm-board-column is-${STATUS_KEYS[stage]} ${state} ${column.loading && records.length ? 'is-refreshing' : ''}`} data-board-stage={stage} aria-label={`${stage}: ${total} applications`}>
           <header><span className={`adm-board-dot is-${STATUS_KEYS[stage]}`} aria-hidden="true"/><h2>{stage}</h2><span className="adm-board-count">{total}</span></header>
           <div className="adm-board-column__cards">
             {column.error ? <p className="adm-board-note" role="alert">{column.error}</p>
-              : column.loading && !column.records.length ? <div className="adm-board-skeleton" aria-hidden="true"><i/><i/></div>
-                : column.records.length ? column.records.map((record) => <BoardCard key={record.id} record={record} stage={stage} hintId={hintId} onOpen={onOpen} onMove={requestMove} onDragStart={startDrag} dragging={drag?.id === record.id} suppressClick={suppressClick}/>)
+              : !settled || (column.loading && !records.length) ? <div className="adm-board-skeleton" aria-hidden="true"><i/><i/></div>
+                : records.length ? records.map((record) => <BoardCard key={record.id} record={record} stage={stage} hintId={hintId} onOpen={onOpen} onMove={requestMove} onDragStart={startDrag} dragging={drag?.id === record.id} suppressClick={suppressClick}/>)
                   : <p className="adm-board-note">No applications</p>}
           </div>
-          {total > column.records.length && <button type="button" className="adm-board-more" onClick={() => onShowStage(stage)}>View all {total} in the list<ArrowRight size={14} aria-hidden="true"/></button>}
+          {total > records.length && <button type="button" className="adm-board-more" onClick={() => onShowStage(stage)}>View all {total} in the list<ArrowRight size={14} aria-hidden="true"/></button>}
         </section>
       })}
-    </div>
+    </FlipGrid>
     {pending && <ActionDialog key={`${pending.record.id}-${pending.stage}`} action={{ title: pending.move.title, fields: pending.move.fields, danger: pending.move.danger, reason: false, description: false, eyebrow: pending.record.name }} onClose={() => setPending(null)} onSubmit={submit}/>}
   </div>
 }

@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Activity, ArrowRight, CalendarDays, Check, GraduationCap, Mail, Phone, Plus, UserCheck } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
+import { FlipGrid, useGrow } from './adminMotion'
 import { useAdmin } from './AdminStore'
 import { AVAILABILITY, APPLICATION_STATUSES, DEPARTMENTS, EXPERIENCE, LEVELS, POLES, dateLabel, filterRecords, initialsOf } from './adminModel'
 import { Avatar, BulkBar, Button, Drawer, EmptyState, PageHeader, Pagination, StatusBadge, Tabs } from './AdminUI'
@@ -25,7 +26,8 @@ const unique = (items, key) => [...new Set(items.map((item) => item[key]))].filt
 const Person = ({ record }) => <div className="adm-person-cell"><Avatar initials={record.initials} small/><span><b>{record.name}</b><small>{record.email || record.id}</small></span>{record.status === 'New' && <i title="New application"/>}</div>
 const activityOf = (record, isStaff) => Number(record.activityCount ?? (isStaff ? record.assignedProjects?.length : record.events?.length) ?? 0) || 0
 
-export function PeopleCardGrid({ records, isStaff, selected, onSelect, onBulk, onOpen, pagination, onPageChange }) {
+export function PeopleCardGrid({ records, isStaff, selected, onSelect, onBulk, onOpen, pagination, onPageChange, refreshing = false }) {
+  const boardRef = useRef(null)
   const [page, setPage] = useState(1)
   const [order, setOrder] = useState('name')
   const remote = Boolean(pagination)
@@ -39,11 +41,14 @@ export function PeopleCardGrid({ records, isStaff, selected, onSelect, onBulk, o
   const togglePage = () => onSelect(selectAll ? selected.filter((id) => !visible.some((record) => record.id === id)) : [...new Set([...selected, ...visible.map((record) => record.id)])])
   // Bars compare each profile with the most active one on screen; the count stays visible.
   const maxActivity = Math.max(1, ...visible.map((record) => activityOf(record, isStaff)))
+  // FlipGrid cascades the cards in and lets them glide when filtering changes
+  // the set; the activity meters fill as the cards arrive.
+  useGrow(boardRef, '.adm-person-card__meter i span', visible.length > 0)
 
-  return <section className={`adm-people-board ${isStaff ? 'is-staff' : 'is-members'}`} aria-label={isStaff ? 'Staff cards' : 'Member cards'}>
+  return <section ref={boardRef} className={`adm-people-board ${isStaff ? 'is-staff' : 'is-members'} ${refreshing ? 'is-refreshing' : ''}`} aria-label={isStaff ? 'Staff cards' : 'Member cards'} aria-busy={refreshing || undefined}>
     <BulkBar count={selected.length} onClear={() => onSelect([])} onStatus={onBulk}/>
     <header className="adm-people-board__head"><div><span>{isStaff ? 'Operational roster' : 'Community directory'}</span><b>{count} {isStaff ? 'staff profiles' : 'member profiles'}</b></div><div><label className="adm-card-select-all"><input type="checkbox" checked={selectAll} onChange={togglePage}/><span>Select this page</span></label>{!remote && <label className="adm-people-board__order"><span>Order by</span><select value={order} onChange={(event) => { setOrder(event.target.value); setPage(1) }}><option value="name">Name</option><option value="status">Status</option><option value="structure">{isStaff ? 'Department' : 'Primary pole'}</option></select></label>}</div></header>
-    {visible.length ? <div className="adm-people-card-grid">{visible.map((record) => {
+    {visible.length ? <FlipGrid className="adm-people-card-grid" flipKey={visible.map((record) => record.id).join('|')}>{visible.map((record) => {
       const activity = activityOf(record, isStaff)
       return <article key={record.id} data-flip-id={record.id} className={`adm-person-card ${selected.includes(record.id) ? 'is-selected' : ''}`}>
         <div className="adm-person-card__top"><StatusBadge>{record.status}</StatusBadge><label className="adm-person-card__select"><input type="checkbox" checked={selected.includes(record.id)} onChange={() => toggle(record.id)}/><span className="sr-only">Select {record.name}</span></label></div>
@@ -52,7 +57,7 @@ export function PeopleCardGrid({ records, isStaff, selected, onSelect, onBulk, o
         <div className="adm-person-card__meter"><p><span>{isStaff ? 'Project load' : 'Participation'}</span><b>{activity} {isStaff ? (activity === 1 ? 'project' : 'projects') : (activity === 1 ? 'event' : 'events')}</b></p><i role="img" aria-label={`${activity} ${isStaff ? 'projects' : 'events'}, compared with the most active profile shown (${maxActivity})`}><span style={{ width: `${Math.round(activity / maxActivity * 100)}%` }}/></i></div>
         <footer>{record.email ? <a className="adm-button adm-button--secondary" href={`mailto:${record.email}`}><Mail size={15} aria-hidden="true"/>Email<span className="sr-only"> {record.name}</span></a> : <span className="adm-button adm-button--secondary is-disabled" aria-disabled="true"><Mail size={15} aria-hidden="true"/>Email</span>}<button className="adm-button adm-button--primary" onClick={() => onOpen(record)} aria-label={`${isStaff ? 'Open operational profile' : 'Open member profile'}: ${record.name}`}>Profile<ArrowRight size={15} aria-hidden="true"/></button></footer>
       </article>
-    })}</div> : <EmptyState title={isStaff ? 'No staff profiles match this view' : 'No members match this view'} copy="Adjust the search or remove one of the active filters."/>}
+    })}</FlipGrid> : <EmptyState title={isStaff ? 'No staff profiles match this view' : 'No members match this view'} copy="Adjust the search or remove one of the active filters."/>}
     {count > 0 && <Pagination current={current} count={count} pageSize={pageSize} onChange={onPageChange || setPage}/>}
   </section>
 }

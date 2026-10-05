@@ -131,3 +131,12 @@ export function useAdminPreferences() {
   if (!value) throw new Error('useAdminPreferences must be used inside AdminPreferencesProvider')
   return value
 }
+
+// Motion helpers read the effective setting without requiring the provider,
+// falling back to the operating-system request outside the workspace.
+// eslint-disable-next-line react-refresh/only-export-components
+export function useEffectiveReducedMotion() {
+  const value = useContext(AdminPreferencesContext)
+  const osReducedMotion = useOperatingSystemReducedMotion()
+  return value ? value.effectiveReducedMotion : osReducedMotion
+}

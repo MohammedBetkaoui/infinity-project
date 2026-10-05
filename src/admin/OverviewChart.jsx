@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import AnimatedNumber from './AnimatedNumber'
 import { SectionHeading } from './AdminUI'
+import { useGrow } from './adminMotion'
 
 const PERIODS = ['30 days', '15 days']
 const CHART_SERIES = [
@@ -37,6 +39,9 @@ export default function OverviewChart({ series = [] }) {
   const data = useMemo(() => period === '15 days' ? series.slice(-3) : series, [period, series])
   const [active, setActive] = useState(Math.max(0, data.length - 1))
   const [preview, setPreview] = useState(null)
+  const plotRef = useRef(null)
+  // Capsules rise from the baseline on first paint and whenever the period changes.
+  useGrow(plotRef, '.adm-bar-track i', period)
 
   const safeActive = Math.min(active, Math.max(0, data.length - 1))
   const current = data[safeActive] || { member: 0, staff: 0, aivex: 0 }
@@ -51,11 +56,11 @@ export default function OverviewChart({ series = [] }) {
       title="Applications received"
       action={<PeriodSwitch value={period} onChange={changePeriod}/>}
     />
-    <div className="adm-chart-summary"><strong>{total}<span>total submissions</span></strong><p>Live database series<br/><b>{range}</b></p></div>
+    <div className="adm-chart-summary"><strong><AnimatedNumber value={total}/><span>total submissions</span></strong><p>Live database series<br/><b>{range}</b></p></div>
     <div className="adm-chart-legend">{CHART_SERIES.map(({ key, label }) => <span key={key}><i className={key}/>{label}</span>)}</div>
     <div className="adm-bar-chart">
       <div className="adm-chart-y" aria-hidden="true"><span>{maximum}</span><span>{midpoint}</span><span>0</span></div>
-      <div className="adm-chart-bars" style={{ gridTemplateColumns: `repeat(${Math.max(1, data.length)}, minmax(0, 1fr))` }} onPointerLeave={() => setPreview(null)}>
+      <div className="adm-chart-bars" ref={plotRef} style={{ gridTemplateColumns: `repeat(${Math.max(1, data.length)}, minmax(0, 1fr))` }} onPointerLeave={() => setPreview(null)}>
         {data.map((point, index) => {
           const empty = point.member + point.staff + point.aivex === 0
           const peak = Math.max(point.member, point.staff, point.aivex) / maximum
