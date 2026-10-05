@@ -5,6 +5,7 @@ import InfinityMark from '../components/InfinityMark'
 import { adminHomePath, adminPathForRole, hasFullAdminWorkspace } from './adminAccess'
 import { AdminAuthProvider, useAdminAuth } from './AdminAuth'
 import { adminLoginPathFor } from './adminAuthPath'
+import { useAdminAccent } from './adminAccent'
 import { AdminProvider, useAdmin } from './AdminStore'
 import {
   AdminPreferencesProvider, useAdminPreferences, useAdminReviewQueue,
@@ -42,6 +43,7 @@ function Workspace() {
   const { state, toasts } = useAdmin()
   const { user } = useAdminAuth()
   const { effectiveReducedMotion, preferences } = useAdminPreferences()
+  const [accent] = useAdminAccent()
   const { pathname, search: routeSearch } = useLocation()
   const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState(false)
@@ -77,7 +79,7 @@ function Workspace() {
   // server endpoint is available, so stale local people records never surface.
   const searchResults = query.trim() ? state.teams.filter((r) => `${r.name} ${r.ref || ''}`.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 8).map((record) => ({ collection: 'teams', record })) : []
   if (!hasFullAdminWorkspace(user.role)) {
-    return <div className={wrapperClassName} dir={isArabicAivex ? 'rtl' : 'ltr'} lang={language}>
+    return <div className={wrapperClassName} data-accent={accent} dir={isArabicAivex ? 'rtl' : 'ltr'} lang={language}>
       <a href="#admin-content" className="adm-skip-link">{t('Skip to workspace')}</a>
       <AivexOnlyShell>
         <Routes>
@@ -94,7 +96,7 @@ function Workspace() {
     if (preferences.reviewNotificationsEnabled) reviewQueue.refresh()
     setNotifications(true)
   }
-  return <div className={wrapperClassName} dir={isArabicAivex ? 'rtl' : 'ltr'} lang={language}><a href="#admin-content" className="adm-skip-link">{t('Skip to workspace')}</a><AdminShell collapsed={collapsed} setCollapsed={setCollapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} query={query} setQuery={setQuery} onNotifications={openNotifications} hasNotifications={preferences.reviewNotificationsEnabled && reviewQueue.items.length > 0} onNewAction={() => setNewAction(true)}>
+  return <div className={wrapperClassName} data-accent={accent} dir={isArabicAivex ? 'rtl' : 'ltr'} lang={language}><a href="#admin-content" className="adm-skip-link">{t('Skip to workspace')}</a><AdminShell collapsed={collapsed} setCollapsed={setCollapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} query={query} setQuery={setQuery} onNotifications={openNotifications} hasNotifications={preferences.reviewNotificationsEnabled && reviewQueue.items.length > 0} onNewAction={() => setNewAction(true)} badges={{ aivex: preferences.reviewNotificationsEnabled ? reviewQueue.items.length : 0 }}>
     <Routes><Route index element={<Navigate to="/admin/overview" replace/>}/><Route path="overview" element={<OverviewPage/>}/><Route path="applications" element={<ApplicationsPage key={`applications-${routeSearch}`}/>}/><Route path="members" element={<DirectoryPage key={`members-${routeSearch}`} kind="members"/>}/><Route path="staff" element={<DirectoryPage key={`staff-${routeSearch}`} kind="staff"/>}/><Route path="aivex" element={<AivexListPage key={routeSearch} globalQuery=""/>}/><Route path="aivex/:teamId" element={<AivexDetailPage key={pathname}/>}/><Route path="activity" element={<ActivityPage key={routeSearch} globalQuery=""/>}/><Route path="settings" element={<SettingsPage/>}/><Route path="*" element={<Navigate to="/admin/overview" replace/>}/></Routes>
   </AdminShell>
   {query.trim() && <div className="adm-global-results" role="region" aria-label={t('Global search results')}><header><Search size={15}/>{t('Search the workspace')}<button onClick={() => setQuery('')}>{t('Close')}</button></header>{searchResults.length ? searchResults.map(({ collection, record }) => <button key={`${collection}-${record.id}`} onClick={() => { navigate(collection === 'teams' ? preserveAivexLanguage(`/admin/aivex/${record.id}`) : `/admin/${collection}?record=${encodeURIComponent(record.id)}${collection === 'applications' ? `&stage=${record.status}` : ''}`); setQuery('') }}><span><b>{record.name}</b><small dir="ltr">{record.ref || record.email}</small></span><em>{collection === 'teams' ? 'AIVEX' : t(collection)}</em><FlowArrow size={15}/></button>) : <p>{t('No matching names or references.')}</p>}</div>}

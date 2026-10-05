@@ -1,12 +1,14 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
-import { RefreshCw, TriangleAlert, UserCheck } from 'lucide-react'
+import { KanbanSquare, List, RefreshCw, TriangleAlert, UserCheck } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { useAdminAuth } from './AdminAuth'
 import { useAdmin } from './AdminStore'
 import { ActionDialog, RecordTable, RecordToolbar } from './AdminRecords'
+import ApplicationsBoard from './ApplicationsBoard'
+import { applicationActionPayload } from './applicationMoves'
 import { ApplicationSubmittedAt, CandidateActionBar, CandidateDossier } from './PeoplePages'
 import { APPLICATION_STATUSES, AVAILABILITY, DEPARTMENTS, EXPERIENCE, LEVELS, POLES } from './adminModel'
-import { Avatar, Button, Modal, PageHeader, StatusBadge, Tabs } from './AdminUI'
+import { Avatar, Button, Modal, PageHeader, SegmentedControl, StatusBadge, Tabs } from './AdminUI'
 import { useAdminApplicationActions, useAdminApplications } from './useAdminApplications'
 
 const STATUS_KEYS = Object.freeze({
@@ -54,6 +56,8 @@ export default function ApplicationsPage() {
   const [detailLoading, setDetailLoading] = useState(Boolean(requestedRecordId))
   const [detailError, setDetailError] = useState('')
   const [action, setAction] = useState(null)
+  const [layout, setLayout] = useState('list')
+  const [boardVersion, setBoardVersion] = useState(0)
   const sortValue = `${SORT_KEYS[sort.key] || 'submitted'}_${sort.asc ? 'asc' : 'desc'}`
   const { records, pagination, counts: rawCounts, facets, loading, error, refresh } = useAdminApplications({
     page,
@@ -135,11 +139,6 @@ export default function ApplicationsPage() {
     description: false,
   })
 
-  const actionPayload = (actionName, values) => {
-    if (actionName === 'schedule_interview') return { scheduledAt: new Date(values.interviewAt).toISOString(), location: values.interviewLocation }
-    if (actionName === 'change_staff_department') return { department: values.track }
-    return {}
-  }
 
   const submitAction = async (values) => {
     if (action.bulk) {
@@ -161,11 +160,12 @@ export default function ApplicationsPage() {
       action: action.applicationAction,
       expectedUpdatedAt: detail.updatedAt,
       reason: '',
-      payload: actionPayload(action.applicationAction, values),
+      payload: applicationActionPayload(action.applicationAction, values),
     })
     if (!result.ok) return result.message
     setDetail(result.application)
     refresh()
+    setBoardVersion((value) => value + 1)
     addToast(action.title, 'The application and its administrative history were updated.')
     return undefined
   }
@@ -179,12 +179,12 @@ export default function ApplicationsPage() {
   })
 
   return <div className="adm-page adm-people-page adm-applications-page">
-    <PageHeader eyebrow="People · Join intake" title="Join applications" description="Every new connection starts here. Review, meet and welcome the next Infinity members." actions={<Button onClick={refresh} variant="secondary" icon={<RefreshCw size={16}/>}>Refresh applications</Button>}/>
+    <PageHeader eyebrow="People · Join intake" title="Join applications" description="Every new connection starts here. Review, meet and welcome the next Infinity members." actions={<><SegmentedControl label="Applications view" value={layout} onChange={(value) => { setLayout(value); setSelected([]) }} options={[{ value: 'list', label: 'List', icon: <List size={15} aria-hidden="true"/> }, { value: 'board', label: 'Board', icon: <KanbanSquare size={15} aria-hidden="true"/> }]}/><Button onClick={() => { refresh(); setBoardVersion((value) => value + 1) }} variant="secondary" icon={<RefreshCw size={16}/>}>Refresh applications</Button></>}/>
 
     <div className="adm-intake-banner"><div><UserCheck size={20}/><p><b>Live Join intake</b><span>Secure records received from the Infinity Join form</span></p></div><span className="adm-mono">{Object.values(counts).reduce((sum, value) => sum + value, 0)} IN CURRENT SCOPE</span></div>
 
     <div className="adm-work-panel">
-      <Tabs items={APPLICATION_STATUSES} value={tab} counts={counts} onChange={(value) => resetScope(() => setTab(value))}/>
+      {layout === 'list' && <Tabs items={APPLICATION_STATUSES} value={tab} counts={counts} onChange={(value) => resetScope(() => setTab(value))}/>}
       <RecordToolbar
         search={search}
         onSearch={(value) => resetScope(() => setSearch(value))}
@@ -192,9 +192,11 @@ export default function ApplicationsPage() {
         filters={filters}
         onFilters={(value) => resetScope(() => setFilters(value))}
         definitions={fields}
-        resultCount={pagination.total}
+        resultCount={layout === 'board' ? Object.values(counts).reduce((sum, value) => sum + value, 0) : pagination.total}
         filterLabel="Filters"
       />
+
+      {layout === 'board' ? <ApplicationsBoard key={boardVersion} search={deferredSearch} filters={filters} sort={sortValue} counts={counts} onOpen={open} onChanged={refresh} onShowStage={(stage) => { setLayout('list'); resetScope(() => setTab(stage)) }} addToast={addToast}/> : <>
 
       {error ? <div className="adm-state-error adm-applications-error" role="alert"><TriangleAlert size={24}/><h3>Applications could not be loaded</h3><p>{error}</p><Button onClick={refresh} variant="secondary" icon={<RefreshCw size={15}/>}>Try again</Button></div> : loading ? <ApplicationsSkeleton/> : <RecordTable
         records={records}
@@ -209,6 +211,7 @@ export default function ApplicationsPage() {
         onSortChange={(value) => resetScope(() => setSort(value))}
         emptyTitle={Object.values(filters).some(Boolean) || search ? 'No applications match these filters' : `No ${tab.toLowerCase()} applications`}
       />}
+      </>}
     </div>
 
     {detailLoading && <div className="adm-applications-detail-loading" role="status"><RefreshCw size={16}/><span>Opening secure application…</span></div>}

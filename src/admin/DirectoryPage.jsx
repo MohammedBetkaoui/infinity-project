@@ -5,7 +5,7 @@ import { useAdmin } from './AdminStore'
 import { ActionDialog, Facts, History, RecordTable, RecordToolbar, SummaryStrip } from './AdminRecords'
 import { PeopleCardGrid } from './PeoplePages'
 import { AVAILABILITY, DEPARTMENTS, LEVELS, POLES } from './adminModel'
-import { Avatar, Button, Drawer, PageHeader, StatusBadge } from './AdminUI'
+import { Avatar, Button, ChipGroup, Drawer, PageHeader, StatusBadge } from './AdminUI'
 import { useAdminPeople, useAdminPeopleActions } from './useAdminPeople'
 
 const STATUS_KEYS = Object.freeze({ Active: 'active', 'On pause': 'on_pause', Inactive: 'inactive', Alumni: 'alumni', Archived: 'archived' })
@@ -79,8 +79,11 @@ export default function DirectoryPage({ kind }) {
   ], [facets.specialities, facets.structures, isStaff, statusOptions])
   const quickFields = useMemo(() => [
     { key: 'structure', label: isStaff ? 'Current department' : 'Primary pole', shortLabel: isStaff ? 'Department' : 'Pole', allLabel: isStaff ? 'All departments' : 'All poles', options: facets.structures?.length ? facets.structures : (isStaff ? DEPARTMENTS : ['Unassigned', ...POLES]) },
-    { key: 'status', label: 'Status', allLabel: 'All statuses', options: statusOptions },
-  ], [facets.structures, isStaff, statusOptions])
+  ], [facets.structures, isStaff])
+  const statusChips = useMemo(() => [
+    { value: '', label: 'All', count: statusOptions.reduce((sum, status) => sum + (counts[STATUS_KEYS[status]] || 0), 0) },
+    ...statusOptions.map((status) => ({ value: status, label: status, count: counts[STATUS_KEYS[status]] || 0 })),
+  ], [counts, statusOptions])
   const columns = useMemo(() => [
     { key: 'name', label: 'Person', render: (record) => <Person record={record}/> },
     ...(isStaff ? [
@@ -157,7 +160,8 @@ export default function DirectoryPage({ kind }) {
     {isStaff && <div className="adm-operational-note"><Activity size={16}/><p>The <b>requested department</b> comes from Join. The <b>current department and internal role</b> are controlled by administration.</p></div>}
     <div className="adm-work-panel">
       <RecordToolbar search={search} onSearch={(value) => resetScope(() => setSearch(value))} placeholder="Search name, email, academic department or structure..." filters={filters} onFilters={(value) => resetScope(() => setFilters(value))} definitions={fields} quickDefinitions={quickFields} resultCount={pagination.total} filterLabel="All filters" view={activeView} onView={mobileCardsOnly ? undefined : setView}/>
-      {error ? <div className="adm-state-error" role="alert"><TriangleAlert size={24}/><h3>Directory could not be loaded</h3><p>{error}</p><Button onClick={refresh} variant="secondary">Try again</Button></div> : loading ? <DirectorySkeleton kind={kind}/> : activeView === 'cards' ? <PeopleCardGrid records={records} isStaff={isStaff} selected={selected} onSelect={setSelected} onBulk={openBulk} onOpen={open} pagination={pagination} onPageChange={(value) => { setPage(value); setSelected([]) }}/> : <RecordTable className={`adm-people-table-view ${isStaff ? 'is-staff' : 'is-members'}`} records={records} columns={columns} selected={selected} onSelect={setSelected} onOpen={open} onBulk={openBulk} pagination={pagination} onPageChange={(value) => { setPage(value); setSelected([]) }} controlledSort={sort} onSortChange={(value) => resetScope(() => setSort(value))} rowClassName={(record) => record.status === 'Active' ? 'is-profile-active' : 'is-profile-followup'}/>}
+      <div className="adm-chip-row"><ChipGroup label="Filter profiles by status" options={statusChips} value={filters.status || ''} onChange={(value) => resetScope(() => setFilters({ ...filters, status: value }))}/></div>
+      {error ? <div className="adm-state-error" role="alert"><TriangleAlert size={24}/><h3>Directory could not be loaded</h3><p>{error}</p><Button onClick={refresh} variant="secondary">Try again</Button></div> : loading && !records.length ? <DirectorySkeleton kind={kind}/> : activeView === 'cards' ? <PeopleCardGrid refreshing={loading} records={records} isStaff={isStaff} selected={selected} onSelect={setSelected} onBulk={openBulk} onOpen={open} pagination={pagination} onPageChange={(value) => { setPage(value); setSelected([]) }}/> : <RecordTable className={`adm-people-table-view ${isStaff ? 'is-staff' : 'is-members'} ${loading ? 'is-refreshing' : ''}`} records={records} columns={columns} selected={selected} onSelect={setSelected} onOpen={open} onBulk={openBulk} pagination={pagination} onPageChange={(value) => { setPage(value); setSelected([]) }} controlledSort={sort} onSortChange={(value) => resetScope(() => setSort(value))} rowClassName={(record) => record.status === 'Active' ? 'is-profile-active' : 'is-profile-followup'}/>}
     </div>
     {detailLoading && <div className="adm-applications-detail-loading" role="status"><RefreshCw size={16}/><span>Opening secure profile...</span></div>}
     {detail && <Drawer title={isStaff ? 'Operational profile' : 'Member profile'} eyebrow={detail.ref} onClose={() => setDetail(null)} footer={<>
@@ -165,11 +169,11 @@ export default function DirectoryPage({ kind }) {
       <div><button className="is-danger" disabled={!can('set_status')} onClick={() => openAction('Change profile status', 'set_status', [{ name: 'status', label: 'New status', options: statusOptions, value: detail.status }], { reason: true, danger: true })}>Change status</button></div>
     </>}>
       <div className="adm-candidate-identity"><Avatar initials={detail.initials}/><div><h3>{detail.name}</h3><p>{detail.role || detail.pole}</p></div><StatusBadge>{detail.status}</StatusBadge></div>
-      <section className="adm-detail-section"><h4><span>01</span>Identity & academic path</h4><Facts items={[["Email", detail.email], ['Phone', detail.phone], ['Study level', detail.level], ['Faculty', detail.faculty || '—'], ['Department', detail.speciality]]}/></section>
-      <section className="adm-detail-section"><h4><span>02</span>{isStaff ? 'Operational assignment' : 'Membership'}</h4><Facts items={isStaff ? [['Requested at registration', detail.requested], ['Current department', detail.department], ['Current internal role', detail.role], ['Availability', detail.availability]] : [['Primary pole', detail.pole], ['Cohort', detail.cohort], ['Entry date', detail.joined], ['Last activity', detail.last]]}/></section>
-      <section className="adm-detail-section"><h4><span>03</span>{isStaff ? 'Assigned projects' : 'Event participation'}</h4>{(isStaff ? detail.assignedProjects : detail.events)?.length ? <div className="adm-project-list">{(isStaff ? detail.assignedProjects : detail.events).map((item) => <p key={item}><span>{item}</span><StatusBadge tone="success">{isStaff ? 'Assigned' : 'Attended'}</StatusBadge></p>)}</div> : <p className="adm-muted">No {isStaff ? 'projects assigned' : 'participation recorded'} yet.</p>}</section>
-      <section className="adm-detail-section"><h4><span>04</span>Internal notes</h4><label className="sr-only" htmlFor="directory-note">Administrative note</label><textarea id="directory-note" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add context for your colleagues..."/><button className="adm-save-note" onClick={saveNote}>Save note</button></section>
-      <section className="adm-detail-section"><h4><span>05</span>History</h4><History items={detail.history}/></section>
+      <section className="adm-detail-section"><h4>Identity & academic path</h4><Facts items={[["Email", detail.email], ['Phone', detail.phone], ['Study level', detail.level], ['Faculty', detail.faculty || '—'], ['Department', detail.speciality]]}/></section>
+      <section className="adm-detail-section"><h4>{isStaff ? 'Operational assignment' : 'Membership'}</h4><Facts items={isStaff ? [['Requested at registration', detail.requested], ['Current department', detail.department], ['Current internal role', detail.role], ['Availability', detail.availability]] : [['Primary pole', detail.pole], ['Cohort', detail.cohort], ['Entry date', detail.joined], ['Last activity', detail.last]]}/></section>
+      <section className="adm-detail-section"><h4>{isStaff ? 'Assigned projects' : 'Event participation'}</h4>{(isStaff ? detail.assignedProjects : detail.events)?.length ? <div className="adm-project-list">{(isStaff ? detail.assignedProjects : detail.events).map((item) => <p key={item}><span>{item}</span><StatusBadge tone="success">{isStaff ? 'Assigned' : 'Attended'}</StatusBadge></p>)}</div> : <p className="adm-muted">No {isStaff ? 'projects assigned' : 'participation recorded'} yet.</p>}</section>
+      <section className="adm-detail-section"><h4>Internal notes</h4><label className="sr-only" htmlFor="directory-note">Administrative note</label><textarea id="directory-note" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add context for your colleagues..."/><button className="adm-save-note" onClick={saveNote}>Save note</button></section>
+      <section className="adm-detail-section"><h4>History</h4><History items={detail.history}/></section>
     </Drawer>}
     {action && <ActionDialog key={`${action.title}-${detail?.updatedAt || 'new'}`} action={action} onClose={() => setAction(null)} onSubmit={submitAction}/>}
   </div>
