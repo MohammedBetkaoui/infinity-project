@@ -253,7 +253,7 @@
 .adm-kpi__value { display: flex; align-items: end; justify-content: space-between; min-height: 48px; }
 .adm-kpi__value strong { font-size: 34px; font-weight: 700; line-height: 1; letter-spacing: -.03em; }
 .adm-kpi__bottom { margin-top: 12px; color: var(--adm-muted); font-size: 12px; }
-.adm-kpi__bottom > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adm-kpi__bottom > span { line-height: 1.4; }
 .adm-kpi__bottom code { display: none; }
 .adm-kpi--accent { color: var(--adm-cream); background: var(--adm-hero-gradient); border-color: transparent; }
 .adm-kpi--accent p, .adm-kpi--accent .adm-kpi__top, .adm-kpi--accent .adm-kpi__bottom { color: var(--adm-light-text); }
@@ -423,7 +423,7 @@
 .adm-person-cell { display: flex; align-items: center; min-width: 180px; gap: 10px; }
 .adm-person-cell > span:not(.adm-avatar) { display: grid; min-width: 0; }
 .adm-person-cell b { overflow: hidden; text-overflow: ellipsis; font-size: 13px; white-space: nowrap; }
-.adm-person-cell small { overflow: hidden; max-width: 200px; color: var(--adm-muted); text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.adm-person-cell small { max-width: 220px; color: var(--adm-muted); overflow-wrap: anywhere; font-size: 12px; }
 .adm-person-cell > i { width: 8px; height: 8px; flex: 0 0 8px; background: var(--adm-chart-3); border-radius: 50%; }
 .adm-cell-sub { display: block; margin-top: 2px; color: var(--adm-muted); font-size: 12px; }
 .adm-institution-cell { display: grid; min-width: 140px; }
