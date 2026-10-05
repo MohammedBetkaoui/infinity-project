@@ -75,8 +75,8 @@ function CandidateProgress({ status }) {
   </section>
 }
 
-function CandidateSection({ index, title, copy, children }) {
-  return <section className="adm-candidate-section"><header><code>{index}</code><div><h3>{title}</h3><p>{copy}</p></div></header>{children}</section>
+function CandidateSection({ title, copy, children }) {
+  return <section className="adm-candidate-section"><header><div><h3>{title}</h3><p>{copy}</p></div></header>{children}</section>
 }
 
 export function CandidateDossier({ detail, note = '', setNote, onSave, noteSaving = false }) {
@@ -89,29 +89,29 @@ export function CandidateDossier({ detail, note = '', setNote, onSave, noteSavin
 
     <CandidateProgress status={detail.status}/>
 
-    <CandidateSection index="01" title="Identity & contact" copy="Contact details supplied with the Join form.">
+    <CandidateSection title="Identity & contact" copy="Contact details supplied with the Join form.">
       <div className="adm-candidate-contact-grid"><div><i><Mail size={16}/></i><span><small>Email address</small><b>{detail.email}</b></span></div><div><i><Phone size={16}/></i><span><small>Phone number</small><b>{detail.phone || 'Not provided'}</b></span></div></div>
     </CandidateSection>
 
-    <CandidateSection index="02" title="Academic profile" copy="Current study level, faculty and department.">
+    <CandidateSection title="Academic profile" copy="Current study level, faculty and department.">
       <div className="adm-candidate-profile-grid"><div className="adm-candidate-feature"><i><GraduationCap size={18}/></i><span>Study level</span><strong>{detail.level}</strong></div><div><span>Faculty</span><b>{detail.faculty || '—'}</b></div><div><span>Department</span><b>{detail.speciality || 'Not provided'}</b></div></div>
     </CandidateSection>
 
-    <CandidateSection index="03" title="Join profile" copy={detail.type === 'Staff' ? 'Requested department is kept separate from the internal role assigned after acceptance.' : 'Declared interest, experience and semester availability.'}>
+    <CandidateSection title="Join profile" copy={detail.type === 'Staff' ? 'Requested department is kept separate from the internal role assigned after acceptance.' : 'Declared interest, experience and semester availability.'}>
       <div className="adm-candidate-track"><span>{detail.type === 'Staff' ? 'Requested staff department' : 'Primary interest'}</span><strong>{detail.track}</strong><StatusBadge tone={detail.type === 'Staff' ? 'info' : 'neutral'}>{detail.type}</StatusBadge></div>
       <Facts items={[["Experience level", detail.experience], ['Availability', detail.availability]]}/>
       {detail.interviewAt && <div className="adm-candidate-callout is-interview"><CalendarDays size={17}/><div><span>Interview scheduled</span><b>{detail.interviewAt.replace('T', ' ')} · {detail.interviewLocation}</b></div></div>}
     </CandidateSection>
 
-    <CandidateSection index="04" title="Intake metadata" copy="Administrative traceability for this Join application.">
+    <CandidateSection title="Intake metadata" copy="Administrative traceability for this Join application.">
       <Facts items={[["Application type", detail.type], ['Submission date', detail.date], ['Source', detail.source], ['Form version', detail.form], ['Contact consent', 'Recorded']]}/>
     </CandidateSection>
 
-    {onSave && setNote && <CandidateSection index="05" title="Internal notes" copy="Visible to Infinity administrators only.">
+    {onSave && setNote && <CandidateSection title="Internal notes" copy="Visible to Infinity administrators only.">
       <label className="sr-only" htmlFor="candidate-note">Administrative note</label><textarea id="candidate-note" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add review context for your colleagues…"/><button className="adm-save-note" onClick={onSave} disabled={noteSaving}>{noteSaving ? 'Saving note…' : 'Save internal note'}</button>
     </CandidateSection>}
 
-    <CandidateSection index={onSave && setNote ? '06' : '05'} title="Application history" copy="Decisions and follow-ups recorded by the administration."><History items={detail.history}/></CandidateSection>
+    <CandidateSection title="Application history" copy="Decisions and follow-ups recorded by the administration."><History items={detail.history}/></CandidateSection>
   </div>
 }
 

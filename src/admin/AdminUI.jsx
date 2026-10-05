@@ -24,6 +24,8 @@ const icons = {
 
 const initialsFor = (name = '') => name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'IA'
 const roleLabel = (role = '') => role.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+// A stable pastel per person, so the same initials always keep the same tint.
+const avatarTone = (initials = '') => [...String(initials)].reduce((sum, letter) => sum + letter.charCodeAt(0), 0) % 6
 
 export function IconButton({ label, children, className = '', ...props }) {
   return <button className={`adm-icon-button ${className}`} aria-label={label} title={label} {...props}>{children}</button>
@@ -35,7 +37,7 @@ export function StatusBadge({ children, tone }) {
 }
 
 export function Avatar({ initials, small = false }) {
-  return <span className={`adm-avatar ${small ? 'is-small' : ''}`} aria-hidden="true">{initials}</span>
+  return <span className={`adm-avatar ${small ? 'is-small' : ''}`} data-tone={avatarTone(initials)} aria-hidden="true">{initials}</span>
 }
 
 export function Progress({ value, label = 'Completeness' }) {
@@ -87,10 +89,10 @@ export function PageHeader({ eyebrow, title, description, actions, meta }) {
   )
 }
 
-export function SectionHeading({ index, title, meta, action }) {
+export function SectionHeading({ title, meta, action }) {
   return (
     <div className="adm-section-heading">
-      <div><span>{index}</span><h2>{title}</h2>{meta && <small>{meta}</small>}</div>
+      <div><h2>{title}</h2>{meta && <small>{meta}</small>}</div>
       {action}
     </div>
   )
@@ -166,9 +168,7 @@ function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen, language 
         className={({ isActive }) => `${isActive ? 'is-active' : ''} ${item.icon === 'aivex' ? 'is-aivex' : ''}`}
         title={collapsed ? t(item.label) : undefined}
       >
-        <span className="adm-nav-index">{item.index}</span>
-        <span className="adm-nav-node" aria-hidden="true" />
-        <Icon size={17} />
+        <Icon size={18} />
         <span className="adm-nav-label">{t(item.label)}</span>
       </NavLink>
     )
@@ -178,25 +178,23 @@ function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen, language 
       <div className="adm-brand">
         <div className="adm-brand__mark"><InfinityMark /></div>
         <div className="adm-brand__copy"><strong>INFINITY</strong><span>{t('Club administration')}</span></div>
-        <code className="adm-brand__unit">CTRL<br/>02</code>
         <IconButton label={t('Close navigation')} className="adm-sidebar-mobile-close" onClick={() => setMobileOpen(false)}><X size={18} /></IconButton>
       </div>
       <div className="adm-sidebar__campaign"><span>{t('Academic cycle')}</span><b>2026—27</b><small>{t('Autumn intake · Active')}</small><i /></div>
       <nav aria-label={isArabic ? 'إدارة Infinity' : 'Administration'}>
         <div className="adm-nav-group">
-          <div className="adm-nav-group__label"><span>{t('Club workspace')}</span><code>04</code></div>
+          <div className="adm-nav-group__label"><span>{t('Club workspace')}</span></div>
           {navItems.slice(0, 4).map(renderNavItem)}
         </div>
         <div className="adm-nav-group">
-          <div className="adm-nav-group__label"><span>{t('Operations')}</span><code>02</code></div>
+          <div className="adm-nav-group__label"><span>{t('Operations')}</span></div>
           {navItems.slice(4, 6).map(renderNavItem)}
         </div>
         <div className="adm-nav-group adm-nav-group--system">
-          <div className="adm-nav-group__label"><span>{t('System')}</span><code>01</code></div>
+          <div className="adm-nav-group__label"><span>{t('System')}</span></div>
           {navItems.slice(6).map(renderNavItem)}
         </div>
       </nav>
-      <div className="adm-sidebar__signal"><span><i />{t('Operations online')}</span><code>SECURE / DB</code></div>
       <div className="adm-sidebar__foot">
         <span className="adm-sidebar__operator-label">{t('Session holder')} · @{user.username}</span>
         <button className="adm-admin-profile" onClick={() => navigate('/admin/settings')}>
@@ -231,7 +229,7 @@ function Topbar({ setMobileOpen, query, setQuery, notify, hasNotifications, onNe
       <div className="adm-topbar__right">
         <SearchField value={query} onChange={setQuery} placeholder={t('Search anything…')} label={t('Search anything…')} clearLabel={isArabic ? 'مسح البحث' : 'Clear search'} className="adm-global-search" />
         <IconButton label={t('Notifications')} className="adm-notification" onClick={notify}><Bell size={18} />{hasNotifications && <i />}</IconButton>
-        <Button onClick={onNewAction} icon={<Plus size={16} />}>{t('New action')}</Button>
+        <Button onClick={onNewAction} icon={<Plus size={16} />}><span className="adm-new-action__label">{t('New action')}</span></Button>
         <button className="adm-top-profile" aria-label={`${t('Open profile')}: ${user.displayName}`} onClick={() => navigate('/admin/settings')}><Avatar initials={initialsFor(user.displayName)} small /><span><b>{user.displayName}</b><small>@{user.username} · {roleLabel(user.role)}</small></span><ChevronDown size={14} /></button>
       </div>
     </header>
@@ -251,7 +249,7 @@ export function AdminShell({ children, collapsed, setCollapsed, mobileOpen, setM
       <div className="adm-workspace">
         <Topbar setMobileOpen={setMobileOpen} query={query} setQuery={setQuery} notify={onNotifications} hasNotifications={hasNotifications} onNewAction={onNewAction} language={language} />
         <main className="adm-main" id="admin-content">{children}</main>
-        <footer className="adm-global-footer"><span><i />{livePeopleWorkspace ? 'Protected workspace · Live database records' : t('Protected workspace · Live database records')}</span><code>INFINITY / ADMIN · 2026.09</code></footer>
+        <footer className="adm-global-footer"><span><i />{livePeopleWorkspace ? 'Protected workspace · Live database records' : t('Protected workspace · Live database records')}</span></footer>
       </div>
     </div>
   )
@@ -278,7 +276,6 @@ export function AivexOnlyShell({ children }) {
         <div className="adm-aivex-accessbar__brand" aria-label="Infinity Club AIVEX administration">
           <span className="adm-aivex-accessbar__mark"><InfinityMark/></span>
           <span><b>INFINITY</b><small>{t('AIVEX administration')}</small></span>
-          <code>OPS / 02</code>
         </div>
         <div className="adm-aivex-accessbar__session">
           <span className="adm-aivex-accessbar__status"><i/>{t('Secure AIVEX workspace')}</span>
@@ -290,7 +287,7 @@ export function AivexOnlyShell({ children }) {
       </header>
       <div className="adm-workspace">
         <main className="adm-main" id="admin-content">{children}</main>
-        <footer className="adm-global-footer"><span><i/>{t('Protected AIVEX administration · Live records')}</span><code>INFINITY / AIVEX · 2026.09</code></footer>
+        <footer className="adm-global-footer"><span><i/>{t('Protected AIVEX administration · Live records')}</span></footer>
       </div>
     </div>
   )

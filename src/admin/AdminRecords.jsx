@@ -99,5 +99,5 @@ export function History({ items = [], translate = (value) => value, locale = 'en
 }
 
 export function SummaryStrip({ items }) {
-  return <div className="adm-people-summary">{items.map((item, i) => <article key={item.label}><span>0{i + 1}</span><div><strong>{String(item.value).padStart(2, '0')}</strong><p>{item.label}</p></div>{item.meta && <em>{item.meta}</em>}</article>)}</div>
+  return <div className="adm-people-summary">{items.map((item) => <article key={item.label}><div><strong>{item.value}</strong><p>{item.label}</p></div>{item.meta && <em>{item.meta}</em>}</article>)}</div>
 }

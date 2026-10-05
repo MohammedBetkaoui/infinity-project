@@ -137,8 +137,8 @@ export function OverviewPage() {
     {error && <p className="adm-overview-warning" role="alert">{error} Showing the last successfully loaded data.</p>}
 
     <section className="adm-kpi-grid" aria-label="Live key statistics">
-      {statCards.map(({ label, value, meta, copy, style, icon: Icon }, index) => <article className={`adm-kpi adm-kpi--${style}`} key={label}>
-        <div className="adm-kpi__top"><span>0{index + 1}</span><Icon size={17}/></div>
+      {statCards.map(({ label, value, meta, copy, style, icon: Icon }) => <article className={`adm-kpi adm-kpi--${style}`} key={label}>
+        <div className="adm-kpi__top"><Icon size={18}/></div>
         <p>{label}</p>
         <div className="adm-kpi__value"><strong>{countLabel(value)}</strong>{style === 'nodes' && <div className="adm-node-mark"><i/><i/><i/></div>}{style === 'meter' && <div className="adm-kpi-meter">{trendValues.slice(-4).map((point, pointIndex) => <span key={pointIndex} style={{ height: `${Math.max(10, percent(point, Math.max(1, ...trendValues)))}%` }}/>)}</div>}</div>
         <div className="adm-kpi__bottom"><span className={style === 'alert' && value > 0 ? 'is-warning' : ''}>{copy}</span><code>{meta}</code></div>
@@ -148,7 +148,7 @@ export function OverviewPage() {
 
     <div className="adm-overview-layout">
       <section className="adm-panel adm-priority-panel">
-        <SectionHeading index="01" title="Handle now" meta="Live priority queue"/>
+        <SectionHeading title="Handle now" meta="Live priority queue"/>
         <div className="adm-priority-list">
           {priorityItems.map((item, index) => <button key={item.title} onClick={() => navigate(item.route)}>
             <span className={`adm-priority-index priority-${index}`}>{countLabel(item.count)}</span>
@@ -162,19 +162,17 @@ export function OverviewPage() {
       <OverviewChart series={series}/>
 
       <section className="adm-panel adm-community-panel">
-        <SectionHeading index="03" title="Community split" meta="Current directory"/>
+        <SectionHeading title="Community split" meta="Current directory"/>
         <div className="adm-community-visual">
-          <div className="adm-donut" style={{ background: `conic-gradient(#094a36 0 ${percent(community.members, totalPeople)}%, #9ed7c4 ${percent(community.members, totalPeople)}% ${percent(community.members + community.staff, totalPeople)}%, #e7dfcf 0)` }}><div><strong>{totalPeople}</strong><span>people</span></div></div>
+          <div className="adm-donut" style={{ background: `conic-gradient(var(--adm-green) 0 ${percent(community.members, totalPeople)}%, var(--adm-chart-2) ${percent(community.members, totalPeople)}% ${percent(community.members + community.staff, totalPeople)}%, var(--adm-chart-3) 0)` }}><div><strong>{totalPeople}</strong><span>people</span></div></div>
           <dl>{[['Members', community.members, 'members'], ['Staff', community.staff, 'staff'], ['Pending', community.pending, 'new']].map(([label, count, cls]) => <div key={label}><dt><i className={cls}/>{label}</dt><dd>{count} <small>{percent(count, totalPeople)}%</small></dd></div>)}</dl>
         </div>
         <div className="adm-study-levels"><span>Active member study level</span>{[['L1–L3', community.studyLevels.licence], ['M1–M2', community.studyLevels.master], ['E1–E5', community.studyLevels.engineer], ['Other', community.studyLevels.other]].map(([label, count]) => <div key={label}><p><b>{label}</b><em>{percent(count, totalMembers)}%</em></p><i><span style={{ width: `${percent(count, totalMembers)}%` }}/></i></div>)}</div>
       </section>
 
       <section className="adm-panel adm-departments-panel">
-        <SectionHeading index="04" title="Staff by department" meta={`${stats.activeStaff} active`}/>
-        <div className="adm-infinity-route" aria-hidden="true"><span/><i/><i/><i/></div>
-        {departments.map((department, index) => <div className="adm-department-row" key={department.key}>
-          <span>{String(index + 1).padStart(2, '0')}</span>
+        <SectionHeading title="Staff by department" meta={`${stats.activeStaff} active`}/>
+        {departments.map((department) => <div className="adm-department-row" key={department.key}>
           <div><b>{DEPARTMENT_LABELS[department.key] || department.key}</b><small>Live staff directory</small></div>
           <div className="adm-capacity"><p><span>{department.active} active</span><em>{percent(department.active, stats.activeStaff)}% of staff</em></p><i><span style={{ width: `${percent(department.active, maxDepartment)}%` }}/></i></div>
           <StatusBadge tone="neutral">{department.waiting} waiting</StatusBadge>
@@ -182,12 +180,12 @@ export function OverviewPage() {
       </section>
 
       <section className="adm-panel adm-pipeline-panel">
-        <SectionHeading index="05" title="AIVEX pipeline" meta={`Edition ${String(dashboard.edition).padStart(2, '0')}`} action={<button className="adm-text-action" onClick={() => navigate('/admin/aivex')}>Open files <ArrowRight size={14}/></button>}/>
-        <div className="adm-pipeline">{pipeline.map(([index, label, count], position) => <div key={label} className={position === 3 ? 'is-current' : ''}><span>{index}</span><i><Check size={13}/></i><b>{count}</b><small>{label}</small></div>)}</div>
+        <SectionHeading title="AIVEX pipeline" meta={`Edition ${String(dashboard.edition).padStart(2, '0')}`} action={<button className="adm-text-action" onClick={() => navigate('/admin/aivex')}>Open files <ArrowRight size={14}/></button>}/>
+        <div className="adm-pipeline">{pipeline.map(([, label, count], position) => <div key={label} className={position === 3 ? 'is-current' : ''}><i><Check size={13}/></i><b>{count}</b><small>{label}</small></div>)}</div>
       </section>
 
       <section className="adm-panel adm-activity-panel">
-        <SectionHeading index="06" title="Recent activity" meta="Database audit log"/>
+        <SectionHeading title="Recent activity" meta="Database audit log"/>
         {activity.length ? <div className="adm-activity-list">{activity.slice(0, 6).map((item, index) => <div key={`${item.createdAt}-${item.action}-${index}`}><i className={`tone-${item.sensitivity === 'confidential' ? 'sensitive' : 'success'}`}><Circle size={8} fill="currentColor"/></i><div><b>{readableAction(item.action)}</b><span>{item.subject}</span></div><p>{item.actor}<time>{activityTime(item.createdAt)}</time></p></div>)}</div>
           : <EmptyState title="No administrative activity yet" copy="Audited actions will appear here automatically."/>}
       </section>

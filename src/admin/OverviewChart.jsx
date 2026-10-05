@@ -22,7 +22,6 @@ export default function OverviewChart({ series = [] }) {
 
   return <section className="adm-panel adm-chart-panel">
     <SectionHeading
-      index="02"
       title="Applications received"
       action={<label className="adm-chart-period"><span className="sr-only">Chart period</span><select value={period} onChange={(event) => { setPeriod(event.target.value); setActive(0) }}><option>30 days</option><option>15 days</option></select></label>}
     />
