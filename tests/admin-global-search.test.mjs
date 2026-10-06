@@ -106,3 +106,17 @@ test('the search keeps nothing in browser storage and logs nothing', async () =>
   assert.match(hook, /HIDDEN_STATUSES = new Set\(\[403, 404, 503\]\)/)
   assert.match(hook, /limit: SEARCH_LIMIT/)
 })
+
+test('the palette is an ARIA combobox whose results are real links handed over through router state', async () => {
+  const [palette, ui, applications, directory, aivex] = await Promise.all([
+    read('src/admin/GlobalSearch.jsx'), read('src/admin/AdminUI.jsx'), read('src/admin/ApplicationsPage.jsx'),
+    read('src/admin/DirectoryPage.jsx'), read('src/admin/AivexPages.jsx'),
+  ])
+  for (const attribute of ['role="combobox"', 'aria-expanded={open}', 'aria-controls={listboxId}', 'aria-activedescendant=', 'role="listbox"', 'role="group"', "role: 'option'", 'aria-live="polite"']) assert.ok(palette.includes(attribute), attribute)
+  assert.match(palette, /<a key=\{option\.key\} \{\.\.\.props\} href=\{option\.href\}/)
+  assert.match(palette, /if \(isModified\(event\)\) return/, 'middle and Ctrl/⌘ clicks open a new tab')
+  assert.match(palette, /navigate\(option\.href, option\.state \? \{ state:/)
+  assert.doesNotMatch(palette, /localStorage|sessionStorage|console\.|dangerouslySetInnerHTML/)
+  assert.equal(ui.match(/<GlobalSearch /g)?.length, 2, 'top bar and AIVEX access bar')
+  for (const page of [applications, directory, aivex]) assert.match(page, /routeState\?\.globalSearch/)
+})

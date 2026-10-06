@@ -292,6 +292,74 @@
 .adm-search__hint { display: inline-flex; align-items: center; flex: 0 0 auto; height: 26px; margin-inline-start: 4px; padding: 0 8px; color: var(--adm-secondary); background: var(--adm-surface-raised); border: 1px solid var(--adm-line); border-radius: 8px; font: 700 11px/1 var(--adm-font-sans); letter-spacing: .02em; white-space: nowrap; }
 .adm-global-search { flex: 0 1 420px; width: auto; min-width: 220px; height: 48px; padding-inline: 16px 10px; background: var(--adm-surface-soft); border-color: var(--adm-field-border); }
 .adm-global-search:focus-within { background: var(--adm-surface-raised); }
+
+/* Global search: a command palette anchored to the top-bar field. The panel
+   lives in the theme root (outside the sticky bar) at modal elevation; on
+   small screens it becomes a full-screen sheet. */
+.adm-command { position: relative; display: flex; flex: 0 1 420px; min-width: 220px; }
+.adm-command > .adm-global-search { flex: 1 1 auto; width: 100%; min-width: 0; }
+.adm-command.is-open > .adm-global-search { border-color: var(--adm-accent-fg); background: var(--adm-surface-raised); box-shadow: 0 0 0 4px rgb(var(--adm-tint-rgb) / .38); }
+.adm-command__trigger { display: none !important; }
+.adm-command-layer, .adm-command-layer * { box-sizing: border-box; }
+.adm-command-layer { position: fixed; z-index: 90; inset: 0; color: var(--adm-ink); font: 13px/1.5 var(--adm-font-sans); font-variant-numeric: tabular-nums; pointer-events: none; }
+.adm-command-layer :where(button) { font: inherit; border: 0; cursor: pointer; }
+.adm-command-layer :where(a) { color: inherit; text-decoration: none; }
+.adm-command-layer :focus-visible { outline: 2px solid var(--adm-accent-fg); outline-offset: 2px; }
+.adm-command__scrim { position: absolute; inset: 0; background: rgb(var(--adm-shadow-rgb) / .14); pointer-events: auto; }
+.adm-command__panel { position: absolute; display: flex; flex-direction: column; max-height: min(72vh, 640px); overflow: hidden; background: var(--adm-surface-overlay); border: 1px solid var(--adm-card-border); border-radius: var(--adm-radius-card); box-shadow: var(--adm-shadow-pop); pointer-events: auto; }
+.adm-command__scopes { display: flex; flex: 0 0 auto; flex-wrap: wrap; gap: 6px; padding: 12px 14px 10px; overflow-x: auto; border-bottom: 1px solid var(--adm-line); scrollbar-width: none; }
+.adm-command__scopes::-webkit-scrollbar { display: none; }
+.adm-command__scopes button { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px; color: var(--adm-secondary); background: var(--adm-surface-soft); border-radius: var(--adm-radius-pill); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.adm-command__scopes button:hover { color: var(--adm-ink); }
+.adm-command__scopes button[aria-pressed="true"] { color: var(--adm-on-accent); background: var(--adm-accent); }
+.adm-command__scopes small { font-size: 11px; font-weight: 600; opacity: .85; }
+.adm-command__list { flex: 1 1 auto; min-height: 0; padding: 6px 8px 10px; overflow-y: auto; overscroll-behavior: contain; }
+.adm-command__group + .adm-command__group { margin-top: 4px; }
+.adm-command__label { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 10px 6px; color: var(--adm-muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.adm-command__option { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 48px; padding: 6px 10px; color: var(--adm-ink); border-radius: var(--adm-radius-control); cursor: pointer; }
+.adm-command__option.is-active { background: var(--adm-surface-soft); box-shadow: inset 3px 0 var(--adm-accent-fg); }
+.adm-command__option.is-more { grid-template-columns: minmax(0, 1fr) auto; min-height: 44px; color: var(--adm-accent-fg); }
+.adm-command__option.is-more b { font-weight: 700; }
+.adm-command__option.is-error .adm-command__lead, .adm-command__option.is-error small { color: var(--adm-error); }
+.adm-command__lead { display: grid; place-items: center; width: 36px; height: 36px; color: var(--adm-accent-fg); background: var(--adm-surface-soft); border-radius: 50%; }
+.adm-command__lead .adm-avatar.is-small { flex-basis: 36px; width: 36px; height: 36px; font-size: 12px; }
+.adm-command__text { display: grid; min-width: 0; line-height: 1.35; }
+.adm-command__text b, .adm-command__text small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adm-command__text b { font-size: 13px; font-weight: 700; }
+.adm-command__text small { color: var(--adm-muted); font-size: 12px; }
+.adm-command__trail { display: flex; align-items: center; color: var(--adm-muted); }
+.adm-command mark, .adm-command-layer mark { padding: 0 1px; color: inherit; background: rgb(var(--adm-tint-rgb) / .45); border-radius: 3px; }
+.adm-command__skeleton { display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: center; gap: 12px; min-height: 48px; padding: 6px 10px; }
+.adm-command__skeleton i { display: block; height: 10px; background: rgb(var(--adm-sage-rgb) / .16); border-radius: var(--adm-radius-pill); animation: adm-pulse 1.2s ease-in-out infinite alternate; }
+.adm-command__skeleton > i { width: 36px; height: 36px; border-radius: 50%; }
+.adm-command__skeleton span { display: grid; gap: 7px; }
+.adm-command__skeleton span i:last-child { width: 55%; }
+.adm-command__note { margin: 0; padding: 6px 10px 10px; color: var(--adm-muted); font-size: 12px; }
+.adm-command__empty { display: grid; justify-items: center; gap: 6px; padding: 26px 16px 30px; color: var(--adm-muted); text-align: center; }
+.adm-command__empty > svg { color: var(--adm-accent-fg); }
+.adm-command__empty b { color: var(--adm-ink); font-size: 14px; }
+.adm-command__empty p { margin: 0; font-size: 12px; }
+.adm-command__footer { display: flex; flex: 0 0 auto; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; padding: 10px 14px; color: var(--adm-muted); border-top: 1px solid var(--adm-line); font-size: 11px; }
+.adm-command__footer kbd, .adm-command__footer code { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; color: var(--adm-secondary); background: var(--adm-surface-raised); border: 1px solid var(--adm-line-strong); border-radius: 6px; font: 700 11px/1 var(--adm-font-sans); }
+.adm-command__footer code { font-family: var(--adm-font-mono); font-weight: 500; }
+.adm-command__close, .adm-command__clear { display: grid; flex: 0 0 auto; place-items: center; color: var(--adm-muted); background: transparent; border-radius: 50%; }
+.adm-command__clear { width: 30px; height: 30px; background: var(--adm-surface-soft); }
+.adm-command__close { display: none; }
+[dir="rtl"] .adm-command__option.is-active { box-shadow: inset -3px 0 var(--adm-accent-fg); }
+[dir="rtl"] .adm-command__trail > svg { transform: scaleX(-1); }
+.adm-reduced-motion .adm-command__skeleton i { animation: none; }
+@media (max-width: 767px) {
+  .adm-command { flex: 0 0 auto; min-width: 0; }
+  .adm-command__trigger { display: inline-grid !important; }
+  .adm-command-layer.is-sheet .adm-command__scrim { background: var(--adm-surface-overlay); }
+  .adm-command-layer.is-sheet .adm-command__panel { inset: 0; width: auto; height: 100dvh; max-height: none; padding-top: 12px; background: var(--adm-surface-overlay); border: 0; border-radius: 0; box-shadow: none; }
+  .adm-command-layer.is-sheet .adm-command__field { flex: 0 0 auto; height: 48px; margin: 0 12px 8px; padding-inline: 14px 4px; background: var(--adm-surface-raised); }
+  .adm-command-layer.is-sheet .adm-command__close { display: grid; width: 44px; height: 44px; }
+  .adm-command__option { min-height: 52px; }
+  .adm-command__scopes { flex-wrap: nowrap; }
+  .adm-command__keys { display: none; }
+}
+.adm-command-layer .adm-search input:focus-visible { outline: 0; box-shadow: none; }
 .adm-notification { position: relative; width: 48px; height: 48px; flex-basis: 48px; color: var(--adm-ink); background: var(--adm-surface-soft); }
 .adm-theme-toggle { width: 48px; height: 48px; flex-basis: 48px; color: var(--adm-ink); background: var(--adm-surface-soft); }
 .adm-theme-toggle:hover { color: var(--adm-ink); background: rgb(var(--adm-accent-rgb) / .08); }

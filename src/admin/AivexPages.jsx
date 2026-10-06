@@ -1,6 +1,6 @@
 import { useCallback, useDeferredValue, useEffect, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, CheckCircle2, ChevronDown, Clock3, Download, FileCheck2, FileText, FolderClosed, GraduationCap, Languages, LockKeyhole, Maximize2, RefreshCw, RotateCw, Search, ShieldCheck, Trash2, TriangleAlert, Upload, UserCheck, UsersRound, UserX, ZoomIn, ZoomOut } from 'lucide-react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAdmin } from './AdminStore'
 import { useAdminAuth } from './AdminAuth'
 import { useAdminPreferences } from './AdminPreferences'
@@ -234,10 +234,12 @@ export function AivexListPage({ globalQuery }) {
   const { language, isArabic, dir, t, setLanguage, path } = locale
   const [params, setParams] = useSearchParams()
   const workspace = params.get('view') === 'participation' ? 'attendance' : params.get('view') === 'students' ? 'students' : 'files'
-  const [search, setSearch] = useState('')
+  const { state: routeState } = useLocation()
+  const handedOver = routeState?.globalSearch || ''
+  const [search, setSearch] = useState(() => (workspace === 'students' ? '' : handedOver))
   const deferredSearch = useDeferredValue(`${search} ${globalQuery}`.trim())
   const [filters, setFilters] = useState(params.get('document') ? { document: params.get('document') } : {})
-  const [studentSearch, setStudentSearch] = useState('')
+  const [studentSearch, setStudentSearch] = useState(() => (workspace === 'students' ? handedOver : ''))
   const deferredStudentSearch = useDeferredValue(`${studentSearch} ${globalQuery}`.trim())
   const [studentFilters, setStudentFilters] = useState({})
   const [studentPage, setStudentPage] = useState(1)

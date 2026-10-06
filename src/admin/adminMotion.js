@@ -296,3 +296,39 @@ export function useToastMotion(ref) {
     }
   }, [reduced, ref])
 }
+
+// Global search panel: a short drop on open, a fade on close (played on an
+// inert copy once React has removed it), instant under reduced motion.
+export function useCommandMotion(ref, open) {
+  const reduced = useReducedMotion()
+  useLayoutEffect(() => {
+    const node = ref.current
+    if (!open || reduced || !node) return undefined
+    const parent = node.parentNode
+    const context = motionContext(() => {
+      gsap.from(node, { opacity: 0, y: -6, duration: .2, ease: EASE_OUT, clearProps: 'opacity,transform' })
+    }, node)
+    return () => {
+      const rect = node.isConnected ? node.getBoundingClientRect() : null
+      context.revert()
+      queueMicrotask(() => {
+        if (node.isConnected || !rect) return
+        playExit(node, parent, rect, (ghost) => gsap.to(ghost, { opacity: 0, y: -4, duration: .15, ease: 'power1.in' }))
+      })
+    }
+  }, [open, reduced, ref])
+}
+
+// Result rows arrive together, in a quick cascade, each time the list changes.
+export function useCommandRows(ref, signature) {
+  const reduced = useReducedMotion()
+  useLayoutEffect(() => {
+    const node = ref.current
+    if (reduced || !node || !signature) return undefined
+    const context = motionContext(() => {
+      const rows = node.querySelectorAll('[role="option"]')
+      if (rows.length) gsap.from(rows, { opacity: 0, y: 4, duration: .18, stagger: Math.min(.02, .12 / rows.length), ease: EASE_OUT, clearProps: 'opacity,transform' })
+    }, node)
+    return () => context.revert()
+  }, [reduced, ref, signature])
+}

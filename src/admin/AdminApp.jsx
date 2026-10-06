@@ -48,7 +48,9 @@ function Workspace() {
   const { theme } = useAdminTheme()
   const rootRef = useRef(null)
   useThemeColor(rootRef, '--adm-canvas', `${theme} ${accent}`)
-  const { pathname, search: routeSearch } = useLocation()
+  const { pathname, search: routeSearch, state: routeState } = useLocation()
+  // A hand-over from the global search remounts the list page with its query.
+  const searchKey = routeState?.globalSearchKey || ''
   const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -88,7 +90,7 @@ function Workspace() {
       <AivexOnlyShell>
         <Routes>
           <Route index element={<Navigate to={adminHomePath(user.role)} replace/>}/>
-          <Route path="aivex" element={<AivexListPage key={routeSearch} globalQuery=""/>}/>
+          <Route path="aivex" element={<AivexListPage key={`${routeSearch}-${searchKey}`} globalQuery=""/>}/>
           <Route path="aivex/:teamId" element={<AivexDetailPage key={pathname}/>}/>
           <Route path="*" element={<Navigate to={adminHomePath(user.role)} replace/>}/>
         </Routes>
@@ -101,7 +103,7 @@ function Workspace() {
     setNotifications(true)
   }
   return <div ref={rootRef} className={wrapperClassName} data-accent={accent} data-theme={theme} dir={isArabicAivex ? 'rtl' : 'ltr'} lang={language}><a href="#admin-content" className="adm-skip-link">{t('Skip to workspace')}</a><AdminShell collapsed={collapsed} setCollapsed={setCollapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} query={query} setQuery={setQuery} onNotifications={openNotifications} hasNotifications={preferences.reviewNotificationsEnabled && reviewQueue.items.length > 0} onNewAction={() => setNewAction(true)} badges={{ aivex: preferences.reviewNotificationsEnabled ? reviewQueue.items.length : 0 }}>
-    <Routes><Route index element={<Navigate to="/admin/overview" replace/>}/><Route path="overview" element={<OverviewPage/>}/><Route path="applications" element={<ApplicationsPage key={`applications-${routeSearch}`}/>}/><Route path="members" element={<DirectoryPage key={`members-${routeSearch}`} kind="members"/>}/><Route path="staff" element={<DirectoryPage key={`staff-${routeSearch}`} kind="staff"/>}/><Route path="aivex" element={<AivexListPage key={routeSearch} globalQuery=""/>}/><Route path="aivex/:teamId" element={<AivexDetailPage key={pathname}/>}/><Route path="activity" element={<ActivityPage key={routeSearch} globalQuery=""/>}/><Route path="settings" element={<SettingsPage/>}/><Route path="*" element={<Navigate to="/admin/overview" replace/>}/></Routes>
+    <Routes><Route index element={<Navigate to="/admin/overview" replace/>}/><Route path="overview" element={<OverviewPage/>}/><Route path="applications" element={<ApplicationsPage key={`applications-${routeSearch}-${searchKey}`}/>}/><Route path="members" element={<DirectoryPage key={`members-${routeSearch}-${searchKey}`} kind="members"/>}/><Route path="staff" element={<DirectoryPage key={`staff-${routeSearch}-${searchKey}`} kind="staff"/>}/><Route path="aivex" element={<AivexListPage key={`${routeSearch}-${searchKey}`} globalQuery=""/>}/><Route path="aivex/:teamId" element={<AivexDetailPage key={pathname}/>}/><Route path="activity" element={<ActivityPage key={routeSearch} globalQuery=""/>}/><Route path="settings" element={<SettingsPage key={`settings-${searchKey}`}/>}/><Route path="*" element={<Navigate to="/admin/overview" replace/>}/></Routes>
   </AdminShell>
   {query.trim() && <div className="adm-global-results" role="region" aria-label={t('Global search results')}><header><Search size={15}/>{t('Search the workspace')}<button onClick={() => setQuery('')}>{t('Close')}</button></header>{searchResults.length ? searchResults.map(({ collection, record }) => <button key={`${collection}-${record.id}`} onClick={() => { navigate(collection === 'teams' ? preserveAivexLanguage(`/admin/aivex/${record.id}`) : `/admin/${collection}?record=${encodeURIComponent(record.id)}${collection === 'applications' ? `&stage=${record.status}` : ''}`); setQuery('') }}><span><b>{record.name}</b><small dir="ltr">{record.ref || record.email}</small></span><em>{collection === 'teams' ? 'AIVEX' : t(collection)}</em><FlowArrow size={15}/></button>) : <p>{t('No matching names or references.')}</p>}</div>}
   <Modal open={newAction} onClose={() => setNewAction(false)} title={t('What’s next?')} eyebrow={t('Quick actions')} closeLabel={t('Close')}><div className="adm-quick-actions">{[['Review Join applications', 'Meet the next generation of Infinity.', '/admin/applications', Users], ['Verify an AIVEX file', 'Continue the administrative review.', '/admin/aivex', FileText], ['Open the activity log', 'Trace a decision or document consultation.', '/admin/activity', Search]].map(([title, copy, route, Icon]) => <button key={route} onClick={() => { navigate(preserveAivexLanguage(route)); setNewAction(false) }}><Icon size={21}/><span><b>{t(title)}</b><small>{t(copy)}</small></span><FlowArrow size={17}/></button>)}</div></Modal>

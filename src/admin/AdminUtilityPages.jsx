@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, CalendarClock, Check, CircleAlert, Eye, EyeOff, LoaderCircle, LockKeyhole, Monitor, Moon, RefreshCw, ShieldCheck, Sun, TriangleAlert, User } from 'lucide-react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import InfinityMark from '../components/InfinityMark'
 import { useAdminAuth } from './AdminAuth'
 import { useAdminPreferences } from './AdminPreferences'
@@ -208,8 +208,9 @@ export function SettingsPage() {
   const { addToast } = useAdmin()
   const { user } = useAdminAuth()
   const { preferences } = useAdminPreferences()
-  const [tab, setTab] = useState('Workspace')
   const tabs = user.role === 'super_admin' ? ['Workspace', 'AIVEX', 'Access & privacy', 'Appearance'] : ['Workspace', 'Access & privacy', 'Appearance']
+  const { state: routeState } = useLocation()
+  const [tab, setTab] = useState(() => (tabs.includes(routeState?.settingsTab) ? routeState.settingsTab : 'Workspace'))
   return <div className="adm-page adm-settings-page"><PageHeader eyebrow="Workspace · Preferences" title="Settings" description="Control your workspace, campaign operations and administrative security."/><div className="adm-settings-shell"><nav className="adm-panel adm-settings-nav" aria-label="Settings sections"><Tabs items={tabs} value={tab} onChange={setTab} orientation="vertical" label="Settings sections"/></nav><div className="adm-settings-content"><PreferencesLoadNotice/>
     {tab === 'Workspace' && <WorkspacePreferences key={`${preferences.tableDensity}-${preferences.reviewNotificationsEnabled}`} addToast={addToast}/>}
     {tab === 'AIVEX' && user.role === 'super_admin' && <AivexCampaignSettings addToast={addToast}/>}

@@ -1,6 +1,6 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { Activity, Plus, RefreshCw, TriangleAlert } from 'lucide-react'
-import { useSearchParams } from 'react-router-dom'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import { useAdmin } from './AdminStore'
 import { ActionDialog, Facts, History, RecordTable, RecordToolbar, SummaryStrip } from './AdminRecords'
 import { PeopleCardGrid } from './PeoplePages'
@@ -27,7 +27,8 @@ export default function DirectoryPage({ kind }) {
   const { addToast } = useAdmin()
   const [params] = useSearchParams()
   const requestedRecordId = params.get('record')
-  const [search, setSearch] = useState('')
+  const { state: routeState } = useLocation()
+  const [search, setSearch] = useState(() => routeState?.globalSearch || '')
   const deferredSearch = useDeferredValue(search.trim())
   const [filters, setFilters] = useState({})
   const [page, setPage] = useState(1)

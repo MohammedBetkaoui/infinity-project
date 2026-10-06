@@ -14,6 +14,8 @@ import { STATUS_TRANSLATIONS } from './adminModel'
 import { useDialogMotion, usePageFade, useToastMotion } from './adminMotion'
 import { useEffectiveReducedMotion } from './AdminPreferences'
 import { useThemeSwitch } from './adminTheme'
+import GlobalSearch from './GlobalSearch'
+import { clearSearchMemory } from './useAdminSearch'
 
 const icons = {
   overview: LayoutDashboard,
@@ -196,7 +198,6 @@ export function ToastStack({ toasts }) {
 }
 
 // Apple keyboards show ⌘K; everyone else reads the Ctrl shortcut that works for them.
-const SEARCH_SHORTCUT = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '') ? '⌘K' : 'Ctrl K'
 
 function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen, language = 'en', badges = {} }) {
   const navigate = useNavigate()
@@ -207,6 +208,7 @@ function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen, language 
   const signOut = async () => {
     if (signingOut) return
     setSigningOut(true)
+    clearSearchMemory()
     await logout()
     navigate('/admin/login', { replace: true })
   }
@@ -286,18 +288,17 @@ export function ThemeToggle({ label }) {
   return <button type="button" className="adm-icon-button adm-theme-toggle" aria-label={label} aria-pressed={dark} title={label} onClick={() => choose(dark ? 'light' : 'dark')}>{dark ? <Moon size={19} aria-hidden="true"/> : <Sun size={19} aria-hidden="true"/>}</button>
 }
 
-function Topbar({ setMobileOpen, query, setQuery, notify, hasNotifications, onNewAction, language = 'en' }) {
+function Topbar({ setMobileOpen, notify, hasNotifications, onNewAction, onToggleSidebar, language = 'en' }) {
   const navigate = useNavigate()
   const { user } = useAdminAuth()
   const [sentinel, stuck] = useStuckSentinel()
-  const isArabic = language === 'ar'
   const t = (value) => translateAivex(value, language)
   return (
     <>
       <span ref={sentinel} className="adm-topbar-sentinel" aria-hidden="true" />
       <header className={`adm-topbar ${stuck ? 'is-stuck' : ''}`}>
         <IconButton label={t('Open navigation')} className="adm-menu-trigger" onClick={() => setMobileOpen(true)}><Menu size={20} /></IconButton>
-        <SearchField value={query} onChange={setQuery} placeholder={t('Search anything…')} label={t('Search anything…')} clearLabel={isArabic ? 'مسح البحث' : 'Clear search'} className="adm-global-search" shortcut={SEARCH_SHORTCUT} />
+        <GlobalSearch language={language} onToggleSidebar={onToggleSidebar} onNotifications={notify} />
         <div className="adm-topbar__right">
           <ThemeToggle label={t('Dark theme')} />
           <IconButton label={t('Notifications')} className="adm-notification" onClick={notify}><Bell size={19} />{hasNotifications && <i />}</IconButton>
@@ -309,7 +310,7 @@ function Topbar({ setMobileOpen, query, setQuery, notify, hasNotifications, onNe
   )
 }
 
-export function AdminShell({ children, collapsed, setCollapsed, mobileOpen, setMobileOpen, query, setQuery, onNotifications, hasNotifications, onNewAction, badges }) {
+export function AdminShell({ children, collapsed, setCollapsed, mobileOpen, setMobileOpen, onNotifications, hasNotifications, onNewAction, badges }) {
   const { pathname, search } = useLocation()
   const language = pathname.startsWith('/admin/aivex') && new URLSearchParams(search).get('lang') === 'ar' ? 'ar' : 'en'
   const isArabic = language === 'ar'
@@ -322,7 +323,7 @@ export function AdminShell({ children, collapsed, setCollapsed, mobileOpen, setM
       <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} language={language} badges={badges} />
       {mobileOpen && <button className="adm-mobile-scrim" aria-label={t('Close navigation')} onClick={() => setMobileOpen(false)} />}
       <div className="adm-workspace">
-        <Topbar setMobileOpen={setMobileOpen} query={query} setQuery={setQuery} notify={onNotifications} hasNotifications={hasNotifications} onNewAction={onNewAction} language={language} />
+        <Topbar setMobileOpen={setMobileOpen} onToggleSidebar={() => (window.matchMedia('(max-width: 1023px)').matches ? setMobileOpen(true) : setCollapsed(!collapsed))} notify={onNotifications} hasNotifications={hasNotifications} onNewAction={onNewAction} language={language} />
         <main ref={mainRef} className="adm-main" id="admin-content">{children}</main>
         <footer className="adm-global-footer"><span><i />{livePeopleWorkspace ? 'Protected workspace · Live database records' : t('Protected workspace · Live database records')}</span></footer>
       </div>
@@ -344,6 +345,7 @@ export function AivexOnlyShell({ children }) {
   const signOut = async () => {
     if (signingOut) return
     setSigningOut(true)
+    clearSearchMemory()
     await logout()
     navigate('/admin/login', { replace: true })
   }
@@ -357,6 +359,7 @@ export function AivexOnlyShell({ children }) {
             <span className="adm-aivex-accessbar__mark"><InfinityMark/></span>
             <span><b>INFINITY</b><small>{t('AIVEX administration')}</small></span>
           </div>
+          <GlobalSearch shell="aivex" language={language} />
           <div className="adm-aivex-accessbar__session">
             <span className="adm-aivex-accessbar__status"><i/>{t('Secure AIVEX workspace')}</span>
             <span className="adm-aivex-accessbar__identity"><Avatar initials={initialsFor(user.displayName)} small/><span><b>{user.displayName}</b><small>@{user.username} · {roleLabel(user.role)}</small></span></span>

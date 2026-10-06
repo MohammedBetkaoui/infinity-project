@@ -1,6 +1,6 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { KanbanSquare, List, RefreshCw, TriangleAlert, UserCheck } from 'lucide-react'
-import { useSearchParams } from 'react-router-dom'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import { useAdminAuth } from './AdminAuth'
 import { useAdmin } from './AdminStore'
 import { ActionDialog, RecordTable, RecordToolbar } from './AdminRecords'
@@ -46,7 +46,8 @@ export default function ApplicationsPage() {
   const requestedRecordId = params.get('record')
   const initialStage = APPLICATION_STATUSES.includes(params.get('stage')) ? params.get('stage') : 'New'
   const [tab, setTab] = useState(initialStage)
-  const [search, setSearch] = useState('')
+  const { state: routeState } = useLocation()
+  const [search, setSearch] = useState(() => routeState?.globalSearch || '')
   const deferredSearch = useDeferredValue(search.trim())
   const [filters, setFilters] = useState({})
   const [page, setPage] = useState(1)

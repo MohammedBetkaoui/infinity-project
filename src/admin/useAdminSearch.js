@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useAdminAuth } from './AdminAuth'
 import { createListCache } from './adminListCache.js'
-import { SEARCH_LIMIT, SEARCH_SOURCES, detectReference, parseInput, rankResults, sourcesFor, toSearchItem } from './adminSearchModel.js'
+import { SEARCH_LIMIT, SEARCH_SOURCES, allowedSources, detectReference, parseInput, rankResults, sourcesFor, toSearchItem } from './adminSearchModel.js'
 import { applicationsQueryString } from './useAdminApplications'
 import { peopleQueryString } from './useAdminPeople'
 import { acceptedStudentsQueryString, aivexQueryString } from './useAdminAivex'
@@ -115,6 +115,11 @@ export function useAdminSearch({ input, scope = 'all', shell = 'full', active = 
       return { source, ...entry, items: rankResults(entry.items, text, reference) }
     })
     .filter((group) => group.status !== 'hidden')
+  // Totals already known for this query, for the scope chips; never a request.
+  const counts = Object.fromEntries(allowedSources(user.role, shell).map((source) => {
+    const entry = entries.get(keyOf(source, text)) || cache.get(keyOf(source, text))
+    return [source, entry && entry.status !== 'hidden' && entry.status !== 'error' ? entry.total : null]
+  }))
 
   return {
     text,
@@ -123,6 +128,7 @@ export function useAdminSearch({ input, scope = 'all', shell = 'full', active = 
     reference,
     sources,
     groups,
+    counts,
     loading: groups.some((group) => group.status === 'loading'),
     retry,
     recentQueries: memory.queries,
