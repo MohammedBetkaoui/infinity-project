@@ -293,6 +293,10 @@
 .adm-global-search { flex: 0 1 420px; width: auto; min-width: 220px; height: 48px; padding-inline: 16px 10px; background: var(--adm-surface-soft); border-color: var(--adm-field-border); }
 .adm-global-search:focus-within { background: var(--adm-surface-raised); }
 .adm-notification { position: relative; width: 48px; height: 48px; flex-basis: 48px; color: var(--adm-ink); background: var(--adm-surface-soft); }
+.adm-theme-toggle { width: 48px; height: 48px; flex-basis: 48px; color: var(--adm-ink); background: var(--adm-surface-soft); }
+.adm-theme-toggle:hover { color: var(--adm-ink); background: rgb(var(--adm-accent-rgb) / .08); }
+.adm-theme-toggle[aria-pressed="true"] { color: var(--adm-accent-fg); }
+.adm-aivex-accessbar .adm-theme-toggle { width: 44px; height: 44px; flex-basis: 44px; }
 .adm-notification:hover { background: rgb(var(--adm-accent-rgb) / .08); }
 .adm-notification i { position: absolute; top: 11px; right: 12px; width: 9px; height: 9px; background: var(--adm-amber); border: 2px solid var(--adm-surface); border-radius: 50%; }
 .adm-new-action { min-height: 48px; }
@@ -1239,6 +1243,11 @@
 .adm-settings-content > :is(.adm-settings-layout, .adm-preferences-error, .adm-campaign-settings-error, .adm-campaign-settings-loading) { margin-top: 0; }
 .adm-accent-settings { align-self: start; }
 .adm-accent-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; margin: 16px 0 0; padding: 0; border: 0; }
+.adm-theme-picker { display: grid; gap: 10px; margin: 16px 0 0; padding-bottom: 18px; border-bottom: 1px solid var(--adm-line); }
+.adm-theme-picker > span { display: grid; gap: 2px; }
+.adm-theme-picker b { font-size: 14px; }
+.adm-theme-picker small { color: var(--adm-muted); font-size: 12px; }
+.adm-theme-picker .adm-segmented { display: grid; width: 100%; }
 .adm-accent-picker label { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; min-height: 64px; padding: 10px 12px; border: 1px solid var(--adm-line); border-radius: var(--adm-radius-control); cursor: pointer; transition: border-color .15s, background .15s, box-shadow .15s; }
 .adm-accent-picker label:hover { border-color: var(--adm-line-strong); }
 .adm-accent-picker label.is-active { background: var(--adm-surface-soft); border-color: var(--adm-accent-fg); box-shadow: 0 0 0 3px rgb(var(--adm-accent-rgb) / .14); }

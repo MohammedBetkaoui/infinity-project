@@ -1,14 +1,15 @@
-import { useState } from 'react'
-import { ArrowLeft, ArrowRight, CalendarClock, Check, CircleAlert, Eye, EyeOff, LoaderCircle, LockKeyhole, RefreshCw, ShieldCheck, TriangleAlert, User } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { ArrowLeft, ArrowRight, CalendarClock, Check, CircleAlert, Eye, EyeOff, LoaderCircle, LockKeyhole, Monitor, Moon, RefreshCw, ShieldCheck, Sun, TriangleAlert, User } from 'lucide-react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import InfinityMark from '../components/InfinityMark'
 import { useAdminAuth } from './AdminAuth'
 import { useAdminPreferences } from './AdminPreferences'
 import { ADMIN_ACCENTS, useAdminAccent } from './adminAccent'
+import { ADMIN_THEMES, useAdminTheme, useThemeColor, useThemeSwitch } from './adminTheme'
 import { safeAdminReturnTo } from './adminAuthPath'
 import { useAdmin } from './AdminStore'
 import { dateLabel, filterRecords, timeLabel } from './adminModel'
-import { Button, PageHeader, StatusBadge, Tabs } from './AdminUI'
+import { Button, PageHeader, SegmentedControl, StatusBadge, Tabs } from './AdminUI'
 import { ActionDialog, Facts, RecordTable, RecordToolbar, SummaryStrip } from './AdminRecords'
 import AivexCampaignSettings from './AivexCampaignSettings'
 import { useAdminAivexCampaignSettings } from './useAdminAivexCampaignSettings'
@@ -16,6 +17,9 @@ import { formatCampaignDateTime } from '../../shared/aivex/campaign-schedule.js'
 
 export function LoginPage() {
   const navigate = useNavigate()
+  const { theme } = useAdminTheme()
+  const rootRef = useRef(null)
+  useThemeColor(rootRef, '--adm-deep', theme)
   const [params] = useSearchParams()
   const { login } = useAdminAuth()
   const [username, setUsername] = useState('')
@@ -40,7 +44,7 @@ export function LoginPage() {
   const updateCapsLock = (event) => setCapsLock(event.getModifierState?.('CapsLock') === true)
   const invalid = error ? true : undefined
   return (
-    <main className="adm-login adm-app">
+    <main ref={rootRef} className="adm-login adm-app" data-theme={theme}>
       <div className="adm-login-backdrop" aria-hidden="true"><InfinityMark className="adm-login-emblem"/></div>
       <div className="adm-login-card">
         <header className="adm-login-head">
@@ -167,9 +171,21 @@ function AccessAndPrivacy({ addToast, user }) {
   return <div className="adm-settings-layout"><form className="adm-panel adm-settings-form" onSubmit={save} aria-busy={saving}><h2>Administrative access</h2><Facts items={[["Administrator", user.displayName], ['Username', `@${user.username}`], ['Current role', user.role.replaceAll('_', ' ')], ['Session', 'Server verified · HttpOnly cookie']]}/><h3>Confidential viewer</h3><p>Each open, close and verification is recorded. There are no public document URLs or identity thumbnails.</p><label className="adm-form-field"><span>Automatic viewer closure</span><select value={viewerTimeout} onChange={(event) => setViewerTimeout(Number(event.target.value))} disabled={saving}><option value="60">After 1 minute</option><option value="120">After 2 minutes</option><option value="300">After 5 minutes</option></select></label><p className="adm-muted">The selected timeout applies the next time a confidential AIVEX viewer is opened.</p>{error && <p className="adm-auth-error" role="alert"><CircleAlert size={15}/>{error}</p>}<Button type="submit" disabled={saving || !changed} icon={saving ? <LoaderCircle className="adm-spin" size={16}/> : undefined}>{saving ? 'Saving…' : 'Save viewer preference'}</Button></form><PasswordSecurityPanel addToast={addToast}/></div>
 }
 
+const THEME_ICONS = Object.freeze({ light: Sun, dark: Moon, system: Monitor })
+
+function ThemePicker() {
+  const { effectiveReducedMotion } = useAdminPreferences()
+  const { preference, theme, choose } = useThemeSwitch(effectiveReducedMotion)
+  const options = ADMIN_THEMES.map(({ key, label }) => {
+    const Icon = THEME_ICONS[key]
+    return { value: key, label, icon: <Icon size={15} aria-hidden="true"/> }
+  })
+  return <div className="adm-theme-picker"><span><b>Theme</b><small>{preference === 'system' ? `Follows this device, currently ${theme}.` : 'The same on every administration page.'}</small></span><SegmentedControl label="Theme" value={preference} onChange={choose} options={options}/></div>
+}
+
 function AccentPicker() {
   const [accent, setAccent] = useAdminAccent()
-  return <section className="adm-panel adm-settings-form adm-accent-settings"><span className="adm-eyebrow">Colour</span><h2>Accent colour</h2><p>Re-tints buttons, highlights and charts across the workspace. Every accent keeps AA contrast. Saved on this browser only.</p><fieldset className="adm-accent-picker"><legend className="sr-only">Accent colour</legend>{ADMIN_ACCENTS.map((option) => <label key={option.key} className={accent === option.key ? 'is-active' : ''}><input type="radio" name="admin-accent" value={option.key} checked={accent === option.key} onChange={() => setAccent(option.key)}/><span className="adm-accent-swatch" data-accent={option.key} aria-hidden="true"><i/><i/><i/></span><span><b>{option.label}</b><small>{option.copy}</small></span></label>)}</fieldset></section>
+  return <section className="adm-panel adm-settings-form adm-accent-settings"><span className="adm-eyebrow">Colour</span><h2>Theme and accent</h2><p>Choose light, dark or your device setting, then the accent that re-tints buttons, highlights and charts. Every combination keeps AA contrast. Saved on this browser only.</p><ThemePicker/><fieldset className="adm-accent-picker"><legend className="sr-only">Accent colour</legend>{ADMIN_ACCENTS.map((option) => <label key={option.key} className={accent === option.key ? 'is-active' : ''}><input type="radio" name="admin-accent" value={option.key} checked={accent === option.key} onChange={() => setAccent(option.key)}/><span className="adm-accent-swatch" data-accent={option.key} aria-hidden="true"><i/><i/><i/></span><span><b>{option.label}</b><small>{option.copy}</small></span></label>)}</fieldset></section>
 }
 
 function AppearancePreferences({ addToast }) {

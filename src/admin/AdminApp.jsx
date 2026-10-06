@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, FileText, LockKeyhole, Search, Users } from 'lucide-react'
 import { Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import InfinityMark from '../components/InfinityMark'
@@ -6,6 +6,7 @@ import { adminHomePath, adminPathForRole, hasFullAdminWorkspace } from './adminA
 import { AdminAuthProvider, useAdminAuth } from './AdminAuth'
 import { adminLoginPathFor } from './adminAuthPath'
 import { useAdminAccent } from './adminAccent'
+import { useAdminTheme, useThemeColor } from './adminTheme'
 import { AdminProvider, useAdmin } from './AdminStore'
 import {
   AdminPreferencesProvider, useAdminPreferences, useAdminReviewQueue,
@@ -44,6 +45,9 @@ function Workspace() {
   const { user } = useAdminAuth()
   const { effectiveReducedMotion, preferences } = useAdminPreferences()
   const [accent] = useAdminAccent()
+  const { theme } = useAdminTheme()
+  const rootRef = useRef(null)
+  useThemeColor(rootRef, '--adm-canvas', `${theme} ${accent}`)
   const { pathname, search: routeSearch } = useLocation()
   const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState(false)
@@ -79,7 +83,7 @@ function Workspace() {
   // server endpoint is available, so stale local people records never surface.
   const searchResults = query.trim() ? state.teams.filter((r) => `${r.name} ${r.ref || ''}`.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 8).map((record) => ({ collection: 'teams', record })) : []
   if (!hasFullAdminWorkspace(user.role)) {
-    return <div className={wrapperClassName} data-accent={accent} dir={isArabicAivex ? 'rtl' : 'ltr'} lang={language}>
+    return <div ref={rootRef} className={wrapperClassName} data-accent={accent} data-theme={theme} dir={isArabicAivex ? 'rtl' : 'ltr'} lang={language}>
       <a href="#admin-content" className="adm-skip-link">{t('Skip to workspace')}</a>
       <AivexOnlyShell>
         <Routes>
@@ -96,7 +100,7 @@ function Workspace() {
     if (preferences.reviewNotificationsEnabled) reviewQueue.refresh()
     setNotifications(true)
   }
-  return <div className={wrapperClassName} data-accent={accent} dir={isArabicAivex ? 'rtl' : 'ltr'} lang={language}><a href="#admin-content" className="adm-skip-link">{t('Skip to workspace')}</a><AdminShell collapsed={collapsed} setCollapsed={setCollapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} query={query} setQuery={setQuery} onNotifications={openNotifications} hasNotifications={preferences.reviewNotificationsEnabled && reviewQueue.items.length > 0} onNewAction={() => setNewAction(true)} badges={{ aivex: preferences.reviewNotificationsEnabled ? reviewQueue.items.length : 0 }}>
+  return <div ref={rootRef} className={wrapperClassName} data-accent={accent} data-theme={theme} dir={isArabicAivex ? 'rtl' : 'ltr'} lang={language}><a href="#admin-content" className="adm-skip-link">{t('Skip to workspace')}</a><AdminShell collapsed={collapsed} setCollapsed={setCollapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} query={query} setQuery={setQuery} onNotifications={openNotifications} hasNotifications={preferences.reviewNotificationsEnabled && reviewQueue.items.length > 0} onNewAction={() => setNewAction(true)} badges={{ aivex: preferences.reviewNotificationsEnabled ? reviewQueue.items.length : 0 }}>
     <Routes><Route index element={<Navigate to="/admin/overview" replace/>}/><Route path="overview" element={<OverviewPage/>}/><Route path="applications" element={<ApplicationsPage key={`applications-${routeSearch}`}/>}/><Route path="members" element={<DirectoryPage key={`members-${routeSearch}`} kind="members"/>}/><Route path="staff" element={<DirectoryPage key={`staff-${routeSearch}`} kind="staff"/>}/><Route path="aivex" element={<AivexListPage key={routeSearch} globalQuery=""/>}/><Route path="aivex/:teamId" element={<AivexDetailPage key={pathname}/>}/><Route path="activity" element={<ActivityPage key={routeSearch} globalQuery=""/>}/><Route path="settings" element={<SettingsPage/>}/><Route path="*" element={<Navigate to="/admin/overview" replace/>}/></Routes>
   </AdminShell>
   {query.trim() && <div className="adm-global-results" role="region" aria-label={t('Global search results')}><header><Search size={15}/>{t('Search the workspace')}<button onClick={() => setQuery('')}>{t('Close')}</button></header>{searchResults.length ? searchResults.map(({ collection, record }) => <button key={`${collection}-${record.id}`} onClick={() => { navigate(collection === 'teams' ? preserveAivexLanguage(`/admin/aivex/${record.id}`) : `/admin/${collection}?record=${encodeURIComponent(record.id)}${collection === 'applications' ? `&stage=${record.status}` : ''}`); setQuery('') }}><span><b>{record.name}</b><small dir="ltr">{record.ref || record.email}</small></span><em>{collection === 'teams' ? 'AIVEX' : t(collection)}</em><FlowArrow size={15}/></button>) : <p>{t('No matching names or references.')}</p>}</div>}
@@ -116,7 +120,10 @@ function Workspace() {
 }
 
 function SecureLoadingState({ title = 'Verifying administrative access' }) {
-  return <div className="adm-auth-loading adm-app" role="status" aria-live="polite"><InfinityMark/><LockKeyhole size={20}/><div><b>{title}</b><span>Infinity Administration · Secure session</span></div></div>
+  const { theme } = useAdminTheme()
+  const rootRef = useRef(null)
+  useThemeColor(rootRef, '--adm-deep', theme)
+  return <div ref={rootRef} className="adm-auth-loading adm-app" data-theme={theme} role="status" aria-live="polite"><InfinityMark/><LockKeyhole size={20}/><div><b>{title}</b><span>Infinity Administration · Secure session</span></div></div>
 }
 
 function ProtectedWorkspace() {

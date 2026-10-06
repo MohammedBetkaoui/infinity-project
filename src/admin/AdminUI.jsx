@@ -2,8 +2,8 @@ import { useEffect, useId, useRef, useState } from 'react'
 import {
   AlertTriangle, ArrowRight, Bell, BriefcaseBusiness, Check, CheckCircle2,
   ChevronDown, ChevronLeft, ChevronRight, Circle, FileClock, FileText,
-  Filter, LayoutDashboard, LockKeyhole, LogOut, Menu, MoreHorizontal, Plus,
-  Search, Settings, ShieldCheck, Trophy, UserCog, Users, X,
+  Filter, LayoutDashboard, LockKeyhole, LogOut, Menu, Moon, MoreHorizontal, Plus,
+  Search, Settings, ShieldCheck, Sun, Trophy, UserCog, Users, X,
 } from 'lucide-react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import InfinityMark from '../components/InfinityMark'
@@ -12,6 +12,8 @@ import { navItems } from './adminData'
 import { aivexPath, translateAivex } from './AivexI18n'
 import { STATUS_TRANSLATIONS } from './adminModel'
 import { useDialogMotion, usePageFade, useToastMotion } from './adminMotion'
+import { useEffectiveReducedMotion } from './AdminPreferences'
+import { useThemeSwitch } from './adminTheme'
 
 const icons = {
   overview: LayoutDashboard,
@@ -275,6 +277,15 @@ function useStuckSentinel() {
   return [sentinel, stuck]
 }
 
+// One press switches between light and dark; Settings › Appearance also offers
+// following the device.
+export function ThemeToggle({ label }) {
+  const reducedMotion = useEffectiveReducedMotion()
+  const { theme, choose } = useThemeSwitch(reducedMotion)
+  const dark = theme === 'dark'
+  return <button type="button" className="adm-icon-button adm-theme-toggle" aria-label={label} aria-pressed={dark} title={label} onClick={() => choose(dark ? 'light' : 'dark')}>{dark ? <Moon size={19} aria-hidden="true"/> : <Sun size={19} aria-hidden="true"/>}</button>
+}
+
 function Topbar({ setMobileOpen, query, setQuery, notify, hasNotifications, onNewAction, language = 'en' }) {
   const navigate = useNavigate()
   const { user } = useAdminAuth()
@@ -288,6 +299,7 @@ function Topbar({ setMobileOpen, query, setQuery, notify, hasNotifications, onNe
         <IconButton label={t('Open navigation')} className="adm-menu-trigger" onClick={() => setMobileOpen(true)}><Menu size={20} /></IconButton>
         <SearchField value={query} onChange={setQuery} placeholder={t('Search anything…')} label={t('Search anything…')} clearLabel={isArabic ? 'مسح البحث' : 'Clear search'} className="adm-global-search" shortcut={SEARCH_SHORTCUT} />
         <div className="adm-topbar__right">
+          <ThemeToggle label={t('Dark theme')} />
           <IconButton label={t('Notifications')} className="adm-notification" onClick={notify}><Bell size={19} />{hasNotifications && <i />}</IconButton>
           <Button onClick={onNewAction} icon={<Plus size={17} />} className="adm-new-action"><span className="adm-new-action__label">{t('New action')}</span></Button>
           <button className="adm-top-profile" aria-label={`${t('Open profile')}: ${user.displayName}`} onClick={() => navigate('/admin/settings')}><Avatar initials={initialsFor(user.displayName)} small /><span><b>{user.displayName}</b><small>@{user.username} · {roleLabel(user.role)}</small></span></button>
@@ -348,6 +360,7 @@ export function AivexOnlyShell({ children }) {
           <div className="adm-aivex-accessbar__session">
             <span className="adm-aivex-accessbar__status"><i/>{t('Secure AIVEX workspace')}</span>
             <span className="adm-aivex-accessbar__identity"><Avatar initials={initialsFor(user.displayName)} small/><span><b>{user.displayName}</b><small>@{user.username} · {roleLabel(user.role)}</small></span></span>
+            <ThemeToggle label={t('Dark theme')} />
             <button className="adm-aivex-accessbar__logout" type="button" onClick={signOut} disabled={signingOut}>
               <LogOut size={17}/><span>{signingOut ? t('Signing out…') : t('Sign out')}</span>
             </button>

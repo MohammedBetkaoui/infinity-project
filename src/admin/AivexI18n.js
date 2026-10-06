@@ -595,6 +595,7 @@ const ARABIC = Object.freeze({
   'Session holder': 'صاحب الجلسة',
   'Lead administrator': 'المسؤولة الرئيسية',
   'Sign out': 'تسجيل الخروج',
+  'Dark theme': 'الوضع الداكن',
   'Collapse navigation': 'طي القائمة',
   'Expand sidebar': 'توسيع القائمة',
   Expand: 'توسيع',
