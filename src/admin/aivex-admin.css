@@ -47,7 +47,7 @@
 .adm-aivex-metrics .is-male::before { background: rgb(var(--adm-male-rgb)); }
 .adm-attendance { display: grid; gap: 18px; }
 .adm-attendance-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 12px; background: var(--adm-surface-raised); border: 1px solid var(--adm-card-border); border-radius: var(--adm-radius-card); box-shadow: var(--adm-shadow-card); }
-.adm-attendance-search { display: flex; align-items: center; flex: 1 1 280px; min-height: 44px; padding-inline: 14px 6px; color: var(--adm-muted); background: var(--adm-surface-soft); border: 1px solid transparent; border-radius: var(--adm-radius-pill); }
+.adm-attendance-search { display: flex; align-items: center; flex: 1 1 280px; min-height: 44px; padding-inline: 14px 6px; color: var(--adm-muted); background: var(--adm-surface-soft); border: 1px solid var(--adm-field-border); border-radius: var(--adm-radius-pill); }
 .adm-attendance-search:focus-within { border-color: var(--adm-accent-fg); box-shadow: 0 0 0 4px rgb(var(--adm-tint-rgb) / .35); }
 .adm-attendance-search input { min-width: 0; width: 100%; min-height: 42px; padding: 8px 10px; color: var(--adm-ink); background: transparent; border: 0; outline: 0; font: inherit; font-size: 13px; }
 .adm-app .adm-attendance-search input:focus-visible { outline: 0; box-shadow: none; }
