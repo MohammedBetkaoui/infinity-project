@@ -164,13 +164,14 @@
 
 .adm-app, .adm-app *, .adm-app *::before, .adm-app *::after { box-sizing: border-box; }
 .adm-app { display: flow-root; min-height: 100vh; color: var(--adm-ink); background: var(--adm-canvas); font: 13px/1.5 var(--adm-font-sans); font-variant-numeric: tabular-nums; color-scheme: var(--adm-color-scheme); -webkit-font-smoothing: antialiased; }
+.adm-admin-root { color-scheme: var(--adm-color-scheme); }
 .adm-app button, .adm-app input, .adm-app select, .adm-app textarea { font: inherit; }
 .adm-app button { border: 0; cursor: pointer; }
 .adm-app button:disabled { cursor: not-allowed; opacity: .46; }
 .adm-app :where(a) { color: inherit; text-decoration: none; }
 .adm-app code, .adm-mono { font-family: var(--adm-font-mono); font-size: 11px; letter-spacing: 0; }
 .adm-app :focus-visible { outline: 2px solid var(--adm-accent-fg); outline-offset: 2px; box-shadow: 0 0 0 5px rgb(var(--adm-tint-rgb) / .5); }
-.adm-app ::selection { color: var(--adm-on-accent); background: var(--adm-green); }
+:is(.adm-admin-root, .adm-app) ::selection { color: var(--adm-on-accent); background: var(--adm-green); }
 .adm-app input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--adm-accent-fg); cursor: pointer; }
 .adm-skip-link { position: fixed; z-index: 300; left: 16px; top: -60px; padding: 10px 16px; color: var(--adm-on-accent); background: var(--adm-green); border-radius: var(--adm-radius-pill); font: 700 13px var(--adm-font-sans); transition: top .15s; }
 .adm-skip-link:focus { top: 12px; }
@@ -1279,6 +1280,129 @@
 .adm-admin-root[data-accent="ocean"] { --adm-accent-rgb: 11 74 102; --adm-deep-rgb: 4 42 59; --adm-hover-rgb: 15 106 143; --adm-mint-rgb: 166 212 230; --adm-ink-rgb: 6 32 44; --adm-secondary-rgb: 46 96 119; --adm-muted-rgb: 83 101 111; --adm-sage-rgb: 106 140 156; --adm-light-text-rgb: 183 207 219; --adm-cream-rgb: 238 243 246; --adm-canvas: #edf1f4; --adm-chart-2: #2b7598; --adm-chart-3: #5b97b4; }
 .adm-admin-root[data-accent="plum"] { --adm-accent-rgb: 90 35 99; --adm-deep-rgb: 51 18 58; --adm-hover-rgb: 122 53 134; --adm-mint-rgb: 220 195 226; --adm-ink-rgb: 36 16 42; --adm-secondary-rgb: 105 71 111; --adm-muted-rgb: 101 90 104; --adm-sage-rgb: 140 118 146; --adm-light-text-rgb: 217 198 221; --adm-cream-rgb: 245 239 246; --adm-canvas: #f2eff3; --adm-chart-2: #8a4f95; --adm-chart-3: #a67aaf; }
 .adm-admin-root[data-accent="ember"] { --adm-accent-rgb: 138 53 16; --adm-deep-rgb: 79 29 7; --adm-hover-rgb: 168 70 28; --adm-mint-rgb: 242 198 168; --adm-ink-rgb: 42 20 8; --adm-secondary-rgb: 123 74 51; --adm-muted-rgb: 106 91 82; --adm-sage-rgb: 156 128 110; --adm-light-text-rgb: 234 208 192; --adm-cream-rgb: 248 239 232; --adm-canvas: #f5f1ee; --adm-chart-2: #ad5426; --adm-chart-3: #c47c52; }
+
+/* Dark theme -------------------------------------------------------------
+   The deep greens of the public site and of the sign-in screen. Elevation
+   rises from the darkest step (canvas) to the lightest (modals and menus);
+   text is cream and sage, the accent turns to mint, inverse blocks turn
+   light, and shadows are black with a faint light hairline. Every role is
+   redeclared here, on the element that carries data-theme. */
+.adm-admin-root[data-theme="dark"], .adm-login[data-theme="dark"], .adm-auth-loading[data-theme="dark"] {
+  --adm-color-scheme: dark;
+
+  /* Palette */
+  --adm-accent-rgb: 158 215 196;
+  --adm-hover-rgb: 189 232 216;
+  --adm-ink-rgb: 244 240 231;
+  --adm-secondary-rgb: 182 206 197;
+  --adm-muted-rgb: 155 184 172;
+  --adm-sage-rgb: 112 145 133;
+  --adm-surface-rgb: 0 42 30;
+  --adm-canvas: #001e15;
+  --adm-chart-2: #6bc29b;
+  --adm-chart-3: #2b8a7a;
+  --adm-amber-rgb: 240 182 76;
+  --adm-amber: #f0b64c;
+  --adm-amber-ink: #f6c978;
+  --adm-error-rgb: 255 122 102;
+  --adm-error: #ffada0;
+  --adm-error-strong: #ffb9ae;
+  --adm-pink-rgb: 255 110 160;
+  --adm-pink: #ff6ea0;
+  --adm-pink-ink: #ffa3c4;
+  --adm-info-rgb: 98 184 198;
+  --adm-info-ink: #98d7e2;
+  --adm-success-ink: #93ddbd;
+  --adm-female-rgb: 222 140 176;
+  --adm-female-ink: #f4acca;
+  --adm-male-rgb: 124 172 210;
+  --adm-male-ink: #acd0f0;
+  --adm-on-accent: #00271b;
+  --adm-tone-1-bg: #4a3c1c; --adm-tone-1-ink: #f2dcab;
+  --adm-tone-2-bg: #173a52; --adm-tone-2-ink: #bfe0f4;
+  --adm-tone-3-bg: #3b2a4c; --adm-tone-3-ink: #e3cdf2;
+  --adm-tone-4-bg: #4d2a18; --adm-tone-4-ink: #f6cdb4;
+  --adm-tone-5-bg: #2d4220; --adm-tone-5-ink: #d3e8c2;
+  --adm-swatch-forest-1: #003828; --adm-swatch-forest-2: #6bc29b; --adm-swatch-forest-3: #9ed7c4;
+  --adm-swatch-ocean-1: #032f3e; --adm-swatch-ocean-2: #70bdc8; --adm-swatch-ocean-3: #a6d4e6;
+  --adm-swatch-plum-1: #2f1a35; --adm-swatch-plum-2: #c494c8; --adm-swatch-plum-3: #dcc3e2;
+  --adm-swatch-ember-1: #34190c; --adm-swatch-ember-2: #d18a5f; --adm-swatch-ember-3: #f2c6a8;
+  --adm-viewer-canvas: #141917;
+  --adm-viewer-edge: #2e3532;
+
+  /* Roles */
+  --adm-accent-fg: rgb(var(--adm-accent-rgb));
+  --adm-accent-fg-hover: rgb(var(--adm-hover-rgb));
+  --adm-surface-raised: #003828;
+  --adm-surface-overlay: #08442f;
+  --adm-surface-soft: rgb(var(--adm-accent-rgb) / .07);
+  --adm-hairline: rgb(var(--adm-ink-rgb) / .08);
+  --adm-card-border: rgb(var(--adm-edge-rgb) / .07);
+  --adm-line: rgb(var(--adm-ink-rgb) / .1);
+  --adm-line-strong: rgb(var(--adm-ink-rgb) / .2);
+  --adm-field-border: #7b9f90;
+ 
+  --adm-tint-rgb: 36 112 86;
+  --adm-tint: 1.6;
+  --adm-success-rgb: 88 196 148;
+  --adm-danger: #b53f2c;
+  --adm-danger-hover: #a03526;
+  --adm-on-danger: #f4f0e7;
+  --adm-inverse-bg: #f4f0e7;
+  --adm-inverse-bg-alt: #dcebe4;
+  --adm-inverse-from: #c9eddf;
+  --adm-inverse-to: #93d1ba;
+  --adm-inverse-fg-rgb: 0 39 27;
+  --adm-inverse-muted: #24503f;
+  --adm-inverse-accent-rgb: 9 74 54;
+  --adm-inverse-on: #f4f0e7;
+  --adm-inverse-veil-rgb: 0 39 27;
+  --adm-inverse-rail: rgb(0 39 27 / .07);
+  --adm-hero-gradient: radial-gradient(120% 90% at 100% 0%, rgb(255 252 244 / .5), transparent 55%), linear-gradient(150deg, var(--adm-inverse-from) 0%, var(--adm-inverse-to) 100%);
+  --adm-chart-1: #bfe9d9;
+  --adm-viewer-panel: var(--adm-surface-raised);
+  --adm-viewer-hint-fg: #f4f0e7;
+  --adm-viewer-hint-bg: rgb(0 0 0 / .62);
+  --adm-shadow-rgb: 0 0 0;
+  --adm-scrim: rgb(0 10 7 / .62);
+  --adm-shadow: 0 14px 36px rgb(0 0 0 / .36);
+  --adm-shadow-card: 0 1px 2px rgb(0 0 0 / .3), 0 12px 32px -16px rgb(0 0 0 / .55);
+  --adm-shadow-pop: 0 0 0 1px var(--adm-hairline), 0 2px 6px rgb(0 0 0 / .35), 0 32px 80px -24px rgb(0 0 0 / .72);
+  --adm-shadow-lift: 0 0 0 1px var(--adm-hairline), 0 2px 4px rgb(0 0 0 / .3), 0 28px 56px -18px rgb(0 0 0 / .62);
+}
+.adm-admin-root[data-theme="dark"][data-accent="ocean"] {
+  --adm-accent-rgb: 166 212 230; --adm-hover-rgb: 194 228 241; --adm-ink-rgb: 238 244 246; --adm-secondary-rgb: 180 203 214; --adm-muted-rgb: 152 178 190; --adm-sage-rgb: 112 140 154;
+  --adm-surface-rgb: 0 34 46; --adm-canvas: #00192a; --adm-chart-2: #70bdc8; --adm-chart-3: #4580c4; --adm-on-accent: #04202c;
+  --adm-surface-raised: #032f3f; --adm-surface-overlay: #0a3d50; --adm-field-border: #7a9eb0; --adm-tint-rgb: 34 98 124;
+  --adm-inverse-from: #cfe9f3; --adm-inverse-to: #96c9de; --adm-inverse-fg-rgb: 4 32 44; --adm-inverse-muted: #234c5e; --adm-inverse-accent-rgb: 11 74 102; --adm-inverse-veil-rgb: 4 32 44; --adm-inverse-bg-alt: #dde9ee;
+  --adm-chart-1: #cbe8f4;
+}
+.adm-admin-root[data-theme="dark"][data-accent="plum"] {
+  --adm-accent-rgb: 220 195 226; --adm-hover-rgb: 234 216 238; --adm-ink-rgb: 245 239 246; --adm-secondary-rgb: 211 194 216; --adm-muted-rgb: 186 168 192; --adm-sage-rgb: 150 128 156;
+  --adm-surface-rgb: 36 19 41; --adm-canvas: #1b0e20; --adm-chart-2: #c494c8; --adm-chart-3: #94539f; --adm-on-accent: #24102a;
+  --adm-surface-raised: #2f1a35; --adm-surface-overlay: #3c2443; --adm-field-border: #9a7fa1; --adm-tint-rgb: 104 66 114;
+  --adm-inverse-from: #ecdcf0; --adm-inverse-to: #cfb1d7; --adm-inverse-fg-rgb: 36 16 42; --adm-inverse-muted: #553a5c; --adm-inverse-accent-rgb: 90 35 99; --adm-inverse-veil-rgb: 36 16 42; --adm-inverse-bg-alt: #ece2ee;
+  --adm-chart-1: #eddff1;
+}
+.adm-admin-root[data-theme="dark"][data-accent="ember"] {
+  --adm-accent-rgb: 242 198 168; --adm-hover-rgb: 247 217 196; --adm-ink-rgb: 247 240 233; --adm-secondary-rgb: 222 202 189; --adm-muted-rgb: 196 174 160; --adm-sage-rgb: 160 132 114;
+  --adm-surface-rgb: 40 21 11; --adm-canvas: #1d0f07; --adm-chart-2: #d18a5f; --adm-chart-3: #a5582f; --adm-on-accent: #2a1408;
+  --adm-surface-raised: #34190c; --adm-surface-overlay: #442416; --adm-field-border: #a7826d; --adm-tint-rgb: 128 74 44;
+  --adm-inverse-from: #f7e1d1; --adm-inverse-to: #e3b393; --adm-inverse-fg-rgb: 42 20 8; --adm-inverse-muted: #5c3a24; --adm-inverse-accent-rgb: 118 44 12; --adm-inverse-veil-rgb: 42 20 8; --adm-inverse-bg-alt: #efe3da;
+  --adm-chart-1: #f6dccb;
+}
+/* The sign-in backdrop is dark in both themes; in the dark theme the card
+   turns from light paper to translucent deep green. */
+.adm-login[data-theme="dark"] {
+  --lg-ink: #f4f0e7; --lg-text: #dbe7e1; --lg-muted: #a9c2b7; --lg-field: #6d9182; --lg-field-hover: #8fb1a3;
+  --lg-field-disabled: #0e3a2d; --lg-field-disabled-ink: #95afa4; --lg-icon: #8fada1;
+  --lg-button-top: #bde8d8; --lg-button-edge: #7cc4ab; --lg-button-text: #00271b;
+  --lg-medallion-mid: #094a36; --lg-badge-ink: #a9dccb;
+  --lg-hint: #f2c46d; --lg-error-ink: #ffb3a7; --lg-error-bg: rgb(255 122 102 / .14);
+  --lg-disabled: #87a296; --lg-disabled-bg: #123d30; --lg-disabled-edge: #1f4a3c;
+  --lg-card-top: rgb(0 56 40 / .78); --lg-card-bottom: rgb(0 38 27 / .84); --lg-card-edge: rgb(158 215 196 / .16); --lg-card-highlight: rgb(244 240 231 / .08);
+  --lg-field-bg: #00251a;
+}
 
 /* Admin sign-in ------------------------------------------------------------ */
 .adm-login {
