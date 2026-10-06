@@ -137,7 +137,7 @@ export function CandidateActionBar({ detail, request }) {
   </div>
 }
 
-export default function PeoplePage({ collection, globalQuery }) {
+export default function PeoplePage({ collection }) {
   const { state, update, addRecord, addToast } = useAdmin()
   const records = state[collection]
   const application = collection === 'applications'
@@ -169,7 +169,7 @@ export default function PeoplePage({ collection, globalQuery }) {
     { key: 'speciality', label: 'Speciality', options: unique(records, 'speciality') },
     ...(!application ? [{ key: 'status', label: 'Status', options: isStaff ? ['Active', 'On pause', 'Inactive', 'Archived'] : ['Active', 'On pause', 'Inactive', 'Alumni', 'Archived'] }] : []),
   ]
-  const visible = filterRecords(records, `${search} ${globalQuery}`.trim(), { ...filters, ...(application ? { status: tab } : {}) })
+  const visible = filterRecords(records, search.trim(), { ...filters, ...(application ? { status: tab } : {}) })
   const counts = Object.fromEntries(APPLICATION_STATUSES.map((status) => [status, records.filter((r) => r.status === status).length]))
   const columns = [
     { key: 'name', label: application ? 'Candidate' : 'Person', render: (r) => <Person record={r}/> },

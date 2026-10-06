@@ -120,3 +120,16 @@ test('the palette is an ARIA combobox whose results are real links handed over t
   assert.equal(ui.match(/<GlobalSearch /g)?.length, 2, 'top bar and AIVEX access bar')
   for (const page of [applications, directory, aivex]) assert.match(page, /routeState\?\.globalSearch/)
 })
+
+test('the legacy local search is gone and the phone layout keeps the field as a trigger', async () => {
+  const [app, people, aivex, utility, css] = await Promise.all([
+    read('src/admin/AdminApp.jsx'), read('src/admin/PeoplePages.jsx'), read('src/admin/AivexPages.jsx'),
+    read('src/admin/AdminUtilityPages.jsx'), read('src/admin/admin.css'),
+  ])
+  for (const source of [app, people, aivex, utility]) assert.doesNotMatch(source, /globalQuery/)
+  assert.doesNotMatch(app, /state\.teams|adm-global-results|setQuery/)
+  assert.doesNotMatch(css, /\.adm-global-results/)
+  const reset = css.lastIndexOf('.adm-command { flex: 0 0 auto; min-width: 0; }')
+  assert.ok(reset > css.lastIndexOf('.adm-command { flex-basis: 360px; }') && reset > css.lastIndexOf('.adm-command { min-width: 180px; }'), 'the phone reset comes after the wider breakpoints')
+  assert.match(css, /mark \{[^}]*background: var\(--adm-mark\)/)
+})

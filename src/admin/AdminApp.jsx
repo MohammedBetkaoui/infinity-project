@@ -21,13 +21,7 @@ import { ActivityPage, LoginPage, SettingsPage } from './AdminUtilityPages'
 import './admin.css'
 
 const AIVEX_GLOBAL_ARABIC = Object.freeze({
-  'Global search results': 'نتائج البحث الشامل',
-  'Search the workspace': 'البحث في مساحة الإدارة',
   Close: 'إغلاق',
-  'No matching names or references.': 'لا توجد أسماء أو مراجع مطابقة.',
-  applications: 'طلبات الانضمام',
-  members: 'الأعضاء',
-  staff: 'الطاقم',
   'What’s next?': 'ما الإجراء التالي؟',
   'Quick actions': 'إجراءات سريعة',
   'Review Join applications': 'مراجعة طلبات الانضمام',
@@ -41,7 +35,7 @@ const AIVEX_GLOBAL_ARABIC = Object.freeze({
 })
 
 function Workspace() {
-  const { state, toasts } = useAdmin()
+  const { toasts } = useAdmin()
   const { user } = useAdminAuth()
   const { effectiveReducedMotion, preferences } = useAdminPreferences()
   const [accent] = useAdminAccent()
@@ -54,7 +48,6 @@ function Workspace() {
   const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [query, setQuery] = useState('')
   const [newAction, setNewAction] = useState(false)
   const [notifications, setNotifications] = useState(false)
   const isArabicAivex = pathname.startsWith('/admin/aivex') && new URLSearchParams(routeSearch).get('lang') === 'ar'
@@ -76,21 +69,18 @@ function Workspace() {
     window.scrollTo(0, 0)
   }, [pathname, isArabicAivex])
   useEffect(() => {
-    const handler = (event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'k') { event.preventDefault(); document.querySelector('.adm-global-search input')?.focus() } if (event.key === 'Escape') { setMobileOpen(false); setQuery('') } }
+    // Ctrl/⌘ K and / belong to the global search (GlobalSearch.jsx).
+    const handler = (event) => { if (event.key === 'Escape') setMobileOpen(false) }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [])
-  // Protected directory records are searched by their own authenticated pages.
-  // Global search stays on the legacy team collection until a cross-resource
-  // server endpoint is available, so stale local people records never surface.
-  const searchResults = query.trim() ? state.teams.filter((r) => `${r.name} ${r.ref || ''}`.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 8).map((record) => ({ collection: 'teams', record })) : []
   if (!hasFullAdminWorkspace(user.role)) {
     return <div ref={rootRef} className={wrapperClassName} data-accent={accent} data-theme={theme} dir={isArabicAivex ? 'rtl' : 'ltr'} lang={language}>
       <a href="#admin-content" className="adm-skip-link">{t('Skip to workspace')}</a>
       <AivexOnlyShell>
         <Routes>
           <Route index element={<Navigate to={adminHomePath(user.role)} replace/>}/>
-          <Route path="aivex" element={<AivexListPage key={`${routeSearch}-${searchKey}`} globalQuery=""/>}/>
+          <Route path="aivex" element={<AivexListPage key={`${routeSearch}-${searchKey}`}/>}/>
           <Route path="aivex/:teamId" element={<AivexDetailPage key={pathname}/>}/>
           <Route path="*" element={<Navigate to={adminHomePath(user.role)} replace/>}/>
         </Routes>
@@ -102,10 +92,9 @@ function Workspace() {
     if (preferences.reviewNotificationsEnabled) reviewQueue.refresh()
     setNotifications(true)
   }
-  return <div ref={rootRef} className={wrapperClassName} data-accent={accent} data-theme={theme} dir={isArabicAivex ? 'rtl' : 'ltr'} lang={language}><a href="#admin-content" className="adm-skip-link">{t('Skip to workspace')}</a><AdminShell collapsed={collapsed} setCollapsed={setCollapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} query={query} setQuery={setQuery} onNotifications={openNotifications} hasNotifications={preferences.reviewNotificationsEnabled && reviewQueue.items.length > 0} onNewAction={() => setNewAction(true)} badges={{ aivex: preferences.reviewNotificationsEnabled ? reviewQueue.items.length : 0 }}>
-    <Routes><Route index element={<Navigate to="/admin/overview" replace/>}/><Route path="overview" element={<OverviewPage/>}/><Route path="applications" element={<ApplicationsPage key={`applications-${routeSearch}-${searchKey}`}/>}/><Route path="members" element={<DirectoryPage key={`members-${routeSearch}-${searchKey}`} kind="members"/>}/><Route path="staff" element={<DirectoryPage key={`staff-${routeSearch}-${searchKey}`} kind="staff"/>}/><Route path="aivex" element={<AivexListPage key={`${routeSearch}-${searchKey}`} globalQuery=""/>}/><Route path="aivex/:teamId" element={<AivexDetailPage key={pathname}/>}/><Route path="activity" element={<ActivityPage key={routeSearch} globalQuery=""/>}/><Route path="settings" element={<SettingsPage key={`settings-${searchKey}`}/>}/><Route path="*" element={<Navigate to="/admin/overview" replace/>}/></Routes>
+  return <div ref={rootRef} className={wrapperClassName} data-accent={accent} data-theme={theme} dir={isArabicAivex ? 'rtl' : 'ltr'} lang={language}><a href="#admin-content" className="adm-skip-link">{t('Skip to workspace')}</a><AdminShell collapsed={collapsed} setCollapsed={setCollapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} onNotifications={openNotifications} hasNotifications={preferences.reviewNotificationsEnabled && reviewQueue.items.length > 0} onNewAction={() => setNewAction(true)} badges={{ aivex: preferences.reviewNotificationsEnabled ? reviewQueue.items.length : 0 }}>
+    <Routes><Route index element={<Navigate to="/admin/overview" replace/>}/><Route path="overview" element={<OverviewPage/>}/><Route path="applications" element={<ApplicationsPage key={`applications-${routeSearch}-${searchKey}`}/>}/><Route path="members" element={<DirectoryPage key={`members-${routeSearch}-${searchKey}`} kind="members"/>}/><Route path="staff" element={<DirectoryPage key={`staff-${routeSearch}-${searchKey}`} kind="staff"/>}/><Route path="aivex" element={<AivexListPage key={`${routeSearch}-${searchKey}`}/>}/><Route path="aivex/:teamId" element={<AivexDetailPage key={pathname}/>}/><Route path="activity" element={<ActivityPage key={routeSearch}/>}/><Route path="settings" element={<SettingsPage key={`settings-${searchKey}`}/>}/><Route path="*" element={<Navigate to="/admin/overview" replace/>}/></Routes>
   </AdminShell>
-  {query.trim() && <div className="adm-global-results" role="region" aria-label={t('Global search results')}><header><Search size={15}/>{t('Search the workspace')}<button onClick={() => setQuery('')}>{t('Close')}</button></header>{searchResults.length ? searchResults.map(({ collection, record }) => <button key={`${collection}-${record.id}`} onClick={() => { navigate(collection === 'teams' ? preserveAivexLanguage(`/admin/aivex/${record.id}`) : `/admin/${collection}?record=${encodeURIComponent(record.id)}${collection === 'applications' ? `&stage=${record.status}` : ''}`); setQuery('') }}><span><b>{record.name}</b><small dir="ltr">{record.ref || record.email}</small></span><em>{collection === 'teams' ? 'AIVEX' : t(collection)}</em><FlowArrow size={15}/></button>) : <p>{t('No matching names or references.')}</p>}</div>}
   <Modal open={newAction} onClose={() => setNewAction(false)} title={t('What’s next?')} eyebrow={t('Quick actions')} closeLabel={t('Close')}><div className="adm-quick-actions">{[['Review Join applications', 'Meet the next generation of Infinity.', '/admin/applications', Users], ['Verify an AIVEX file', 'Continue the administrative review.', '/admin/aivex', FileText], ['Open the activity log', 'Trace a decision or document consultation.', '/admin/activity', Search]].map(([title, copy, route, Icon]) => <button key={route} onClick={() => { navigate(preserveAivexLanguage(route)); setNewAction(false) }}><Icon size={21}/><span><b>{t(title)}</b><small>{t(copy)}</small></span><FlowArrow size={17}/></button>)}</div></Modal>
   <Modal open={notifications} onClose={() => setNotifications(false)} title={t('Your review queue')} eyebrow={t('Notifications')} closeLabel={t('Close')}><div className="adm-quick-actions">
     {!preferences.reviewNotificationsEnabled

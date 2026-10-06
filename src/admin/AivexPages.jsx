@@ -226,7 +226,7 @@ function AcceptedStudentsWorkspace({ students, locale, search, onSearch, filters
   </section>
 }
 
-export function AivexListPage({ globalQuery }) {
+export function AivexListPage() {
   const navigate = useNavigate()
   const { user } = useAdminAuth()
   const { addToast } = useAdmin()
@@ -237,10 +237,10 @@ export function AivexListPage({ globalQuery }) {
   const { state: routeState } = useLocation()
   const handedOver = routeState?.globalSearch || ''
   const [search, setSearch] = useState(() => (workspace === 'students' ? '' : handedOver))
-  const deferredSearch = useDeferredValue(`${search} ${globalQuery}`.trim())
+  const deferredSearch = useDeferredValue(search.trim())
   const [filters, setFilters] = useState(params.get('document') ? { document: params.get('document') } : {})
   const [studentSearch, setStudentSearch] = useState(() => (workspace === 'students' ? handedOver : ''))
-  const deferredStudentSearch = useDeferredValue(`${studentSearch} ${globalQuery}`.trim())
+  const deferredStudentSearch = useDeferredValue(studentSearch.trim())
   const [studentFilters, setStudentFilters] = useState({})
   const [studentPage, setStudentPage] = useState(1)
   const [studentTableSort, setStudentTableSort] = useState({ key: 'name', asc: true })

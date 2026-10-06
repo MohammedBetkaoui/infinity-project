@@ -86,14 +86,14 @@ export function LoginPage() {
   )
 }
 
-export function ActivityPage({ globalQuery }) {
+export function ActivityPage() {
   const { state } = useAdmin()
   const [params] = useSearchParams()
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState(params.get('sensitivity') ? { sensitivity: params.get('sensitivity') } : {})
   const [detail, setDetail] = useState(null)
   const records = state.activities.map((a) => ({ ...a, day: dateLabel(a.at) }))
-  const visible = filterRecords(records, `${search} ${globalQuery}`.trim(), filters)
+  const visible = filterRecords(records, search.trim(), filters)
   return <div className="adm-page adm-activity-page"><PageHeader eyebrow="Accountability · Audit trail" title="Activity log" description="A clear record of decisions, changes and confidential document access."/><SummaryStrip items={[{ label: 'Recorded actions', value: records.length }, { label: 'Confidential events', value: records.filter((r) => r.sensitivity === 'Confidential').length }, { label: 'Administrators', value: new Set(records.map((r) => r.actor)).size }]}/><div className="adm-work-panel"><RecordToolbar search={search} onSearch={setSearch} placeholder="Search action, team or candidate…" filters={filters} onFilters={setFilters} definitions={[{ key: 'actor', label: 'Administrator', options: [...new Set(records.map((r) => r.actor))] }, { key: 'objectType', label: 'Object type', options: ['Application', 'Member', 'Staff', 'AIVEX', 'Administration'] }, { key: 'action', label: 'Action', options: [...new Set(records.map((r) => r.action))] }, { key: 'day', label: 'Date', options: [...new Set(records.map((r) => r.day))] }, { key: 'sensitivity', label: 'Sensitivity', options: ['Standard', 'Confidential'] }]}/><RecordTable records={visible} pageSize={8} onOpen={setDetail} columns={[{ key: 'action', label: 'Action', render: (a) => <span className={`adm-log-action ${a.sensitivity === 'Confidential' ? 'is-confidential' : ''}`}>{a.sensitivity === 'Confidential' ? <LockKeyhole size={16} aria-hidden="true"/> : <Check size={16} aria-hidden="true"/>}<span><b>{a.action}</b><small>{a.entity}</small></span></span> }, { key: 'entity', label: 'Team / candidate' }, { key: 'actor', label: 'Administrator' }, { key: 'objectType', label: 'Object', secondary: true }, { key: 'at', label: 'Date / time', render: (a) => <span>{dateLabel(a.at)}<small className="adm-cell-sub">{timeLabel(a.at)}</small></span> }, { key: 'sensitivity', label: 'Sensitivity', render: (a) => <StatusBadge tone={a.sensitivity === 'Confidential' ? 'sensitive' : 'neutral'}>{a.sensitivity}</StatusBadge> }]}/></div>{detail && <ActionDialog action={{ title: detail.action, reason: false, description: `${detail.entity} · ${detail.actor} · ${dateLabel(detail.at)}, ${timeLabel(detail.at)}. ${detail.note || 'No additional internal note.'}`, submit: 'Close', fields: [] }} onClose={() => setDetail(null)} onSubmit={() => {}}/>}</div>
 }
 

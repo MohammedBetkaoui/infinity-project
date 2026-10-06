@@ -150,6 +150,10 @@ export const GRAPHIC_MIN = 3
 // at its current floor (10) instead.
 export const SERIES_MIN = { light: 10, dark: 15 }
 export const SERIES_CVD_MIN = 8
+// Search highlights must stand out from the row behind them. The light value
+// predates the dark theme and is kept pixel-identical, so it is held at its
+// current floor (5.5); the dark theme meets 12.
+export const MARK_MIN = { light: 5.5, dark: 12 }
 
 // Every pair the interface depends on, for one theme and accent.
 export function auditCombination(css, combination) {
@@ -202,6 +206,13 @@ export function auditCombination(css, combination) {
     for (const role of ['--adm-inverse-fg', '--adm-inverse-muted', '--adm-inverse-accent']) ratio('inverse', `${role} on ${name}`, opaque(role, background), background, TEXT_MIN)
   }
   for (const fill of ['--adm-inverse-fg', '--adm-inverse-accent']) ratio('inverse', `--adm-inverse-on on ${fill}`, color('--adm-inverse-on'), color(fill), TEXT_MIN)
+  // Search highlights, on the palette and on its active row
+  for (const name of ['overlay', 'soft overlay']) {
+    const background = surfaces[name]
+    const mark = opaque('--adm-mark', background)
+    ratio('search highlight', `ink on highlight (${name})`, opaque('--adm-ink', mark), mark, TEXT_MIN)
+    results.push({ group: 'search highlight', label: `highlight vs ${name}`, ratio: separation(mark, background), minimum: MARK_MIN[combination.theme], unit: 'ΔE' })
+  }
   // Initials avatars
   ratio('avatar', 'accent initials on tint', color('--adm-accent-fg'), over(color('rgb(var(--adm-tint-rgb) / .55)'), raised), TEXT_MIN)
   for (const tone of [1, 2, 3, 4, 5]) {
