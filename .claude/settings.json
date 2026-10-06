@@ -1,0 +1,9 @@
+{
+  "enabledPlugins": {
+    "frontend-design@anthropic-plugin-directory": true,
+    "playwright@anthropic-plugin-directory": true,
+    "hubcap@anthropic-plugin-directory": true,
+    "context7@anthropic-plugin-directory": true,
+    "research-superpowers@anthropic-plugin-directory": true
+  }
+}

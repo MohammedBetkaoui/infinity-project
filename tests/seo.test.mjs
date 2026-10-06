@@ -95,7 +95,7 @@ test('a generated document has exactly one canonical, one description and one og
   }
 })
 
-test('structured data is valid JSON, describes only real club facts, and claims no unpublished event', () => {
+test('structured data describes real facts and dates only the confirmed Open Day', () => {
   const org = organizationJsonLd()
   assert.equal(org['@type'], 'Organization')
   assert.equal(org.name, 'Infinity Club')
@@ -109,12 +109,25 @@ test('structured data is valid JSON, describes only real club facts, and claims 
       const flat = JSON.stringify(parsed)
       // No placeholders, no invented dates, no personal data.
       assert.doesNotMatch(flat, /YOUR-|TODO|PLACEHOLDER|example\.com|xxx@/i, route.path)
-      assert.doesNotMatch(flat, /"startDate"|"endDate"|"eventStatus"/, `${route.path} must not claim event dates`)
+      if (route.path === '/events/open-day-2026' && parsed['@type'] === 'Event') {
+        assert.equal(parsed.name, 'Infinity Club Open Day')
+        assert.equal(parsed.startDate, '2026-10-05')
+        assert.equal(parsed.organizer.name, 'Infinity Club')
+        assert.equal(parsed.location.name, 'Faculty of Mathematics and Computer Science, University of Bordj Bou Arreridj')
+        assert.equal(parsed.location.address.addressLocality, 'Bordj Bou Arreridj')
+        assert.equal(parsed.location.address.addressCountry, 'DZ')
+        assert.doesNotMatch(flat, /"endDate"|"eventStatus"|"offers"|"performer"|"maximumAttendeeCapacity"/)
+      } else {
+        assert.doesNotMatch(flat, /"startDate"|"endDate"|"eventStatus"/, `${route.path} must not claim event dates`)
+        assert.notEqual(parsed['@type'], 'Event', `${route.path} has no confirmed event`)
+      }
     }
   }
   // AIVEX publishes "Dates and venue: To be confirmed", so Event markup
   // would contradict the page. See docs/seo.md.
-  assert.ok(!JSON.stringify(ROUTES.flatMap(jsonLdFor)).includes('"Event"'))
+  const eventRoutes = ROUTES.filter((route) => jsonLdFor(route).some((block) => block['@type'] === 'Event'))
+  assert.deepEqual(eventRoutes.map((route) => route.path), ['/events/open-day-2026'])
+  assert.ok(!JSON.stringify(jsonLdFor(byPath('/aivex'))).includes('"Event"'))
 })
 
 test('social preview images exist on disk and are referenced as absolute HTTPS URLs', async () => {

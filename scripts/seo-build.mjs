@@ -66,7 +66,7 @@ export function headFor(route) {
   for (const block of jsonLdFor(route)) {
     // JSON-LD is data, not markup: the only character that can break out of
     // a <script> block is '<', which JSON.stringify leaves untouched.
-    head += `    <script type="application/ld+json">${JSON.stringify(block).replace(/</g, '\\u003c')}</script>\n`
+    head += `    <script type="application/ld+json" data-route-seo="">${JSON.stringify(block).replace(/</g, '\\u003c')}</script>\n`
   }
   return head
 }

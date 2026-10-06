@@ -99,7 +99,10 @@ test('Events is a routed, year-grouped archive with scroll-linked motion', async
   assert.match(app, /path="\/events" element={<SitePage motionTrigger="viewport"><EventsPage \/><\/SitePage>}/)
   assert.match(page, /<EventsHero \/>/)
   assert.match(page, /<EventArchive \/>/)
-  assert.match(archive, /groupEventsByYear\(eventArchive\)/)
+  // Search/status filtering precedes grouping in the current archive.
+  assert.match(archive, /const filteredEvents = useMemo/)
+  assert.match(archive, /return eventArchive\.filter\(/)
+  assert.match(archive, /groupEventsByYear\(filteredEvents\)/)
   assert.match(motion, /revealSection/)
   assert.match(styles, /prefers-reduced-motion: reduce/)
 

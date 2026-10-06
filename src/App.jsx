@@ -20,6 +20,7 @@ import AboutPage from './pages/about/AboutPage'
 import EventsPage from './pages/events/EventsPage'
 
 const CommunityPage = lazy(() => import('./pages/community/CommunityPage'))
+const OpenDayPage = lazy(() => import('./pages/events/open-day/OpenDayPage'))
 const ContactPage = lazy(() => import('./pages/contact/ContactPage'))
 const JoinPage = lazy(() => import('./pages/join/JoinPage'))
 const AivexRegisterPage = lazy(() => import('./pages/aivex/register/AivexRegisterPage'))
@@ -130,6 +131,7 @@ export default function App() {
         <Route path="/join" element={<SitePage><Suspense fallback={<p className="page-container py-40" role="status">Opening the application...</p>}><JoinPage /></Suspense></SitePage>} />
         <Route path="/about" element={<SitePage motionTrigger="viewport"><AboutPage /></SitePage>} />
         <Route path="/events" element={<SitePage motionTrigger="viewport"><EventsPage /></SitePage>} />
+        <Route path="/events/open-day-2026" element={<SitePage motionTrigger="viewport"><Suspense fallback={<p className="page-container py-40" role="status">Opening the Open Day journal...</p>}><OpenDayPage /></Suspense></SitePage>} />
         <Route path="/community" element={<SitePage motionTrigger="viewport"><Suspense fallback={<p className="page-container py-40" role="status">Opening the community...</p>}><CommunityPage /></Suspense></SitePage>} />
         <Route path="/contact" element={<SitePage motionTrigger="viewport"><Suspense fallback={<p className="page-container py-40" role="status">Opening contact...</p>}><ContactPage /></Suspense></SitePage>} />
       <Route path="/" element={<HomeRoute />} />

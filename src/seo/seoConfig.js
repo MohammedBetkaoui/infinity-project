@@ -11,7 +11,7 @@
 //     navigation inside the SPA.
 //
 // Every string here is wording that already exists on the site. Nothing is
-// invented: no dates, no venue, no awards, no social accounts beyond the
+// invented: no unconfirmed dates or venues, no awards, no social accounts beyond the
 // club's real Instagram, no claims the pages do not already make.
 
 // The production domain. Not a Vercel deployment URL: those change per
@@ -80,6 +80,17 @@ export const ROUTES = [
     robots: INDEX,
     sitemap: true,
     priority: '0.8',
+    image: OG_CLUB,
+    ogType: 'website',
+  },
+  {
+    path: '/events/open-day-2026',
+    title: 'Open Day 2026 | Infinity Club, Bordj Bou Arreridj',
+    description: 'Photos and moments from Infinity Club Open Day on 5 October 2026 at the Faculty of Mathematics and Computer Science, University of Bordj Bou Arreridj.',
+    robots: INDEX,
+    sitemap: true,
+    priority: '0.7',
+    // The event photos are portraits; keep the existing landscape social image.
     image: OG_CLUB,
     ogType: 'website',
   },
@@ -213,11 +224,29 @@ export const webPageJsonLd = (route) => ({
   inLanguage: DEFAULT_LOCALE,
 })
 
+export const openDayEventJsonLd = () => ({
+  '@context': 'https://schema.org',
+  '@type': 'Event',
+  '@id': `${absoluteUrl('/events/open-day-2026')}#event`,
+  name: 'Infinity Club Open Day',
+  url: absoluteUrl('/events/open-day-2026'),
+  startDate: '2026-10-05',
+  // Schema.org has no EventCompleted enumeration. The date documents the
+  // past event without inventing a status, time, price or programme.
+  organizer: { '@type': 'Organization', '@id': `${SITE_ORIGIN}/#organization`, name: 'Infinity Club', url: `${SITE_ORIGIN}/` },
+  location: {
+    '@type': 'Place',
+    name: 'Faculty of Mathematics and Computer Science, University of Bordj Bou Arreridj',
+    address: { '@type': 'PostalAddress', addressLocality: 'Bordj Bou Arreridj', addressCountry: 'DZ' },
+  },
+})
+
 // The structured data each route ships. Private/transactional routes get
 // none at all.
 export const jsonLdFor = (route) => {
   if (!route || route.robots === NOINDEX_NOFOLLOW || !route.title) return []
   if (route.path === '/') return [organizationJsonLd(), webSiteJsonLd(), webPageJsonLd(route)]
+  if (route.path === '/events/open-day-2026' && route.robots === INDEX) return [webPageJsonLd(route), openDayEventJsonLd()]
   if (route.robots === INDEX) return [webPageJsonLd(route)]
   return []
 }

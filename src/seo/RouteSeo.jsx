@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
-import { ROUTES, absoluteUrl, routeFor } from './seoConfig'
+import { ROUTES, absoluteUrl, jsonLdFor, routeFor } from './seoConfig'
 
 // Keeps the document head correct during client-side navigation.
 //
@@ -66,12 +66,30 @@ export default function RouteSeo() {
     }
 
     if (route.noSocial) {
-      for (const name of ['og:title', 'og:description', 'og:url', 'og:image', 'twitter:title', 'twitter:description', 'twitter:image']) setMeta(name, '')
+      for (const name of ['og:title', 'og:description', 'og:url', 'og:image', 'og:image:width', 'og:image:height', 'og:image:alt', 'twitter:card', 'twitter:title', 'twitter:description', 'twitter:image']) setMeta(name, '')
     } else {
       setMeta('og:title', route.title)
       setMeta('og:description', route.description)
       setMeta('twitter:title', route.title)
       setMeta('twitter:description', route.description)
+      const image = route.image ? absoluteUrl(route.image.path) : ''
+      setMeta('og:image', image)
+      setMeta('og:image:width', route.image ? String(route.image.width) : '')
+      setMeta('og:image:height', route.image ? String(route.image.height) : '')
+      setMeta('og:image:alt', route.image?.alt)
+      setMeta('twitter:image', image)
+      setMeta('twitter:card', route.image ? 'summary_large_image' : 'summary')
+    }
+
+    // Replace only the blocks owned by this route system. Event markup must
+    // follow SPA navigation and disappear on private/transactional routes.
+    document.head.querySelectorAll('script[data-route-seo]').forEach((script) => script.remove())
+    for (const block of jsonLdFor(route)) {
+      const script = document.createElement('script')
+      script.type = 'application/ld+json'
+      script.setAttribute('data-route-seo', '')
+      script.textContent = JSON.stringify(block)
+      document.head.appendChild(script)
     }
   }, [pathname])
 

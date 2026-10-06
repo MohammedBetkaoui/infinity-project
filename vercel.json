@@ -72,6 +72,7 @@
     { "source": "/community", "destination": "/community/index.html" },
     { "source": "/contact", "destination": "/contact/index.html" },
     { "source": "/events", "destination": "/events/index.html" },
+    { "source": "/events/open-day-2026", "destination": "/events/open-day-2026/index.html" },
     { "source": "/join", "destination": "/join/index.html" },
     { "source": "/admin", "destination": "/admin/index.html" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }

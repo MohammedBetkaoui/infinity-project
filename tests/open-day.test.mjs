@@ -1,0 +1,278 @@
+import assert from 'node:assert/strict'
+import { readFile, readdir } from 'node:fs/promises'
+import { test } from 'node:test'
+import { eventArchive } from '../src/data/eventArchive.js'
+import { groupEventsByYear, layoutYear } from '../src/pages/events/archiveLayout.js'
+import { openDayGallery } from '../src/pages/events/open-day/openDayGallery.js'
+import { clubFilm, filmTime, openDayFilms } from '../src/pages/events/open-day/openDayFilms.js'
+import { ROUTES, jsonLdFor, routeFor } from '../src/seo/seoConfig.js'
+import { renderRoute, sitemap } from '../scripts/seo-build.mjs'
+
+const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8')
+
+// Read JPEG SOF dimensions from the original file, not from the manifest.
+function jpegDimensions(bytes) {
+  assert.equal(bytes.readUInt16BE(0), 0xffd8)
+  let offset = 2
+  while (offset < bytes.length) {
+    assert.equal(bytes[offset], 0xff)
+    const marker = bytes[offset + 1]
+    const length = bytes.readUInt16BE(offset + 2)
+    if ([0xc0, 0xc1, 0xc2].includes(marker)) return { width: bytes.readUInt16BE(offset + 7), height: bytes.readUInt16BE(offset + 5) }
+    offset += length + 2
+  }
+  throw new Error('JPEG dimensions not found')
+}
+
+test('Open Day is a real completed 2026 event and the first standard card below AIVEX', () => {
+  const event = eventArchive.find((item) => item.id === 'open-day-2026')
+  assert.ok(event)
+  assert.equal(eventArchive.filter((item) => item.id === event.id).length, 1)
+  assert.equal(event.title, 'Open Day')
+  assert.equal(event.year, 2026)
+  assert.equal(event.edition, '05 October 2026')
+  assert.equal(event.category, 'Community / Discovery')
+  assert.equal(event.status, 'past')
+  assert.equal(event.href, '/events/open-day-2026')
+  assert.notEqual(event.isMock, true)
+  assert.ok(event.image)
+  assert.equal(event.poster, undefined)
+  assert.equal(event.image.src, openDayGallery.find((photo) => photo.id === 'hall').src)
+  const year = groupEventsByYear(eventArchive).find((group) => group.year === 2026)
+  const cells = layoutYear(year.events)
+  assert.equal(cells[0].event.id, 'aivex-2026')
+  assert.equal(cells[0].variant, 'featured')
+  assert.equal(cells[1].event.id, event.id)
+  assert.equal(cells[1].variant, 'standard')
+  assert.ok(eventArchive.filter((item) => item.isMock).every((item) => item.status === 'past'))
+})
+
+test('the gallery covers every suitable local image, with measured dimensions and truthful artwork labeling', async () => {
+  const files = (await readdir(new URL('../public/open-day/', import.meta.url))).filter((name) => !name.startsWith('.') && /\.(jpg|jpeg|png|webp|avif)$/i.test(name))
+  assert.equal(openDayGallery.length, 10)
+  assert.equal(new Set(openDayGallery.map((photo) => photo.src)).size, openDayGallery.length)
+  assert.deepEqual(openDayGallery.map((photo) => photo.src.split('/').at(-1)).sort(), files.sort())
+  for (const photo of openDayGallery) {
+    assert.match(photo.src, /^\/open-day\/[^/]+\.jpg$/)
+    assert.doesNotMatch(photo.src, /https?:|unsplash|\.\./i)
+    assert.ok(photo.alt.length > 25, photo.id)
+    assert.ok(photo.caption, photo.id)
+    const bytes = await readFile(new URL(`../public${photo.src}`, import.meta.url))
+    assert.deepEqual(jpegDimensions(bytes), { width: photo.width, height: photo.height }, photo.src)
+    assert.equal(photo.orientation, photo.width === photo.height ? 'square' : 'portrait')
+  }
+  const artwork = openDayGallery.find((photo) => photo.id === 'spin')
+  assert.equal(artwork.kind, 'artwork')
+  assert.match(artwork.alt, /artwork/)
+  assert.match(artwork.caption, /artwork/)
+})
+
+test('the lazy detail route uses the shared shell and only one H1', async () => {
+  const app = await read('src/App.jsx')
+  assert.match(app, /const OpenDayPage = lazy\(/)
+  assert.match(app, /path="\/events\/open-day-2026" element={<SitePage motionTrigger="viewport"><Suspense/)
+  const components = await Promise.all(['OpenDayPage', 'OpenDayHero', 'OpenDayStory', 'OpenDayGallery', 'OpenDayLightbox', 'OpenDayFilms', 'OpenDayFilmPlayer', 'OpenDayFilmViewer', 'OpenDayClubFilm'].map((file) => read(`src/pages/events/open-day/${file}.jsx`)))
+  assert.equal((components.join('\n').match(/<h1\b/g) || []).length, 1)
+  assert.doesNotMatch(components.join('\n'), /<Navbar|<Footer|<PageHero|<iframe/)
+  assert.match(components[1], /<Link to="\/events"/)
+  assert.match(components[1], /dateTime="2026-10-05"/)
+  assert.match(components[0], /to="\/community"/)
+  assert.match(components[0], /<OpenDayHero \/>\s*<OpenDayClubFilm \/>/)
+  assert.match(components[1], /href="#club-film"/)
+  assert.match(components[2], /AI &amp; Development/)
+})
+
+function mp4Atoms(bytes, start = 0, end = bytes.length) {
+  const entries = []
+  for (let offset = start; offset + 8 <= end;) {
+    const size = bytes.readUInt32BE(offset) || end - offset
+    assert.ok(size >= 8 && offset + size <= end)
+    entries.push({ type: bytes.toString('ascii', offset + 4, offset + 8), start: offset + 8, end: offset + size })
+    offset += size
+  }
+  return entries
+}
+
+// Measure the video track's display size and duration from the file itself.
+function mp4Video(bytes) {
+  const top = mp4Atoms(bytes)
+  const movie = top.find((atom) => atom.type === 'moov')
+  const tracks = mp4Atoms(bytes, movie.start, movie.end).filter((atom) => atom.type === 'trak').map((atom) => {
+    const children = mp4Atoms(bytes, atom.start, atom.end)
+    const media = children.find((child) => child.type === 'mdia')
+    const mediaChildren = mp4Atoms(bytes, media.start, media.end)
+    const handler = mediaChildren.find((child) => child.type === 'hdlr')
+    return { children, mediaChildren, type: bytes.toString('ascii', handler.start + 8, handler.start + 12) }
+  })
+  const track = tracks.find((atom) => atom.type === 'vide')
+  const header = track.children.find((atom) => atom.type === 'tkhd')
+  const mediaHeader = track.mediaChildren.find((atom) => atom.type === 'mdhd')
+  const version = bytes[mediaHeader.start]
+  const timescale = bytes.readUInt32BE(mediaHeader.start + (version ? 20 : 12))
+  const duration = version ? Number(bytes.readBigUInt64BE(mediaHeader.start + 24)) : bytes.readUInt32BE(mediaHeader.start + 16)
+  return {
+    width: bytes.readUInt32BE(header.end - 8) / 65536,
+    height: bytes.readUInt32BE(header.end - 4) / 65536,
+    duration: duration / timescale,
+    audio: tracks.some((atom) => atom.type === 'soun'),
+    layout: top.map((atom) => atom.type),
+  }
+}
+
+async function webpSize(path) {
+  const poster = await readFile(new URL(`../public${path}`, import.meta.url))
+  assert.equal(poster.toString('ascii', 0, 4), 'RIFF')
+  assert.equal(poster.toString('ascii', 8, 16), 'WEBPVP8 ')
+  return { width: poster.readUInt16LE(26) & 0x3fff, height: poster.readUInt16LE(28) & 0x3fff }
+}
+
+test('every local video is either the club film or one of three reels, with accurate measured dimensions/durations and posters', async () => {
+  const files = (await readdir(new URL('../public/open-day/', import.meta.url))).filter((name) => /\.mp4$/i.test(name))
+  assert.deepEqual([clubFilm, ...openDayFilms].map((film) => film.src.split('/').at(-1)).sort(), files.sort())
+  assert.equal(openDayFilms.length, 3)
+  for (const film of openDayFilms) {
+    assert.match(film.src, /^\/open-day\/.+\.mp4$/)
+    assert.match(film.poster, /^\/open-day\/posters\/.+\.webp$/)
+    assert.ok(film.description && film.label && film.note)
+    const video = mp4Video(await readFile(new URL(`../public${film.src}`, import.meta.url)))
+    assert.equal(video.width, film.width)
+    assert.equal(video.height, film.height)
+    assert.ok(Math.abs(video.duration - film.duration) < .1, film.src)
+    assert.deepEqual(await webpSize(film.poster), { width: 540, height: 960 })
+  }
+  assert.equal(filmTime(17.833), '00:17')
+  assert.equal(filmTime(Number.NaN), '00:00')
+})
+
+test('the club film is a measured landscape file with sound, streamable from the start, with a matching poster and scenes inside its runtime', async () => {
+  const video = mp4Video(await readFile(new URL(`../public${clubFilm.src}`, import.meta.url)))
+  assert.deepEqual({ width: video.width, height: video.height }, { width: clubFilm.width, height: clubFilm.height })
+  assert.equal(clubFilm.width / clubFilm.height, 16 / 9)
+  assert.ok(Math.abs(video.duration - clubFilm.duration) < .1)
+  assert.equal(video.audio, true)
+  assert.ok(video.layout.indexOf('moov') < video.layout.indexOf('mdat'), 'moov precedes mdat so playback starts without a tail request')
+  assert.deepEqual(await webpSize(clubFilm.poster), { width: clubFilm.width, height: clubFilm.height })
+  assert.ok(clubFilm.description.length > 60)
+  assert.equal(clubFilm.scenes[0].time, 0)
+  clubFilm.scenes.forEach((scene, index) => {
+    assert.ok(scene.title && scene.note, `scene ${index}`)
+    assert.ok(scene.time < clubFilm.duration)
+    if (index) assert.ok(scene.time > clubFilm.scenes[index - 1].time, 'scenes ascend')
+  })
+})
+
+test('the club film loads nothing until asked, plays with sound and native controls, and stops offscreen or under a dialog', async () => {
+  const film = await read('src/pages/events/open-day/OpenDayClubFilm.jsx')
+  assert.match(film, /preload="none" playsInline controls={controls}/)
+  // No browser chrome before the first play; then on hover, keyboard focus or touch.
+  assert.match(film, /const controls = started && \(!fine \|\| hovered \|\| keyboard\)/)
+  assert.match(film, /setKeyboard\(event\.target\.matches\(':focus-visible'\)\)/)
+  // A key pressed on the film turns its keyboard controls on; a failed media
+  // load can be retried; the status region exists before it speaks.
+  assert.match(film, /onKeyDown={keys}/)
+  assert.match(film, /else if \(video\.error\) video\.load\(\)/)
+  assert.match(film, /<p className="od-feature-error" role="status">\{failed &&/)
+  assert.doesNotMatch(film, /autoPlay|muted|loop/)
+  assert.match(film, /IntersectionObserver/)
+  assert.match(film, /infinity:scroll-lock/)
+  assert.match(film, /loadedmetadata/)
+  assert.match(film, /aria-current={started && index === scene/)
+  assert.match(film, /<h2 id="od-feature-title">/)
+  assert.equal((film.match(/<video\b/g) || []).length, 1, 'one video element, no visual duplicates')
+  assert.doesNotMatch(film, /<canvas|<iframe/)
+  assert.match(film, /onEnded=\{\(\) => setStatus\('ended'\)\}/)
+  // One cinematic card for every non-playing state, always mounted.
+  for (const title of ["'Play film'", "'Resume film'", "'Watch again'"]) assert.ok(film.includes(`title: ${title}`), title)
+  assert.match(film, /className="od-feature-play" data-state={status} hidden={status === 'playing'}/)
+  for (const layer of ['od-feature-atmosphere', 'od-feature-shadow', 'od-feature-light', 'od-feature-edge', 'od-feature-marks', 'od-feature-credits']) {
+    assert.match(film, new RegExp(`className="${layer}[^"]*"[^>]*aria-hidden="true"`), layer)
+  }
+})
+
+test('the screening room is one scrubbed timeline over a sticky stage, with static, reduced-motion and cleanup paths', async () => {
+  const motion = await read('src/pages/events/open-day/useOpenDayFilmMotion.js')
+  const css = await read('src/pages/events/open-day/open-day-film.css')
+  const page = await read('src/pages/events/open-day/useOpenDayMotion.js')
+  const pkg = JSON.parse(await read('package.json'))
+  // Scroll moves the presentation; playback time is never derived from scroll.
+  assert.doesNotMatch(motion, /currentTime|\.play\(|\.pause\(/)
+  assert.equal((motion.match(/scrollTrigger:/g) || []).length, 1, 'one primary timeline')
+  assert.match(motion, /scrub: SCROLL_MOTION\.pinScrub, invalidateOnRefresh: true/)
+  assert.doesNotMatch(motion, /\bpin:/)
+  // Only the motion-allowed queries build a room; reduced motion keeps the static flow.
+  assert.match(motion, /const MOTION = '\(prefers-reduced-motion: no-preference\)'/)
+  assert.match(motion, /if \(!conditions\.cinematic && !conditions\.compact\) return undefined/)
+  assert.match(motion, /gsap\.quickTo\(tilt/)
+  // Transform and opacity only: no filter animation in the room.
+  assert.doesNotMatch(motion, /filter:/)
+  // The next section's opening column is faded, never hidden from assistive tech.
+  assert.match(motion, /fromTo\(nextCopy, \{ x: [^}]*opacity: 0 \}/)
+  assert.doesNotMatch(motion, /nextCopy, \{[^}]*autoAlpha/)
+  for (const cleanup of [/media\.revert\(\)/, /removeEventListener\('refreshInit', forget\)/, /removeEventListener\('pointermove', move\)/, /removeEventListener\('visibilitychange', settle\)/, /watcher\?\.disconnect\(\)/, /delete section\.dataset\.filmMode/, /section\.removeAttribute\('data-film-handoff'\)/, /document\.documentElement\.removeAttribute\('data-od-film-immersed'\)/]) assert.match(motion, cleanup)
+  // Static by default: the one sticky stage and all 3D exist only under a
+  // data-film-mode set by the hook.
+  const stickyRules = css.split('\n').filter((line) => /position: sticky/.test(line))
+  assert.equal(stickyRules.length, 1)
+  assert.ok(stickyRules.every((line) => line.includes('[data-film-mode]')))
+  assert.ok(css.split('\n').filter((line) => /preserve-3d|perspective:/.test(line)).every((line) => line.includes('[data-film-mode]')))
+  assert.match(css, /prefers-reduced-motion: reduce/)
+  // The handoff and the quiet header are scoped to states the hook sets.
+  assert.ok(css.split('\n').filter((line) => line.includes('.od-intro')).every((line) => line.includes('.od-feature[data-film-handoff] + .od-intro')))
+  assert.ok(css.split('\n').filter((line) => line.includes('.site-header')).every((line) => line.startsWith('html[data-od-film-immersed]')))
+  // Phones get a short room: no scroll space above 170svh outside landscape.
+  const lengths = [...css.matchAll(/\[data-film-mode="compact"\] \{ --od-feature-length: (\d+)svh/g)].map((match) => Number(match[1]))
+  assert.ok(lengths.length >= 2 && lengths.every((length) => length <= 170), String(lengths))
+  assert.doesNotMatch(page, /od-feature-screen|od-feature-scenes li/)
+  assert.ok(!Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).some((name) => /three|webgl|locomotive/i.test(name)))
+})
+
+test('video previews defer loading, pause offscreen, respect reduced motion and retain a manual player', async () => {
+  const player = await read('src/pages/events/open-day/OpenDayFilmPlayer.jsx')
+  const films = await read('src/pages/events/open-day/OpenDayFilms.jsx')
+  const viewer = await read('src/pages/events/open-day/OpenDayFilmViewer.jsx')
+  assert.match(player, /preload="none" muted playsInline loop/)
+  assert.match(player, /IntersectionObserver/)
+  assert.match(player, /visibilitychange/)
+  assert.match(player, /infinity:scroll-lock/)
+  assert.match(player, /navigator.connection\?\.saveData/)
+  assert.match(player, /!reduced && !saveData && !userPaused.current/)
+  assert.doesNotMatch(player, /autoPlay|requestAnimationFrame/)
+  assert.match(films, /if \(!media.matches \|\| reduced \|\| viewerOpen\) return/)
+  assert.match(viewer, /dialog.showModal\(\)/)
+  assert.match(viewer, /onCancel/)
+  assert.match(viewer, /controls playsInline autoPlay preload="metadata"/)
+  assert.match(viewer, /previousFocus.focus/)
+})
+
+test('the detail page is indexable, self-canonical, sitemap eligible and preserves private route exclusions', async () => {
+  const route = routeFor('/events/open-day-2026')
+  assert.equal(route.robots, 'index,follow')
+  assert.equal(route.sitemap, true)
+  assert.equal(route.priority, '0.7')
+  const html = renderRoute(await read('index.html'), route)
+  assert.match(html, /<title>Open Day 2026 \| Infinity Club, Bordj Bou Arreridj<\/title>/)
+  assert.match(html, /rel="canonical" href="https:\/\/www.infinty-bba.com\/events\/open-day-2026"/)
+  assert.ok(sitemap(ROUTES.filter((item) => item.sitemap)).includes('/events/open-day-2026</loc>'))
+  for (const path of ['/admin', '/aivex/status', '/aivex/register', '/join']) assert.equal(routeFor(path).sitemap, false)
+  const blocks = jsonLdFor(route)
+  assert.deepEqual(blocks.map((block) => block['@type']), ['WebPage', 'Event'])
+  assert.equal(blocks[1].startDate, '2026-10-05')
+  assert.doesNotMatch(JSON.stringify(blocks[1]), /T\d\d:|"endDate"|"offers"|"performer"|"attendance"/)
+})
+
+test('image loading, lightweight modal and reduced-motion fallbacks remain part of the page', async () => {
+  const gallery = await read('src/pages/events/open-day/OpenDayGallery.jsx')
+  const hero = await read('src/pages/events/open-day/OpenDayHero.jsx')
+  const modal = await read('src/pages/events/open-day/OpenDayLightbox.jsx')
+  const motion = await read('src/pages/events/open-day/useOpenDayMotion.js')
+  const css = await read('src/pages/events/open-day/open-day.css')
+  assert.match(gallery, /width={photo.width} height={photo.height}.*loading="lazy" decoding="async"/)
+  assert.match(hero, /loading="eager" fetchPriority="high"/)
+  for (const pattern of [/createPortal/, /role="dialog"/, /aria-modal="true"/, /ArrowLeft/, /ArrowRight/, /Escape/, /event.key === 'Tab'/, /root.inert = true/, /overflow = 'hidden'/, /previousFocus.focus/, /infinity:scroll-lock/]) assert.match(modal, pattern)
+  assert.match(motion, /useScrollAnimations/)
+  assert.match(css, /prefers-reduced-motion: reduce/)
+  assert.match(css, /opacity: 1 !important/)
+  const head = await read('src/seo/RouteSeo.jsx')
+  assert.match(head, /jsonLdFor\(route\)/)
+  assert.match(head, /script\[data-route-seo\]/)
+})
