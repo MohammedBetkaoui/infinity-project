@@ -72,6 +72,9 @@ function acceptedStudentQueryString({ page, limit, search, filters, sort }) {
   return params.toString()
 }
 
+// Shared with the global search, which asks the same endpoints.
+export { queryString as aivexQueryString, acceptedStudentQueryString as acceptedStudentsQueryString }
+
 export function useAdminAivexExport() {
   const { requestRaw } = useAdminAuth()
   const [exporting, setExporting] = useState(false)

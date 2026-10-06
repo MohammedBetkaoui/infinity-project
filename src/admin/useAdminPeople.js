@@ -18,6 +18,8 @@ function queryString({ page, limit, search, filters, sort }) {
   for (const [key, value] of [...params.entries()]) if (!value) params.delete(key)
   return params.toString()
 }
+// Shared with the global search, which asks the same endpoints.
+export { queryString as peopleQueryString }
 
 export function useAdminPeople({ kind, page, limit = 12, search, filters, sort }) {
   const { request } = useAdminAuth()

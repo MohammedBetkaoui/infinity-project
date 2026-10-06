@@ -45,6 +45,8 @@ function queryString({ page, limit, status, search, filters, sort }) {
   for (const [key, value] of [...params.entries()]) if (!value) params.delete(key)
   return params.toString()
 }
+// Shared with the global search, which asks the same endpoint.
+export { queryString as applicationsQueryString }
 
 export function useAdminApplications({ page, limit = 12, status, search, filters, sort }) {
   const { request } = useAdminAuth()
