@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from './aivex-server.js'
 import { createSupabaseDocumentStore } from './aivex-document-store.js'
 import { generateOfficialDocuments } from './aivex-document-generation.js'
+import { emitAivexGenerationFailureNotification } from './admin-notifications.js'
 import {
   allowedAivexActions, canAccessAivexDocuments, canExportAivex, canManageAivex, canManageAivexAttendance, canPurgeAllAivex,
 } from './admin-aivex-permissions.js'
@@ -420,7 +421,7 @@ function publicActionError(error) {
   return null
 }
 
-export function createAdminAivexService({ store, documentStore, now = () => new Date() } = {}) {
+export function createAdminAivexService({ store, documentStore, notifyGenerationFailure, now = () => new Date() } = {}) {
   if (!store) throw Object.assign(new Error('admin_aivex_store_required'), { stage: 'configuration', code: 'configuration_error' })
 
   const detail = async (reference, user) => {
@@ -702,7 +703,15 @@ export function createAdminAivexService({ store, documentStore, now = () => new 
             return { ok: false, status: 409, message: 'This file was updated by another administrator. Refresh it before continuing.' }
           }
           if (!documentStore) throw Object.assign(new Error('aivex_document_store_required'), { stage: 'configuration', code: 'configuration_error' })
-          const result = await generateOfficialDocuments({ store: documentStore, registrationId: registration.id, now: now() })
+          const clock = now()
+          const result = await generateOfficialDocuments({
+            store: documentStore,
+            registrationId: registration.id,
+            now: clock,
+            onFailure: notifyGenerationFailure
+              ? (failure) => notifyGenerationFailure({ ...failure, actorAdminUserId: user.id })
+              : undefined,
+          })
           if (!result.attempted) return { ok: false, status: 409, message: 'Document generation is already complete or currently in progress.' }
           await store.auditEvent({
             registrationId: registration.id, adminUserId: user.id, action: 'retry_generation',
@@ -870,5 +879,6 @@ export function createServerAdminAivexService() {
       ...createSupabaseDocumentStore(supabase),
       uploadSessions: createSupabaseUploadSessionStore(supabase),
     },
+    notifyGenerationFailure: (failure) => emitAivexGenerationFailureNotification({ supabase, ...failure }),
   })
 }

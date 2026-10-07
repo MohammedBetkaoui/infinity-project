@@ -24,6 +24,7 @@ import { createClient } from '@supabase/supabase-js'
 import { isUuidV4 } from '../../shared/aivex/contract-v4.js'
 import { generateOfficialDocuments } from '../_lib/aivex-document-generation.js'
 import { createSupabaseDocumentStore } from '../_lib/aivex-document-store.js'
+import { emitAivexGenerationFailureNotification } from '../_lib/admin-notifications.js'
 import { DOCX_MIME } from '../_lib/aivex-document-template.js'
 import { REGISTRATION_REFERENCE_PATTERN } from '../_lib/aivex-reference.js'
 import { sendJson as send } from '../_lib/http.js'
@@ -116,7 +117,13 @@ export function createDocumentHandler({ createDocumentStore = createDefaultDocum
         // Same retry the registration replay performs: claim-guarded, so a
         // concurrent or already-settled generation is never duplicated.
         stage = 'generate'
-        await generateOfficialDocuments({ store, registrationId: registration.id, now: now() })
+        const clock = now()
+        await generateOfficialDocuments({
+          store,
+          registrationId: registration.id,
+          now: clock,
+          onFailure: (failure) => emitAivexGenerationFailureNotification(failure),
+        })
         stage = 'load-document-row'
         row = await store.loadDocumentRow(registration.id, 'docx')
       }

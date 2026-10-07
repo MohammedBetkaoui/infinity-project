@@ -3,16 +3,21 @@ import { createServerSupabaseClient } from './aivex-server.js'
 export const ADMIN_PREFERENCE_DEFAULTS = Object.freeze({
   tableDensity: 'comfortable',
   reviewNotificationsEnabled: true,
+  aivexNotificationsEnabled: true,
+  joinNotificationsEnabled: true,
+  notificationSoundEnabled: false,
   viewerTimeoutSeconds: 120,
   reducedMotion: false,
 })
 
 const PREFERENCE_COLUMNS = [
   'admin_user_id', 'table_density', 'review_notifications_enabled',
+  'aivex_notifications_enabled', 'join_notifications_enabled', 'notification_sound_enabled',
   'viewer_timeout_seconds', 'reduced_motion', 'created_at', 'updated_at',
 ].join(', ')
 
 const UPDATE_KEYS = Object.freeze([
+  'aivexNotificationsEnabled', 'joinNotificationsEnabled', 'notificationSoundEnabled',
   'reducedMotion', 'reviewNotificationsEnabled', 'tableDensity', 'viewerTimeoutSeconds',
 ])
 const TABLE_DENSITIES = new Set(['comfortable', 'compact'])
@@ -34,6 +39,15 @@ export function safeAdminPreferences(row) {
     reviewNotificationsEnabled: typeof row.review_notifications_enabled === 'boolean'
       ? row.review_notifications_enabled
       : ADMIN_PREFERENCE_DEFAULTS.reviewNotificationsEnabled,
+    aivexNotificationsEnabled: typeof row.aivex_notifications_enabled === 'boolean'
+      ? row.aivex_notifications_enabled
+      : ADMIN_PREFERENCE_DEFAULTS.aivexNotificationsEnabled,
+    joinNotificationsEnabled: typeof row.join_notifications_enabled === 'boolean'
+      ? row.join_notifications_enabled
+      : ADMIN_PREFERENCE_DEFAULTS.joinNotificationsEnabled,
+    notificationSoundEnabled: typeof row.notification_sound_enabled === 'boolean'
+      ? row.notification_sound_enabled
+      : ADMIN_PREFERENCE_DEFAULTS.notificationSoundEnabled,
     viewerTimeoutSeconds: VIEWER_TIMEOUTS.has(row.viewer_timeout_seconds)
       ? row.viewer_timeout_seconds
       : ADMIN_PREFERENCE_DEFAULTS.viewerTimeoutSeconds,
@@ -57,6 +71,15 @@ export function validateAdminPreferencesBody(body) {
   if (typeof body.reviewNotificationsEnabled !== 'boolean') {
     return { ok: false, field: 'reviewNotificationsEnabled', message: 'Review notifications must be true or false.' }
   }
+  if (typeof body.aivexNotificationsEnabled !== 'boolean') {
+    return { ok: false, field: 'aivexNotificationsEnabled', message: 'AIVEX notifications must be true or false.' }
+  }
+  if (typeof body.joinNotificationsEnabled !== 'boolean') {
+    return { ok: false, field: 'joinNotificationsEnabled', message: 'Join notifications must be true or false.' }
+  }
+  if (typeof body.notificationSoundEnabled !== 'boolean') {
+    return { ok: false, field: 'notificationSoundEnabled', message: 'Notification sound must be true or false.' }
+  }
   if (!VIEWER_TIMEOUTS.has(body.viewerTimeoutSeconds)) {
     return { ok: false, field: 'viewerTimeoutSeconds', message: 'Choose a valid viewer timeout.' }
   }
@@ -68,6 +91,9 @@ export function validateAdminPreferencesBody(body) {
     value: {
       tableDensity: body.tableDensity,
       reviewNotificationsEnabled: body.reviewNotificationsEnabled,
+      aivexNotificationsEnabled: body.aivexNotificationsEnabled,
+      joinNotificationsEnabled: body.joinNotificationsEnabled,
+      notificationSoundEnabled: body.notificationSoundEnabled,
       viewerTimeoutSeconds: body.viewerTimeoutSeconds,
       reducedMotion: body.reducedMotion,
     },
@@ -98,6 +124,9 @@ export function createAdminPreferencesStore(supabase) {
           admin_user_id: adminUserId,
           table_density: preferences.tableDensity,
           review_notifications_enabled: preferences.reviewNotificationsEnabled,
+          aivex_notifications_enabled: preferences.aivexNotificationsEnabled,
+          join_notifications_enabled: preferences.joinNotificationsEnabled,
+          notification_sound_enabled: preferences.notificationSoundEnabled,
           viewer_timeout_seconds: preferences.viewerTimeoutSeconds,
           reduced_motion: preferences.reducedMotion,
         }, { onConflict: 'admin_user_id' })

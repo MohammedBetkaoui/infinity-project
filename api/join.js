@@ -24,6 +24,7 @@ import { isValidDepartmentForFaculty, isValidFaculty } from '../shared/membershi
 import { consumeDistributedRateLimit } from './_lib/distributed-rate-limit.js'
 import { isFilled, isJsonContentType, normalizeString, readBoundedJsonBody, sendJson as send } from './_lib/http.js'
 import { normalizeMembershipPhone } from './_lib/membership-phone.js'
+import { emitJoinApplicationNotification } from './_lib/admin-notifications.js'
 import { getClientIp, isTrustedOrigin } from './_lib/security.js'
 import { verifyTurnstileToken } from './_lib/turnstile.js'
 
@@ -383,6 +384,17 @@ export default async function handler(req, res) {
       send(res, 500, { success: false, message: SAVE_FAILED_MESSAGE })
       return
     }
+
+    // The application is already authoritative at this point. Notification
+    // persistence/push is secondary and may never turn a successful Join
+    // submission into an error for the applicant.
+    await emitJoinApplicationNotification({
+      supabase,
+      applicationId: data.id,
+      createdAt: new Date(data.created_at),
+    }).catch((notificationError) => {
+      console.error('[join] Administrator notification failed', { code: notificationError?.code })
+    })
 
     send(res, 201, { success: true, reference: data.reference })
   } catch (error) {

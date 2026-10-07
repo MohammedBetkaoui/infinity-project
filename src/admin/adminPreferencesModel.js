@@ -1,6 +1,9 @@
 export const ADMIN_PREFERENCE_DEFAULTS = Object.freeze({
   tableDensity: 'comfortable',
   reviewNotificationsEnabled: true,
+  aivexNotificationsEnabled: true,
+  joinNotificationsEnabled: true,
+  notificationSoundEnabled: false,
   viewerTimeoutSeconds: 120,
   reducedMotion: false,
 })
@@ -16,6 +19,15 @@ export const normalizeAdminPreferences = (value) => ({
   reviewNotificationsEnabled: typeof value?.reviewNotificationsEnabled === 'boolean'
     ? value.reviewNotificationsEnabled
     : ADMIN_PREFERENCE_DEFAULTS.reviewNotificationsEnabled,
+  aivexNotificationsEnabled: typeof value?.aivexNotificationsEnabled === 'boolean'
+    ? value.aivexNotificationsEnabled
+    : ADMIN_PREFERENCE_DEFAULTS.aivexNotificationsEnabled,
+  joinNotificationsEnabled: typeof value?.joinNotificationsEnabled === 'boolean'
+    ? value.joinNotificationsEnabled
+    : ADMIN_PREFERENCE_DEFAULTS.joinNotificationsEnabled,
+  notificationSoundEnabled: typeof value?.notificationSoundEnabled === 'boolean'
+    ? value.notificationSoundEnabled
+    : ADMIN_PREFERENCE_DEFAULTS.notificationSoundEnabled,
   viewerTimeoutSeconds: [60, 120, 300].includes(value?.viewerTimeoutSeconds)
     ? value.viewerTimeoutSeconds
     : ADMIN_PREFERENCE_DEFAULTS.viewerTimeoutSeconds,

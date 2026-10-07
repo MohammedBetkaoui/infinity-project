@@ -28,6 +28,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { generateOfficialDocuments } from '../../_lib/aivex-document-generation.js'
 import { createSupabaseDocumentStore } from '../../_lib/aivex-document-store.js'
+import { emitAivexGenerationFailureNotification } from '../../_lib/admin-notifications.js'
 import { resolveMagicLink } from '../../_lib/aivex-magic-link.js'
 import { createSupabaseMagicLinkStore } from '../../_lib/aivex-magic-link-store.js'
 import { DOCX_MIME } from '../../_lib/aivex-document-template.js'
@@ -110,7 +111,12 @@ export function createMagicLinkDocumentHandler({
         // Same retry api/aivex/document.js performs: claim-guarded, so a
         // concurrent or already-settled generation is never duplicated.
         stage = 'generate'
-        await generateOfficialDocuments({ store: documentStore, registrationId: resolved.registrationId, now: clock })
+        await generateOfficialDocuments({
+          store: documentStore,
+          registrationId: resolved.registrationId,
+          now: clock,
+          onFailure: (failure) => emitAivexGenerationFailureNotification(failure),
+        })
         stage = 'load-document-row'
         row = await documentStore.loadDocumentRow(resolved.registrationId, 'docx')
       }

@@ -9,6 +9,10 @@ import { createServerAdminOverviewService } from './_lib/admin-overview.js'
 import {
   createServerAdminPreferencesService, validateAdminPreferencesBody,
 } from './_lib/admin-preferences.js'
+import {
+  createServerAdminNotificationsService, validateAdminNotificationAction,
+  validatePushSubscription,
+} from './_lib/admin-notifications.js'
 import { AIVEX_EDITION } from '../shared/aivex/contract-v4.js'
 import { canAccessApplications } from './_lib/admin-applications-permissions.js'
 import { canAccessPeople } from './_lib/admin-people-permissions.js'
@@ -43,6 +47,7 @@ const MAX_BODY_BYTES = 4 * 1024
 const MAX_APPLICATION_BODY_BYTES = 24 * 1024
 const MAX_PEOPLE_BODY_BYTES = 24 * 1024
 const MAX_AIVEX_BODY_BYTES = 24 * 1024
+const MAX_NOTIFICATION_BODY_BYTES = 16 * 1024
 
 export function createAdminLoginHandler({
   createService = createServerAdminAuthService,
@@ -722,6 +727,111 @@ export function createAdminAivexHandler({
   }
 }
 
+export function createAdminNotificationsHandler({
+  createService = createServerAdminNotificationsService,
+  requireSession = requireAdminSession,
+  env = process.env,
+  enabled = adminAuthEnabled,
+  trustedOrigin = isStrictAdminOrigin,
+} = {}) {
+  return async function adminNotificationsHandler(req, res) {
+    if (!enabled(env)) {
+      return sendAdminJson(res, 503, { success: false, message: 'Administrator notifications are unavailable.' })
+    }
+
+    let session
+    try { session = await requireSession(req) } catch (error) {
+      safeAdminAuthLog('notifications_session', error)
+      return sendAdminJson(res, 503, { success: false, message: 'Administrative service unavailable.' })
+    }
+    if (!session) return sendAdminJson(res, 401, { success: false, message: 'Your session has expired.' })
+
+    const path = adminPathFromRequest(req)
+    const url = new URL(req.url || '/', 'http://localhost')
+    const root = path === 'notifications'
+    const actions = path === 'notifications/actions'
+    const pushSubscription = path === 'notifications/push-subscription'
+    const mutation = req.method === 'POST' || req.method === 'DELETE'
+
+    if (mutation && !trustedOrigin(req, env)) {
+      return sendAdminJson(res, 403, { success: false, message: 'Request rejected.' })
+    }
+    if (mutation && !isJsonContentType(req)) {
+      return sendAdminJson(res, 415, { success: false, message: 'Unsupported request.' })
+    }
+
+    try {
+      const service = createService()
+      if (root && req.method === 'GET') {
+        const sourceValue = url.searchParams.get('source') || ''
+        const unreadValue = url.searchParams.get('unread') || ''
+        if (sourceValue && !['aivex', 'join', 'system', 'security'].includes(sourceValue)) {
+          return sendAdminJson(res, 400, { success: false, message: 'Invalid notification filter.' })
+        }
+        if (unreadValue && unreadValue !== 'true') {
+          return sendAdminJson(res, 400, { success: false, message: 'Invalid notification filter.' })
+        }
+        const result = await service.list(session.user, {
+          source: sourceValue || null,
+          unreadOnly: unreadValue === 'true',
+          cursor: url.searchParams.get('cursor'),
+          limit: url.searchParams.get('limit'),
+        })
+        return sendAdminJson(res, 200, { success: true, ...result })
+      }
+
+      if (actions && req.method === 'POST') {
+        const parsed = validateAdminNotificationAction(await readJsonBody(req, MAX_NOTIFICATION_BODY_BYTES))
+        if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid notification action.' })
+        const input = parsed.value
+        if (input.action === 'mark_seen') await service.markSeen(session.user, input.notificationIds)
+        if (input.action === 'mark_all_read') await service.markAllRead(session.user)
+        if (input.action === 'test') await service.sendTestNotification(session.user)
+        if (input.action === 'mark_read' && !(await service.markRead(session.user, input.notificationId))) {
+          return sendAdminJson(res, 404, { success: false, message: 'Notification not found.' })
+        }
+        if (input.action === 'archive' && !(await service.archive(session.user, input.notificationId))) {
+          return sendAdminJson(res, 404, { success: false, message: 'Notification not found.' })
+        }
+        return sendAdminJson(res, 200, { success: true, unreadCount: await service.unreadCount(session.user) })
+      }
+
+      if (pushSubscription && req.method === 'GET') {
+        return sendAdminJson(res, 200, { success: true, devices: await service.listPushSubscriptions(session.user) })
+      }
+
+      if (pushSubscription && req.method === 'POST') {
+        const body = await readJsonBody(req, MAX_NOTIFICATION_BODY_BYTES)
+        const parsed = validatePushSubscription({ ...body?.subscription, deviceLabel: body?.deviceLabel })
+        if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid push subscription.' })
+        const device = await service.registerPushSubscription(session.user, parsed.value, {
+          userAgent: String(req.headers?.['user-agent'] || '').slice(0, 512) || null,
+        })
+        return sendAdminJson(res, 200, { success: true, device })
+      }
+
+      if (pushSubscription && req.method === 'DELETE') {
+        const body = await readJsonBody(req, MAX_NOTIFICATION_BODY_BYTES)
+        const endpoint = typeof body?.endpoint === 'string' ? body.endpoint.trim() : ''
+        if (!endpoint || endpoint.length > 2048) {
+          return sendAdminJson(res, 400, { success: false, message: 'Invalid push subscription.' })
+        }
+        await service.removePushSubscription(session.user, endpoint)
+        return sendAdminJson(res, 200, { success: true })
+      }
+
+      res.setHeader('Allow', root ? 'GET' : actions ? 'POST' : pushSubscription ? 'GET, POST, DELETE' : 'GET')
+      return sendAdminJson(res, path.startsWith('notifications') ? 405 : 404, {
+        success: false,
+        message: path.startsWith('notifications') ? 'Method not allowed.' : 'Not found.',
+      })
+    } catch (error) {
+      safeAdminAuthLog('notifications', error)
+      return sendAdminJson(res, 503, { success: false, message: 'Unable to update administrator notifications right now.' })
+    }
+  }
+}
+
 export function createAdminRouter(handlers = {}) {
   const auth = handlers.auth || createAdminAuthRouter()
   const preferences = handlers.preferences || createAdminPreferencesHandler()
@@ -729,6 +839,7 @@ export function createAdminRouter(handlers = {}) {
   const applications = handlers.applications || createAdminApplicationsHandler()
   const people = handlers.people || createAdminPeopleHandler()
   const aivex = handlers.aivex || createAdminAivexHandler()
+  const notifications = handlers.notifications || createAdminNotificationsHandler()
   return function adminRouter(req, res) {
     const path = adminPathFromRequest(req)
     if (path.startsWith('auth/')) return auth(req, res)
@@ -737,6 +848,7 @@ export function createAdminRouter(handlers = {}) {
     if (path === 'applications' || path.startsWith('applications/')) return applications(req, res)
     if (path === 'members' || path.startsWith('members/') || path === 'staff' || path.startsWith('staff/')) return people(req, res)
     if (path === 'aivex' || path.startsWith('aivex/')) return aivex(req, res)
+    if (path === 'notifications' || path.startsWith('notifications/')) return notifications(req, res)
     return sendAdminJson(res, 404, { success: false, message: 'Not found.' })
   }
 }

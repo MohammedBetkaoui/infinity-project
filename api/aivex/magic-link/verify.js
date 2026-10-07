@@ -49,6 +49,7 @@ import { createSupabaseCorrectionStore } from '../../_lib/aivex-correction-store
 import { hashMagicLinkToken, isPlausibleMagicLinkToken, resolveMagicLink } from '../../_lib/aivex-magic-link.js'
 import { createSupabaseMagicLinkStore } from '../../_lib/aivex-magic-link-store.js'
 import { createSupabaseSignedDocumentStore } from '../../_lib/aivex-signed-document-store.js'
+import { emitAivexCorrectionsNotification } from '../../_lib/admin-notifications.js'
 import { readJsonBody, sendJson as send } from '../../_lib/http.js'
 import { consumeRateLimit, getClientIp, isTrustedOrigin } from '../../_lib/security.js'
 
@@ -215,6 +216,13 @@ export function createMagicLinkVerifyHandler({
         // changed atomically only when an administrator verifies this item.
         await corrections.submitFieldItem(item.id, resolved.registrationId, validated.value, clock)
         await magicLinkStore.touchLastUsed(resolved.magicLinkId, clock).catch(() => {})
+        await emitAivexCorrectionsNotification({
+          registrationId: resolved.registrationId,
+          correctionVersion: `${item.id}:${clock.toISOString()}`,
+          createdAt: clock,
+        }).catch((notificationError) => {
+          console.error('[aivex] Administrator notification failed', { code: notificationError?.code })
+        })
         send(res, 200, { success: true, status: 'submitted' })
       } catch (error) {
         console.error('[aivex] Correction field submission failed', { stage: error?.stage || fieldStage, code: error?.code })

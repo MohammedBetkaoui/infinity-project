@@ -13,6 +13,7 @@ import { canRegister, loadAivexOperationalSettings } from '../../_lib/aivex-oper
 import { generateRegistrationReference } from '../../_lib/aivex-reference.js'
 import { createSupabaseRegistrationStore, registerV4, registrationFingerprint } from '../../_lib/aivex-registration-v4.js'
 import { createServerSupabaseClient } from '../../_lib/aivex-server.js'
+import { emitAivexGenerationFailureNotification } from '../../_lib/admin-notifications.js'
 import { readJsonBody, sendJson } from '../../_lib/http.js'
 import { consumeRateLimit, getClientIp, isTrustedOrigin } from '../../_lib/security.js'
 
@@ -30,7 +31,12 @@ function requestSource(req) {
 
 async function postRegistrationWork(supabase, outcome, clock, req) {
   if (!outcome.registrationId) return null
-  await generateOfficialDocuments({ store: createSupabaseDocumentStore(supabase), registrationId: outcome.registrationId, now: clock })
+  await generateOfficialDocuments({
+    store: createSupabaseDocumentStore(supabase),
+    registrationId: outcome.registrationId,
+    now: clock,
+    onFailure: (failure) => emitAivexGenerationFailureNotification({ supabase, ...failure }),
+  })
     .catch((error) => console.error('[aivex] Document generation step crashed', { code: error?.code }))
   try {
     return await issueMagicLink({

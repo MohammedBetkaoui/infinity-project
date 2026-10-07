@@ -19,6 +19,9 @@ import { canUploadSignedDocument, loadAivexOperationalSettings } from '../../../
 import { createServerSupabaseClient } from '../../../_lib/aivex-server.js'
 import { createSupabaseSignedDocumentStore } from '../../../_lib/aivex-signed-document-store.js'
 import { uploadSignedDocument } from '../../../_lib/aivex-signed-document-upload.js'
+import {
+  emitAivexCorrectionsNotification, emitAivexSignedDocumentNotification,
+} from '../../../_lib/admin-notifications.js'
 import { readJsonBody, sendJson } from '../../../_lib/http.js'
 import { consumeRateLimit, getClientIp, isTrustedOrigin } from '../../../_lib/security.js'
 
@@ -27,7 +30,23 @@ const RATE_LIMIT = { max: 10, windowMs: 15 * 60 * 1000 }
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const fail = (res, status, state, message = 'This upload could not be finalized.') => sendJson(res, status, { success: false, status: state, message })
 
-async function finalizeCorrectionUpload(res, { corrections, magicLinkStore, resolved, session, sessions, clock }) {
+async function notifySignedUpload({ supabase, registrationId, version, activeCorrection, clock }) {
+  const tasks = [emitAivexSignedDocumentNotification({ supabase, registrationId, version, createdAt: clock })]
+  if (activeCorrection) tasks.push(emitAivexCorrectionsNotification({
+    supabase,
+    registrationId,
+    correctionVersion: `${activeCorrection.id || 'signed-form'}:signed-v${version}`,
+    createdAt: clock,
+  }))
+  const results = await Promise.allSettled(tasks)
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      console.error('[aivex] Administrator notification failed', { code: result.reason?.code })
+    }
+  }
+}
+
+async function finalizeCorrectionUpload(res, { supabase, corrections, magicLinkStore, resolved, session, sessions, clock }) {
   const itemId = session.expected_files?.[0]?.field
   const item = await corrections.loadItem(itemId)
   if (!item || item.registration_id !== resolved.registrationId) return fail(res, 404, 'correction_item_not_found')
@@ -54,6 +73,14 @@ async function finalizeCorrectionUpload(res, { corrections, magicLinkStore, reso
     console.error('[aivex] Correction staging cleanup failed', { stage: error?.stage, code: error?.code })
   })
   await magicLinkStore.touchLastUsed(resolved.magicLinkId, clock).catch(() => {})
+  await emitAivexCorrectionsNotification({
+    supabase,
+    registrationId: resolved.registrationId,
+    correctionVersion: `${itemId}:${clock.toISOString()}`,
+    createdAt: clock,
+  }).catch((notificationError) => {
+    console.error('[aivex] Administrator notification failed', { code: notificationError?.code })
+  })
   sendJson(res, 200, { success: true, status: 'submitted', documentKey: outcome.documentKey })
 }
 
@@ -98,7 +125,7 @@ export function createSignedUploadFinalizeHandler({
 
       if (session.kind === 'correction_document') {
         if (!sessionIsUsable(session, 'correction_document', clock)) return fail(res, 409, 'invalid_upload_session')
-        return await finalizeCorrectionUpload(res, { corrections: makeCorrectionStore(supabase), magicLinkStore, resolved, session, sessions, clock })
+        return await finalizeCorrectionUpload(res, { supabase, corrections: makeCorrectionStore(supabase), magicLinkStore, resolved, session, sessions, clock })
       }
       if (!sessionIsUsable(session, 'signed_document', clock)) return fail(res, 409, 'invalid_upload_session')
 
@@ -114,6 +141,9 @@ export function createSignedUploadFinalizeHandler({
       if (existing) {
         await sessions.markCompleted(session.id, clock).catch(() => {})
         await sessions.removeStaging(session.expected_files).catch(() => {})
+        await notifySignedUpload({
+          supabase, registrationId: resolved.registrationId, version: existing.version, activeCorrection, clock,
+        })
         sendJson(res, 200, { success: true, status: 'signed_document_uploaded', version: existing.version, alreadyProcessed: true })
         return
       }
@@ -145,6 +175,9 @@ export function createSignedUploadFinalizeHandler({
       await makeCorrectionStore(supabase)
         .markOpenItemSubmittedByLabel(resolved.registrationId, 'Signed and stamped form', `signed-v${outcome.version}`, clock)
         .catch((error) => console.error('[aivex] Correction item sync failed', { stage: 'signed-form-sync', code: error?.code }))
+      await notifySignedUpload({
+        supabase, registrationId: resolved.registrationId, version: outcome.version, activeCorrection, clock,
+      })
       sendJson(res, 200, { success: true, status: 'signed_document_uploaded', version: outcome.version })
     } catch (error) {
       if (session?.id) await sessions.markFailed(session.id).catch(() => {})

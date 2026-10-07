@@ -116,7 +116,15 @@ async function generateDocx(store, { registrationId, registration, data }) {
 // Best-effort, never throws: a failure here must never surface as a failure
 // of the registration itself (see api/aivex/register.js). Returns a small
 // diagnostic object for logs/tests, not part of the HTTP response contract.
-export async function generateOfficialDocuments({ store, registrationId, now = new Date() }) {
+export async function generateOfficialDocuments({ store, registrationId, now = new Date(), onFailure }) {
+  const notifyFailure = async () => {
+    if (typeof onFailure !== 'function') return
+    try {
+      await onFailure({ registrationId, attempt: now.toISOString(), createdAt: now })
+    } catch (error) {
+      console.error('[aivex] Generation failure notification failed', { code: error?.code })
+    }
+  }
   let claimed
   try {
     claimed = await store.claimGeneration(registrationId, { staleBefore: new Date(now.getTime() - DOCUMENT_STALE_AFTER_MS) })
@@ -133,10 +141,12 @@ export async function generateOfficialDocuments({ store, registrationId, now = n
     const docx = await generateDocx(store, { registrationId, registration, data })
 
     await store.setDocumentStatus(registrationId, docx.ok ? 'awaiting_signature' : 'generation_failed')
+    if (!docx.ok) await notifyFailure()
     return { attempted: true, docx: docx.ok, at: now.toISOString() }
   } catch (error) {
     logFailure('generation', error)
     await store.setDocumentStatus(registrationId, 'generation_failed').catch((statusError) => logFailure('set-status', statusError))
+    await notifyFailure()
     return { attempted: true, docx: false, error: true }
   }
 }
