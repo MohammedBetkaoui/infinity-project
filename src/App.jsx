@@ -18,6 +18,7 @@ import Poles from './sections/Poles'
 import AivexRoute from './pages/aivex/AivexRoute'
 import AboutPage from './pages/about/AboutPage'
 import EventsPage from './pages/events/EventsPage'
+import PagePaused from './components/PagePaused'
 
 const CommunityPage = lazy(() => import('./pages/community/CommunityPage'))
 const OpenDayPage = lazy(() => import('./pages/events/open-day/OpenDayPage'))
@@ -27,6 +28,11 @@ const AivexRegisterPage = lazy(() => import('./pages/aivex/register/AivexRegiste
 const AivexStatusPage = lazy(() => import('./pages/aivex/status/AivexStatusPage'))
 // Back-office: its own chunk, so none of it ships with the public site.
 const AdminApp = lazy(() => import('./admin/AdminApp'))
+
+// TEMPORARY: the Open Day page is paused until its launch, so its route shows
+// a holding screen instead. OpenDayPage and its folder are untouched; set
+// this back to false to bring the page back.
+const OPEN_DAY_PAUSED = true
 
 function SitePage({ children, mainRef, motionTrigger, busy = false }) {
   return (
@@ -131,7 +137,7 @@ export default function App() {
         <Route path="/join" element={<SitePage><Suspense fallback={<p className="page-container py-40" role="status">Opening the application...</p>}><JoinPage /></Suspense></SitePage>} />
         <Route path="/about" element={<SitePage motionTrigger="viewport"><AboutPage /></SitePage>} />
         <Route path="/events" element={<SitePage motionTrigger="viewport"><EventsPage /></SitePage>} />
-        <Route path="/events/open-day-2026" element={<SitePage motionTrigger="viewport"><Suspense fallback={<p className="page-container py-40" role="status">Opening the Open Day journal...</p>}><OpenDayPage /></Suspense></SitePage>} />
+        <Route path="/events/open-day-2026" element={<SitePage motionTrigger="viewport"><Suspense fallback={<p className="page-container py-40" role="status">Opening the Open Day journal...</p>}>{OPEN_DAY_PAUSED ? <PagePaused label="Open Day 2026" /> : <OpenDayPage />}</Suspense></SitePage>} />
         <Route path="/community" element={<SitePage motionTrigger="viewport"><Suspense fallback={<p className="page-container py-40" role="status">Opening the community...</p>}><CommunityPage /></Suspense></SitePage>} />
         <Route path="/contact" element={<SitePage motionTrigger="viewport"><Suspense fallback={<p className="page-container py-40" role="status">Opening contact...</p>}><ContactPage /></Suspense></SitePage>} />
       <Route path="/" element={<HomeRoute />} />
