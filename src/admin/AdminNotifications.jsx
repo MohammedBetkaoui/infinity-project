@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useAdminAuth } from './AdminAuth'
+import { notificationCapability, urlBase64ToUint8Array } from './adminNotificationModel'
 import { useAdminPreferences } from './AdminPreferences'
 
 const AdminNotificationsContext = createContext(null)
@@ -7,40 +8,6 @@ const NOTIFICATIONS_ENDPOINT = '/api/admin/notifications'
 const ACTIONS_ENDPOINT = '/api/admin/notifications/actions'
 const PUSH_ENDPOINT = '/api/admin/notifications/push-subscription'
 const FOREGROUND_REFRESH_MS = 60 * 1000
-
-const readJson = async (response) => {
-  try { return await response.json() } catch { return {} }
-}
-
-export function relativeNotificationTime(value, now = new Date(), language = 'en') {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  const seconds = Math.max(0, Math.floor((now.getTime() - date.getTime()) / 1000))
-  if (language === 'ar') {
-    if (seconds < 45) return 'الآن'
-    if (seconds < 60 * 60) return `منذ ${Math.floor(seconds / 60)} د`
-    if (seconds < 24 * 60 * 60) return `منذ ${Math.floor(seconds / 3600)} س`
-    if (seconds < 48 * 60 * 60) return 'أمس'
-  }
-  if (seconds < 45) return 'Just now'
-  if (seconds < 60 * 60) return `${Math.floor(seconds / 60)} min ago`
-  if (seconds < 24 * 60 * 60) return `${Math.floor(seconds / 3600)} h ago`
-  if (seconds < 48 * 60 * 60) return language === 'ar' ? 'أمس' : 'Yesterday'
-  return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' }).format(date)
-}
-
-export function notificationCapability() {
-  if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) return 'unsupported'
-  if (Notification.permission === 'denied') return 'blocked'
-  return 'available'
-}
-
-export function urlBase64ToUint8Array(value) {
-  const padding = '='.repeat((4 - (value.length % 4)) % 4)
-  const base64 = (value + padding).replaceAll('-', '+').replaceAll('_', '/')
-  const decoded = window.atob(base64)
-  return Uint8Array.from(decoded, (character) => character.charCodeAt(0))
-}
 
 function playNotificationTone() {
   const AudioContext = window.AudioContext || window.webkitAudioContext
@@ -69,42 +36,72 @@ export function AdminNotificationsProvider({ children }) {
   const [push, setPush] = useState({ status: 'checking', error: '', devices: [] })
   const [liveMessage, setLiveMessage] = useState('')
   const [newPulse, setNewPulse] = useState(false)
-  const inFlight = useRef(false)
+  const requestSequence = useRef(0)
   const pulseTimer = useRef(null)
+  const previousUnreadCount = useRef(null)
+
+  const signalNewNotification = useCallback(() => {
+    setLiveMessage('New administration notification received.')
+    setNewPulse(true)
+    window.clearTimeout(pulseTimer.current)
+    pulseTimer.current = window.setTimeout(() => setNewPulse(false), 900)
+    if (preferences.notificationSoundEnabled) playNotificationTone()
+  }, [preferences.notificationSoundEnabled])
 
   const mutate = useCallback(async (body) => {
-    const { response, body: result } = await request(ACTIONS_ENDPOINT, { method: 'POST', body: JSON.stringify(body) })
-    if (!response.ok) throw new Error(result.message || 'Unable to update notifications.')
-    return result
+    try {
+      const { response, body: result } = await request(ACTIONS_ENDPOINT, { method: 'POST', body: JSON.stringify(body) })
+      if (!response.ok) throw new Error(result.message || 'Unable to update notifications.')
+      return result
+    } catch (error) {
+      setState((current) => ({ ...current, error: error.message || 'Unable to update notifications.' }))
+      throw error
+    }
   }, [request])
 
   const load = useCallback(async ({ append = false, cursor = null, silent = false } = {}) => {
-    if (inFlight.current && !append) return null
-    if (!append) inFlight.current = true
+    const sequence = ++requestSequence.current
     if (!silent && !append) setState((current) => ({ ...current, status: 'loading', error: '' }))
     try {
       const params = new URLSearchParams({ limit: '24' })
-      if (filter !== 'all') params.set('source', filter)
+      if (filter === 'unread') params.set('unread', 'true')
+      else if (filter !== 'all') params.set('source', filter)
       if (cursor) params.set('cursor', cursor)
       const { response, body } = await request(`${NOTIFICATIONS_ENDPOINT}?${params}`)
       if (!response.ok) throw new Error(body.message || 'Unable to load notifications.')
+      if (sequence !== requestSequence.current) return null
+      const unreadCount = Number(body.unreadCount || 0)
+      if (silent && previousUnreadCount.current !== null && unreadCount > previousUnreadCount.current) {
+        signalNewNotification()
+      }
+      previousUnreadCount.current = unreadCount
       setState((current) => ({
         status: 'ready',
         notifications: append ? [...current.notifications, ...(body.notifications || [])] : (body.notifications || []),
-        unreadCount: Number(body.unreadCount || 0),
+        unreadCount,
         nextCursor: body.nextCursor || null,
         error: '',
       }))
       return body.notifications || []
     } catch (error) {
+      if (sequence !== requestSequence.current) return null
       setState((current) => ({ ...current, status: silent ? current.status : 'error', error: error.message || 'Unable to load notifications.' }))
       return null
-    } finally {
-      if (!append) inFlight.current = false
     }
-  }, [filter, request])
+  }, [filter, request, signalNewNotification])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    const operation = state.unreadCount > 0
+      ? navigator.setAppBadge?.(state.unreadCount)
+      : navigator.clearAppBadge?.()
+    Promise.resolve(operation).catch(() => {})
+  }, [state.unreadCount])
+
+  useEffect(() => () => {
+    Promise.resolve(navigator.clearAppBadge?.()).catch(() => {})
+  }, [])
 
   const refresh = useCallback(() => load({ silent: true }), [load])
 
@@ -165,18 +162,13 @@ export function AdminNotificationsProvider({ children }) {
     const onMessage = (event) => {
       if (event.data?.type !== 'INFINITY_ADMIN_NOTIFICATION') return
       refresh()
-      setLiveMessage('New administration notification received.')
-      setNewPulse(true)
-      window.clearTimeout(pulseTimer.current)
-      pulseTimer.current = window.setTimeout(() => setNewPulse(false), 900)
-      if (preferences.notificationSoundEnabled) playNotificationTone()
     }
     navigator.serviceWorker.addEventListener('message', onMessage)
     return () => {
       navigator.serviceWorker.removeEventListener('message', onMessage)
       window.clearTimeout(pulseTimer.current)
     }
-  }, [preferences.notificationSoundEnabled, refresh])
+  }, [refresh])
 
   const openCenter = useCallback(async () => {
     setOpen(true)
@@ -194,6 +186,7 @@ export function AdminNotificationsProvider({ children }) {
 
   const markRead = useCallback(async (notificationId) => {
     const result = await mutate({ action: 'mark_read', notificationId })
+    previousUnreadCount.current = Number(result.unreadCount || 0)
     setState((current) => ({
       ...current,
       unreadCount: Number(result.unreadCount || 0),
@@ -205,6 +198,7 @@ export function AdminNotificationsProvider({ children }) {
 
   const markAllRead = useCallback(async () => {
     const result = await mutate({ action: 'mark_all_read' })
+    previousUnreadCount.current = Number(result.unreadCount || 0)
     const clock = new Date().toISOString()
     setState((current) => ({
       ...current,
@@ -215,6 +209,7 @@ export function AdminNotificationsProvider({ children }) {
 
   const archive = useCallback(async (notificationId) => {
     const result = await mutate({ action: 'archive', notificationId })
+    previousUnreadCount.current = Number(result.unreadCount || 0)
     setState((current) => ({
       ...current,
       unreadCount: Number(result.unreadCount || 0),
@@ -228,6 +223,12 @@ export function AdminNotificationsProvider({ children }) {
       setPush((current) => ({ ...current, status: capability }))
       return { ok: false, status: capability }
     }
+    const publicKey = String(import.meta.env.VITE_WEB_PUSH_VAPID_PUBLIC_KEY || '').trim()
+    if (!publicKey) {
+      const message = 'Web Push is not configured for this deployment.'
+      setPush((current) => ({ ...current, status: 'not_configured', error: message }))
+      return { ok: false, status: 'not_configured', message }
+    }
     setPush((current) => ({ ...current, status: 'enabling', error: '' }))
     try {
       const permission = await Notification.requestPermission()
@@ -236,17 +237,19 @@ export function AdminNotificationsProvider({ children }) {
         setPush((current) => ({ ...current, status }))
         return { ok: false, status }
       }
-      const publicKey = String(import.meta.env.VITE_WEB_PUSH_VAPID_PUBLIC_KEY || '').trim()
-      if (!publicKey) throw new Error('Web Push is not configured for this deployment.')
       const registration = await registerWorker()
       let subscription = await registration.pushManager.getSubscription()
       if (!subscription) subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(publicKey),
       })
+      const serialized = subscription.toJSON()
       const { response, body } = await request(PUSH_ENDPOINT, {
         method: 'POST',
-        body: JSON.stringify({ subscription: subscription.toJSON(), deviceLabel: 'This browser' }),
+        body: JSON.stringify({
+          subscription: { endpoint: serialized.endpoint, keys: serialized.keys },
+          deviceLabel: 'This browser',
+        }),
       })
       if (!response.ok) throw new Error(body.message || 'Unable to register this browser.')
       await refreshPushState()

@@ -136,4 +136,12 @@ export async function withJoinServices(options, run) {
   }
 }
 
-export const insertRequests = (requests) => requests.filter((request) => request.url.startsWith(SUPABASE_URL) && request.method === 'POST')
+// Notification persistence also uses a POST to Supabase RPC after a successful
+// application. Keep this helper specific to the business insert it was created
+// to inspect, so Join assertions do not confuse a best-effort side effect with
+// a second membership row.
+export const insertRequests = (requests) => requests.filter((request) => (
+  request.url.startsWith(SUPABASE_URL)
+  && request.url.includes('/rest/v1/membership_applications')
+  && request.method === 'POST'
+))

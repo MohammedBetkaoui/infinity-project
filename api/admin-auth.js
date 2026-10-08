@@ -802,6 +802,10 @@ export function createAdminNotificationsHandler({
 
       if (pushSubscription && req.method === 'POST') {
         const body = await readJsonBody(req, MAX_NOTIFICATION_BODY_BYTES)
+        if (!body || typeof body !== 'object' || Array.isArray(body)
+          || !Object.keys(body).every((key) => ['subscription', 'deviceLabel'].includes(key))) {
+          return sendAdminJson(res, 400, { success: false, message: 'Invalid push subscription.' })
+        }
         const parsed = validatePushSubscription({ ...body?.subscription, deviceLabel: body?.deviceLabel })
         if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid push subscription.' })
         const device = await service.registerPushSubscription(session.user, parsed.value, {
@@ -812,6 +816,9 @@ export function createAdminNotificationsHandler({
 
       if (pushSubscription && req.method === 'DELETE') {
         const body = await readJsonBody(req, MAX_NOTIFICATION_BODY_BYTES)
+        if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).length !== 1 || !Object.hasOwn(body, 'endpoint')) {
+          return sendAdminJson(res, 400, { success: false, message: 'Invalid push subscription.' })
+        }
         const endpoint = typeof body?.endpoint === 'string' ? body.endpoint.trim() : ''
         if (!endpoint || endpoint.length > 2048) {
           return sendAdminJson(res, 400, { success: false, message: 'Invalid push subscription.' })

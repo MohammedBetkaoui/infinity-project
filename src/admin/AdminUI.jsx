@@ -199,7 +199,7 @@ export function ToastStack({ toasts }) {
 
 // Apple keyboards show ⌘K; everyone else reads the Ctrl shortcut that works for them.
 
-function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen, language = 'en', badges = {} }) {
+function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen, language = 'en', badges = {}, onBeforeLogout }) {
   const navigate = useNavigate()
   const { user, logout } = useAdminAuth()
   const [signingOut, setSigningOut] = useState(false)
@@ -209,6 +209,7 @@ function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen, language 
     if (signingOut) return
     setSigningOut(true)
     clearSearchMemory()
+    await onBeforeLogout?.().catch(() => {})
     await logout()
     navigate('/admin/login', { replace: true })
   }
@@ -288,7 +289,13 @@ export function ThemeToggle({ label }) {
   return <button type="button" className="adm-icon-button adm-theme-toggle" aria-label={label} aria-pressed={dark} title={label} onClick={() => choose(dark ? 'light' : 'dark')}>{dark ? <Moon size={19} aria-hidden="true"/> : <Sun size={19} aria-hidden="true"/>}</button>
 }
 
-function Topbar({ setMobileOpen, notify, hasNotifications, onNewAction, onToggleSidebar, language = 'en' }) {
+function NotificationButton({ label, notify, unreadCount = 0, pulse = false }) {
+  const count = Math.max(0, Number(unreadCount) || 0)
+  const accessibleLabel = count ? `${label}, ${count} unread` : label
+  return <IconButton label={accessibleLabel} className={`adm-notification${pulse ? ' is-pulsing' : ''}`} onClick={notify}><Bell size={19} aria-hidden="true"/>{count > 0 && <span className="adm-notification__count" aria-hidden="true">{count > 9 ? '9+' : count}</span>}</IconButton>
+}
+
+function Topbar({ setMobileOpen, notify, unreadCount, notificationPulse, onNewAction, onToggleSidebar, language = 'en' }) {
   const navigate = useNavigate()
   const { user } = useAdminAuth()
   const [sentinel, stuck] = useStuckSentinel()
@@ -301,7 +308,7 @@ function Topbar({ setMobileOpen, notify, hasNotifications, onNewAction, onToggle
         <GlobalSearch language={language} onToggleSidebar={onToggleSidebar} onNotifications={notify} />
         <div className="adm-topbar__right">
           <ThemeToggle label={t('Dark theme')} />
-          <IconButton label={t('Notifications')} className="adm-notification" onClick={notify}><Bell size={19} />{hasNotifications && <i />}</IconButton>
+          <NotificationButton label={t('Notifications')} notify={notify} unreadCount={unreadCount} pulse={notificationPulse}/>
           <Button onClick={onNewAction} icon={<Plus size={17} />} className="adm-new-action"><span className="adm-new-action__label">{t('New action')}</span></Button>
           <button className="adm-top-profile" aria-label={`${t('Open profile')}: ${user.displayName}`} onClick={() => navigate('/admin/settings')}><Avatar initials={initialsFor(user.displayName)} small /><span><b>{user.displayName}</b><small>@{user.username} · {roleLabel(user.role)}</small></span></button>
         </div>
@@ -310,7 +317,7 @@ function Topbar({ setMobileOpen, notify, hasNotifications, onNewAction, onToggle
   )
 }
 
-export function AdminShell({ children, collapsed, setCollapsed, mobileOpen, setMobileOpen, onNotifications, hasNotifications, onNewAction, badges }) {
+export function AdminShell({ children, collapsed, setCollapsed, mobileOpen, setMobileOpen, onNotifications, unreadCount, notificationPulse, onBeforeLogout, onNewAction, badges }) {
   const { pathname, search } = useLocation()
   const language = pathname.startsWith('/admin/aivex') && new URLSearchParams(search).get('lang') === 'ar' ? 'ar' : 'en'
   const isArabic = language === 'ar'
@@ -320,10 +327,10 @@ export function AdminShell({ children, collapsed, setCollapsed, mobileOpen, setM
   usePageFade(mainRef, pathname)
   return (
     <div className={`adm-app ${collapsed ? 'is-sidebar-collapsed' : ''} ${isArabic ? 'is-aivex-ar' : ''}`} dir={isArabic ? 'rtl' : 'ltr'} lang={language}>
-      <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} language={language} badges={badges} />
+      <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} language={language} badges={badges} onBeforeLogout={onBeforeLogout}/>
       {mobileOpen && <button className="adm-mobile-scrim" aria-label={t('Close navigation')} onClick={() => setMobileOpen(false)} />}
       <div className="adm-workspace">
-        <Topbar setMobileOpen={setMobileOpen} onToggleSidebar={() => (window.matchMedia('(max-width: 1023px)').matches ? setMobileOpen(true) : setCollapsed(!collapsed))} notify={onNotifications} hasNotifications={hasNotifications} onNewAction={onNewAction} language={language} />
+        <Topbar setMobileOpen={setMobileOpen} onToggleSidebar={() => (window.matchMedia('(max-width: 1023px)').matches ? setMobileOpen(true) : setCollapsed(!collapsed))} notify={onNotifications} unreadCount={unreadCount} notificationPulse={notificationPulse} onNewAction={onNewAction} language={language} />
         <main ref={mainRef} className="adm-main" id="admin-content">{children}</main>
         <footer className="adm-global-footer"><span><i />{livePeopleWorkspace ? 'Protected workspace · Live database records' : t('Protected workspace · Live database records')}</span></footer>
       </div>
@@ -331,7 +338,7 @@ export function AdminShell({ children, collapsed, setCollapsed, mobileOpen, setM
   )
 }
 
-export function AivexOnlyShell({ children }) {
+export function AivexOnlyShell({ children, onNotifications, unreadCount, notificationPulse, onBeforeLogout }) {
   const { pathname, search } = useLocation()
   const navigate = useNavigate()
   const { user, logout } = useAdminAuth()
@@ -346,6 +353,7 @@ export function AivexOnlyShell({ children }) {
     if (signingOut) return
     setSigningOut(true)
     clearSearchMemory()
+    await onBeforeLogout?.().catch(() => {})
     await logout()
     navigate('/admin/login', { replace: true })
   }
@@ -363,6 +371,7 @@ export function AivexOnlyShell({ children }) {
           <div className="adm-aivex-accessbar__session">
             <span className="adm-aivex-accessbar__status"><i/>{t('Secure AIVEX workspace')}</span>
             <span className="adm-aivex-accessbar__identity"><Avatar initials={initialsFor(user.displayName)} small/><span><b>{user.displayName}</b><small>@{user.username} · {roleLabel(user.role)}</small></span></span>
+            <NotificationButton label={t('Notifications')} notify={onNotifications} unreadCount={unreadCount} pulse={notificationPulse}/>
             <ThemeToggle label={t('Dark theme')} />
             <button className="adm-aivex-accessbar__logout" type="button" onClick={signOut} disabled={signingOut}>
               <LogOut size={17}/><span>{signingOut ? t('Signing out…') : t('Sign out')}</span>

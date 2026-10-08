@@ -12,6 +12,7 @@ import { dateLabel, filterRecords, timeLabel } from './adminModel'
 import { Button, PageHeader, SegmentedControl, StatusBadge, Tabs } from './AdminUI'
 import { ActionDialog, Facts, RecordTable, RecordToolbar, SummaryStrip } from './AdminRecords'
 import AivexCampaignSettings from './AivexCampaignSettings'
+import AdminNotificationSettings from './AdminNotificationSettings'
 import { useAdminAivexCampaignSettings } from './useAdminAivexCampaignSettings'
 import { formatCampaignDateTime } from '../../shared/aivex/campaign-schedule.js'
 
@@ -141,9 +142,9 @@ function OperationalSummary() {
 
 function WorkspacePreferences({ addToast }) {
   const { preferences, saving, updatePreferences } = useAdminPreferences()
-  const [draft, setDraft] = useState(() => ({ tableDensity: preferences.tableDensity, reviewNotificationsEnabled: preferences.reviewNotificationsEnabled }))
+  const [draft, setDraft] = useState(() => ({ tableDensity: preferences.tableDensity }))
   const [error, setError] = useState('')
-  const changed = draft.tableDensity !== preferences.tableDensity || draft.reviewNotificationsEnabled !== preferences.reviewNotificationsEnabled
+  const changed = draft.tableDensity !== preferences.tableDensity
   const save = async (event) => {
     event.preventDefault()
     if (saving || !changed) return
@@ -152,7 +153,7 @@ function WorkspacePreferences({ addToast }) {
     if (!result.ok) return setError(result.message || 'Unable to save workspace preferences.')
     addToast('Workspace preferences saved', 'Your authenticated preferences were refreshed from the server.')
   }
-  return <div className="adm-settings-layout"><form className="adm-panel adm-settings-form" onSubmit={save} aria-busy={saving}><h2>Workspace preferences</h2><p>These preferences follow your administrator account across authenticated browsers and devices.</p><label className="adm-form-field"><span>Table density</span><select value={draft.tableDensity} onChange={(event) => setDraft((current) => ({ ...current, tableDensity: event.target.value }))} disabled={saving}><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></label><label className="adm-setting-toggle"><span><b>Review notifications</b><small>Show the live AIVEX review queue in the notification panel.</small></span><input type="checkbox" checked={draft.reviewNotificationsEnabled} onChange={(event) => setDraft((current) => ({ ...current, reviewNotificationsEnabled: event.target.checked }))} disabled={saving}/></label>{error && <p className="adm-auth-error" role="alert"><CircleAlert size={15}/>{error}</p>}<Button type="submit" disabled={saving || !changed} icon={saving ? <LoaderCircle className="adm-spin" size={16}/> : undefined}>{saving ? 'Saving…' : 'Save preferences'}</Button></form><OperationalSummary/></div>
+  return <div className="adm-settings-layout"><form className="adm-panel adm-settings-form" onSubmit={save} aria-busy={saving}><h2>Workspace preferences</h2><p>These preferences follow your administrator account across authenticated browsers and devices.</p><label className="adm-form-field"><span>Table density</span><select value={draft.tableDensity} onChange={(event) => setDraft({ tableDensity: event.target.value })} disabled={saving}><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></label>{error && <p className="adm-auth-error" role="alert"><CircleAlert size={15}/>{error}</p>}<Button type="submit" disabled={saving || !changed} icon={saving ? <LoaderCircle className="adm-spin" size={16}/> : undefined}>{saving ? 'Saving…' : 'Save preferences'}</Button></form><OperationalSummary/></div>
 }
 
 function AccessAndPrivacy({ addToast, user }) {
@@ -208,11 +209,12 @@ export function SettingsPage() {
   const { addToast } = useAdmin()
   const { user } = useAdminAuth()
   const { preferences } = useAdminPreferences()
-  const tabs = user.role === 'super_admin' ? ['Workspace', 'AIVEX', 'Access & privacy', 'Appearance'] : ['Workspace', 'Access & privacy', 'Appearance']
+  const tabs = user.role === 'super_admin' ? ['Workspace', 'Notifications', 'AIVEX', 'Access & privacy', 'Appearance'] : ['Workspace', 'Notifications', 'Access & privacy', 'Appearance']
   const { state: routeState } = useLocation()
   const [tab, setTab] = useState(() => (tabs.includes(routeState?.settingsTab) ? routeState.settingsTab : 'Workspace'))
   return <div className="adm-page adm-settings-page"><PageHeader eyebrow="Workspace · Preferences" title="Settings" description="Control your workspace, campaign operations and administrative security."/><div className="adm-settings-shell"><nav className="adm-panel adm-settings-nav" aria-label="Settings sections"><Tabs items={tabs} value={tab} onChange={setTab} orientation="vertical" label="Settings sections"/></nav><div className="adm-settings-content"><PreferencesLoadNotice/>
-    {tab === 'Workspace' && <WorkspacePreferences key={`${preferences.tableDensity}-${preferences.reviewNotificationsEnabled}`} addToast={addToast}/>}
+    {tab === 'Workspace' && <WorkspacePreferences key={preferences.tableDensity} addToast={addToast}/>}
+    {tab === 'Notifications' && <AdminNotificationSettings key={`${preferences.aivexNotificationsEnabled}-${preferences.joinNotificationsEnabled}-${preferences.notificationSoundEnabled}`} addToast={addToast}/>}
     {tab === 'AIVEX' && user.role === 'super_admin' && <AivexCampaignSettings addToast={addToast}/>}
     {tab === 'Access & privacy' && <AccessAndPrivacy key={preferences.viewerTimeoutSeconds} addToast={addToast} user={user}/>}
     {tab === 'Appearance' && <AppearancePreferences key={String(preferences.reducedMotion)} addToast={addToast}/>}

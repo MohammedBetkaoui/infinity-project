@@ -77,6 +77,9 @@ export function safeAdminNotificationActionPath(value) {
 
 export function validatePushSubscription(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return { ok: false }
+  if (!Object.keys(input).every((key) => ['endpoint', 'keys', 'deviceLabel'].includes(key))) return { ok: false }
+  if (!input.keys || typeof input.keys !== 'object' || Array.isArray(input.keys)) return { ok: false }
+  if (Object.keys(input.keys).length !== 2 || !Object.keys(input.keys).every((key) => ['p256dh', 'auth'].includes(key))) return { ok: false }
   const endpoint = typeof input.endpoint === 'string' ? input.endpoint.trim() : ''
   const p256dh = typeof input.keys?.p256dh === 'string' ? input.keys.p256dh.trim() : ''
   const auth = typeof input.keys?.auth === 'string' ? input.keys.auth.trim() : ''

@@ -435,7 +435,7 @@ test('route guard accepts only internal admin return paths and protects direct w
   const app = await read('src/admin/AdminApp.jsx')
   assert.match(app, /status !== 'authenticated'/)
   assert.match(app, /<Navigate to={adminLoginPathFor\(/)
-  assert.match(app, /<AdminProvider><Workspace\/><\/AdminProvider>/)
+  assert.match(app, /<AdminNotificationsProvider><AdminProvider><Workspace\/><\/AdminProvider><\/AdminNotificationsProvider>/)
   assert.match(app, /status === 'loading'.*SecureLoadingState/s)
 })
 
@@ -453,7 +453,7 @@ test('workspace access is role-scoped and preserves only authorised return paths
   const app = await read('src/admin/AdminApp.jsx')
   const ui = await read('src/admin/AdminUI.jsx')
   assert.match(app, /!hasFullAdminWorkspace\(user\.role\)/)
-  assert.match(app, /<AivexOnlyShell>/)
+  assert.match(app, /<AivexOnlyShell onNotifications=/)
   assert.match(ui, /adm-aivex-standalone/)
   assert.match(ui, /await logout\(\)/)
 })

@@ -18,6 +18,9 @@ const ADMIN = { id: ADMIN_ID, role: 'reviewer', username: 'reviewer' }
 const VALID = Object.freeze({
   tableDensity: 'comfortable',
   reviewNotificationsEnabled: true,
+  aivexNotificationsEnabled: true,
+  joinNotificationsEnabled: true,
+  notificationSoundEnabled: false,
   viewerTimeoutSeconds: 120,
   reducedMotion: false,
 })
@@ -47,6 +50,9 @@ test('preferences validation is exact and enforces every allowed value', () => {
   for (const input of [
     { ...VALID, tableDensity: 'dense' },
     { ...VALID, reviewNotificationsEnabled: 'true' },
+    { ...VALID, aivexNotificationsEnabled: 'true' },
+    { ...VALID, joinNotificationsEnabled: 'true' },
+    { ...VALID, notificationSoundEnabled: 1 },
     { ...VALID, viewerTimeoutSeconds: 90 },
     { ...VALID, reducedMotion: 1 },
     { ...VALID, adminUserId: OTHER_ADMIN_ID },
@@ -144,7 +150,7 @@ test('preference mutations reject cross-origin, unknown-key, invalid-value and c
   assert.equal(updates, 0)
 })
 
-test('preference service returns defaults for a missing row and persists all four values per administrator', async () => {
+test('preference service returns defaults for a missing row and persists all values per administrator', async () => {
   const rows = new Map()
   const store = {
     get: async (id) => rows.get(id) || null,
@@ -153,6 +159,9 @@ test('preference service returns defaults for a missing row and persists all fou
         admin_user_id: id,
         table_density: value.tableDensity,
         review_notifications_enabled: value.reviewNotificationsEnabled,
+        aivex_notifications_enabled: value.aivexNotificationsEnabled,
+        join_notifications_enabled: value.joinNotificationsEnabled,
+        notification_sound_enabled: value.notificationSoundEnabled,
         viewer_timeout_seconds: value.viewerTimeoutSeconds,
         reduced_motion: value.reducedMotion,
       }
@@ -162,7 +171,7 @@ test('preference service returns defaults for a missing row and persists all fou
   }
   const service = createAdminPreferencesService({ store })
   assert.deepEqual((await service.get(ADMIN)).preferences, VALID)
-  const changed = { tableDensity: 'compact', reviewNotificationsEnabled: false, viewerTimeoutSeconds: 60, reducedMotion: true }
+  const changed = { ...VALID, tableDensity: 'compact', reviewNotificationsEnabled: false, aivexNotificationsEnabled: false, joinNotificationsEnabled: false, notificationSoundEnabled: true, viewerTimeoutSeconds: 60, reducedMotion: true }
   assert.deepEqual((await service.update(changed, ADMIN)).preferences, changed)
   assert.deepEqual((await service.get(ADMIN)).preferences, changed)
   assert.deepEqual((await service.get({ ...ADMIN, id: OTHER_ADMIN_ID })).preferences, VALID)
@@ -174,6 +183,9 @@ test('Supabase preference store scopes reads and upserts to the authenticated ad
     admin_user_id: ADMIN_ID,
     table_density: 'compact',
     review_notifications_enabled: false,
+    aivex_notifications_enabled: false,
+    join_notifications_enabled: false,
+    notification_sound_enabled: true,
     viewer_timeout_seconds: 300,
     reduced_motion: true,
   }
@@ -194,7 +206,7 @@ test('Supabase preference store scopes reads and upserts to the authenticated ad
   }
   const store = createAdminPreferencesStore(supabase)
   await store.get(ADMIN_ID)
-  await store.upsert(ADMIN_ID, { tableDensity: 'compact', reviewNotificationsEnabled: false, viewerTimeoutSeconds: 300, reducedMotion: true })
+  await store.upsert(ADMIN_ID, { ...VALID, tableDensity: 'compact', reviewNotificationsEnabled: false, aivexNotificationsEnabled: false, joinNotificationsEnabled: false, notificationSoundEnabled: true, viewerTimeoutSeconds: 300, reducedMotion: true })
   assert.deepEqual(calls.find((call) => call.type === 'eq'), { type: 'eq', key: 'admin_user_id', value: ADMIN_ID })
   assert.equal(calls.find((call) => call.type === 'upsert').row.admin_user_id, ADMIN_ID)
 })
@@ -230,11 +242,13 @@ test('Settings has only real controls and production preferences are not sourced
   ]) assert.doesNotMatch(settings, new RegExp(removed))
   assert.doesNotMatch(settings, />Active campaign</)
   assert.match(settings, /Active programmes/)
-  assert.match(settings, /\['Workspace', 'AIVEX', 'Access & privacy', 'Appearance'\]/)
+  assert.match(settings, /\['Workspace', 'Notifications', 'AIVEX', 'Access & privacy', 'Appearance'\]/)
   assert.match(provider, /\/api\/admin\/settings\/preferences/)
   assert.match(provider, /limit=12&sort=attention_asc/)
   assert.match(app, /preferences\.tableDensity === 'compact'/)
-  assert.match(app, /preferences\.reviewNotificationsEnabled/)
+  assert.match(app, /<AdminNotificationsProvider><AdminProvider>/)
+  assert.match(app, /<AdminNotificationCenter/)
+  assert.doesNotMatch(app, /useAdminReviewQueue|reviewQueue/)
   assert.doesNotMatch(app, /const pending = state\.teams/)
   assert.doesNotMatch(store, /state\.settings/)
   assert.doesNotMatch(model, /settings:\s*\{/)
@@ -243,6 +257,7 @@ test('Settings has only real controls and production preferences are not sourced
   assert.match(css, /\.adm-reduced-motion/)
   assert.match(settings, /changePassword\(currentPassword, newPassword\)/)
   assert.match(settings, /<AivexCampaignSettings/)
+  assert.match(settings, /<AdminNotificationSettings/)
 })
 
 test('preference migration is forward-only, constrained, RLS-protected and service-role-only', async () => {

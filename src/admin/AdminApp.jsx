@@ -8,10 +8,10 @@ import { adminLoginPathFor } from './adminAuthPath'
 import { useAdminAccent } from './adminAccent'
 import { useAdminTheme, useThemeColor } from './adminTheme'
 import { AdminProvider, useAdmin } from './AdminStore'
-import {
-  AdminPreferencesProvider, useAdminPreferences, useAdminReviewQueue,
-} from './AdminPreferences'
-import { AdminShell, AivexOnlyShell, Button, Modal, ToastStack } from './AdminUI'
+import { AdminPreferencesProvider, useAdminPreferences } from './AdminPreferences'
+import AdminNotificationCenter from './AdminNotificationCenter'
+import { AdminNotificationsProvider, useAdminNotifications } from './AdminNotifications'
+import { AdminShell, AivexOnlyShell, Modal, ToastStack } from './AdminUI'
 import ApplicationsPage from './ApplicationsPage'
 import DirectoryPage from './DirectoryPage'
 import { OverviewPage } from './AdminPages'
@@ -30,8 +30,6 @@ const AIVEX_GLOBAL_ARABIC = Object.freeze({
   'Continue the administrative review.': 'واصل المراجعة الإدارية للملفات.',
   'Open the activity log': 'فتح سجل النشاط',
   'Trace a decision or document consultation.': 'تتبّع قرار أو عملية اطلاع على وثيقة.',
-  'Your review queue': 'قائمة المراجعة الخاصة بك',
-  'No review notifications. You can change alert preferences in Settings.': 'لا توجد إشعارات مراجعة. يمكنك تعديل تفضيلات التنبيه من الإعدادات.',
 })
 
 function Workspace() {
@@ -49,15 +47,12 @@ function Workspace() {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [newAction, setNewAction] = useState(false)
-  const [notifications, setNotifications] = useState(false)
+  const notifications = useAdminNotifications()
   const isArabicAivex = pathname.startsWith('/admin/aivex') && new URLSearchParams(routeSearch).get('lang') === 'ar'
   const language = isArabicAivex ? 'ar' : 'en'
   const t = (value) => isArabicAivex ? (AIVEX_GLOBAL_ARABIC[value] || translateAivex(value, language)) : value
   const preserveAivexLanguage = (route) => isArabicAivex && route.startsWith('/admin/aivex') ? aivexPath(route, language) : route
   const FlowArrow = isArabicAivex ? ArrowLeft : ArrowRight
-  const reviewQueue = useAdminReviewQueue(
-    hasFullAdminWorkspace(user.role) && preferences.reviewNotificationsEnabled,
-  )
   const wrapperClassName = [
     'adm-admin-root',
     preferences.tableDensity === 'compact' && 'adm-density-compact',
@@ -77,36 +72,24 @@ function Workspace() {
   if (!hasFullAdminWorkspace(user.role)) {
     return <div ref={rootRef} className={wrapperClassName} data-accent={accent} data-theme={theme} dir={isArabicAivex ? 'rtl' : 'ltr'} lang={language}>
       <a href="#admin-content" className="adm-skip-link">{t('Skip to workspace')}</a>
-      <AivexOnlyShell>
+      <AivexOnlyShell onNotifications={notifications.openCenter} unreadCount={notifications.unreadCount} notificationPulse={notifications.newPulse} onBeforeLogout={notifications.push.status === 'enabled' ? notifications.disablePush : undefined}>
         <Routes>
           <Route index element={<Navigate to={adminHomePath(user.role)} replace/>}/>
           <Route path="aivex" element={<AivexListPage key={`${routeSearch}-${searchKey}`}/>}/>
           <Route path="aivex/:teamId" element={<AivexDetailPage key={pathname}/>}/>
+          <Route path="settings" element={<SettingsPage key={`settings-${searchKey}`}/>}/>
           <Route path="*" element={<Navigate to={adminHomePath(user.role)} replace/>}/>
         </Routes>
       </AivexOnlyShell>
+      <AdminNotificationCenter language={language}/>
       <ToastStack toasts={toasts}/>
     </div>
   }
-  const openNotifications = () => {
-    if (preferences.reviewNotificationsEnabled) reviewQueue.refresh()
-    setNotifications(true)
-  }
-  return <div ref={rootRef} className={wrapperClassName} data-accent={accent} data-theme={theme} dir={isArabicAivex ? 'rtl' : 'ltr'} lang={language}><a href="#admin-content" className="adm-skip-link">{t('Skip to workspace')}</a><AdminShell collapsed={collapsed} setCollapsed={setCollapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} onNotifications={openNotifications} hasNotifications={preferences.reviewNotificationsEnabled && reviewQueue.items.length > 0} onNewAction={() => setNewAction(true)} badges={{ aivex: preferences.reviewNotificationsEnabled ? reviewQueue.items.length : 0 }}>
+  return <div ref={rootRef} className={wrapperClassName} data-accent={accent} data-theme={theme} dir={isArabicAivex ? 'rtl' : 'ltr'} lang={language}><a href="#admin-content" className="adm-skip-link">{t('Skip to workspace')}</a><AdminShell collapsed={collapsed} setCollapsed={setCollapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} onNotifications={notifications.openCenter} unreadCount={notifications.unreadCount} notificationPulse={notifications.newPulse} onBeforeLogout={notifications.push.status === 'enabled' ? notifications.disablePush : undefined} onNewAction={() => setNewAction(true)} badges={{}}>
     <Routes><Route index element={<Navigate to="/admin/overview" replace/>}/><Route path="overview" element={<OverviewPage/>}/><Route path="applications" element={<ApplicationsPage key={`applications-${routeSearch}-${searchKey}`}/>}/><Route path="members" element={<DirectoryPage key={`members-${routeSearch}-${searchKey}`} kind="members"/>}/><Route path="staff" element={<DirectoryPage key={`staff-${routeSearch}-${searchKey}`} kind="staff"/>}/><Route path="aivex" element={<AivexListPage key={`${routeSearch}-${searchKey}`}/>}/><Route path="aivex/:teamId" element={<AivexDetailPage key={pathname}/>}/><Route path="activity" element={<ActivityPage key={routeSearch}/>}/><Route path="settings" element={<SettingsPage key={`settings-${searchKey}`}/>}/><Route path="*" element={<Navigate to="/admin/overview" replace/>}/></Routes>
   </AdminShell>
   <Modal open={newAction} onClose={() => setNewAction(false)} title={t('What’s next?')} eyebrow={t('Quick actions')} closeLabel={t('Close')}><div className="adm-quick-actions">{[['Review Join applications', 'Meet the next generation of Infinity.', '/admin/applications', Users], ['Verify an AIVEX file', 'Continue the administrative review.', '/admin/aivex', FileText], ['Open the activity log', 'Trace a decision or document consultation.', '/admin/activity', Search]].map(([title, copy, route, Icon]) => <button key={route} onClick={() => { navigate(preserveAivexLanguage(route)); setNewAction(false) }}><Icon size={21}/><span><b>{t(title)}</b><small>{t(copy)}</small></span><FlowArrow size={17}/></button>)}</div></Modal>
-  <Modal open={notifications} onClose={() => setNotifications(false)} title={t('Your review queue')} eyebrow={t('Notifications')} closeLabel={t('Close')}><div className="adm-quick-actions">
-    {!preferences.reviewNotificationsEnabled
-      ? <p>Review notifications are disabled in Settings.</p>
-      : reviewQueue.status === 'loading'
-        ? <p role="status">Loading the live AIVEX review queue...</p>
-        : reviewQueue.status === 'error'
-          ? <div className="adm-notification-error" role="alert"><p>{reviewQueue.error}</p><Button variant="secondary" onClick={reviewQueue.refresh}>Retry</Button></div>
-          : reviewQueue.items.length
-            ? reviewQueue.items.map((item) => <button key={item.reference} onClick={() => { navigate(preserveAivexLanguage(`/admin/aivex/${item.reference}`)); setNotifications(false) }}><FileText size={20}/><span><b>{item.teamName}</b><small>{t(item.label)}</small></span><FlowArrow size={16}/></button>)
-            : <p>{t('No review notifications. You can change alert preferences in Settings.')}</p>}
-  </div></Modal>
+  <AdminNotificationCenter language={language}/>
   <ToastStack toasts={toasts}/></div>
 }
 
@@ -130,7 +113,7 @@ function ProtectedWorkspace() {
 function PreferencesWorkspace() {
   const { status } = useAdminPreferences()
   if (status === 'loading') return <SecureLoadingState title="Loading workspace preferences"/>
-  return <AdminProvider><Workspace/></AdminProvider>
+  return <AdminNotificationsProvider><AdminProvider><Workspace/></AdminProvider></AdminNotificationsProvider>
 }
 
 function LoginRoute() {
