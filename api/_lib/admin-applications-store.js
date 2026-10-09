@@ -179,5 +179,9 @@ export function createAdminApplicationsStore(supabase) {
     listStaffConfirmations: (options) => staffConfirmations.list(options),
     staffConfirmationCounts: (options) => staffConfirmations.counts(options),
     applyStaffConfirmationAction: (input) => staffConfirmations.applyAdminAction(input),
+    credentialForApplication: (applicationId) => staffConfirmations.credentialForApplication(applicationId),
+    nextCredentialVersion: (confirmationId) => staffConfirmations.nextCredentialVersion(confirmationId),
+    staffLinkExportCandidates: () => staffConfirmations.staffLinkExportCandidates(),
+    recordLinkAudit: (input) => staffConfirmations.recordLinkAudit(input),
   }
 }

@@ -16,6 +16,7 @@ import {
 } from '../api/_lib/staff-confirmation-tokens.js'
 import { createStaffConfirmationsService } from '../api/_lib/staff-confirmations.js'
 import { createAdminApplicationsService } from '../api/_lib/admin-applications.js'
+import { createAdminApplicationsStore } from '../api/_lib/admin-applications-store.js'
 import { allowedApplicationActions, canManageApplication } from '../api/_lib/admin-applications-permissions.js'
 import { safeAdminNotificationActionPath } from '../api/_lib/admin-notifications.js'
 
@@ -260,6 +261,28 @@ const runStaffAction = (service, action, payload = {}, user = SUPER_ADMIN) => se
 }, user, { origin: ORIGIN })
 
 const revealLink = (service, user = SUPER_ADMIN) => service.revealStaffLink(APPLICATION_ID, user, { origin: ORIGIN })
+
+// Minimal PostgREST stand-in for the production stores: filters chain, and
+// awaiting a query resolves to that table's rows.
+function fakeSupabase(tables) {
+  const calls = []
+  return {
+    calls,
+    from(table) {
+      calls.push(table)
+      let single = false
+      const query = {
+        maybeSingle: () => { single = true; return query },
+        then: (resolve, reject) => Promise.resolve({
+          data: single ? tables[table]?.[0] ?? null : tables[table] || [], error: null,
+        }).then(resolve, reject),
+      }
+      for (const method of ['select', 'eq', 'in', 'is', 'order', 'limit', 'range']) query[method] = () => query
+      return query
+    },
+    async rpc(name) { calls.push(name); return { data: null, error: null } },
+  }
+}
 
 test('Staff confirmation tokens have 256 bits of entropy, use fragments and are hashed before storage', () => {
   const token = generateStaffConfirmationToken((size) => { assert.equal(size, 32); return Buffer.alloc(size, 7) })
@@ -689,6 +712,42 @@ test('CSV export reuses existing stable links and creates a missing one only onc
   assert.deepEqual(fresh.linkAudits.map((entry) => entry.action), ['staff_link_csv_exported', 'staff_link_csv_exported', 'staff_link_revealed'])
 })
 
+test('the production admin store implements every method the admin applications service calls', async () => {
+  const service = await read('api/_lib/admin-applications.js')
+  const called = [...new Set([...service.matchAll(/\bstore\.(\w+)\(/g)].map(([, method]) => method))]
+  assert.ok(called.includes('staffLinkExportCandidates'))
+  const store = createAdminApplicationsStore(fakeSupabase({}))
+  assert.deepEqual(called.filter((method) => typeof store[method] !== 'function'), [])
+})
+
+test('Staff-link preview, reveal and CSV export run through the production store wiring', async () => {
+  const stable = prepareStableStaffConfirmationCredential({ confirmationId: CONFIRMATION_ID, linkNonce: LINK_NONCE, secret: LINK_SECRET })
+  const supabase = fakeSupabase({
+    admin_staff_link_credentials: [{
+      application_id: APPLICATION_ID, reference: 'JOIN-26-TEST01', full_name: 'Amel Benali', application_status: 'in_review',
+      confirmation_id: CONFIRMATION_ID, confirmation_status: 'invited', expires_at: EXPIRES,
+      credential_id: '44444444-4444-4444-8444-444444444444', token_hash: stable.tokenHash, link_nonce: LINK_NONCE,
+      credential_version: 1, derivation_version: 1, blocked_at: null, revoked_at: null,
+    }],
+    membership_staff_confirmation_tokens: [{ credential_version: 1 }],
+  })
+  const store = createAdminApplicationsStore(supabase)
+  const service = createAdminApplicationsService({ store, now: () => NOW, env: STABLE_LINK_ENV })
+  const privateLink = buildStaffConfirmationUrl(ORIGIN, stable.rawToken)
+
+  assert.deepEqual(await service.previewStaffLinkExport(SUPER_ADMIN), {
+    ok: true, preview: { eligible: 1, existing: 1, missing: 0, legacy: 0, blocked: 0 },
+  })
+  assert.equal((await revealLink(service)).privateLink, privateLink)
+  const exported = await service.exportStaffLinks(SUPER_ADMIN, { origin: ORIGIN })
+  assert.deepEqual({ ok: exported.ok, rowCount: exported.rowCount, created: exported.created }, { ok: true, rowCount: 1, created: 0 })
+  assert.ok(exported.csv.includes(`"${privateLink}"`))
+  assert.equal(await store.nextCredentialVersion(CONFIRMATION_ID), 2)
+  assert.deepEqual(supabase.calls.filter((call) => call === 'admin_record_staff_link_audit'), [
+    'admin_record_staff_link_audit', 'admin_record_staff_link_audit',
+  ])
+})
+
 test('stable-link migration persists derivation metadata only and never rotates on ensure', async () => {
   const migration = (await read('supabase/migrations/20261017120000_stable_staff_confirmation_links.sql')).toLowerCase()
   assert.doesNotMatch(migration, /raw_token|token_plain|plain_token|private_url|private_link\s+text/)
@@ -725,6 +784,25 @@ test('migration stores token hashes only, keeps submission history and enforces 
   assert.match(migration, /set status = 'accepted',[\s\S]*?accepted_as = 'staff',[\s\S]*?assigned_staff_department = staff_department/)
   assert.match(migration, /enable row level security/)
   assert.match(migration, /revoke all on function public\.staff_submit_confirmation/)
+})
+
+test('latest migrations accept Staff-link audit rows and keep stable action columns unambiguous', async () => {
+  const directory = new URL('../supabase/migrations/', import.meta.url)
+  const migrations = await Promise.all((await readdir(directory)).filter((name) => name.endsWith('.sql')).sort()
+    .map((name) => readFile(new URL(name, directory), 'utf8')))
+  let auditObjectTypes = []
+  let stableAction = ''
+  for (const sql of migrations) {
+    for (const [, values] of sql.matchAll(/add constraint admin_audit_object_type_check\s+check \(object_type in \(([^)]*)\)\)/gi)) {
+      auditObjectTypes = [...values.matchAll(/'([a-z_]+)'/g)].map(([, value]) => value)
+    }
+    const definition = sql.match(/function public\.admin_apply_stable_staff_confirmation_action\([\s\S]*?\n\$\$;/)
+    if (definition) stableAction = definition[0]
+  }
+  for (const objectType of ['join_application', 'staff_link_export']) assert.ok(auditObjectTypes.includes(objectType), objectType)
+  // The function returns an expires_at column, so PL/pgSQL rejects unqualified reads of the table column (42702).
+  assert.ok(stableAction.includes('returns table'))
+  assert.doesNotMatch(stableAction, /(?:when|else|then|and|or|<=|>=|[<>(])\s*expires_at\b/)
 })
 
 test('private candidate route captures fragments, clears the address bar and is excluded from indexing', async () => {
