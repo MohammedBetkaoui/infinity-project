@@ -113,4 +113,3 @@ function createHandler(kind, {
 
 export const createStaffConfirmationVerifyHandler = (options) => createHandler('verify', options)
 export const createStaffConfirmationSubmitHandler = (options) => createHandler('submit', options)
-

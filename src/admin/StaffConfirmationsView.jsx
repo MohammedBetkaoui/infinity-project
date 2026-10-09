@@ -75,8 +75,7 @@ export default function StaffConfirmationsView({ onOpen }) {
       />
       {error ? <div className="adm-state-error" role="alert"><TriangleAlert size={24}/><h3>Staff confirmations could not be loaded</h3><p>{error}</p><Button onClick={refresh} variant="secondary">Try again</Button></div>
         : loading ? <div className="adm-skeleton-group" role="status" aria-label="Loading Staff confirmations">{Array.from({ length: 5 }, (_, index) => <div className="adm-skeleton-row" key={index}><i/><span/><span/></div>)}</div>
-          : <RecordTable records={records} columns={columns} onOpen={(record) => onOpen(record.applicationId)} pagination={pagination} onPageChange={setPage} emptyTitle={tab === 'All' ? 'No Staff confirmations yet' : `No ${tab.toLowerCase()} confirmations`}/>} 
+          : <RecordTable records={records} columns={columns} onOpen={(record) => onOpen(record.applicationId)} pagination={pagination} onPageChange={setPage} emptyTitle={tab === 'All' ? 'No Staff confirmations yet' : `No ${tab.toLowerCase()} confirmations`}/>}
     </div>
   </div>
 }
-

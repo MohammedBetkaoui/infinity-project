@@ -142,4 +142,3 @@ export function staffConfirmationInvitationMessage({ candidate, reference, url, 
 }
 
 export { STAFF_DEPARTMENT_LABELS }
-

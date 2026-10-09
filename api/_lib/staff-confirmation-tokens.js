@@ -31,4 +31,3 @@ export function buildStaffConfirmationUrl(origin, rawToken) {
   if (!origin || !isPlausibleStaffConfirmationToken(rawToken)) return null
   return `${origin}/join/staff-confirmation#token=${encodeURIComponent(rawToken)}`
 }
-

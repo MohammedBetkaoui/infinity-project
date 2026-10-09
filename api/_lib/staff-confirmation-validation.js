@@ -51,4 +51,3 @@ export function parseStaffConfirmationListOptions(params) {
 export function isStaffConfirmationRecordId(value) {
   return UUID_RE.test(String(value || ''))
 }
-
