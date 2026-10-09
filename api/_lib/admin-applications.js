@@ -4,6 +4,10 @@ import {
   allowedApplicationActions, canBulkManageApplications, canManageApplication,
 } from './admin-applications-permissions.js'
 import { createAdminApplicationsStore } from './admin-applications-store.js'
+import {
+  STAFF_DEPARTMENT_LABELS, effectiveStaffConfirmationStatus, prepareStaffConfirmationInvitation,
+  staffConfirmationInvitationMessage,
+} from './staff-confirmations.js'
 
 const STATUS_LABELS = Object.freeze({
   new: 'New', in_review: 'In review', interview: 'Interview',
@@ -32,7 +36,20 @@ const ACTION_TITLES = Object.freeze({
   decline: 'Application declined',
   archive: 'Application archived',
   add_note: 'Internal note added',
+  invite_staff_confirmation: 'Staff confirmation invited',
+  regenerate_staff_confirmation_link: 'Staff confirmation link regenerated',
+  request_staff_confirmation_revision: 'Staff confirmation revision requested',
+  revoke_staff_confirmation: 'Staff confirmation invitation revoked',
+  confirm_staff_membership: 'Staff membership confirmed',
 })
+const STAFF_CONFIRMATION_ACTIONS = new Set([
+  'invite_staff_confirmation', 'regenerate_staff_confirmation_link',
+  'request_staff_confirmation_revision', 'revoke_staff_confirmation',
+  'confirm_staff_membership',
+])
+const TOKEN_ACTIONS = new Set([
+  'invite_staff_confirmation', 'regenerate_staff_confirmation_link', 'request_staff_confirmation_revision',
+])
 const administrativeReason = (action, reason) => {
   const supplied = typeof reason === 'string' ? reason.trim() : ''
   if (supplied || action === 'add_note') return supplied
@@ -48,8 +65,32 @@ function normalizePayload(action, payload) {
   return payload
 }
 
+function mapStaffConfirmation(row, now = new Date()) {
+  if (!row) return null
+  const statusKey = row.effective_status || effectiveStaffConfirmationStatus(row, now)
+  return {
+    id: row.id || row.confirmation_id,
+    applicationId: row.application_id,
+    statusKey,
+    storedStatus: row.stored_status || row.status,
+    invitedAt: row.invited_at,
+    expiresAt: row.expires_at,
+    revisionMessage: row.revision_message || '',
+    submittedAt: row.submitted_at,
+    confirmedAt: row.confirmed_at,
+    updatedAt: row.updated_at,
+    submissions: (row.submissions || []).map((submission) => ({
+      id: submission.id,
+      version: submission.version,
+      motivation: submission.motivation,
+      submittedAt: submission.submitted_at,
+    })),
+  }
+}
+
 function mapApplication(row, role, extras = {}) {
   const latestInterview = extras.interviews?.[0]
+  const staffConfirmation = mapStaffConfirmation(extras.staffConfirmation)
   const history = [
     {
       title: 'Application received', actor: 'Infinity Join form',
@@ -99,7 +140,8 @@ function mapApplication(row, role, extras = {}) {
     interviewAt: latestInterview?.scheduled_at || null,
     interviewLocation: latestInterview?.location || null,
     updatedAt: row.updated_at,
-    allowedActions: allowedApplicationActions(role, row),
+    allowedActions: allowedApplicationActions(role, row, staffConfirmation ? { ...extras.staffConfirmation, effective_status: staffConfirmation.statusKey } : null),
+    staffConfirmation,
     history,
   }
 }
@@ -112,8 +154,14 @@ function publicActionError(error) {
   if (error?.code === 'P0002' || message.includes('application_not_found')) {
     return { status: 404, message: 'This application no longer exists.' }
   }
+  if (message.includes('staff_confirmation_conflict')) {
+    return { status: 409, message: 'This Staff confirmation was updated by another administrator. Refresh it before continuing.' }
+  }
   if (error?.code === '40001' || message.includes('application_conflict')) {
     return { status: 409, message: 'This application was updated by another administrator. Refresh it before continuing.' }
+  }
+  if (message.includes('staff_confirmation_required')) {
+    return { status: 409, message: 'A submitted Staff confirmation is required before this application can be accepted.' }
   }
   if (error?.code === '22023') {
     return { status: 409, message: 'This action is not available for the current application state.' }
@@ -121,16 +169,19 @@ function publicActionError(error) {
   return null
 }
 
-export function createAdminApplicationsService({ store, now = () => new Date() } = {}) {
+export function createAdminApplicationsService({ store, now = () => new Date(), staffConfirmationEnabled = true } = {}) {
   if (!store) throw Object.assign(new Error('admin_applications_store_required'), { stage: 'configuration', code: 'configuration_error' })
 
   const detail = async (applicationId, user) => {
     const row = await store.find(applicationId)
     if (!row) return null
-    const [notes, interviews, audit] = await Promise.all([
+    const [notes, interviews, audit, staffConfirmation] = await Promise.all([
       store.notes(applicationId), store.interviews(applicationId), store.audit(applicationId),
+      staffConfirmationEnabled && typeof store.staffConfirmation === 'function'
+        ? store.staffConfirmation(applicationId, { submissions: true })
+        : null,
     ])
-    return mapApplication(row, user.role, { notes, interviews, audit })
+    return mapApplication(row, user.role, { notes, interviews, audit, staffConfirmation })
   }
 
   return {
@@ -153,11 +204,82 @@ export function createAdminApplicationsService({ store, now = () => new Date() }
 
     detail,
 
-    async act(applicationId, input, user) {
+    async listStaffConfirmations(options) {
+      const [{ rows, count }, counts] = await Promise.all([
+        store.listStaffConfirmations(options), store.staffConfirmationCounts(options),
+      ])
+      return {
+        data: rows.map((row) => ({
+          id: row.confirmation_id,
+          applicationId: row.application_id,
+          name: row.candidate_name,
+          ref: row.reference || `JOIN-${String(row.application_id).slice(0, 8).toUpperCase()}`,
+          staffDepartment: STAFF_DEPARTMENT_LABELS[row.staff_department] || row.staff_department_label,
+          staffDepartmentKey: row.staff_department,
+          applicationStatus: STATUS_LABELS[row.application_status] || row.application_status,
+          statusKey: row.effective_status,
+          invitedAt: row.invited_at,
+          expiresAt: row.expires_at,
+          submittedAt: row.submitted_at,
+          confirmedAt: row.confirmed_at,
+          updatedAt: row.updated_at,
+          submissionCount: row.submission_count,
+        })),
+        pagination: {
+          page: options.page,
+          limit: options.limit,
+          total: count,
+          pages: Math.max(1, Math.ceil(count / options.limit)),
+        },
+        counts,
+      }
+    },
+
+    async act(applicationId, input, user, context = {}) {
       if (!canManageApplication(user.role, input.action)) {
         return { ok: false, status: 403, message: 'You do not have permission to perform this action.' }
       }
       try {
+        if (STAFF_CONFIRMATION_ACTIONS.has(input.action)) {
+          if (!staffConfirmationEnabled) {
+            return { ok: false, status: 503, message: 'Staff confirmation workflow is not enabled yet.' }
+          }
+          let invitation = null
+          if (TOKEN_ACTIONS.has(input.action)) {
+            if (!context.origin) return { ok: false, status: 503, message: 'The private invitation link could not be generated.' }
+            invitation = prepareStaffConfirmationInvitation({
+              origin: context.origin,
+              purpose: input.action === 'invite_staff_confirmation'
+                ? 'initial'
+                : input.action === 'request_staff_confirmation_revision' ? 'revision' : 'replacement',
+              now: now(),
+            })
+          }
+          await store.applyStaffConfirmationAction({
+            applicationId,
+            adminUserId: user.id,
+            action: input.action,
+            expectedApplicationUpdatedAt: input.expectedUpdatedAt,
+            expectedConfirmationUpdatedAt: input.payload.confirmationUpdatedAt,
+            tokenHash: invitation?.tokenHash,
+            tokenPurpose: invitation?.tokenPurpose,
+            expiresAt: invitation?.expiresAt,
+            message: input.payload.revisionMessage,
+            now: now(),
+          })
+          const application = await detail(applicationId, user)
+          if (!invitation) return { ok: true, application }
+          const invitationView = {
+            candidate: application.name,
+            reference: application.ref,
+            url: invitation.url,
+            expiresAt: invitation.expiresAt.toISOString(),
+          }
+          invitationView.message = staffConfirmationInvitationMessage({
+            ...invitationView, expiresAt: invitation.expiresAt,
+          })
+          return { ok: true, application, invitation: invitationView }
+        }
         await store.applyAction({
           applicationId,
           adminUserId: user.id,
@@ -179,6 +301,9 @@ export function createAdminApplicationsService({ store, now = () => new Date() }
       if (!canBulkManageApplications(user.role) || !canManageApplication(user.role, input.action)) {
         return { ok: false, status: 403, message: 'You do not have permission to perform this action.' }
       }
+      if (STAFF_CONFIRMATION_ACTIONS.has(input.action)) {
+        return { ok: false, status: 400, message: 'Staff confirmation actions must be completed from an individual candidate dossier.' }
+      }
       const succeeded = []
       const failed = []
       for (const record of input.records) {
@@ -196,8 +321,9 @@ export function createAdminApplicationsService({ store, now = () => new Date() }
   }
 }
 
-export function createServerAdminApplicationsService() {
+export function createServerAdminApplicationsService({ env = process.env } = {}) {
   return createAdminApplicationsService({
     store: createAdminApplicationsStore(createServerSupabaseClient()),
+    staffConfirmationEnabled: env.STAFF_CONFIRMATION_API_ENABLED === 'true',
   })
 }

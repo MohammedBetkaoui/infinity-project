@@ -1,4 +1,5 @@
 import { UNIVERSITY_FACULTIES, describeAcademicDepartment } from '../../shared/membership/university-structure.js'
+import { createStaffConfirmationsStore } from './staff-confirmations-store.js'
 
 const APPLICATION_COLUMNS = [
   'id', 'reference', 'full_name', 'email', 'phone', 'study_year', 'faculty', 'department',
@@ -79,6 +80,7 @@ function applyFilters(query, options, { includeStatus = true } = {}) {
 
 export function createAdminApplicationsStore(supabase) {
   if (!supabase) throw Object.assign(new Error('admin_applications_store_unavailable'), { stage: 'configuration', code: 'configuration_error' })
+  const staffConfirmations = createStaffConfirmationsStore(supabase)
 
   return {
     async list(options) {
@@ -172,6 +174,10 @@ export function createAdminApplicationsStore(supabase) {
       if (error) fail('application_action', error)
       return Array.isArray(data) ? data[0] : data
     },
+
+    staffConfirmation: (applicationId, options) => staffConfirmations.forApplication(applicationId, options),
+    listStaffConfirmations: (options) => staffConfirmations.list(options),
+    staffConfirmationCounts: (options) => staffConfirmations.counts(options),
+    applyStaffConfirmationAction: (input) => staffConfirmations.applyAdminAction(input),
   }
 }
-

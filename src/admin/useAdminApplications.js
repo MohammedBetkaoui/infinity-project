@@ -88,6 +88,43 @@ export function useAdminApplications({ page, limit = 12, status, search, filters
   return { ...state, loading: state.loading || state.resolvedKey !== requestKey, refresh }
 }
 
+export function useStaffConfirmations({ page, limit = 12, status, search, department, sort = 'submitted_desc' }) {
+  const { request } = useAdminAuth()
+  const [state, setState] = useState({
+    records: [], pagination: { page: 1, limit, total: 0, pages: 1 }, counts: {},
+    loading: true, error: '', resolvedKey: '',
+  })
+  const [refreshKey, setRefreshKey] = useState(0)
+  const query = useMemo(() => {
+    const params = new URLSearchParams({ page: String(page), limit: String(limit), sort })
+    if (status) params.set('status', status)
+    if (search) params.set('q', search)
+    if (department) params.set('department', department)
+    return params.toString()
+  }, [department, limit, page, search, sort, status])
+  const requestKey = `${query}::${refreshKey}`
+
+  useEffect(() => {
+    const controller = new AbortController()
+    request(`/api/admin/applications/staff-confirmations?${query}`, { signal: controller.signal })
+      .then(({ response, body }) => {
+        if (!response.ok) throw new Error(body.message || 'Unable to load Staff confirmations.')
+        setState({
+          records: body.data || [],
+          pagination: body.pagination || { page: 1, limit, total: 0, pages: 1 },
+          counts: body.counts || {}, loading: false, error: '', resolvedKey: requestKey,
+        })
+      })
+      .catch((error) => {
+        if (error.name !== 'AbortError') setState((current) => ({ ...current, loading: false, error: error.message, resolvedKey: requestKey }))
+      })
+    return () => controller.abort()
+  }, [limit, query, request, requestKey])
+
+  const refresh = useCallback(() => setRefreshKey((value) => value + 1), [])
+  return { ...state, loading: state.loading || state.resolvedKey !== requestKey, refresh }
+}
+
 export function useAdminApplicationActions() {
   const { request } = useAdminAuth()
   const mutation = useRef(null)
@@ -107,7 +144,7 @@ export function useAdminApplicationActions() {
         body: JSON.stringify(input),
       })
       if (!response.ok) return { ok: false, status: response.status, message: body.message || 'The action could not be completed.' }
-      return { ok: true, application: body.application }
+      return { ok: true, application: body.application, invitation: body.invitation || null }
     } catch {
       return { ok: false, message: 'Unable to reach the administration service.' }
     } finally {

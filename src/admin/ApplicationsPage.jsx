@@ -1,10 +1,11 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
-import { KanbanSquare, List, RefreshCw, TriangleAlert, UserCheck } from 'lucide-react'
+import { Check, Copy, KanbanSquare, Link2, List, RefreshCw, ShieldCheck, TriangleAlert, UserCheck } from 'lucide-react'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import { useAdminAuth } from './AdminAuth'
 import { useAdmin } from './AdminStore'
 import { ActionDialog, RecordTable, RecordToolbar } from './AdminRecords'
 import ApplicationsBoard from './ApplicationsBoard'
+import StaffConfirmationsView from './StaffConfirmationsView'
 import { applicationActionPayload } from './applicationMoves'
 import { ApplicationSubmittedAt, CandidateActionBar, CandidateDossier } from './PeoplePages'
 import { APPLICATION_STATUSES, AVAILABILITY, DEPARTMENTS, EXPERIENCE, LEVELS, POLES } from './adminModel'
@@ -33,6 +34,26 @@ const BULK_ACTIONS = Object.freeze({
 
 const Person = ({ record }) => <div className="adm-person-cell"><Avatar initials={record.initials} small/><span><b>{record.name}</b><small>{record.email || record.ref}</small></span>{record.status === 'New' && <i title="New application"/>}</div>
 
+function InvitationDialog({ invitation, onClose }) {
+  const [copied, setCopied] = useState('')
+  const copy = async (kind, value) => {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopied(kind)
+      window.setTimeout(() => setCopied(''), 1600)
+    } catch { setCopied('') }
+  }
+  const expires = new Date(invitation.expiresAt).toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Africa/Algiers' })
+  return <Modal open title="Staff confirmation invitation" eyebrow="Private link · shown once" onClose={onClose} footer={<><Button variant="secondary" onClick={() => copy('link', invitation.url)} icon={copied === 'link' ? <Check size={15}/> : <Link2 size={15}/>}>{copied === 'link' ? 'Link copied' : 'Copy link'}</Button><Button onClick={() => copy('message', invitation.message)} icon={copied === 'message' ? <Check size={15}/> : <Copy size={15}/>}>{copied === 'message' ? 'Message copied' : 'Copy message'}</Button></>}>
+    <div className="adm-invitation-dialog">
+      <div className="adm-invitation-warning"><ShieldCheck size={18}/><p><b>Copy before closing.</b> This private link cannot be recovered because only its hash is stored. Regenerate it if it is lost.</p></div>
+      <dl><div><dt>Candidate</dt><dd>{invitation.candidate}</dd></div><div><dt>Reference</dt><dd><code>{invitation.reference}</code></dd></div><div><dt>Expires</dt><dd>{expires}</dd></div></dl>
+      <label><span>Private link</span><textarea readOnly value={invitation.url} rows={3}/></label>
+      <details><summary>Preview full message</summary><pre>{invitation.message}</pre></details>
+    </div>
+  </Modal>
+}
+
 function ApplicationsSkeleton() {
   return <div className="adm-skeleton-group adm-applications-skeleton" role="status" aria-label="Loading Join applications">
     {Array.from({ length: 6 }, (_, index) => <div className="adm-skeleton-row" key={index}><i/><span/><span/></div>)}
@@ -42,8 +63,9 @@ function ApplicationsSkeleton() {
 export default function ApplicationsPage() {
   const { user } = useAdminAuth()
   const { addToast } = useAdmin()
-  const [params] = useSearchParams()
+  const [params, setParams] = useSearchParams()
   const requestedRecordId = params.get('record')
+  const workspaceView = params.get('view') === 'staff-confirmations' ? 'Staff confirmations' : 'Applications'
   const initialStage = APPLICATION_STATUSES.includes(params.get('stage')) ? params.get('stage') : 'New'
   const [tab, setTab] = useState(initialStage)
   const { state: routeState } = useLocation()
@@ -57,6 +79,7 @@ export default function ApplicationsPage() {
   const [detailLoading, setDetailLoading] = useState(Boolean(requestedRecordId))
   const [detailError, setDetailError] = useState('')
   const [action, setAction] = useState(null)
+  const [invitation, setInvitation] = useState(null)
   const [layout, setLayout] = useState('list')
   const [boardVersion, setBoardVersion] = useState(0)
   const sortValue = `${SORT_KEYS[sort.key] || 'submitted'}_${sort.asc ? 'asc' : 'desc'}`
@@ -69,6 +92,15 @@ export default function ApplicationsPage() {
   })
   const { loadDetail, act, bulk } = useAdminApplicationActions()
   const canBulk = user?.role === 'super_admin'
+
+  const changeWorkspaceView = (value) => {
+    const next = new URLSearchParams(params)
+    if (value === 'Staff confirmations') next.set('view', 'staff-confirmations')
+    else next.delete('view')
+    next.delete('record')
+    setParams(next, { replace: true })
+    setDetail(null)
+  }
 
   const counts = useMemo(() => Object.fromEntries(APPLICATION_STATUSES.map((status) => [status, rawCounts[STATUS_KEYS[status]] || 0])), [rawCounts])
   const fields = useMemo(() => [
@@ -161,10 +193,11 @@ export default function ApplicationsPage() {
       action: action.applicationAction,
       expectedUpdatedAt: detail.updatedAt,
       reason: '',
-      payload: applicationActionPayload(action.applicationAction, values),
+      payload: applicationActionPayload(action.applicationAction, values, detail),
     })
     if (!result.ok) return result.message
     setDetail(result.application)
+    if (result.invitation) setInvitation(result.invitation)
     refresh()
     setBoardVersion((value) => value + 1)
     addToast(action.title, 'The application and its administrative history were updated.')
@@ -180,7 +213,11 @@ export default function ApplicationsPage() {
   })
 
   return <div className="adm-page adm-people-page adm-applications-page">
-    <PageHeader eyebrow="People · Join intake" title="Join applications" description="Every new connection starts here. Review, meet and welcome the next Infinity members." actions={<><SegmentedControl label="Applications view" value={layout} onChange={(value) => { setLayout(value); setSelected([]) }} options={[{ value: 'list', label: 'List', icon: <List size={15} aria-hidden="true"/> }, { value: 'board', label: 'Board', icon: <KanbanSquare size={15} aria-hidden="true"/> }]}/><Button onClick={() => { refresh(); setBoardVersion((value) => value + 1) }} variant="secondary" icon={<RefreshCw size={16}/>}>Refresh applications</Button></>}/>
+    <PageHeader eyebrow="People · Join intake" title={workspaceView} description={workspaceView === 'Applications' ? 'Every new connection starts here. Review, meet and welcome the next Infinity members.' : 'Review private Staff motivations, request revisions and confirm the final Staff membership.'} actions={workspaceView === 'Applications' ? <><SegmentedControl label="Applications view" value={layout} onChange={(value) => { setLayout(value); setSelected([]) }} options={[{ value: 'list', label: 'List', icon: <List size={15} aria-hidden="true"/> }, { value: 'board', label: 'Board', icon: <KanbanSquare size={15} aria-hidden="true"/> }]}/><Button onClick={() => { refresh(); setBoardVersion((value) => value + 1) }} variant="secondary" icon={<RefreshCw size={16}/>}>Refresh applications</Button></> : undefined}/>
+
+    <Tabs className="adm-workspace-tabs" items={['Applications', 'Staff confirmations']} value={workspaceView} onChange={changeWorkspaceView} label="Join administration view"/>
+
+    {workspaceView === 'Staff confirmations' ? <StaffConfirmationsView key={boardVersion} onOpen={open}/> : <>
 
     <div className="adm-intake-banner"><div><UserCheck size={20}/><p><b>Live Join intake</b><span>Secure records received from the Infinity Join form</span></p></div><span className="adm-mono">{Object.values(counts).reduce((sum, value) => sum + value, 0)} IN CURRENT SCOPE</span></div>
 
@@ -214,6 +251,7 @@ export default function ApplicationsPage() {
       />}
       </>}
     </div>
+    </>}
 
     {detailLoading && <div className="adm-applications-detail-loading" role="status"><RefreshCw size={16}/><span>Opening secure application…</span></div>}
     {detailError && !detailLoading && <div className="adm-inline-application-error" role="alert"><span>{detailError}</span><button onClick={() => setDetailError('')}>Dismiss</button></div>}
@@ -223,5 +261,6 @@ export default function ApplicationsPage() {
     </Modal>}
 
     {action && <ActionDialog key={action.title} action={action} onClose={() => setAction(null)} onSubmit={submitAction}/>} 
+    {invitation && <InvitationDialog invitation={invitation} onClose={() => setInvitation(null)}/>}
   </div>
 }

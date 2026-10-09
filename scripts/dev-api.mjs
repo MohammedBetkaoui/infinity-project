@@ -37,10 +37,19 @@ if (existsSync(join(root, '.env.local'))) {
 
 const load = async (...segments) => (await import(pathToFileURL(join(root, 'api', ...segments)).href)).default
 const adminHandler = await load('admin-auth.js')
+const joinHandler = await load('join.js')
 // These routes read the raw request stream themselves: the runner must
 // not consume the body before handing the request over.
 const streamingRoutes = {
-  '/api/join': await load('join.js'),
+  '/api/join': joinHandler,
+  '/api/join/staff-confirmation/verify': (req, res) => {
+    req.url = '/api/join?__join_action=staff-confirmation-verify'
+    return joinHandler(req, res)
+  },
+  '/api/join/staff-confirmation/submit': (req, res) => {
+    req.url = '/api/join?__join_action=staff-confirmation-submit'
+    return joinHandler(req, res)
+  },
   '/api/aivex/register': await load('aivex', 'register.js'),
   '/api/aivex/register/init': await load('aivex', 'register', 'init.js'),
   '/api/aivex/register/finalize': await load('aivex', 'register', 'finalize.js'),

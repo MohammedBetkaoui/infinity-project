@@ -20,6 +20,8 @@ import {
   isApplicationId, parseApplicationListOptions, validateApplicationActionBody,
   validateApplicationBulkBody,
 } from './_lib/admin-applications-validation.js'
+import { parseStaffConfirmationListOptions } from './_lib/staff-confirmation-validation.js'
+import { staffConfirmationSiteOrigin } from './_lib/staff-confirmation-tokens.js'
 import {
   isPeopleProfileId, parsePeopleListOptions, validatePeopleActionBody,
   validatePeopleBulkBody, validatePeopleCreateBody,
@@ -202,6 +204,7 @@ const adminPathFromRequest = (req) => {
 }
 
 const joinAdministrationEnabled = (env = process.env) => env.ADMIN_JOIN_API_ENABLED === 'true'
+const staffConfirmationEnabled = (env = process.env) => env.STAFF_CONFIRMATION_API_ENABLED === 'true'
 
 export function createAdminPreferencesHandler({
   createService = createServerAdminPreferencesService,
@@ -333,12 +336,20 @@ export function createAdminApplicationsHandler({
     }
 
     try {
-      const service = createService()
+      const service = createService({ env })
 
       if (path === 'applications' && req.method === 'GET') {
         const parsed = parseApplicationListOptions(url.searchParams)
         if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid application filters.' })
         const result = await service.list(parsed.value, session.user)
+        return sendAdminJson(res, 200, { success: true, ...result })
+      }
+
+      if (path === 'applications/staff-confirmations' && req.method === 'GET') {
+        if (!staffConfirmationEnabled(env)) return sendAdminJson(res, 503, { success: false, message: 'Staff confirmation workflow is not enabled yet.' })
+        const parsed = parseStaffConfirmationListOptions(url.searchParams)
+        if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid Staff confirmation filters.' })
+        const result = await service.listStaffConfirmations(parsed.value, session.user)
         return sendAdminJson(res, 200, { success: true, ...result })
       }
 
@@ -358,9 +369,19 @@ export function createAdminApplicationsHandler({
         if (!isApplicationId(applicationId)) return sendAdminJson(res, 404, { success: false, message: 'Application not found.' })
         const parsed = validateApplicationActionBody(await readJsonBody(req, MAX_APPLICATION_BODY_BYTES))
         if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid administrative action.' })
-        const result = await service.act(applicationId, parsed.value, session.user)
+        if ((parsed.value.action.includes('staff_confirmation') || parsed.value.action === 'confirm_staff_membership')
+          && !staffConfirmationEnabled(env)) {
+          return sendAdminJson(res, 503, { success: false, message: 'Staff confirmation workflow is not enabled yet.' })
+        }
+        const result = await service.act(applicationId, parsed.value, session.user, {
+          origin: staffConfirmationSiteOrigin(req, env),
+        })
         if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: result.message })
-        return sendAdminJson(res, 200, { success: true, application: result.application })
+        return sendAdminJson(res, 200, {
+          success: true,
+          application: result.application,
+          ...(result.invitation ? { invitation: result.invitation } : {}),
+        })
       }
 
       if (path === 'applications/bulk-actions' && req.method === 'POST') {

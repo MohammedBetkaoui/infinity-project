@@ -53,13 +53,18 @@ export function validateApplicationActionBody(body) {
   if (typeof body.action !== 'string' || !boundedText(body.reason || '', 2000)) return { ok: false }
   if (typeof body.expectedUpdatedAt !== 'string' || !Number.isFinite(Date.parse(body.expectedUpdatedAt))) return { ok: false }
   if (body.payload !== undefined && (!body.payload || typeof body.payload !== 'object' || Array.isArray(body.payload))) return { ok: false }
+  const payload = body.payload || {}
+  if (payload.confirmationUpdatedAt !== undefined
+    && (typeof payload.confirmationUpdatedAt !== 'string' || !Number.isFinite(Date.parse(payload.confirmationUpdatedAt)))) return { ok: false }
+  if (payload.revisionMessage !== undefined
+    && (typeof payload.revisionMessage !== 'string' || payload.revisionMessage.trim().length < 1 || payload.revisionMessage.trim().length > 1000)) return { ok: false }
   return {
     ok: true,
     value: {
       action: body.action,
       expectedUpdatedAt: body.expectedUpdatedAt,
       reason: typeof body.reason === 'string' ? body.reason : '',
-      payload: body.payload || {},
+      payload,
     },
   }
 }

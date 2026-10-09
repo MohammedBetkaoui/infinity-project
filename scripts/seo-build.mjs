@@ -112,6 +112,7 @@ export function robots() {
     '# Private candidate workflow: tokenised URLs, never meant to be fetched.',
     '# The pages themselves also serve noindex,nofollow.',
     'Disallow: /aivex/status',
+    'Disallow: /join/staff-confirmation',
     '',
     '# Back-office and API surface.',
     'Disallow: /admin',

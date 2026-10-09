@@ -159,6 +159,17 @@ export const ROUTES = [
     ogType: 'website',
   },
   {
+    // Private bearer-token workflow. The token arrives in the fragment and
+    // is removed before any metadata can observe it.
+    path: '/join/staff-confirmation',
+    title: 'Staff confirmation | Infinity Club',
+    description: 'Private Infinity Club Staff confirmation page.',
+    robots: NOINDEX_NOFOLLOW,
+    sitemap: false,
+    noCanonical: true,
+    noSocial: true,
+  },
+  {
     // The back-office shell. Sub-paths are client-side only and fall back to
     // the SPA entry, so robots.txt disallows the whole prefix as well.
     path: '/admin',

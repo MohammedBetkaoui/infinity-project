@@ -13,6 +13,11 @@ export const ADMIN_NOTIFICATION_KINDS = Object.freeze({
     title: 'New Join application', body: 'A new membership application is ready for review.',
     pushBody: 'A new Join application is ready for review.',
   }),
+  staff_motivation_submitted: Object.freeze({
+    source: 'join', severity: 'info', roles: Object.freeze(['super_admin']),
+    title: 'Staff motivation received', body: 'A Staff candidate submitted their confirmation.',
+    pushBody: 'A Staff confirmation is ready for review.',
+  }),
   aivex_signed_document_uploaded: Object.freeze({
     source: 'aivex', severity: 'info', roles: ALL_AIVEX_ROLES,
     title: 'Signed document received', body: 'A signed AIVEX document is ready for review.',
@@ -62,8 +67,11 @@ export function safeAdminNotificationActionPath(value) {
     if (parsed.pathname === '/admin/applications') {
       if (!parsed.search) return parsed.pathname
       const record = parsed.searchParams.get('record')
-      return parsed.searchParams.size === 1 && UUID_RE.test(record || '')
-        ? `${parsed.pathname}?record=${record}`
+      if (!UUID_RE.test(record || '')) return null
+      if (parsed.searchParams.size === 1) return `${parsed.pathname}?record=${record}`
+      const view = parsed.searchParams.get('view')
+      return parsed.searchParams.size === 2 && view === 'staff-confirmations'
+        ? `${parsed.pathname}?view=staff-confirmations&record=${record}`
         : null
     }
     if (['/admin/overview', '/admin/activity', '/admin/settings', '/admin/aivex'].includes(parsed.pathname) && !parsed.search) {
@@ -433,6 +441,19 @@ export async function emitJoinApplicationNotification({ supabase, applicationId,
     entityId: applicationId,
     actionPath: `/admin/applications?record=${applicationId}`,
     dedupeKey: `join:submitted:${applicationId}`,
+    createdAt,
+  })
+}
+
+export async function emitStaffMotivationNotification({
+  supabase, applicationId, confirmationId, version, createdAt = new Date(),
+}) {
+  return createServerAdminNotificationsService({ supabase }).createNotification({
+    kind: 'staff_motivation_submitted',
+    entityType: 'membership_staff_confirmation',
+    entityId: confirmationId,
+    actionPath: `/admin/applications?view=staff-confirmations&record=${applicationId}`,
+    dedupeKey: `join:staff-motivation:${confirmationId}:${version}`,
     createdAt,
   })
 }

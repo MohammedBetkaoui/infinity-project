@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Activity, ArrowRight, CalendarDays, Check, GraduationCap, Mail, Phone, Plus, UserCheck } from 'lucide-react'
+import { Activity, ArrowRight, CalendarDays, Check, Clock3, FileText, GraduationCap, Mail, Phone, Plus, RefreshCw, Send, UserCheck } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { FlipGrid, useGrow } from './adminMotion'
 import { useAdmin } from './AdminStore'
@@ -90,6 +90,42 @@ function CandidateSection({ title, copy, children }) {
   return <section className="adm-candidate-section"><header><div><h3>{title}</h3><p>{copy}</p></div></header>{children}</section>
 }
 
+const CONFIRMATION_LABELS = Object.freeze({
+  not_invited: 'Not invited', invited: 'Waiting for candidate', submitted: 'Ready for review',
+  revision_requested: 'Revision requested', confirmed: 'Confirmed', expired: 'Invitation expired', revoked: 'Invitation revoked',
+})
+
+const confirmationDate = (value) => value ? new Date(value).toLocaleString('en-GB', {
+  dateStyle: 'medium', timeStyle: 'short', timeZone: 'Africa/Algiers',
+}) : '—'
+
+function StaffConfirmationPanel({ confirmation }) {
+  const status = confirmation?.statusKey || 'not_invited'
+  return <div className="adm-staff-confirmation-panel">
+    <div className="adm-staff-confirmation-panel__state">
+      <span><FileText size={17} aria-hidden="true"/></span>
+      <div><small>Confirmation status</small><b>{CONFIRMATION_LABELS[status] || status}</b></div>
+      <StatusBadge tone={status === 'submitted' || status === 'confirmed' ? 'success' : status === 'revision_requested' ? 'warning' : 'neutral'}>{CONFIRMATION_LABELS[status] || status}</StatusBadge>
+    </div>
+    {confirmation ? <>
+      <Facts items={[
+        ['Invited', confirmationDate(confirmation.invitedAt)],
+        ['Deadline', confirmationDate(confirmation.expiresAt)],
+        ['Last submitted', confirmationDate(confirmation.submittedAt)],
+        ['Versions', String(confirmation.submissions?.length || 0)],
+      ]}/>
+      {confirmation.revisionMessage && <div className="adm-confirmation-revision"><span>Revision message</span><p>{confirmation.revisionMessage}</p></div>}
+      {confirmation.submissions?.length > 0 && <div className="adm-motivation-history">
+        <header><span>Motivation history</span><small>Plain text · newest first</small></header>
+        {confirmation.submissions.map((submission) => <article key={submission.id}>
+          <div><b>Version {submission.version}</b><time dateTime={submission.submittedAt}>{confirmationDate(submission.submittedAt)}</time></div>
+          <p>{submission.motivation}</p>
+        </article>)}
+      </div>}
+    </> : <p className="adm-confirmation-empty">This Staff candidate has not received a private confirmation invitation yet.</p>}
+  </div>
+}
+
 export function CandidateDossier({ detail, note = '', setNote, onSave, noteSaving = false }) {
   return <div className="adm-candidate-dossier">
     <section className="adm-candidate-overview">
@@ -114,6 +150,10 @@ export function CandidateDossier({ detail, note = '', setNote, onSave, noteSavin
       {detail.interviewAt && <div className="adm-candidate-callout is-interview"><CalendarDays size={17}/><div><span>Interview scheduled</span><b>{detail.interviewAt.replace('T', ' ')} · {detail.interviewLocation}</b></div></div>}
     </CandidateSection>
 
+    {detail.type === 'Staff' && <CandidateSection title="Staff confirmation" copy="Private invitation, motivation history and final Staff decision.">
+      <StaffConfirmationPanel confirmation={detail.staffConfirmation}/>
+    </CandidateSection>}
+
     <CandidateSection title="Intake metadata" copy="Administrative traceability for this Join application.">
       <Facts items={[["Application type", detail.type], ['Submission date', detail.date], ['Source', detail.source], ['Form version', detail.form], ['Contact consent', 'Recorded']]}/>
     </CandidateSection>
@@ -129,11 +169,21 @@ export function CandidateDossier({ detail, note = '', setNote, onSave, noteSavin
 export function CandidateActionBar({ detail, request }) {
   const closed = ['Accepted', 'Declined', 'Archived'].includes(detail.status)
   const can = (action) => !detail.allowedActions || detail.allowedActions.includes(action)
+  const confirmation = detail.staffConfirmation
+  const confirmationStatus = confirmation?.statusKey || 'not_invited'
+  const confirmationVersion = confirmation?.updatedAt
+  const staffPrimary = detail.type === 'Staff' && !closed ? <>
+    {confirmationStatus === 'not_invited' && <Button onClick={() => request('Invite to Staff confirmation', null, { action: 'invite_staff_confirmation' })} disabled={!can('invite_staff_confirmation')} icon={<Send size={15}/>}>Invite to confirmation</Button>}
+    {['invited', 'revision_requested', 'expired', 'revoked'].includes(confirmationStatus) && <Button onClick={() => request(confirmationStatus === 'revision_requested' ? 'Regenerate revision link' : 'Regenerate private link', null, { action: 'regenerate_staff_confirmation_link' })} disabled={!can('regenerate_staff_confirmation_link')} icon={<RefreshCw size={15}/>}>Regenerate private link</Button>}
+    {confirmationStatus === 'submitted' && <Button onClick={() => request('Confirm Staff membership', null, { action: 'confirm_staff_membership' })} disabled={!can('confirm_staff_membership')} icon={<Check size={15}/>}>Confirm Staff membership</Button>}
+    {confirmationStatus === 'confirmed' && <span className="adm-confirmation-final"><Check size={14}/> Staff membership confirmed</span>}
+  </> : null
   return <div className="adm-candidate-actionbar">
     <header><div><span>Decision workspace</span><b>Choose the next administrative step</b></div><code>{detail.ref || detail.id}</code></header>
-    <div className="adm-candidate-actionbar__primary"><Button onClick={() => request(detail.type === 'Staff' ? 'Accept into staff' : 'Accept as member', { status: 'Accepted' }, { action: detail.type === 'Staff' ? 'accept_staff' : 'accept_member' })} disabled={!can(detail.type === 'Staff' ? 'accept_staff' : 'accept_member') || detail.status === 'Accepted' || detail.status === 'Archived'} icon={<Check size={15}/>}>Accept {detail.type === 'Staff' ? 'into staff' : 'as member'}</Button><Button variant="secondary" onClick={() => request('Schedule interview', null, { action: 'schedule_interview', fields: [{ name: 'interviewAt', label: 'Interview date and time', type: 'datetime-local', required: true }, { name: 'interviewLocation', label: 'Location / meeting room', required: true }], patch: undefined, schedule: true })} disabled={!can('schedule_interview') || closed}><CalendarDays size={15}/>Schedule interview</Button></div>
+    <div className="adm-candidate-actionbar__primary">{detail.type === 'Staff' ? staffPrimary : <Button onClick={() => request('Accept as member', { status: 'Accepted' }, { action: 'accept_member' })} disabled={!can('accept_member') || detail.status === 'Accepted' || detail.status === 'Archived'} icon={<Check size={15}/>}>Accept as member</Button>}<Button variant="secondary" onClick={() => request('Schedule interview', null, { action: 'schedule_interview', fields: [{ name: 'interviewAt', label: 'Interview date and time', type: 'datetime-local', required: true }, { name: 'interviewLocation', label: 'Location / meeting room', required: true }], patch: undefined, schedule: true })} disabled={!can('schedule_interview') || closed}><CalendarDays size={15}/>Schedule interview</Button></div>
     <div className="adm-candidate-actionbar__workflow"><span>Workflow</span><button onClick={() => request('Move application to review', { status: 'In review' }, { action: 'start_review' })} disabled={!can('start_review') || detail.status === 'In review' || detail.status === 'Accepted' || detail.status === 'Archived'}>Move to review</button>{detail.type === 'Staff' && <button onClick={() => request('Change requested department', null, { action: 'change_staff_department', fields: [{ name: 'track', label: 'Department', options: DEPARTMENTS, value: detail.track }] })} disabled={!can('change_staff_department') || detail.status === 'Archived'}>Change department</button>}</div>
-    <div className="adm-candidate-actionbar__critical"><span>Close application</span><button className="is-danger" onClick={() => request('Decline application', { status: 'Declined' }, { action: 'decline', danger: true })} disabled={!can('decline') || detail.status === 'Declined' || detail.status === 'Archived'}>Decline</button><button onClick={() => request('Archive application', { status: 'Archived' }, { action: 'archive', danger: true })} disabled={!can('archive') || detail.status === 'Archived'}>Archive</button></div>
+    {detail.type === 'Staff' && confirmationStatus === 'submitted' && <div className="adm-candidate-actionbar__workflow"><span>Motivation review</span><button onClick={() => request('Request a motivation revision', null, { action: 'request_staff_confirmation_revision', fields: [{ name: 'revisionMessage', label: 'Message to the candidate', type: 'textarea', required: true, maxLength: 1000, placeholder: 'Explain what should be clearer in the new version…' }], confirmationVersion })} disabled={!can('request_staff_confirmation_revision')}><Clock3 size={13}/>Request revision</button></div>}
+    <div className="adm-candidate-actionbar__critical"><span>Close application</span>{detail.type === 'Staff' && ['invited', 'revision_requested'].includes(confirmationStatus) && <button onClick={() => request('Revoke private invitation', null, { action: 'revoke_staff_confirmation', danger: true, confirmationVersion })} disabled={!can('revoke_staff_confirmation')}>Revoke invitation</button>}<button className="is-danger" onClick={() => request('Decline application', { status: 'Declined' }, { action: 'decline', danger: true })} disabled={!can('decline') || detail.status === 'Declined' || detail.status === 'Archived'}>Decline</button><button onClick={() => request('Archive application', { status: 'Archived' }, { action: 'archive', danger: true })} disabled={!can('archive') || detail.status === 'Archived'}>Archive</button></div>
   </div>
 }
 

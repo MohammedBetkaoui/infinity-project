@@ -34,8 +34,15 @@ export function applicationMove(record, target) {
   }
 }
 
-export function applicationActionPayload(actionName, values) {
+export function applicationActionPayload(actionName, values, detail) {
   if (actionName === 'schedule_interview') return { scheduledAt: new Date(values.interviewAt).toISOString(), location: values.interviewLocation }
   if (actionName === 'change_staff_department') return { department: values.track }
+  if (actionName === 'request_staff_confirmation_revision') return {
+    revisionMessage: values.revisionMessage,
+    confirmationUpdatedAt: detail?.staffConfirmation?.updatedAt,
+  }
+  if (['regenerate_staff_confirmation_link', 'revoke_staff_confirmation', 'confirm_staff_membership'].includes(actionName)) {
+    return { confirmationUpdatedAt: detail?.staffConfirmation?.updatedAt }
+  }
   return {}
 }

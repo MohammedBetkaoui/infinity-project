@@ -61,9 +61,17 @@
       "headers": [
         { "key": "Referrer-Policy", "value": "no-referrer" }
       ]
+    },
+    {
+      "source": "/join/staff-confirmation",
+      "headers": [
+        { "key": "Referrer-Policy", "value": "no-referrer" }
+      ]
     }
   ],
   "rewrites": [
+    { "source": "/api/join/staff-confirmation/verify", "destination": "/api/join?__join_action=staff-confirmation-verify" },
+    { "source": "/api/join/staff-confirmation/submit", "destination": "/api/join?__join_action=staff-confirmation-submit" },
     { "source": "/api/admin/:path*", "destination": "/api/admin-auth?__admin_path=:path*" },
     { "source": "/aivex", "destination": "/aivex/index.html" },
     { "source": "/aivex/register", "destination": "/aivex/register/index.html" },
@@ -74,6 +82,7 @@
     { "source": "/events", "destination": "/events/index.html" },
     { "source": "/events/open-day-2026", "destination": "/events/open-day-2026/index.html" },
     { "source": "/join", "destination": "/join/index.html" },
+    { "source": "/join/staff-confirmation", "destination": "/join/staff-confirmation/index.html" },
     { "source": "/admin", "destination": "/admin/index.html" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]

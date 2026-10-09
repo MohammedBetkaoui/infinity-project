@@ -27,6 +27,9 @@ import { normalizeMembershipPhone } from './_lib/membership-phone.js'
 import { emitJoinApplicationNotification } from './_lib/admin-notifications.js'
 import { getClientIp, isTrustedOrigin } from './_lib/security.js'
 import { verifyTurnstileToken } from './_lib/turnstile.js'
+import {
+  createStaffConfirmationSubmitHandler, createStaffConfirmationVerifyHandler,
+} from './_lib/staff-confirmation-handlers.js'
 
 const MAX_BODY_BYTES = 65536
 const RATE_LIMIT = { max: 8, windowMs: 10 * 60 * 1000 }
@@ -276,7 +279,7 @@ const passesTurnstile = async (req, res, body) => {
   return false
 }
 
-export default async function handler(req, res) {
+async function joinApplicationHandler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST')
     send(res, 405, { success: false, message: 'Method not allowed.' })
@@ -401,4 +404,14 @@ export default async function handler(req, res) {
     console.error('[join] Unexpected failure', { code: error?.code })
     send(res, 500, { success: false, message: SAVE_FAILED_MESSAGE })
   }
+}
+
+const staffConfirmationVerifyHandler = createStaffConfirmationVerifyHandler()
+const staffConfirmationSubmitHandler = createStaffConfirmationSubmitHandler()
+
+export default function handler(req, res) {
+  const action = new URL(req.url || '/', 'http://localhost').searchParams.get('__join_action')
+  if (action === 'staff-confirmation-verify') return staffConfirmationVerifyHandler(req, res)
+  if (action === 'staff-confirmation-submit') return staffConfirmationSubmitHandler(req, res)
+  return joinApplicationHandler(req, res)
 }
