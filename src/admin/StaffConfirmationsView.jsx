@@ -1,4 +1,4 @@
-import { useDeferredValue, useMemo, useState } from 'react'
+import { useCallback, useDeferredValue, useMemo, useState } from 'react'
 import { Check, Copy, ExternalLink, Link2Off, RefreshCw, TriangleAlert } from 'lucide-react'
 import { RecordTable, RecordToolbar } from './AdminRecords'
 import { DEPARTMENTS } from './adminModel'
@@ -52,7 +52,7 @@ export default function StaffConfirmationsView({ onOpen, onRevealLink }) {
     Confirmed: rawCounts.confirmed || 0,
     Expired: rawCounts.expired || 0,
   }), [rawCounts])
-  const useLink = async (record, kind) => {
+  const handleLink = useCallback(async (record, kind) => {
     if (!onRevealLink || linkAction.id) return
     setLinkAction({ id: record.applicationId, kind, error: '' })
     const result = await onRevealLink(record.applicationId)
@@ -68,17 +68,17 @@ export default function StaffConfirmationsView({ onOpen, onRevealLink }) {
     } catch {
       setLinkAction({ id: '', kind: '', error: 'The private link could not be copied or opened.' })
     }
-  }
+  }, [onRevealLink, linkAction.id])
   const columns = useMemo(() => [
     { key: 'name', label: 'Candidate', render: (record) => <span className="adm-staff-confirmation-person"><b>{record.name}</b><small>{record.ref}</small></span> },
     { key: 'staffDepartment', label: 'Requested department' },
     { key: 'applicationStatus', label: 'Application', render: (record) => <StatusBadge tone="neutral">{record.applicationStatus}</StatusBadge> },
     { key: 'statusKey', label: 'Confirmation', render: (record) => <StatusBadge tone={STATUS_TONES[record.statusKey] || 'info'}>{STATUS_LABELS[record.statusKey] || record.statusKey}</StatusBadge> },
-    { key: 'privateLink', label: 'Private link', render: (record) => record.linkReconstructable ? <div className="adm-private-link-cell"><span><Link2Off size={12}/>…#token=••••••••</span><div><button type="button" onClick={(event) => { event.stopPropagation(); useLink(record, 'copy') }} disabled={linkAction.id === record.applicationId} aria-label={`Copy private link for ${record.name}`}>{linkAction.id === record.applicationId && linkAction.kind === 'copy-done' ? <Check size={13}/> : <Copy size={13}/>}</button><button type="button" onClick={(event) => { event.stopPropagation(); useLink(record, 'open') }} disabled={linkAction.id === record.applicationId} aria-label={`Open private link for ${record.name}`}><ExternalLink size={13}/></button></div></div> : <span className="adm-private-link-unavailable">{record.linkAccess === 'legacy' ? 'Legacy link' : 'Not created'}</span> },
+    { key: 'privateLink', label: 'Private link', render: (record) => record.linkReconstructable ? <div className="adm-private-link-cell"><span><Link2Off size={12}/>…#token=••••••••</span><div><button type="button" onClick={(event) => { event.stopPropagation(); handleLink(record, 'copy') }} disabled={linkAction.id === record.applicationId} aria-label={`Copy private link for ${record.name}`}>{linkAction.id === record.applicationId && linkAction.kind === 'copy-done' ? <Check size={13}/> : <Copy size={13}/>}</button><button type="button" onClick={(event) => { event.stopPropagation(); handleLink(record, 'open') }} disabled={linkAction.id === record.applicationId} aria-label={`Open private link for ${record.name}`}><ExternalLink size={13}/></button></div></div> : <span className="adm-private-link-unavailable">{record.linkAccess === 'legacy' ? 'Legacy link' : 'Not created'}</span> },
     { key: 'linkAccess', label: 'Link access', render: (record) => <StatusBadge tone={record.linkAccess === 'active' ? 'success' : record.linkAccess === 'blocked' ? 'warning' : 'neutral'}>{LINK_ACCESS_LABELS[record.linkAccess] || record.linkAccess}</StatusBadge> },
     { key: 'invitedAt', label: 'Invited', render: (record) => <span className="adm-confirmation-date">{dateTime(record.invitedAt)}</span> },
     { key: 'submittedAt', label: 'Submitted', render: (record) => <span className="adm-confirmation-date">{dateTime(record.submittedAt)}</span> },
-  ], [linkAction, onRevealLink])
+  ], [handleLink, linkAction])
   const reset = (callback) => { callback(); setPage(1) }
 
   return <div className="adm-staff-confirmations">

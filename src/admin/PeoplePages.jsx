@@ -105,7 +105,7 @@ function StaffConfirmationPanel({ confirmation, onRevealLink }) {
   const [linkBusy, setLinkBusy] = useState('')
   const [linkError, setLinkError] = useState('')
   const linkAccess = confirmation?.linkAccess || 'none'
-  const usePrivateLink = async (kind) => {
+  const handlePrivateLink = async (kind) => {
     if (!onRevealLink || linkBusy) return
     setLinkBusy(kind)
     setLinkError('')
@@ -137,7 +137,7 @@ function StaffConfirmationPanel({ confirmation, onRevealLink }) {
         <header><div><small>Private confirmation link</small><b>{linkAccess === 'blocked' ? 'Blocked' : linkAccess === 'active' ? 'Active' : linkAccess === 'legacy' ? 'Legacy credential' : 'Not created'}</b></div><StatusBadge tone={linkAccess === 'active' ? 'success' : linkAccess === 'blocked' ? 'warning' : 'neutral'}>{linkAccess}</StatusBadge></header>
         {confirmation.linkReconstructable ? <>
           <code>{revealed?.privateLink || 'https://www.infinty-bba.com/join/staff-confirmation#token=••••••••'}</code>
-          <div><Button variant="secondary" icon={linkBusy === 'copy-done' ? <Check size={14}/> : <Copy size={14}/>} onClick={() => usePrivateLink('copy')} disabled={Boolean(linkBusy)}>{linkBusy === 'copy-done' ? 'Copied' : 'Copy link'}</Button><Button variant="secondary" icon={<ExternalLink size={14}/>} onClick={() => usePrivateLink('open')} disabled={Boolean(linkBusy)}>Open</Button></div>
+          <div><Button variant="secondary" icon={linkBusy === 'copy-done' ? <Check size={14}/> : <Copy size={14}/>} onClick={() => handlePrivateLink('copy')} disabled={Boolean(linkBusy)}>{linkBusy === 'copy-done' ? 'Copied' : 'Copy link'}</Button><Button variant="secondary" icon={<ExternalLink size={14}/>} onClick={() => handlePrivateLink('open')} disabled={Boolean(linkBusy)}>Open</Button></div>
         </> : <p>{linkAccess === 'legacy' ? 'Link unavailable under the legacy credential model. Create a stable link explicitly to reveal it.' : 'No private link has been created for this candidate.'}</p>}
         {linkError && <p className="adm-form-error" role="alert">{linkError}</p>}
       </div>
