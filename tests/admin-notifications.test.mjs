@@ -243,9 +243,10 @@ test('notification API fails closed, scopes actions to the session user, and dis
 })
 
 test('notification migration is private, constrained, deduplicated and cascade-safe', async () => {
-  const [migration, retentionMigration] = await Promise.all([
+  const [migration, retentionMigration, conflictFixMigration] = await Promise.all([
     read('supabase/migrations/20261015120000_admin_notification_system.sql'),
     read('supabase/migrations/20261015121000_admin_notification_retention.sql'),
+    read('supabase/migrations/20261015122000_fix_admin_notification_recipient_conflict.sql'),
   ])
   for (const table of ['admin_notifications', 'admin_notification_recipients', 'admin_push_subscriptions']) {
     assert.match(migration, new RegExp(`create table public\\.${table}`))
@@ -263,6 +264,9 @@ test('notification migration is private, constrained, deduplicated and cascade-s
   assert.match(retentionMigration, /admin_prune_notifications/)
   assert.match(retentionMigration, /created_at < now\(\) - interval '90 days'/)
   assert.match(retentionMigration, /grant execute on function public\.admin_prune_notifications\(\)\s+to service_role/)
+  assert.match(conflictFixMigration, /create or replace function public\.admin_create_notification/)
+  assert.match(conflictFixMigration, /on conflict on constraint admin_notification_recipients_pkey do nothing/)
+  assert.doesNotMatch(conflictFixMigration, /on conflict \(notification_id, admin_user_id\)/)
 })
 
 test('service worker is admin-scoped, privacy-safe, focus-aware and never intercepts fetch', async () => {
