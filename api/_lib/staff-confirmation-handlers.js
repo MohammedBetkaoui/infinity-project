@@ -7,6 +7,7 @@ import { createServerStaffConfirmationsService } from './staff-confirmations.js'
 const MAX_BODY_BYTES = 16 * 1024
 const INVALID_MESSAGE = 'This Staff confirmation link is invalid or no longer active.'
 const EXPIRED_MESSAGE = 'This invitation is no longer active. Please contact Infinity Club.'
+const UNAVAILABLE_MESSAGE = 'This Staff confirmation link is currently unavailable. Please contact Infinity Club.'
 
 export function isStrictStaffConfirmationOrigin(req, env = process.env) {
   if (!env.VERCEL) return true
@@ -95,6 +96,10 @@ function createHandler(kind, {
       }
       if (result.status === 'expired') {
         send(res, 410, { success: false, status: 'expired', message: EXPIRED_MESSAGE })
+        return
+      }
+      if (result.status === 'unavailable') {
+        send(res, 423, { success: false, status: 'unavailable', message: UNAVAILABLE_MESSAGE })
         return
       }
       if (result.status === 'invalid_motivation') {

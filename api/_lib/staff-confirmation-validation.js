@@ -1,6 +1,7 @@
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-const STATUSES = new Set(['invited', 'submitted', 'revision_requested', 'confirmed', 'revoked', 'expired'])
+const STATUSES = new Set(['not_invited', 'invited', 'submitted', 'revision_requested', 'confirmed', 'revoked', 'expired'])
 const DEPARTMENTS = new Set(['dev-tech', 'design-content', 'management-logistics'])
+const LINK_ACCESS = new Set(['active', 'blocked', 'legacy', 'none'])
 const SORTS = new Set(['invited_desc', 'invited_asc', 'submitted_desc', 'submitted_asc', 'name_asc', 'name_desc', 'status_asc', 'status_desc'])
 
 const single = (params, name) => {
@@ -33,7 +34,7 @@ export function validateStaffConfirmationSubmitBody(body) {
 }
 
 export function parseStaffConfirmationListOptions(params) {
-  const raw = Object.fromEntries(['q', 'status', 'department', 'sort'].map((key) => [key, single(params, key)]))
+  const raw = Object.fromEntries(['q', 'status', 'linkAccess', 'department', 'sort'].map((key) => [key, single(params, key)]))
   if (Object.values(raw).some((value) => value === null)) return { ok: false }
   const pageText = single(params, 'page') || '1'
   const limitText = single(params, 'limit') || '25'
@@ -42,10 +43,27 @@ export function parseStaffConfirmationListOptions(params) {
   const limit = Number(limitText)
   if (page < 1 || page > 100000 || limit < 1 || limit > 50 || raw.q.length > 100) return { ok: false }
   if (raw.status && !STATUSES.has(raw.status)) return { ok: false }
+  if (raw.linkAccess && !LINK_ACCESS.has(raw.linkAccess)) return { ok: false }
   if (raw.department && !DEPARTMENTS.has(raw.department)) return { ok: false }
   const sort = raw.sort || 'submitted_desc'
   if (!SORTS.has(sort)) return { ok: false }
   return { ok: true, value: { ...raw, page, limit, sort } }
+}
+
+export function validateStaffLinkRevealBody(body) {
+  return body && typeof body === 'object' && !Array.isArray(body)
+    && Object.keys(body).length === 1 && body.action === 'reveal'
+    ? { ok: true, value: { action: 'reveal' } }
+    : { ok: false }
+}
+
+export function validateStaffLinkExportBody(body, { preflight = false } = {}) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return { ok: false }
+  const keys = Object.keys(body)
+  if (body.scope !== 'all') return { ok: false }
+  if (preflight) return keys.length === 1 ? { ok: true, value: { scope: 'all' } } : { ok: false }
+  if (keys.length !== 2 || body.convertLegacy !== true) return { ok: false }
+  return { ok: true, value: { scope: 'all', convertLegacy: true } }
 }
 
 export function isStaffConfirmationRecordId(value) {

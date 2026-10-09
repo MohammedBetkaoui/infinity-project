@@ -41,7 +41,11 @@ export function applicationActionPayload(actionName, values, detail) {
     revisionMessage: values.revisionMessage,
     confirmationUpdatedAt: detail?.staffConfirmation?.updatedAt,
   }
-  if (['regenerate_staff_confirmation_link', 'revoke_staff_confirmation', 'confirm_staff_membership'].includes(actionName)) {
+  if ([
+    'create_stable_staff_confirmation_link', 'regenerate_staff_confirmation_link',
+    'block_staff_confirmation_link', 'unblock_staff_confirmation_link',
+    'extend_staff_confirmation_deadline', 'confirm_staff_membership',
+  ].includes(actionName)) {
     return { confirmationUpdatedAt: detail?.staffConfirmation?.updatedAt }
   }
   return {}

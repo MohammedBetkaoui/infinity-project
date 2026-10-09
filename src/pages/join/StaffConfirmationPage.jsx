@@ -54,7 +54,13 @@ function StatusCard({ kind, reference }) {
       icon: <CheckCircle2 aria-hidden="true" />,
       eyebrow: 'Submission recorded',
       title: 'This confirmation has already been submitted',
-      copy: 'No further action is needed with this link. If Infinity requests a revision, you will receive a new private link.',
+      copy: 'No further action is needed now. If Infinity requests a revision, use this same private link again.',
+    },
+    complete: {
+      icon: <CheckCircle2 aria-hidden="true" />,
+      eyebrow: 'Staff confirmation complete',
+      title: 'Your Staff confirmation is complete',
+      copy: 'Thank you. This private link no longer accepts motivation submissions.',
     },
     expired: {
       icon: <Clock3 aria-hidden="true" />,
@@ -67,6 +73,12 @@ function StatusCard({ kind, reference }) {
       eyebrow: 'Private link required',
       title: 'This Staff confirmation link is invalid or no longer active',
       copy: 'Please reopen the complete private invitation link sent by Infinity Club. A refreshed page cannot recover the private token.',
+    },
+    unavailable: {
+      icon: <LockKeyhole aria-hidden="true" />,
+      eyebrow: 'Link unavailable',
+      title: 'This Staff confirmation link is currently unavailable',
+      copy: 'Please contact Infinity Club if you still need access to this Staff confirmation.',
     },
     service_unavailable: {
       icon: <TriangleAlert aria-hidden="true" />,
@@ -119,8 +131,12 @@ export default function StaffConfirmationPage() {
           setView({ status: 'already_submitted', confirmation: null })
           return
         }
+        if (response.ok && payload.status === 'complete') {
+          setView({ status: 'complete', confirmation: null })
+          return
+        }
         setView({
-          status: payload.status === 'expired' ? 'expired' : payload.status === 'invalid' ? 'invalid' : 'service_unavailable',
+          status: payload.status === 'expired' ? 'expired' : payload.status === 'unavailable' ? 'unavailable' : payload.status === 'invalid' ? 'invalid' : 'service_unavailable',
           confirmation: null,
         })
       })
@@ -163,7 +179,7 @@ export default function StaffConfirmationPage() {
         textareaRef.current?.focus()
         return
       }
-      setView({ status: payload.status === 'expired' ? 'expired' : payload.status === 'invalid' ? 'invalid' : 'service_unavailable', confirmation: null })
+      setView({ status: payload.status === 'expired' ? 'expired' : payload.status === 'unavailable' ? 'unavailable' : payload.status === 'invalid' ? 'invalid' : 'service_unavailable', confirmation: null })
     } catch {
       setFormError('We could not submit your motivation. Please check your connection and try again.')
       setView((current) => ({ ...current, status: 'ready' }))
@@ -172,7 +188,7 @@ export default function StaffConfirmationPage() {
     }
   }
 
-  const terminal = ['success', 'already_submitted', 'expired', 'invalid', 'service_unavailable'].includes(view.status)
+  const terminal = ['success', 'already_submitted', 'complete', 'expired', 'unavailable', 'invalid', 'service_unavailable'].includes(view.status)
   const confirmation = view.confirmation
   const revision = confirmation?.status === 'revision_requested'
 

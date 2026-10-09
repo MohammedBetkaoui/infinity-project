@@ -1,138 +1,169 @@
 # Infinity Staff Confirmation Workflow
 
-Status: repository implementation only. The migration has not been applied, the feature flag remains disabled by default, and no message is sent automatically.
-
 ## Business flow
 
-This workflow extends the existing Join application; it is not a second recruitment system.
+Every eligible Staff Join candidate has one stable private confirmation URL. An invitation creates the confirmation lifecycle and its first stable credential. The candidate can submit a 150–2000 character motivation letter, and the same URL later reports that the submission was received. If a super administrator requests a revision, the same URL shows the revision message and accepts exactly one next version.
 
-1. A candidate submits the existing Join form as `staff`.
-2. A super administrator reviews the original application and selects **Invite to Staff confirmation**.
-3. The server creates a seven-day invitation and returns its private link once.
-4. An administrator copies the generated message and sends it manually.
-5. The candidate opens `/join/staff-confirmation#token=...`, verifies the invitation, and submits a 150–2000 character motivation letter.
-6. Infinity Administration receives one deduplicated notification and the candidate appears in the Staff confirmations queue.
-7. A super administrator can confirm membership, request a revision with a fresh private link, revoke the invitation, or decline/archive through the existing application workflow.
-8. Final confirmation marks the original application accepted as Staff. The existing accepted-application synchronization trigger remains the only path into the current Staff directory.
+Confirmation state and link access are independent:
 
-The main application statuses remain `new`, `in_review`, `interview`, `accepted`, `declined`, and `archived`. Staff confirmation uses its own lifecycle and does not change the Member workflow.
+- Confirmation: `not_invited`, `invited`, `submitted`, `revision_requested`, `confirmed`, or a closed/expired state.
+- Link access: `active`, `blocked`, `legacy`, or `none`.
 
-## Security model
+Blocking is a temporary access suspension. Unblocking restores the byte-for-byte same URL. Regeneration is a security rotation: it creates a different URL and permanently invalidates the previous one.
 
-The `JOIN-...` reference is display context, never authentication. Possession of a valid private token authorizes candidate verification and one motivation submission.
+## Stable link architecture
 
-- Tokens are generated server-side from 32 cryptographically random bytes and encoded as base64url.
-- Only `SHA-256(token)` is persisted. Raw tokens and complete private links are not stored, audited, logged, or returned by later reads.
-- The token is placed in the URL fragment, which browsers do not send in the HTTP request. React reads it into component memory and immediately removes the fragment with `history.replaceState`.
-- The candidate page does not use cookies, `localStorage`, `sessionStorage`, IndexedDB, or direct Supabase access for the token.
-- Initial, revision, and replacement tokens expire after seven days. Generating a replacement revokes every prior unconsumed token.
-- Candidate APIs accept only JSON, read at most 16 KiB, validate exact request shapes, require an exact same-host HTTPS `Origin` on Vercel, and use separate distributed rate-limit buckets.
-- Candidate responses expose only the reference, display name, Staff department, deadline, confirmation state, and an applicable revision message. Invalid and revoked tokens fail generically.
-- All three tables have RLS enabled, no browser policies, explicit `anon`/`authenticated` revocation, and only the service role receives the required grants.
-- Motivation is normalized and stored as plain text. React renders it as escaped text; Markdown and HTML rendering are not supported.
-- Admin actions retain the existing session, trusted-origin, role, audit, and optimistic-concurrency protections. A stale application or confirmation returns HTTP 409.
+PostgreSQL never stores a raw bearer token or full private URL. A reconstructable credential stores:
+
+- confirmation UUID;
+- random 16-byte base64url `link_nonce`;
+- monotonic `credential_version`;
+- `derivation_version` (currently `1`);
+- SHA-256 `token_hash`;
+- access and usage metadata.
+
+The server reconstructs the 43-character token with HMAC-SHA256:
+
+```text
+canonical material =
+staff-confirmation:v1:<confirmation-uuid>:<credential-version>:<link-nonce>
+
+token = base64url(HMAC-SHA256(STAFF_CONFIRMATION_LINK_SECRET, canonical material))
+```
+
+Before revealing or exporting a URL, the server always checks that `SHA-256(derived token)` exactly equals the stored `token_hash`. A mismatch fails closed with the safe code `credential_derivation_mismatch`; the credential is never returned.
+
+Candidate verification remains hash based: the received token is SHA-256 hashed and looked up by `token_hash`. Public endpoints never accept an application ID as authentication.
+
+## Server secret
+
+`STAFF_CONFIRMATION_LINK_SECRET` is server-only high-entropy material of at least 32 bytes. It must never use a `VITE_` prefix and must remain stable. If it is absent or too short, creation, reveal, and private-link CSV export fail closed with “Stable Staff-link service is not configured.” Existing candidate verification by stored hash can continue.
+
+Changing this secret changes every derived token. Future master-key rotation therefore requires a deliberate multi-key or credential-migration plan. Do not silently rotate it.
 
 ## Database
 
-The forward migration is `supabase/migrations/20261016120000_staff_confirmation_workflow.sql`.
+The original migration `20261016120000_staff_confirmation_workflow.sql` remains unchanged. Forward migration `20261017120000_stable_staff_confirmation_links.sql` adds stable credential metadata, access state, indexes, views, and replacement RPC behavior.
 
-### Tables
+Important functions:
 
-- `membership_staff_confirmations`: one lifecycle per Staff Join application.
-- `membership_staff_confirmation_tokens`: append-only hash and revocation history for initial, revision, and replacement credentials.
-- `membership_staff_confirmation_submissions`: immutable, sequentially versioned motivation letters.
+- `staff_submit_confirmation(text, text, timestamptz)` locks application → credential → confirmation, validates eligibility/access/deadline, creates one immutable next version, and moves the confirmation to `submitted`. The credential is not consumed. A concurrent or repeated POST sees `submitted` and returns the existing version.
+- `admin_apply_stable_staff_confirmation_action(...)` is the authoritative transaction for create/ensure, block, unblock, regenerate, deadline extension, revision, and final confirmation.
+- `admin_record_staff_link_audit(...)` records reveal/export events without credential material.
+- `membership_require_staff_confirmation()` remains the acceptance guard; Staff cannot be accepted before confirmation.
+- `membership_close_staff_confirmation()` invalidates current credentials immediately when an application is declined or archived.
 
-Confirmation statuses are `invited`, `submitted`, `revision_requested`, `confirmed`, `revoked`, and `expired`. An invited or revision-requested row whose deadline has passed is treated as effectively expired without a scheduler.
+The service-only `admin_staff_link_credentials` view carries nonce/version/hash metadata required for reconstruction. It contains no raw token or URL and is not granted to `public`, `anon`, or `authenticated`.
 
-### Transactional functions and guards
+## Link lifecycle
 
-- `staff_submit_confirmation(text, text, timestamptz)` locks the token and confirmation, validates both, creates exactly one immutable version, consumes the token, and moves the confirmation to `submitted`. A retry with the same consumed token returns the original submission instead of creating another version.
-- `admin_apply_staff_confirmation_action(...)` validates the super administrator and optimistic-concurrency timestamps, rotates tokens, writes audit history, and performs final confirmation plus application acceptance in one database transaction.
-- `membership_require_staff_confirmation()` blocks every new accepted-Staff transition unless that application has a confirmed workflow. Historical accepted Staff rows are untouched.
-- `membership_close_staff_confirmation()` revokes outstanding confirmation access when the existing application is declined or archived.
-- `admin_staff_confirmations` is a security-invoker queue projection with effective expiry and submission counts.
+### Create / invite
 
-The existing accepted-application synchronization trigger continues to populate `club_members` and `club_staff_profiles`, including its existing `source_application_id` uniqueness behavior. No parallel directory or legacy-data backfill is introduced.
+The server creates a random nonce, derives the token with the server secret, and sends only nonce/version/hash into the transaction. Concurrent exports are serialized by the application lock and database uniqueness; if a stable credential already exists, `ensure_staff_confirmation_link` returns it without changing timestamps or rotating it.
 
-## Admin actions
+### Block / unblock
 
-Only `super_admin` can use the workflow actions:
+`block_staff_confirmation_link` sets `blocked_at` and the authenticated super administrator ID. Verification returns the neutral candidate message “This Staff confirmation link is currently unavailable. Please contact Infinity Club.” `unblock_staff_confirmation_link` clears those fields. Neither action changes nonce, version, hash, or URL.
 
-- `invite_staff_confirmation`: eligible Staff application in `new`, `in_review`, or `interview`; creates the lifecycle and an initial token.
-- `regenerate_staff_confirmation_link`: revokes the current live token and creates a replacement.
-- `request_staff_confirmation_revision`: requires `submitted`, stores a message of at most 1000 characters, and creates a revision token.
-- `revoke_staff_confirmation`: invalidates an outstanding invitation.
-- `confirm_staff_membership`: requires a submitted motivation, confirms the lifecycle, and accepts the original application as Staff atomically.
+### Regenerate
 
-The former direct `accept_staff` action is unavailable through the application API and is also blocked by the database guard. Member acceptance remains unchanged.
+`regenerate_staff_confirmation_link` increments the credential version, creates a new nonce/hash, and sets `revoked_at` on every prior current credential. The old URL can never become valid again. Audits record only confirmation ID and previous/new versions.
 
-New-token actions return an `invitation` object containing candidate, reference, URL, expiry, and a copyable message. It is shown once. If the dialog is closed before copying, regenerate the link; it cannot be recovered from the hash.
+### Deadline
 
-## Public endpoints
+The seven-day value is a business submission deadline, not a token-rotation schedule. Passing the deadline temporarily makes the same URL unavailable. `extend_staff_confirmation_deadline` adds seven days without changing the credential. No automatic regeneration occurs.
 
-The public URLs are routed through the existing `api/join.js` function to preserve the deployment's twelve-function limit:
+### Submission and revision
 
-- `POST /api/join/staff-confirmation/verify` with `{ "token": "..." }`
-- `POST /api/join/staff-confirmation/submit` with `{ "token": "...", "motivation": "..." }`
+Submission updates `first_used_at`/`last_used_at` but does not consume the credential. `submitted` returns “already submitted.” Revision changes only the confirmation state/message/deadline; the same stable credential accepts version 2. Database locks ensure two simultaneous POSTs cannot create versions N and N+1.
 
-`STAFF_CONFIRMATION_API_ENABLED` fail-closes both candidate endpoints and the related admin routes until the migration is ready.
+After final confirmation, the same link reports completion and does not accept another submission. Declined or archived applications make the link unavailable immediately.
 
-## Public page
+## Legacy links
 
-`/join/staff-confirmation` is lazy-loaded and uses the public Infinity visual system. It supports verifying, form, submitting, success, expired, already-submitted, revision-requested, invalid-link, missing-fragment, and service-unavailable states. The textarea is labelled, has an accessible live character count and linked error, receives focus after validation failure, and cannot be submitted twice while pending.
+Rows created before the stable-link migration have a hash but no nonce. Their raw URL cannot be reconstructed and the dashboard reports `Legacy credential`.
 
-The route uses `noindex,nofollow`, has no canonical or social metadata, is excluded from generated sitemap output, is disallowed in `robots.txt`, and receives `Referrer-Policy: no-referrer`.
+Deployment does not rotate them. A super administrator must explicitly choose **Create stable link**, or explicitly confirm the sensitive Staff CSV export preflight. Conversion revokes all legacy current rows and creates the first reconstructable credential. A legacy link is never fabricated from its hash.
 
-## Admin experience
+## Admin dashboard
 
-Applications now has a **Staff confirmations** workspace with server-side pagination, counts, search by candidate/reference, status and department filters, and sorting. Opening a queue item uses the existing candidate dossier. Staff dossiers show deadline, lifecycle state, revision message, current motivation, and every prior immutable version. The existing global Join-reference search remains the route to the underlying application, so no duplicate search index was added.
+Only `super_admin` can access Join administration or private-link APIs. Normal application detail payloads expose only `linkAccess` and `linkReconstructable`; they do not include nonce, hash, token, or URL.
 
-The invitation dialog exposes **Copy link** and **Copy message**. No email, WhatsApp, or other delivery provider is called.
+The Staff confirmations queue includes eligible applications without confirmation rows, a **Not invited** tab, confirmation filters, a separate link-access filter, compact Copy/Open controls, and mobile-safe controls. Reveal is a dedicated strict-Origin POST with `Cache-Control: no-store`. Returned URLs remain transient React state only; they are never stored in localStorage, sessionStorage, IndexedDB, search, notifications, or analytics.
 
-## Notifications
+The candidate dossier distinguishes:
 
-Successful motivation submission emits `staff_motivation_submitted` for super administrators. Its dedupe key includes confirmation ID and submission version, so retries do not create another notification. The payload contains no motivation, raw token, private link, name, email, or phone. Its strictly allowlisted action path is:
+- Create stable link for legacy/no-link cases;
+- Copy/Open for reconstructable links;
+- Block/Unblock for reversible suspension;
+- Regenerate for permanent rotation;
+- Extend deadline without URL change.
 
-`/admin/applications?view=staff-confirmations&record=<application UUID>`
+Revision copy explicitly says the existing private link remains valid.
+
+## Staff private-link CSV
+
+**Export Staff + private links** is a separate super-admin-only action. Generic application and filtered exports must never include private links.
+
+Preflight reports eligible candidates, existing stable links, missing links, legacy credentials requiring explicit replacement, and blocked links. Confirmed export:
+
+1. starts from all eligible Staff applications (`new`, `in_review`, `interview`), including candidates without confirmation rows;
+2. reuses every existing stable credential unchanged;
+3. creates only missing credentials;
+4. explicitly converts disclosed legacy credentials;
+5. includes blocked URLs unchanged with `Link Status = Blocked`;
+6. audits counts only and never logs or persists CSV content.
+
+The CSV is UTF-8 with BOM, RFC-style quoted fields, and spreadsheet-formula protection for candidate-controlled values. The private URL itself is quoted but never prefixed with an apostrophe, preserving the exact value for browsers and n8n.
+
+Column order:
+
+1. Reference
+2. Full Name
+3. Email
+4. Requested Staff Department
+5. Application Status
+6. Confirmation Status
+7. Link Status
+8. Private Link
+9. Phone
+10. Study Level
+11. Faculty
+12. Academic Department
+13. Submitted At
+14. Deadline
+
+Blocked URLs are included so administrators can identify credentials; n8n must send only rows whose `Link Status` is `Active`.
+
+## n8n readiness
+
+n8n reads the CSV and maps `Email`, `Full Name`, `Reference`, `Requested Staff Department`, and `Private Link`. It must filter `Link Status = Active` before email. n8n never generates tokens. Re-sending uses the same URL; regenerate only after compromise, wrong-recipient delivery, or another security incident.
+
+## Security and audit
+
+Audited actions are `staff_fixed_link_created`, `staff_link_blocked`, `staff_link_unblocked`, `staff_link_regenerated`, `staff_link_revealed`, and `staff_link_csv_exported`. Audit metadata never contains token, URL, nonce, or server secret. Notifications continue to deep-link only to the authenticated dossier and never contain the credential.
+
+The candidate route remains `noindex,nofollow`, uses `Referrer-Policy: no-referrer`, captures the fragment into memory, and immediately cleans the address bar.
 
 ## Production rollout
 
-1. Keep `STAFF_CONFIRMATION_API_ENABLED=false` and retain a known-good application rollback target.
-2. Review and test the forward migration on staging against a recent production-schema copy. Confirm existing accepted Staff applications are unchanged.
-3. Apply `supabase/migrations/20261016120000_staff_confirmation_workflow.sql` through the project's approved Supabase migration process.
-4. In Supabase SQL Editor, verify all three tables have RLS enabled; `anon` and `authenticated` have no direct table/function access; `service_role` has only the documented grants; and both RPCs are executable only by `service_role`.
-5. Confirm the production server already has `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, Upstash credentials, `RATE_LIMIT_HASH_SECRET`, admin secrets, and existing notification configuration. Never expose server values through a `VITE_` variable.
-6. Deploy the reviewed application with the feature flag still false and run smoke checks for the existing Join, Member acceptance, admin authentication, notification center, and Staff directory.
-7. Set the server-only `STAFF_CONFIRMATION_API_ENABLED=true` and redeploy.
-8. Execute the manual scenario below with a designated test Staff application. Do not use a real candidate until the scenario passes.
-9. Inspect server logs for stage/code-only failures and verify that no raw token, private URL, motivation text, or candidate PII appears.
+Do not deploy or apply migrations from development work. Production setup order is:
 
-A non-destructive emergency rollback is to set `STAFF_CONFIRMATION_API_ENABLED=false` and redeploy. This closes public verification/submission and workflow admin routes while preserving all rows and audit history. Do not reverse the additive migration or delete submissions after use begins.
+1. Back up and inspect current Staff confirmations and credentials.
+2. Deploy code capable of reading both legacy and stable credentials while keeping the feature flag controlled.
+3. Apply `20261017120000_stable_staff_confirmation_links.sql`.
+4. Generate a 256-bit-or-stronger production secret outside the repository.
+5. Set `STAFF_CONFIRMATION_LINK_SECRET` server-side and keep the exact value in the approved secret manager.
+6. Verify a known derivation/self-check in the target environment.
+7. Set/confirm `STAFF_CONFIRMATION_API_ENABLED=true` only after schema and secret checks pass.
+8. Do not auto-convert existing legacy invitations.
+9. Create one test stable link and confirm reveal is byte-for-byte stable after closing/reopening the dashboard.
+10. Export twice and verify every existing candidate URL is identical.
+11. Verify block → unavailable → unblock restores the same URL.
+12. Verify revision version 2 uses the same URL.
+13. Verify regenerate invalidates the old URL and export returns the new URL.
+14. Verify PostgreSQL and logs contain no raw token or private URL.
 
-## Manual test plan
+## Manual validation
 
-1. Create a Staff Join application and record its generated Join reference.
-2. Sign in as a super administrator, open the candidate, and select **Invite to Staff confirmation**.
-3. Confirm the one-time dialog shows candidate, reference, exact seven-day deadline, private link, and copyable message.
-4. Copy the private link and open it in a private/incognito browser.
-5. Confirm the fragment disappears immediately and the verified reference and Staff department appear without entering a reference.
-6. Confirm a motivation below 150 characters is rejected and focus returns to the textarea.
-7. Submit a 150–2000 character motivation and confirm the success state does not promise acceptance.
-8. Retry the consumed link and confirm it shows already submitted without revealing the motivation.
-9. Confirm exactly one super-admin notification exists and opens the correct Staff dossier.
-10. Confirm the queue filters/counts work and version 1 renders as plain text.
-11. Request a revision with a clear message and copy the new private link.
-12. Confirm the original link is unusable, then open the revision link and confirm the message is visible.
-13. Submit revision version 2; confirm versions 1 and 2 both remain visible and only one notification exists for each version.
-14. In two admin sessions, load the same dossier; act in one, then confirm the stale action in the other returns a refresh/conflict message.
-15. Confirm Staff membership and verify the confirmation is `confirmed`, the original application is `accepted` with `accepted_as=staff`, and the requested Staff department is retained.
-16. Confirm the person appears once in the existing Staff directory and no parallel or duplicate member was created.
-17. Separately confirm a Member cannot be invited and the existing Member acceptance path still succeeds.
-18. Generate another test invitation, regenerate it, and confirm only the newest link works; then revoke it and confirm it fails generically.
-19. Test the public page at 375, 430, 768, 1024, and 1440 CSS pixels, including keyboard-only use and reduced motion.
-
-## Operational notes
-
-- Refreshing after the fragment has been cleared intentionally loses the credential; reopen the original private link.
-- Bulk invitation is intentionally not part of the first release. Individual generation keeps each one-time private link visible only to the initiating administrator and avoids accidental private-link exports.
-- Expiry is computed during reads/actions; no cron job is required for correctness.
+Use one designated Staff test candidate. Create and copy a stable link, reopen/reveal it, export twice, submit motivation, request a revision on the same link, block/unblock the same URL, regenerate, and finally confirm the old URL fails while the new one appears in CSV. Inspect the credential row to confirm only nonce, versions, hash, and state metadata are stored.

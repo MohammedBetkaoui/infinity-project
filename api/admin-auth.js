@@ -20,7 +20,9 @@ import {
   isApplicationId, parseApplicationListOptions, validateApplicationActionBody,
   validateApplicationBulkBody,
 } from './_lib/admin-applications-validation.js'
-import { parseStaffConfirmationListOptions } from './_lib/staff-confirmation-validation.js'
+import {
+  parseStaffConfirmationListOptions, validateStaffLinkExportBody, validateStaffLinkRevealBody,
+} from './_lib/staff-confirmation-validation.js'
 import { staffConfirmationSiteOrigin } from './_lib/staff-confirmation-tokens.js'
 import {
   isPeopleProfileId, parsePeopleListOptions, validatePeopleActionBody,
@@ -329,6 +331,7 @@ export function createAdminApplicationsHandler({
     const url = new URL(req.url || '/', 'http://localhost')
     const detailMatch = path.match(/^applications\/([0-9a-f-]+)$/i)
     const actionMatch = path.match(/^applications\/([0-9a-f-]+)\/actions$/i)
+    const staffLinkMatch = path.match(/^applications\/([0-9a-f-]+)\/staff-confirmation\/link$/i)
     const isMutation = req.method === 'POST'
 
     if (isMutation && !trustedOrigin(req, env)) {
@@ -384,6 +387,49 @@ export function createAdminApplicationsHandler({
         })
       }
 
+      if (staffLinkMatch && req.method === 'POST') {
+        if (!staffConfirmationEnabled(env)) return sendAdminJson(res, 503, { success: false, message: 'Staff confirmation workflow is not enabled yet.' })
+        if (!isJsonContentType(req)) return sendAdminJson(res, 415, { success: false, message: 'Unsupported request.' })
+        const applicationId = staffLinkMatch[1]
+        if (!isApplicationId(applicationId)) return sendAdminJson(res, 404, { success: false, message: 'Application not found.' })
+        const parsed = validateStaffLinkRevealBody(await readJsonBody(req, MAX_APPLICATION_BODY_BYTES))
+        if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid private-link request.' })
+        const result = await service.revealStaffLink(applicationId, session.user, {
+          origin: staffConfirmationSiteOrigin(req, env),
+        })
+        if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: result.message })
+        return sendAdminJson(res, 200, {
+          success: true,
+          reference: result.reference,
+          privateLink: result.privateLink,
+          linkState: result.linkState,
+          expiresAt: result.expiresAt,
+        })
+      }
+
+      if (path === 'applications/staff-links/preflight' && req.method === 'POST') {
+        if (!staffConfirmationEnabled(env)) return sendAdminJson(res, 503, { success: false, message: 'Staff confirmation workflow is not enabled yet.' })
+        if (!isJsonContentType(req)) return sendAdminJson(res, 415, { success: false, message: 'Unsupported request.' })
+        const parsed = validateStaffLinkExportBody(await readJsonBody(req, MAX_APPLICATION_BODY_BYTES), { preflight: true })
+        if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid Staff-link export scope.' })
+        const result = await service.previewStaffLinkExport(session.user)
+        if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: result.message })
+        return sendAdminJson(res, 200, { success: true, preview: result.preview })
+      }
+
+      if (path === 'applications/staff-links/export' && req.method === 'POST') {
+        if (!staffConfirmationEnabled(env)) return sendAdminJson(res, 503, { success: false, message: 'Staff confirmation workflow is not enabled yet.' })
+        if (!isJsonContentType(req)) return sendAdminJson(res, 415, { success: false, message: 'Unsupported request.' })
+        const parsed = validateStaffLinkExportBody(await readJsonBody(req, MAX_APPLICATION_BODY_BYTES))
+        if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid Staff-link export confirmation.' })
+        const result = await service.exportStaffLinks(session.user, {
+          origin: staffConfirmationSiteOrigin(req, env),
+          convertLegacy: parsed.value.convertLegacy,
+        })
+        if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: result.message })
+        return sendAdminCsv(res, result)
+      }
+
       if (path === 'applications/bulk-actions' && req.method === 'POST') {
         if (!String(req.headers?.['content-type'] || '').toLowerCase().startsWith('application/json')) {
           return sendAdminJson(res, 415, { success: false, message: 'Unsupported request.' })
@@ -395,7 +441,7 @@ export function createAdminApplicationsHandler({
         return sendAdminJson(res, 200, { success: true, succeeded: result.succeeded, failed: result.failed })
       }
 
-      res.setHeader('Allow', path === 'applications' || detailMatch ? 'GET' : actionMatch || path === 'applications/bulk-actions' ? 'POST' : 'GET, POST')
+      res.setHeader('Allow', path === 'applications' || detailMatch ? 'GET' : actionMatch || staffLinkMatch || path === 'applications/bulk-actions' || path.startsWith('applications/staff-links/') ? 'POST' : 'GET, POST')
       return sendAdminJson(res, path.startsWith('applications') ? 405 : 404, {
         success: false,
         message: path.startsWith('applications') ? 'Method not allowed.' : 'Not found.',
@@ -517,6 +563,7 @@ function sendAdminCsv(res, exportResult) {
   res.setHeader('Content-Disposition', `attachment; filename="${safeDownloadName(exportResult.fileName)}"`)
   res.setHeader('Content-Length', String(Buffer.byteLength(body, 'utf8')))
   res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.setHeader('X-Export-Rows', String(exportResult.rowCount))
   res.setHeader('X-AIVEX-Export-Rows', String(exportResult.rowCount))
   if (exportResult.truncated) res.setHeader('X-AIVEX-Export-Truncated', 'true')
   res.end(body)

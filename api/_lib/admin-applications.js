@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { describeAcademicDepartment, getFacultyLabel } from '../../shared/membership/university-structure.js'
 import { createServerSupabaseClient } from './aivex-server.js'
 import {
@@ -5,9 +6,12 @@ import {
 } from './admin-applications-permissions.js'
 import { createAdminApplicationsStore } from './admin-applications-store.js'
 import {
-  STAFF_DEPARTMENT_LABELS, effectiveStaffConfirmationStatus, prepareStaffConfirmationInvitation,
+  STAFF_DEPARTMENT_LABELS, effectiveStaffConfirmationStatus, reconstructStaffConfirmationLink,
   staffConfirmationInvitationMessage,
 } from './staff-confirmations.js'
+import {
+  prepareStableStaffConfirmationCredential, staffConfirmationExpiryFrom, staffConfirmationLinkSecret,
+} from './staff-confirmation-tokens.js'
 
 const STATUS_LABELS = Object.freeze({
   new: 'New', in_review: 'In review', interview: 'Interview',
@@ -37,19 +41,60 @@ const ACTION_TITLES = Object.freeze({
   archive: 'Application archived',
   add_note: 'Internal note added',
   invite_staff_confirmation: 'Staff confirmation invited',
+  create_stable_staff_confirmation_link: 'Stable Staff confirmation link created',
   regenerate_staff_confirmation_link: 'Staff confirmation link regenerated',
+  block_staff_confirmation_link: 'Staff confirmation link blocked',
+  unblock_staff_confirmation_link: 'Staff confirmation link unblocked',
+  extend_staff_confirmation_deadline: 'Staff confirmation deadline extended',
   request_staff_confirmation_revision: 'Staff confirmation revision requested',
-  revoke_staff_confirmation: 'Staff confirmation invitation revoked',
   confirm_staff_membership: 'Staff membership confirmed',
 })
 const STAFF_CONFIRMATION_ACTIONS = new Set([
-  'invite_staff_confirmation', 'regenerate_staff_confirmation_link',
-  'request_staff_confirmation_revision', 'revoke_staff_confirmation',
+  'invite_staff_confirmation', 'create_stable_staff_confirmation_link',
+  'regenerate_staff_confirmation_link', 'block_staff_confirmation_link',
+  'unblock_staff_confirmation_link', 'extend_staff_confirmation_deadline',
+  'request_staff_confirmation_revision',
   'confirm_staff_membership',
 ])
-const TOKEN_ACTIONS = new Set([
-  'invite_staff_confirmation', 'regenerate_staff_confirmation_link', 'request_staff_confirmation_revision',
+const CREDENTIAL_ACTIONS = new Set([
+  'invite_staff_confirmation', 'create_stable_staff_confirmation_link', 'regenerate_staff_confirmation_link',
 ])
+const ELIGIBLE_STAFF_STATUSES = new Set(['new', 'in_review', 'interview'])
+const STAFF_LINK_EXPORT_HEADERS = Object.freeze([
+  'Reference', 'Full Name', 'Email', 'Requested Staff Department',
+  'Application Status', 'Confirmation Status', 'Link Status', 'Private Link',
+  'Phone', 'Study Level', 'Faculty', 'Academic Department', 'Submitted At', 'Deadline',
+])
+
+const csvCell = (value, { protectFormula = true } = {}) => {
+  let text = value == null ? '' : String(value).replace(/\r\n?/g, '\n')
+  if (protectFormula && /^[\t\r\n ]*[=+\-@]/.test(text)) text = `'${text}`
+  return `"${text.replace(/"/g, '""')}"`
+}
+
+export function buildStaffPrivateLinksCsv(rows) {
+  const lines = [STAFF_LINK_EXPORT_HEADERS.map((value) => csvCell(value)).join(',')]
+  for (const row of rows) {
+    const values = [
+      row.reference,
+      row.full_name,
+      row.email,
+      STAFF_DEPARTMENT_LABELS[row.staff_department] || row.primary_field || '',
+      STATUS_LABELS[row.application_status] || row.application_status,
+      row.confirmation_status || 'not_invited',
+      row.linkStatus,
+      row.privateLink,
+      row.phone,
+      row.study_year,
+      getFacultyLabel(row.faculty) || row.faculty || '',
+      describeAcademicDepartment(row.faculty, row.department),
+      row.application_submitted_at,
+      row.expires_at,
+    ]
+    lines.push(values.map((value, index) => csvCell(value, { protectFormula: index !== 7 })).join(','))
+  }
+  return `\uFEFF${lines.join('\r\n')}\r\n`
+}
 const administrativeReason = (action, reason) => {
   const supplied = typeof reason === 'string' ? reason.trim() : ''
   if (supplied || action === 'add_note') return supplied
@@ -79,6 +124,8 @@ function mapStaffConfirmation(row, now = new Date()) {
     submittedAt: row.submitted_at,
     confirmedAt: row.confirmed_at,
     updatedAt: row.updated_at,
+    linkAccess: row.link_access || 'none',
+    linkReconstructable: row.link_reconstructable === true,
     submissions: (row.submissions || []).map((submission) => ({
       id: submission.id,
       version: submission.version,
@@ -163,14 +210,91 @@ function publicActionError(error) {
   if (message.includes('staff_confirmation_required')) {
     return { status: 409, message: 'A submitted Staff confirmation is required before this application can be accepted.' }
   }
+  if (message.includes('staff_confirmation_legacy_conversion_required')) {
+    return { status: 409, message: 'This legacy credential must be explicitly converted before its private link can be displayed.' }
+  }
+  if (error?.code === 'credential_derivation_mismatch') {
+    return { status: 503, message: 'The stable Staff-link credential could not be verified.' }
+  }
+  if (error?.stage === 'staff_link_secret' || message.includes('stable_staff_link_service_not_configured')) {
+    return { status: 503, message: 'Stable Staff-link service is not configured.' }
+  }
   if (error?.code === '22023') {
     return { status: 409, message: 'This action is not available for the current application state.' }
   }
   return null
 }
 
-export function createAdminApplicationsService({ store, now = () => new Date(), staffConfirmationEnabled = true } = {}) {
+export function createAdminApplicationsService({
+  store,
+  now = () => new Date(),
+  staffConfirmationEnabled = true,
+  env = process.env,
+  createId = randomUUID,
+} = {}) {
   if (!store) throw Object.assign(new Error('admin_applications_store_required'), { stage: 'configuration', code: 'configuration_error' })
+
+  const requireStableLinkSecret = () => staffConfirmationLinkSecret(env)
+
+  const credentialProposal = async (current) => {
+    const confirmationId = current?.confirmation_id || createId()
+    const credentialVersion = await store.nextCredentialVersion(current?.confirmation_id)
+    const expiresAt = current?.expires_at && new Date(current.expires_at).getTime() > now().getTime()
+      ? new Date(current.expires_at)
+      : staffConfirmationExpiryFrom(now())
+    return {
+      ...prepareStableStaffConfirmationCredential({
+        confirmationId,
+        credentialVersion,
+        env,
+        secret: requireStableLinkSecret(),
+      }),
+      expiresAt,
+    }
+  }
+
+  const revealedCredential = (credential, origin) => {
+    if (!origin) throw Object.assign(new Error('staff_link_origin_unavailable'), { code: 'configuration_error', stage: 'staff_link_origin' })
+    const { url } = reconstructStaffConfirmationLink({
+      origin,
+      credential,
+      secret: requireStableLinkSecret(),
+    })
+    if (!url) throw Object.assign(new Error('staff_link_origin_unavailable'), { code: 'configuration_error', stage: 'staff_link_origin' })
+    return url
+  }
+
+  const ensureStableCredential = async (candidate, user, { origin, convertLegacy }) => {
+    if (candidate.link_nonce) {
+      return {
+        ...candidate,
+        privateLink: revealedCredential(candidate, origin),
+        linkStatus: candidate.blocked_at ? 'Blocked' : 'Active',
+      }
+    }
+    const proposal = await credentialProposal(candidate)
+    const result = await store.applyStaffConfirmationAction({
+      applicationId: candidate.application_id,
+      adminUserId: user.id,
+      action: 'ensure_staff_confirmation_link',
+      expectedApplicationUpdatedAt: null,
+      expectedConfirmationUpdatedAt: null,
+      proposedConfirmationId: proposal.confirmationId,
+      linkNonce: proposal.linkNonce,
+      tokenHash: proposal.tokenHash,
+      credentialVersion: proposal.credentialVersion,
+      derivationVersion: proposal.derivationVersion,
+      expiresAt: proposal.expiresAt,
+      convertLegacy,
+      now: now(),
+    })
+    const stable = { ...candidate, ...result }
+    return {
+      ...stable,
+      privateLink: revealedCredential(stable, origin),
+      linkStatus: stable.blocked_at ? 'Blocked' : 'Active',
+    }
+  }
 
   const detail = async (applicationId, user) => {
     const row = await store.find(applicationId)
@@ -210,7 +334,7 @@ export function createAdminApplicationsService({ store, now = () => new Date(), 
       ])
       return {
         data: rows.map((row) => ({
-          id: row.confirmation_id,
+          id: row.confirmation_id || row.application_id,
           applicationId: row.application_id,
           name: row.candidate_name,
           ref: row.reference || `JOIN-${String(row.application_id).slice(0, 8).toUpperCase()}`,
@@ -218,6 +342,8 @@ export function createAdminApplicationsService({ store, now = () => new Date(), 
           staffDepartmentKey: row.staff_department,
           applicationStatus: STATUS_LABELS[row.application_status] || row.application_status,
           statusKey: row.effective_status,
+          linkAccess: row.link_access,
+          linkReconstructable: row.link_reconstructable === true,
           invitedAt: row.invited_at,
           expiresAt: row.expires_at,
           submittedAt: row.submitted_at,
@@ -244,39 +370,41 @@ export function createAdminApplicationsService({ store, now = () => new Date(), 
           if (!staffConfirmationEnabled) {
             return { ok: false, status: 503, message: 'Staff confirmation workflow is not enabled yet.' }
           }
-          let invitation = null
-          if (TOKEN_ACTIONS.has(input.action)) {
-            if (!context.origin) return { ok: false, status: 503, message: 'The private invitation link could not be generated.' }
-            invitation = prepareStaffConfirmationInvitation({
-              origin: context.origin,
-              purpose: input.action === 'invite_staff_confirmation'
-                ? 'initial'
-                : input.action === 'request_staff_confirmation_revision' ? 'revision' : 'replacement',
-              now: now(),
-            })
-          }
-          await store.applyStaffConfirmationAction({
+          const current = CREDENTIAL_ACTIONS.has(input.action)
+            ? await store.credentialForApplication(applicationId)
+            : null
+          const proposal = CREDENTIAL_ACTIONS.has(input.action) ? await credentialProposal(current) : null
+          const deadline = ['request_staff_confirmation_revision', 'extend_staff_confirmation_deadline'].includes(input.action)
+            ? staffConfirmationExpiryFrom(now())
+            : proposal?.expiresAt
+          const actionResult = await store.applyStaffConfirmationAction({
             applicationId,
             adminUserId: user.id,
             action: input.action,
             expectedApplicationUpdatedAt: input.expectedUpdatedAt,
             expectedConfirmationUpdatedAt: input.payload.confirmationUpdatedAt,
-            tokenHash: invitation?.tokenHash,
-            tokenPurpose: invitation?.tokenPurpose,
-            expiresAt: invitation?.expiresAt,
+            proposedConfirmationId: proposal?.confirmationId,
+            linkNonce: proposal?.linkNonce,
+            tokenHash: proposal?.tokenHash,
+            credentialVersion: proposal?.credentialVersion,
+            derivationVersion: proposal?.derivationVersion,
+            expiresAt: deadline,
             message: input.payload.revisionMessage,
+            convertLegacy: input.action === 'create_stable_staff_confirmation_link',
             now: now(),
           })
           const application = await detail(applicationId, user)
-          if (!invitation) return { ok: true, application }
+          if (!CREDENTIAL_ACTIONS.has(input.action)) return { ok: true, application }
+          const url = revealedCredential(actionResult, context.origin)
           const invitationView = {
             candidate: application.name,
             reference: application.ref,
-            url: invitation.url,
-            expiresAt: invitation.expiresAt.toISOString(),
+            url,
+            expiresAt: actionResult.expires_at,
+            linkState: actionResult.blocked_at ? 'blocked' : 'active',
           }
           invitationView.message = staffConfirmationInvitationMessage({
-            ...invitationView, expiresAt: invitation.expiresAt,
+            ...invitationView, expiresAt: new Date(actionResult.expires_at),
           })
           return { ok: true, application, invitation: invitationView }
         }
@@ -318,6 +446,121 @@ export function createAdminApplicationsService({ store, now = () => new Date(), 
       }
       return { ok: true, succeeded, failed }
     },
+
+    async revealStaffLink(applicationId, user, context = {}) {
+      if (user?.role !== 'super_admin') {
+        return { ok: false, status: 403, message: 'You do not have permission to reveal private Staff links.' }
+      }
+      if (!staffConfirmationEnabled) {
+        return { ok: false, status: 503, message: 'Staff confirmation workflow is not enabled yet.' }
+      }
+      try {
+        const credential = await store.credentialForApplication(applicationId)
+        if (!credential?.confirmation_id || !credential?.credential_id) {
+          return { ok: false, status: 404, message: 'No Staff confirmation link exists for this application.' }
+        }
+        if (!credential.link_nonce) {
+          return { ok: false, status: 409, message: 'This is a legacy private link and cannot be displayed. Create a stable link explicitly.' }
+        }
+        const privateLink = revealedCredential(credential, context.origin)
+        await store.recordLinkAudit({
+          applicationId,
+          adminUserId: user.id,
+          action: 'staff_link_revealed',
+          metadata: { confirmation_id: credential.confirmation_id, credential_version: credential.credential_version },
+          now: now(),
+        })
+        return {
+          ok: true,
+          reference: credential.reference || `JOIN-${String(applicationId).slice(0, 8).toUpperCase()}`,
+          privateLink,
+          linkState: credential.blocked_at ? 'blocked' : 'active',
+          expiresAt: credential.expires_at,
+        }
+      } catch (error) {
+        const publicError = publicActionError(error)
+        if (publicError) return { ok: false, ...publicError }
+        throw error
+      }
+    },
+
+    async previewStaffLinkExport(user) {
+      if (user?.role !== 'super_admin') {
+        return { ok: false, status: 403, message: 'You do not have permission to export private Staff links.' }
+      }
+      if (!staffConfirmationEnabled) {
+        return { ok: false, status: 503, message: 'Staff confirmation workflow is not enabled yet.' }
+      }
+      try {
+        requireStableLinkSecret()
+        const candidates = await store.staffLinkExportCandidates()
+        return {
+          ok: true,
+          preview: {
+            eligible: candidates.length,
+            existing: candidates.filter((row) => row.link_nonce).length,
+            missing: candidates.filter((row) => !row.credential_id).length,
+            legacy: candidates.filter((row) => row.credential_id && !row.link_nonce).length,
+            blocked: candidates.filter((row) => row.blocked_at).length,
+          },
+        }
+      } catch (error) {
+        const publicError = publicActionError(error)
+        if (publicError) return { ok: false, ...publicError }
+        throw error
+      }
+    },
+
+    async exportStaffLinks(user, context = {}) {
+      if (user?.role !== 'super_admin') {
+        return { ok: false, status: 403, message: 'You do not have permission to export private Staff links.' }
+      }
+      if (!staffConfirmationEnabled) {
+        return { ok: false, status: 503, message: 'Staff confirmation workflow is not enabled yet.' }
+      }
+      try {
+        requireStableLinkSecret()
+        const candidates = await store.staffLinkExportCandidates()
+        const rows = []
+        let created = 0
+        let convertedLegacy = 0
+        for (const candidate of candidates) {
+          if (!ELIGIBLE_STAFF_STATUSES.has(candidate.application_status)) continue
+          const wasLegacy = Boolean(candidate.credential_id && !candidate.link_nonce)
+          const wasMissing = !candidate.credential_id
+          const stable = await ensureStableCredential(candidate, user, {
+            origin: context.origin,
+            convertLegacy: context.convertLegacy === true,
+          })
+          if (wasMissing) created += 1
+          if (wasLegacy) convertedLegacy += 1
+          rows.push({
+            ...candidate,
+            ...stable,
+            confirmation_status: stable.confirmation_status || candidate.confirmation_status || 'invited',
+          })
+        }
+        await store.recordLinkAudit({
+          applicationId: null,
+          adminUserId: user.id,
+          action: 'staff_link_csv_exported',
+          metadata: { row_count: rows.length, created_count: created, converted_legacy_count: convertedLegacy },
+          now: now(),
+        })
+        return {
+          ok: true,
+          csv: buildStaffPrivateLinksCsv(rows),
+          fileName: `infinity-staff-private-links-${now().toISOString().slice(0, 10)}.csv`,
+          rowCount: rows.length,
+          created,
+          convertedLegacy,
+        }
+      } catch (error) {
+        const publicError = publicActionError(error)
+        if (publicError) return { ok: false, ...publicError }
+        throw error
+      }
+    },
   }
 }
 
@@ -325,5 +568,6 @@ export function createServerAdminApplicationsService({ env = process.env } = {})
   return createAdminApplicationsService({
     store: createAdminApplicationsStore(createServerSupabaseClient()),
     staffConfirmationEnabled: env.STAFF_CONFIRMATION_API_ENABLED === 'true',
+    env,
   })
 }

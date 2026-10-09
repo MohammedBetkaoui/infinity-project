@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Activity, ArrowRight, CalendarDays, Check, Clock3, FileText, GraduationCap, Mail, Phone, Plus, RefreshCw, Send, UserCheck } from 'lucide-react'
+import { Activity, ArrowRight, CalendarDays, Check, Clock3, Copy, ExternalLink, FileText, GraduationCap, Link2, Mail, Phone, Plus, RefreshCw, Send, UserCheck } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { FlipGrid, useGrow } from './adminMotion'
 import { useAdmin } from './AdminStore'
@@ -99,8 +99,33 @@ const confirmationDate = (value) => value ? new Date(value).toLocaleString('en-G
   dateStyle: 'medium', timeStyle: 'short', timeZone: 'Africa/Algiers',
 }) : '—'
 
-function StaffConfirmationPanel({ confirmation }) {
+function StaffConfirmationPanel({ confirmation, onRevealLink }) {
   const status = confirmation?.statusKey || 'not_invited'
+  const [revealed, setRevealed] = useState(null)
+  const [linkBusy, setLinkBusy] = useState('')
+  const [linkError, setLinkError] = useState('')
+  const linkAccess = confirmation?.linkAccess || 'none'
+  const usePrivateLink = async (kind) => {
+    if (!onRevealLink || linkBusy) return
+    setLinkBusy(kind)
+    setLinkError('')
+    const result = revealed || await onRevealLink()
+    if (!result?.ok) {
+      setLinkError(result?.message || 'The private link could not be revealed.')
+      setLinkBusy('')
+      return
+    }
+    setRevealed(result)
+    try {
+      if (kind === 'copy') await navigator.clipboard.writeText(result.privateLink)
+      if (kind === 'open') window.open(result.privateLink, '_blank', 'noopener,noreferrer')
+      setLinkBusy(`${kind}-done`)
+      window.setTimeout(() => setLinkBusy(''), 1500)
+    } catch {
+      setLinkBusy('')
+      setLinkError('The private link could not be copied or opened.')
+    }
+  }
   return <div className="adm-staff-confirmation-panel">
     <div className="adm-staff-confirmation-panel__state">
       <span><FileText size={17} aria-hidden="true"/></span>
@@ -108,6 +133,14 @@ function StaffConfirmationPanel({ confirmation }) {
       <StatusBadge tone={status === 'submitted' || status === 'confirmed' ? 'success' : status === 'revision_requested' ? 'warning' : 'neutral'}>{CONFIRMATION_LABELS[status] || status}</StatusBadge>
     </div>
     {confirmation ? <>
+      <div className="adm-confirmation-private-link">
+        <header><div><small>Private confirmation link</small><b>{linkAccess === 'blocked' ? 'Blocked' : linkAccess === 'active' ? 'Active' : linkAccess === 'legacy' ? 'Legacy credential' : 'Not created'}</b></div><StatusBadge tone={linkAccess === 'active' ? 'success' : linkAccess === 'blocked' ? 'warning' : 'neutral'}>{linkAccess}</StatusBadge></header>
+        {confirmation.linkReconstructable ? <>
+          <code>{revealed?.privateLink || 'https://www.infinty-bba.com/join/staff-confirmation#token=••••••••'}</code>
+          <div><Button variant="secondary" icon={linkBusy === 'copy-done' ? <Check size={14}/> : <Copy size={14}/>} onClick={() => usePrivateLink('copy')} disabled={Boolean(linkBusy)}>{linkBusy === 'copy-done' ? 'Copied' : 'Copy link'}</Button><Button variant="secondary" icon={<ExternalLink size={14}/>} onClick={() => usePrivateLink('open')} disabled={Boolean(linkBusy)}>Open</Button></div>
+        </> : <p>{linkAccess === 'legacy' ? 'Link unavailable under the legacy credential model. Create a stable link explicitly to reveal it.' : 'No private link has been created for this candidate.'}</p>}
+        {linkError && <p className="adm-form-error" role="alert">{linkError}</p>}
+      </div>
       <Facts items={[
         ['Invited', confirmationDate(confirmation.invitedAt)],
         ['Deadline', confirmationDate(confirmation.expiresAt)],
@@ -126,7 +159,7 @@ function StaffConfirmationPanel({ confirmation }) {
   </div>
 }
 
-export function CandidateDossier({ detail, note = '', setNote, onSave, noteSaving = false }) {
+export function CandidateDossier({ detail, note = '', setNote, onSave, noteSaving = false, onRevealStaffLink }) {
   return <div className="adm-candidate-dossier">
     <section className="adm-candidate-overview">
       <div className="adm-candidate-overview__rail"><code>{detail.ref || detail.id}</code><span>JOIN INTAKE / {detail.form}</span></div>
@@ -151,7 +184,7 @@ export function CandidateDossier({ detail, note = '', setNote, onSave, noteSavin
     </CandidateSection>
 
     {detail.type === 'Staff' && <CandidateSection title="Staff confirmation" copy="Private invitation, motivation history and final Staff decision.">
-      <StaffConfirmationPanel confirmation={detail.staffConfirmation}/>
+      <StaffConfirmationPanel confirmation={detail.staffConfirmation} onRevealLink={onRevealStaffLink}/>
     </CandidateSection>}
 
     <CandidateSection title="Intake metadata" copy="Administrative traceability for this Join application.">
@@ -172,9 +205,9 @@ export function CandidateActionBar({ detail, request }) {
   const confirmation = detail.staffConfirmation
   const confirmationStatus = confirmation?.statusKey || 'not_invited'
   const confirmationVersion = confirmation?.updatedAt
+  const linkAccess = confirmation?.linkAccess || 'none'
   const staffPrimary = detail.type === 'Staff' && !closed ? <>
     {confirmationStatus === 'not_invited' && <Button onClick={() => request('Invite to Staff confirmation', null, { action: 'invite_staff_confirmation' })} disabled={!can('invite_staff_confirmation')} icon={<Send size={15}/>}>Invite to confirmation</Button>}
-    {['invited', 'revision_requested', 'expired', 'revoked'].includes(confirmationStatus) && <Button onClick={() => request(confirmationStatus === 'revision_requested' ? 'Regenerate revision link' : 'Regenerate private link', null, { action: 'regenerate_staff_confirmation_link' })} disabled={!can('regenerate_staff_confirmation_link')} icon={<RefreshCw size={15}/>}>Regenerate private link</Button>}
     {confirmationStatus === 'submitted' && <Button onClick={() => request('Confirm Staff membership', null, { action: 'confirm_staff_membership' })} disabled={!can('confirm_staff_membership')} icon={<Check size={15}/>}>Confirm Staff membership</Button>}
     {confirmationStatus === 'confirmed' && <span className="adm-confirmation-final"><Check size={14}/> Staff membership confirmed</span>}
   </> : null
@@ -182,8 +215,9 @@ export function CandidateActionBar({ detail, request }) {
     <header><div><span>Decision workspace</span><b>Choose the next administrative step</b></div><code>{detail.ref || detail.id}</code></header>
     <div className="adm-candidate-actionbar__primary">{detail.type === 'Staff' ? staffPrimary : <Button onClick={() => request('Accept as member', { status: 'Accepted' }, { action: 'accept_member' })} disabled={!can('accept_member') || detail.status === 'Accepted' || detail.status === 'Archived'} icon={<Check size={15}/>}>Accept as member</Button>}<Button variant="secondary" onClick={() => request('Schedule interview', null, { action: 'schedule_interview', fields: [{ name: 'interviewAt', label: 'Interview date and time', type: 'datetime-local', required: true }, { name: 'interviewLocation', label: 'Location / meeting room', required: true }], patch: undefined, schedule: true })} disabled={!can('schedule_interview') || closed}><CalendarDays size={15}/>Schedule interview</Button></div>
     <div className="adm-candidate-actionbar__workflow"><span>Workflow</span><button onClick={() => request('Move application to review', { status: 'In review' }, { action: 'start_review' })} disabled={!can('start_review') || detail.status === 'In review' || detail.status === 'Accepted' || detail.status === 'Archived'}>Move to review</button>{detail.type === 'Staff' && <button onClick={() => request('Change requested department', null, { action: 'change_staff_department', fields: [{ name: 'track', label: 'Department', options: DEPARTMENTS, value: detail.track }] })} disabled={!can('change_staff_department') || detail.status === 'Archived'}>Change department</button>}</div>
-    {detail.type === 'Staff' && confirmationStatus === 'submitted' && <div className="adm-candidate-actionbar__workflow"><span>Motivation review</span><button onClick={() => request('Request a motivation revision', null, { action: 'request_staff_confirmation_revision', fields: [{ name: 'revisionMessage', label: 'Message to the candidate', type: 'textarea', required: true, maxLength: 1000, placeholder: 'Explain what should be clearer in the new version…' }], confirmationVersion })} disabled={!can('request_staff_confirmation_revision')}><Clock3 size={13}/>Request revision</button></div>}
-    <div className="adm-candidate-actionbar__critical"><span>Close application</span>{detail.type === 'Staff' && ['invited', 'revision_requested'].includes(confirmationStatus) && <button onClick={() => request('Revoke private invitation', null, { action: 'revoke_staff_confirmation', danger: true, confirmationVersion })} disabled={!can('revoke_staff_confirmation')}>Revoke invitation</button>}<button className="is-danger" onClick={() => request('Decline application', { status: 'Declined' }, { action: 'decline', danger: true })} disabled={!can('decline') || detail.status === 'Declined' || detail.status === 'Archived'}>Decline</button><button onClick={() => request('Archive application', { status: 'Archived' }, { action: 'archive', danger: true })} disabled={!can('archive') || detail.status === 'Archived'}>Archive</button></div>
+    {detail.type === 'Staff' && confirmation && !closed && <div className="adm-candidate-actionbar__workflow"><span>Private link</span>{!confirmation.linkReconstructable && <button onClick={() => request('Create stable private link', null, { action: 'create_stable_staff_confirmation_link', confirmationVersion, description: 'The legacy hash-only link cannot be displayed. Creating a stable link permanently invalidates the legacy credential.', submit: 'Create stable link' })} disabled={!can('create_stable_staff_confirmation_link')}><Link2 size={13}/>Create stable link</button>}{confirmation.linkReconstructable && linkAccess !== 'blocked' && <button onClick={() => request('Block private link?', null, { action: 'block_staff_confirmation_link', confirmationVersion, description: `Candidate: ${detail.name}\nReference: ${detail.ref}\n\nThe candidate will no longer be able to use this link until you unblock it. The URL itself will not change.`, submit: 'Block link' })} disabled={!can('block_staff_confirmation_link')}>Block link</button>}{confirmation.linkReconstructable && linkAccess === 'blocked' && <button onClick={() => request('Unblock private link?', null, { action: 'unblock_staff_confirmation_link', confirmationVersion, description: 'The exact same private URL will become usable again.', submit: 'Unblock link' })} disabled={!can('unblock_staff_confirmation_link')}>Unblock link</button>}{confirmation.linkReconstructable && <button onClick={() => request('Regenerate private link?', null, { action: 'regenerate_staff_confirmation_link', confirmationVersion, danger: true, description: 'The previous link will permanently stop working. Any previous email, CSV, or copied message containing the old URL will become invalid.', submit: 'Generate new link' })} disabled={!can('regenerate_staff_confirmation_link')}><RefreshCw size={13}/>Regenerate</button>}{confirmationStatus === 'expired' && <button onClick={() => request('Extend Staff confirmation deadline', null, { action: 'extend_staff_confirmation_deadline', confirmationVersion, description: 'The deadline will be extended by seven days. The private URL will not change.', submit: 'Extend deadline' })} disabled={!can('extend_staff_confirmation_deadline')}><Clock3 size={13}/>Extend deadline</button>}</div>}
+    {detail.type === 'Staff' && confirmationStatus === 'submitted' && <div className="adm-candidate-actionbar__workflow"><span>Motivation review</span><button onClick={() => request('Request a motivation revision', null, { action: 'request_staff_confirmation_revision', fields: [{ name: 'revisionMessage', label: 'Message to the candidate', type: 'textarea', required: true, maxLength: 1000, placeholder: 'Explain what should be clearer in the new version…' }], confirmationVersion, description: 'The candidate can submit the revision using the existing private link. No new URL will be created.', submit: 'Request revision' })} disabled={!can('request_staff_confirmation_revision')}><Clock3 size={13}/>Request revision</button></div>}
+    <div className="adm-candidate-actionbar__critical"><span>Close application</span><button className="is-danger" onClick={() => request('Decline application', { status: 'Declined' }, { action: 'decline', danger: true })} disabled={!can('decline') || detail.status === 'Declined' || detail.status === 'Archived'}>Decline</button><button onClick={() => request('Archive application', { status: 'Archived' }, { action: 'archive', danger: true })} disabled={!can('archive') || detail.status === 'Archived'}>Archive</button></div>
   </div>
 }
 

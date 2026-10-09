@@ -9,11 +9,12 @@ import {
   parseStaffConfirmationListOptions, validateStaffConfirmationSubmitBody, validateStaffConfirmationVerifyBody,
 } from '../api/_lib/staff-confirmation-validation.js'
 import {
-  buildStaffConfirmationUrl, generateStaffConfirmationToken, hashStaffConfirmationToken,
-  isPlausibleStaffConfirmationToken, staffConfirmationExpiryFrom,
+  buildStaffConfirmationUrl, deriveStableStaffConfirmationToken, generateStaffConfirmationLinkNonce,
+  generateStaffConfirmationToken, hashStaffConfirmationToken, isPlausibleStaffConfirmationToken,
+  prepareStableStaffConfirmationCredential, staffConfirmationExpiryFrom, staffConfirmationLinkSecret,
 } from '../api/_lib/staff-confirmation-tokens.js'
 import { createStaffConfirmationsService } from '../api/_lib/staff-confirmations.js'
-import { createAdminApplicationsService } from '../api/_lib/admin-applications.js'
+import { buildStaffPrivateLinksCsv, createAdminApplicationsService } from '../api/_lib/admin-applications.js'
 import { allowedApplicationActions, canManageApplication } from '../api/_lib/admin-applications-permissions.js'
 import { safeAdminNotificationActionPath } from '../api/_lib/admin-notifications.js'
 
@@ -26,6 +27,8 @@ const SUBMISSION_ID = '33333333-3333-4333-8333-333333333333'
 const NOW = new Date('2026-10-09T09:00:00.000Z')
 const EXPIRES = '2026-10-16T09:00:00.000Z'
 const MOTIVATION = 'I want to help the Dev and Tech team build useful student projects, contribute consistently, learn from experienced members, and share what I know with other students. This is meaningful to me.'
+const LINK_SECRET = 'test-only-staff-link-secret-material-32-bytes-minimum'
+const LINK_NONCE = Buffer.alloc(16, 9).toString('base64url')
 
 function request(method, body, headers = {}) {
   const raw = body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body)
@@ -49,7 +52,8 @@ class MemoryStore {
   constructor() {
     this.token = {
       id: '44444444-4444-4444-8444-444444444444', confirmation_id: CONFIRMATION_ID,
-      purpose: 'initial', expires_at: EXPIRES, consumed_at: null, revoked_at: null,
+      purpose: 'initial', expires_at: EXPIRES, consumed_at: null, revoked_at: null, blocked_at: null,
+      link_nonce: LINK_NONCE, credential_version: 1, derivation_version: 1,
     }
     this.confirmationRow = {
       id: CONFIRMATION_ID, application_id: APPLICATION_ID, status: 'invited', expires_at: EXPIRES,
@@ -102,10 +106,18 @@ test('candidate verification returns the minimum safe Staff projection and treat
   store.token.revoked_at = NOW.toISOString()
   assert.deepEqual(await service.verify(RAW_TOKEN), { ok: false, status: 'invalid' })
   store.token.revoked_at = null
+  store.token.blocked_at = NOW.toISOString()
+  assert.deepEqual(await service.verify(RAW_TOKEN), { ok: false, status: 'unavailable' })
+  store.token.blocked_at = null
   store.token.consumed_at = NOW.toISOString()
-  assert.deepEqual(await service.verify(RAW_TOKEN), { ok: true, status: 'already_submitted' })
+  assert.equal((await service.verify(RAW_TOKEN)).status, 'valid')
   store.token.consumed_at = null
-  store.token.expires_at = '2026-10-08T09:00:00.000Z'
+  store.confirmationRow.status = 'submitted'
+  assert.deepEqual(await service.verify(RAW_TOKEN), { ok: true, status: 'already_submitted' })
+  store.confirmationRow.status = 'confirmed'
+  assert.deepEqual(await service.verify(RAW_TOKEN), { ok: true, status: 'complete' })
+  store.confirmationRow.status = 'invited'
+  store.confirmationRow.expires_at = '2026-10-08T09:00:00.000Z'
   assert.deepEqual(await service.verify(RAW_TOKEN), { ok: false, status: 'expired' })
 })
 
@@ -248,7 +260,7 @@ test('production origin policy requires an exact HTTPS origin and host match', (
 test('admin Staff queue query validation is bounded and rejects duplicate or unknown filters', () => {
   assert.deepEqual(parseStaffConfirmationListOptions(new URLSearchParams('status=submitted&department=dev-tech&page=2&limit=25&sort=name_asc')), {
     ok: true,
-    value: { q: '', status: 'submitted', department: 'dev-tech', sort: 'name_asc', page: 2, limit: 25 },
+      value: { q: '', status: 'submitted', linkAccess: '', department: 'dev-tech', sort: 'name_asc', page: 2, limit: 25 },
   })
   assert.equal(parseStaffConfirmationListOptions(new URLSearchParams('status=unknown')).ok, false)
   assert.equal(parseStaffConfirmationListOptions(new URLSearchParams('limit=51')).ok, false)

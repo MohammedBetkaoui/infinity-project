@@ -7,9 +7,12 @@ export const ADMIN_APPLICATION_ACTIONS = Object.freeze([
   'archive',
   'add_note',
   'invite_staff_confirmation',
+  'create_stable_staff_confirmation_link',
   'regenerate_staff_confirmation_link',
+  'block_staff_confirmation_link',
+  'unblock_staff_confirmation_link',
+  'extend_staff_confirmation_deadline',
   'request_staff_confirmation_revision',
-  'revoke_staff_confirmation',
   'confirm_staff_membership',
 ])
 
@@ -36,11 +39,17 @@ export function allowedApplicationActions(role, application, confirmation = null
     if (application.join_type === 'staff') {
       actions.push('change_staff_department')
       if (!confirmation) actions.push('invite_staff_confirmation')
-      else if (['invited', 'revision_requested', 'revoked', 'expired'].includes(confirmation.effective_status || confirmation.status)) {
-        actions.push('regenerate_staff_confirmation_link')
-        if (!['revoked', 'expired'].includes(confirmation.effective_status || confirmation.status)) actions.push('revoke_staff_confirmation')
-      } else if ((confirmation.effective_status || confirmation.status) === 'submitted') {
-        actions.push('confirm_staff_membership', 'request_staff_confirmation_revision')
+      else {
+        const confirmationStatus = confirmation.effective_status || confirmation.status
+        const linkAccess = confirmation.link_access || 'none'
+        if (!confirmation.link_reconstructable) actions.push('create_stable_staff_confirmation_link')
+        if (confirmation.link_reconstructable) {
+          actions.push('regenerate_staff_confirmation_link')
+          if (linkAccess === 'blocked') actions.push('unblock_staff_confirmation_link')
+          else actions.push('block_staff_confirmation_link')
+        }
+        if (confirmationStatus === 'expired') actions.push('extend_staff_confirmation_deadline')
+        if (confirmationStatus === 'submitted') actions.push('confirm_staff_membership', 'request_staff_confirmation_revision')
       }
     }
     actions.push('decline')

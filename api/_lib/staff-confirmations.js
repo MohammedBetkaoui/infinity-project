@@ -3,10 +3,9 @@ import { emitStaffMotivationNotification } from './admin-notifications.js'
 import { createStaffConfirmationsStore } from './staff-confirmations-store.js'
 import {
   buildStaffConfirmationUrl,
-  generateStaffConfirmationToken,
+  deriveStableStaffConfirmationToken,
   hashStaffConfirmationToken,
   isPlausibleStaffConfirmationToken,
-  staffConfirmationExpiryFrom,
 } from './staff-confirmation-tokens.js'
 
 const STAFF_DEPARTMENT_LABELS = Object.freeze({
@@ -15,7 +14,7 @@ const STAFF_DEPARTMENT_LABELS = Object.freeze({
   'management-logistics': 'Management / Logistics',
 })
 
-const terminalApplication = (status) => ['accepted', 'declined', 'archived'].includes(status)
+const closedApplication = (status) => ['declined', 'archived'].includes(status)
 
 export function effectiveStaffConfirmationStatus(confirmation, now = new Date()) {
   if (!confirmation) return 'not_invited'
@@ -44,20 +43,19 @@ export function createStaffConfirmationsService({ store, notify, now = () => new
       if (!isPlausibleStaffConfirmationToken(rawToken)) return { ok: false, status: 'invalid' }
       const token = await store.tokenByHash(hashStaffConfirmationToken(rawToken))
       if (!token || token.revoked_at) return { ok: false, status: 'invalid' }
+      if (token.blocked_at) return { ok: false, status: 'unavailable' }
       const clock = now()
-      if (new Date(token.expires_at).getTime() <= clock.getTime()) return { ok: false, status: 'expired' }
-      if (token.consumed_at) return { ok: true, status: 'already_submitted' }
 
       const confirmation = await store.confirmation(token.confirmation_id)
       if (!confirmation) return { ok: false, status: 'invalid' }
       const application = await store.application(confirmation.application_id)
-      if (!application || application.join_type !== 'staff' || terminalApplication(application.status)) {
-        return { ok: false, status: 'invalid' }
-      }
+      if (!application || application.join_type !== 'staff' || closedApplication(application.status)) return { ok: false, status: 'unavailable' }
       const status = effectiveStaffConfirmationStatus(confirmation, clock)
       if (status === 'expired') return { ok: false, status: 'expired' }
-      if (status === 'submitted' || status === 'confirmed') return { ok: true, status: 'already_submitted' }
+      if (status === 'confirmed') return { ok: true, status: 'complete' }
+      if (status === 'submitted') return { ok: true, status: 'already_submitted' }
       if (!['invited', 'revision_requested'].includes(status)) return { ok: false, status: 'invalid' }
+      if (!token.link_nonce && new Date(token.expires_at).getTime() <= clock.getTime()) return { ok: false, status: 'expired' }
       return { ok: true, status: 'valid', confirmation: candidateProjection(confirmation, application, clock) }
     },
 
@@ -68,14 +66,16 @@ export function createStaffConfirmationsService({ store, notify, now = () => new
           tokenHash: hashStaffConfirmationToken(rawToken), motivation, now: now(),
         })
         if (!result) throw Object.assign(new Error('staff_confirmation_submit_empty'), { code: 'database_error' })
-        await notify?.({
-          applicationId: result.application_id,
-          confirmationId: result.confirmation_id,
-          version: Number(result.submission_version),
-          createdAt: new Date(result.submitted_at),
-        }).catch((error) => {
-          console.error('[staff-confirmation] Administrator notification failed', { code: error?.code || 'notification_error' })
-        })
+        if (!result.already_submitted) {
+          await notify?.({
+            applicationId: result.application_id,
+            confirmationId: result.confirmation_id,
+            version: Number(result.submission_version),
+            createdAt: new Date(result.submitted_at),
+          }).catch((error) => {
+            console.error('[staff-confirmation] Administrator notification failed', { code: error?.code || 'notification_error' })
+          })
+        }
         return {
           ok: true,
           status: result.already_submitted ? 'already_submitted' : 'submitted',
@@ -85,6 +85,7 @@ export function createStaffConfirmationsService({ store, notify, now = () => new
       } catch (error) {
         const message = String(error?.databaseMessage || '')
         if (message.includes('staff_confirmation_expired')) return { ok: false, status: 'expired' }
+        if (message.includes('staff_confirmation_unavailable')) return { ok: false, status: 'unavailable' }
         if (message.includes('staff_confirmation_already_submitted')) return { ok: true, status: 'already_submitted' }
         if (['28000', 'P0002'].includes(error?.code)
           || message.includes('staff_confirmation_invalid')
@@ -104,14 +105,20 @@ export function createServerStaffConfirmationsService() {
   })
 }
 
-export function prepareStaffConfirmationInvitation({ origin, purpose, now = new Date(), generateToken = generateStaffConfirmationToken }) {
-  const token = generateToken()
-  const expiresAt = staffConfirmationExpiryFrom(now)
+export function reconstructStaffConfirmationLink({ origin, credential, secret }) {
+  const token = deriveStableStaffConfirmationToken({
+    confirmationId: credential.confirmation_id || credential.confirmationId,
+    credentialVersion: Number(credential.credential_version ?? credential.credentialVersion),
+    derivationVersion: Number(credential.derivation_version ?? credential.derivationVersion),
+    linkNonce: credential.link_nonce || credential.linkNonce,
+  }, secret)
+  if (hashStaffConfirmationToken(token) !== (credential.token_hash || credential.tokenHash)) {
+    throw Object.assign(new Error('credential_derivation_mismatch'), {
+      code: 'credential_derivation_mismatch', stage: 'staff_link_derivation',
+    })
+  }
   return {
     rawToken: token,
-    tokenHash: hashStaffConfirmationToken(token),
-    tokenPurpose: purpose,
-    expiresAt,
     url: buildStaffConfirmationUrl(origin, token),
   }
 }

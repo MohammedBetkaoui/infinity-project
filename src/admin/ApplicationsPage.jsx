@@ -1,5 +1,5 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
-import { Check, Copy, KanbanSquare, Link2, List, RefreshCw, ShieldCheck, TriangleAlert, UserCheck } from 'lucide-react'
+import { Check, Copy, Download, KanbanSquare, Link2, List, LockKeyhole, RefreshCw, ShieldCheck, TriangleAlert, UserCheck } from 'lucide-react'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import { useAdminAuth } from './AdminAuth'
 import { useAdmin } from './AdminStore'
@@ -44,12 +44,24 @@ function InvitationDialog({ invitation, onClose }) {
     } catch { setCopied('') }
   }
   const expires = new Date(invitation.expiresAt).toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Africa/Algiers' })
-  return <Modal open title="Staff confirmation invitation" eyebrow="Private link · shown once" onClose={onClose} footer={<><Button variant="secondary" onClick={() => copy('link', invitation.url)} icon={copied === 'link' ? <Check size={15}/> : <Link2 size={15}/>}>{copied === 'link' ? 'Link copied' : 'Copy link'}</Button><Button onClick={() => copy('message', invitation.message)} icon={copied === 'message' ? <Check size={15}/> : <Copy size={15}/>}>{copied === 'message' ? 'Message copied' : 'Copy message'}</Button></>}>
+  return <Modal open title="Staff confirmation invitation" eyebrow="Stable private link" onClose={onClose} footer={<><Button variant="secondary" onClick={() => copy('link', invitation.url)} icon={copied === 'link' ? <Check size={15}/> : <Link2 size={15}/>}>{copied === 'link' ? 'Link copied' : 'Copy link'}</Button><Button onClick={() => copy('message', invitation.message)} icon={copied === 'message' ? <Check size={15}/> : <Copy size={15}/>}>{copied === 'message' ? 'Message copied' : 'Copy message'}</Button></>}>
     <div className="adm-invitation-dialog">
-      <div className="adm-invitation-warning"><ShieldCheck size={18}/><p><b>Copy before closing.</b> This private link cannot be recovered because only its hash is stored. Regenerate it if it is lost.</p></div>
+      <div className="adm-invitation-warning"><ShieldCheck size={18}/><p><b>This URL is stable and private.</b> You can reveal it later from the Staff confirmation dossier. Regenerate it only if it has been compromised.</p></div>
       <dl><div><dt>Candidate</dt><dd>{invitation.candidate}</dd></div><div><dt>Reference</dt><dd><code>{invitation.reference}</code></dd></div><div><dt>Expires</dt><dd>{expires}</dd></div></dl>
       <label><span>Private link</span><textarea readOnly value={invitation.url} rows={3}/></label>
       <details><summary>Preview full message</summary><pre>{invitation.message}</pre></details>
+    </div>
+  </Modal>
+}
+
+function StaffLinkExportDialog({ state, onClose, onExport }) {
+  const preview = state.preview || {}
+  return <Modal open title="Export Staff private links" eyebrow="Sensitive credential export" onClose={state.pending ? () => {} : onClose} footer={<><Button variant="secondary" onClick={onClose} disabled={state.pending}>Cancel</Button><Button onClick={onExport} disabled={state.pending} icon={<Download size={15}/>}>{state.pending ? 'Generating secure CSV…' : 'Export CSV'}</Button></>}>
+    <div className="adm-staff-export-dialog">
+      <div className="adm-invitation-warning"><LockKeyhole size={18}/><p><b>This CSV contains private candidate credentials.</b> Existing stable links will not change. Blocked links remain present and are clearly marked so n8n can skip them.</p></div>
+      <dl><div><dt>Eligible Staff</dt><dd>{preview.eligible || 0}</dd></div><div><dt>Stable links</dt><dd>{preview.existing || 0}</dd></div><div><dt>Links to create</dt><dd>{preview.missing || 0}</dd></div><div><dt>Legacy to replace</dt><dd>{preview.legacy || 0}</dd></div><div><dt>Blocked</dt><dd>{preview.blocked || 0}</dd></div></dl>
+      {preview.legacy > 0 && <p className="adm-export-legacy-warning">Exporting explicitly converts these legacy hash-only credentials. Their previous links will permanently stop working.</p>}
+      {state.error && <p className="adm-form-error" role="alert">{state.error}</p>}
     </div>
   </Modal>
 }
@@ -80,6 +92,7 @@ export default function ApplicationsPage() {
   const [detailError, setDetailError] = useState('')
   const [action, setAction] = useState(null)
   const [invitation, setInvitation] = useState(null)
+  const [staffExport, setStaffExport] = useState(null)
   const [layout, setLayout] = useState('list')
   const [boardVersion, setBoardVersion] = useState(0)
   const sortValue = `${SORT_KEYS[sort.key] || 'submitted'}_${sort.asc ? 'asc' : 'desc'}`
@@ -90,7 +103,7 @@ export default function ApplicationsPage() {
     filters,
     sort: sortValue,
   })
-  const { loadDetail, act, bulk } = useAdminApplicationActions()
+  const { loadDetail, act, bulk, revealStaffLink, previewStaffLinkExport, exportStaffLinks } = useAdminApplicationActions()
   const canBulk = user?.role === 'super_admin'
 
   const changeWorkspaceView = (value) => {
@@ -169,7 +182,8 @@ export default function ApplicationsPage() {
     fields: extra.fields,
     danger: extra.danger,
     reason: false,
-    description: false,
+    description: extra.description ?? false,
+    submit: extra.submit,
   })
 
 
@@ -204,6 +218,30 @@ export default function ApplicationsPage() {
     return undefined
   }
 
+  const openStaffExport = async () => {
+    setStaffExport({ pending: true, preview: null, error: '' })
+    const result = await previewStaffLinkExport()
+    if (!result.ok) {
+      setStaffExport(null)
+      addToast('Secure export unavailable', result.message)
+      return
+    }
+    setStaffExport({ pending: false, preview: result.preview, error: '' })
+  }
+
+  const runStaffExport = async () => {
+    setStaffExport((current) => ({ ...current, pending: true, error: '' }))
+    const result = await exportStaffLinks()
+    if (!result.ok) {
+      setStaffExport((current) => ({ ...current, pending: false, error: result.message }))
+      return
+    }
+    setStaffExport(null)
+    refresh()
+    setBoardVersion((value) => value + 1)
+    addToast('Staff links exported', `${result.rowCount} candidate credential${result.rowCount === 1 ? '' : 's'} exported securely.`)
+  }
+
   const openBulkAction = () => setAction({
     title: `Update ${selected.length} selected applications`,
     bulk: true,
@@ -213,11 +251,11 @@ export default function ApplicationsPage() {
   })
 
   return <div className="adm-page adm-people-page adm-applications-page">
-    <PageHeader eyebrow="People · Join intake" title={workspaceView} description={workspaceView === 'Applications' ? 'Every new connection starts here. Review, meet and welcome the next Infinity members.' : 'Review private Staff motivations, request revisions and confirm the final Staff membership.'} actions={workspaceView === 'Applications' ? <><SegmentedControl label="Applications view" value={layout} onChange={(value) => { setLayout(value); setSelected([]) }} options={[{ value: 'list', label: 'List', icon: <List size={15} aria-hidden="true"/> }, { value: 'board', label: 'Board', icon: <KanbanSquare size={15} aria-hidden="true"/> }]}/><Button onClick={() => { refresh(); setBoardVersion((value) => value + 1) }} variant="secondary" icon={<RefreshCw size={16}/>}>Refresh applications</Button></> : undefined}/>
+    <PageHeader eyebrow="People · Join intake" title={workspaceView} description={workspaceView === 'Applications' ? 'Every new connection starts here. Review, meet and welcome the next Infinity members.' : 'Review private Staff motivations, request revisions and confirm the final Staff membership.'} actions={workspaceView === 'Applications' ? <><SegmentedControl label="Applications view" value={layout} onChange={(value) => { setLayout(value); setSelected([]) }} options={[{ value: 'list', label: 'List', icon: <List size={15} aria-hidden="true"/> }, { value: 'board', label: 'Board', icon: <KanbanSquare size={15} aria-hidden="true"/> }]}/><Button onClick={() => { refresh(); setBoardVersion((value) => value + 1) }} variant="secondary" icon={<RefreshCw size={16}/>}>Refresh applications</Button></> : <><Button variant="secondary" icon={<RefreshCw size={15}/>} onClick={() => setBoardVersion((value) => value + 1)}>Refresh queue</Button><Button icon={<LockKeyhole size={15}/>} onClick={openStaffExport}>Export Staff + private links</Button></>}/>
 
     <Tabs className="adm-workspace-tabs" items={['Applications', 'Staff confirmations']} value={workspaceView} onChange={changeWorkspaceView} label="Join administration view"/>
 
-    {workspaceView === 'Staff confirmations' ? <StaffConfirmationsView key={boardVersion} onOpen={open}/> : <>
+    {workspaceView === 'Staff confirmations' ? <StaffConfirmationsView key={boardVersion} onOpen={open} onRevealLink={revealStaffLink}/> : <>
 
     <div className="adm-intake-banner"><div><UserCheck size={20}/><p><b>Live Join intake</b><span>Secure records received from the Infinity Join form</span></p></div><span className="adm-mono">{Object.values(counts).reduce((sum, value) => sum + value, 0)} IN CURRENT SCOPE</span></div>
 
@@ -257,10 +295,11 @@ export default function ApplicationsPage() {
     {detailError && !detailLoading && <div className="adm-inline-application-error" role="alert"><span>{detailError}</span><button onClick={() => setDetailError('')}>Dismiss</button></div>}
 
     {detail && <Modal open wide className="is-candidate-modal" title="Application review" eyebrow={detail.ref} onClose={() => setDetail(null)} footer={<CandidateActionBar detail={detail} request={requestAction}/> }>
-      <CandidateDossier detail={detail}/>
+      <CandidateDossier detail={detail} onRevealStaffLink={() => revealStaffLink(detail.id)}/>
     </Modal>}
 
     {action && <ActionDialog key={action.title} action={action} onClose={() => setAction(null)} onSubmit={submitAction}/>} 
     {invitation && <InvitationDialog invitation={invitation} onClose={() => setInvitation(null)}/>}
+    {staffExport && <StaffLinkExportDialog state={staffExport} onClose={() => setStaffExport(null)} onExport={runStaffExport}/>} 
   </div>
 }

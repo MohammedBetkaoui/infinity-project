@@ -35,6 +35,7 @@ function applyListFilters(query, options, { includeStatus = true } = {}) {
   const search = safeSearch(options.q)
   if (search) next = next.or(`candidate_name.ilike.%${search}%,reference.ilike.%${search}%`)
   if (includeStatus && options.status) next = next.eq('effective_status', options.status)
+  if (options.linkAccess) next = next.eq('link_access', options.linkAccess)
   if (options.department) next = next.eq('staff_department', options.department)
   return next
 }
@@ -45,7 +46,7 @@ export function createStaffConfirmationsStore(supabase) {
   return {
     async tokenByHash(tokenHash) {
       const { data, error } = await supabase.from('membership_staff_confirmation_tokens')
-        .select('id, confirmation_id, purpose, expires_at, consumed_at, revoked_at, created_at')
+        .select('id, confirmation_id, purpose, expires_at, consumed_at, revoked_at, blocked_at, link_nonce, credential_version, derivation_version, first_used_at, last_used_at, created_at')
         .eq('token_hash', tokenHash)
         .maybeSingle()
       if (error) fail('staff_confirmation_token_lookup', error)
@@ -86,13 +87,28 @@ export function createStaffConfirmationsStore(supabase) {
         .eq('application_id', applicationId)
         .maybeSingle()
       if (error) fail('staff_confirmation_application_detail', error)
-      if (!data || !submissions) return data
+      if (!data) return data
+      const { data: credential, error: credentialError } = await supabase
+        .from('membership_staff_confirmation_tokens')
+        .select('id, link_nonce, blocked_at, revoked_at, credential_version, derivation_version, created_at')
+        .eq('confirmation_id', data.id)
+        .is('revoked_at', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (credentialError) fail('staff_confirmation_credential_detail', credentialError)
+      const detail = {
+        ...data,
+        link_access: !credential ? 'none' : !credential.link_nonce ? 'legacy' : credential.blocked_at ? 'blocked' : 'active',
+        link_reconstructable: Boolean(credential?.link_nonce),
+      }
+      if (!submissions) return detail
       const { data: versions, error: versionsError } = await supabase.from('membership_staff_confirmation_submissions')
         .select('id, version, motivation, submitted_at')
         .eq('confirmation_id', data.id)
         .order('version', { ascending: false })
       if (versionsError) fail('staff_confirmation_submissions', versionsError)
-      return { ...data, submissions: versions || [] }
+      return { ...detail, submissions: versions || [] }
     },
 
     async list(options) {
@@ -109,7 +125,7 @@ export function createStaffConfirmationsStore(supabase) {
     },
 
     async counts(options) {
-      const statuses = ['invited', 'submitted', 'revision_requested', 'confirmed', 'expired']
+      const statuses = ['not_invited', 'invited', 'submitted', 'revision_requested', 'confirmed', 'expired']
       const entries = await Promise.all(statuses.map(async (status) => {
         let query = supabase.from('admin_staff_confirmations').select('confirmation_id', { count: 'exact', head: true })
         query = applyListFilters(query, options, { includeStatus: false }).eq('effective_status', status)
@@ -121,20 +137,72 @@ export function createStaffConfirmationsStore(supabase) {
     },
 
     async applyAdminAction(input) {
-      const { data, error } = await supabase.rpc('admin_apply_staff_confirmation_action', {
+      const { data, error } = await supabase.rpc('admin_apply_stable_staff_confirmation_action', {
         p_application_id: input.applicationId,
         p_admin_user_id: input.adminUserId,
         p_action: input.action,
         p_expected_application_updated_at: input.expectedApplicationUpdatedAt,
         p_expected_confirmation_updated_at: input.expectedConfirmationUpdatedAt || null,
+        p_proposed_confirmation_id: input.proposedConfirmationId || null,
+        p_link_nonce: input.linkNonce || null,
         p_token_hash: input.tokenHash || null,
-        p_token_purpose: input.tokenPurpose || null,
+        p_credential_version: input.credentialVersion || null,
+        p_derivation_version: input.derivationVersion || null,
         p_expires_at: input.expiresAt?.toISOString() || null,
         p_message: input.message || null,
+        p_convert_legacy: input.convertLegacy === true,
         p_now: input.now.toISOString(),
       })
       if (error) fail('staff_confirmation_admin_action', error)
       return firstRow(data)
+    },
+
+    async credentialForApplication(applicationId) {
+      const { data, error } = await supabase.from('admin_staff_link_credentials')
+        .select('*')
+        .eq('application_id', applicationId)
+        .maybeSingle()
+      if (error) fail('staff_confirmation_credential_lookup', error)
+      return data
+    },
+
+    async nextCredentialVersion(confirmationId) {
+      if (!confirmationId) return 1
+      const { data, error } = await supabase.from('membership_staff_confirmation_tokens')
+        .select('credential_version')
+        .eq('confirmation_id', confirmationId)
+        .order('credential_version', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (error) fail('staff_confirmation_credential_version', error)
+      return Number(data?.credential_version || 0) + 1
+    },
+
+    async staffLinkExportCandidates() {
+      const rows = []
+      const batchSize = 500
+      for (let from = 0; ; from += batchSize) {
+        const { data, error } = await supabase.from('admin_staff_link_credentials')
+          .select('*')
+          .in('application_status', ['new', 'in_review', 'interview'])
+          .order('application_id', { ascending: true })
+          .range(from, from + batchSize - 1)
+        if (error) fail('staff_confirmation_export_candidates', error)
+        rows.push(...(data || []))
+        if (!data || data.length < batchSize) break
+      }
+      return rows
+    },
+
+    async recordLinkAudit({ applicationId, adminUserId, action, metadata, now }) {
+      const { error } = await supabase.rpc('admin_record_staff_link_audit', {
+        p_application_id: applicationId || null,
+        p_admin_user_id: adminUserId,
+        p_action: action,
+        p_metadata: metadata || {},
+        p_now: now.toISOString(),
+      })
+      if (error) fail('staff_confirmation_link_audit', error)
     },
   }
 }

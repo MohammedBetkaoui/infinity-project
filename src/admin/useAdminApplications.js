@@ -88,7 +88,7 @@ export function useAdminApplications({ page, limit = 12, status, search, filters
   return { ...state, loading: state.loading || state.resolvedKey !== requestKey, refresh }
 }
 
-export function useStaffConfirmations({ page, limit = 12, status, search, department, sort = 'submitted_desc' }) {
+export function useStaffConfirmations({ page, limit = 12, status, linkAccess, search, department, sort = 'submitted_desc' }) {
   const { request } = useAdminAuth()
   const [state, setState] = useState({
     records: [], pagination: { page: 1, limit, total: 0, pages: 1 }, counts: {},
@@ -98,10 +98,11 @@ export function useStaffConfirmations({ page, limit = 12, status, search, depart
   const query = useMemo(() => {
     const params = new URLSearchParams({ page: String(page), limit: String(limit), sort })
     if (status) params.set('status', status)
+    if (linkAccess) params.set('linkAccess', linkAccess)
     if (search) params.set('q', search)
     if (department) params.set('department', department)
     return params.toString()
-  }, [department, limit, page, search, sort, status])
+  }, [department, limit, linkAccess, page, search, sort, status])
   const requestKey = `${query}::${refreshKey}`
 
   useEffect(() => {
@@ -126,7 +127,7 @@ export function useStaffConfirmations({ page, limit = 12, status, search, depart
 }
 
 export function useAdminApplicationActions() {
-  const { request } = useAdminAuth()
+  const { request, requestRaw } = useAdminAuth()
   const mutation = useRef(null)
 
   const loadDetail = useCallback(async (applicationId) => {
@@ -169,5 +170,48 @@ export function useAdminApplicationActions() {
     }
   }, [request])
 
-  return { loadDetail, act, bulk }
+  const revealStaffLink = useCallback(async (applicationId) => {
+    const { response, body } = await request(`/api/admin/applications/${encodeURIComponent(applicationId)}/staff-confirmation/link`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'reveal' }),
+    })
+    if (!response.ok) return { ok: false, status: response.status, message: body.message || 'The private link could not be revealed.' }
+    return { ok: true, ...body }
+  }, [request])
+
+  const previewStaffLinkExport = useCallback(async () => {
+    const { response, body } = await request('/api/admin/applications/staff-links/preflight', {
+      method: 'POST', body: JSON.stringify({ scope: 'all' }),
+    })
+    if (!response.ok) return { ok: false, status: response.status, message: body.message || 'The secure export could not be prepared.' }
+    return { ok: true, preview: body.preview }
+  }, [request])
+
+  const exportStaffLinks = useCallback(async () => {
+    const response = await requestRaw('/api/admin/applications/staff-links/export', {
+      method: 'POST', body: JSON.stringify({ scope: 'all', convertLegacy: true }),
+    })
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}))
+      return { ok: false, status: response.status, message: body.message || 'The secure export could not be generated.' }
+    }
+    const blob = await response.blob()
+    const disposition = response.headers.get('content-disposition') || ''
+    const fileName = disposition.match(/filename="([^"]+)"/)?.[1] || 'infinity-staff-private-links.csv'
+    const url = URL.createObjectURL(blob)
+    try {
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = fileName
+      anchor.rel = 'noopener'
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+    } finally {
+      window.setTimeout(() => URL.revokeObjectURL(url), 0)
+    }
+    return { ok: true, rowCount: Number(response.headers.get('x-export-rows') || 0) }
+  }, [requestRaw])
+
+  return { loadDetail, act, bulk, revealStaffLink, previewStaffLinkExport, exportStaffLinks }
 }
