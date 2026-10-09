@@ -87,8 +87,9 @@ class MemoryStore {
 const databaseError = (message, code = '22023') => Object.assign(new Error(message), { code, databaseMessage: message })
 
 // Mirrors admin_apply_stable_staff_confirmation_action, the
-// admin_staff_link_credentials view and staff_submit_confirmation from
-// 20261017120000_stable_staff_confirmation_links.sql. Like PostgreSQL, it only
+// admin_staff_link_credentials view and staff_submit_confirmation_v2 from
+// 20261017120000_stable_staff_confirmation_links.sql and
+// 20261019120000_staff_confirmation_work_links.sql. Like PostgreSQL, it only
 // ever holds token hashes, nonces and versions, never a raw token or URL.
 class StableLinkStore {
   constructor() {
@@ -231,14 +232,14 @@ class StableLinkStore {
   async confirmation(id) { return this.confirmationRow?.id === id ? this.confirmationRow : null }
   async application(id) { return id === APPLICATION_ID ? this.applicationRow : null }
 
-  async submit({ tokenHash, motivation, now }) {
+  async submit({ tokenHash, motivation, workLinks = [], now }) {
     const token = await this.tokenByHash(tokenHash)
     if (!token || token.revoked_at) throw databaseError('staff_confirmation_invalid_token', '28000')
     if (token.blocked_at) throw databaseError('staff_confirmation_unavailable', '28000')
     if (!['invited', 'revision_requested'].includes(this.confirmationRow.status)) throw databaseError('staff_confirmation_inactive', '28000')
     const submission = {
       id: `33333333-3333-4333-8333-${String(this.submissions.length + 1).padStart(12, '0')}`,
-      token_id: token.id, version: this.submissions.length + 1, motivation, submitted_at: now.toISOString(),
+      token_id: token.id, version: this.submissions.length + 1, motivation, work_links: [...workLinks], submitted_at: now.toISOString(),
     }
     this.submissions.push(submission)
     Object.assign(this.confirmationRow, { status: 'submitted', submitted_at: submission.submitted_at, revision_message: null })
@@ -302,7 +303,7 @@ test('candidate verification returns the minimum safe Staff projection and treat
   assert.equal(valid.ok, true)
   assert.equal(valid.status, 'valid')
   assert.deepEqual(valid.confirmation, {
-    reference: 'JOIN-26-TEST01', displayName: 'Amel Benali', staffDepartment: 'Dev / Tech',
+    reference: 'JOIN-26-TEST01', displayName: 'Amel Benali', staffDepartment: 'Dev / Tech', staffDepartmentKey: 'dev-tech',
     status: 'invited', expiresAt: EXPIRES, revisionMessage: null,
   })
   assert.equal(valid.confirmation.email, undefined)
@@ -642,6 +643,34 @@ test('a revision request reuses the same stable link for the next submission', a
   ])
   assert.equal(store.tokens.length, 1)
   assert.equal((await revealLink(admin)).privateLink, invitation.url)
+})
+
+test('each motivation version keeps its own work links across a revision on the same link', async () => {
+  const store = new StableLinkStore()
+  const admin = stableLinkService(store)
+  const candidate = createStaffConfirmationsService({ store, now: () => NOW })
+  const { invitation } = await runStaffAction(admin, 'invite_staff_confirmation')
+  const rawToken = tokenOf(invitation.url)
+  const linksA = ['https://github.com/amel/student-portal']
+  const linksB = ['https://github.com/amel/club-site', 'https://www.behance.net/amel?tab=projects']
+
+  assert.equal((await candidate.submit(rawToken, MOTIVATION, linksA)).status, 'submitted')
+  await runStaffAction(admin, 'request_staff_confirmation_revision', { revisionMessage: 'Please add one concrete project.' })
+  assert.equal((await candidate.submit(rawToken, `${MOTIVATION} Version B.`, linksB)).status, 'submitted')
+  await runStaffAction(admin, 'request_staff_confirmation_revision', { revisionMessage: 'One more detail, please.' })
+  assert.equal((await candidate.submit(rawToken, `${MOTIVATION} Version C.`)).status, 'submitted')
+
+  // Same stable credential for every version; versions are appended, never rewritten.
+  assert.equal(store.tokens.length, 1)
+  assert.deepEqual(store.submissions.map((submission) => [submission.version, submission.work_links]), [[1, linksA], [2, linksB], [3, []]])
+
+  const { staffConfirmation } = await admin.detail(APPLICATION_ID, SUPER_ADMIN)
+  assert.deepEqual(staffConfirmation.submissions.map(({ version, workLinks }) => ({ version, workLinks })), [
+    { version: 3, workLinks: [] }, { version: 2, workLinks: linksB }, { version: 1, workLinks: linksA },
+  ])
+  assert.equal(staffConfirmation.submissions[2].motivation, MOTIVATION)
+  // Private-link credentials stay out of the dossier payload.
+  assert.doesNotMatch(JSON.stringify(staffConfirmation), /token|nonce|#token=/i)
 })
 
 test('stable-link operations fail closed without a valid link secret', async () => {

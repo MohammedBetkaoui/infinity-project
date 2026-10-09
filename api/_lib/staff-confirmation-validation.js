@@ -1,4 +1,7 @@
+import { validateStaffWorkLinks } from '../../shared/membership/staff-work-links.js'
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const SUBMIT_FIELDS = new Set(['token', 'motivation', 'workLinks'])
 const STATUSES = new Set(['not_invited', 'invited', 'submitted', 'revision_requested', 'confirmed', 'revoked', 'expired'])
 const DEPARTMENTS = new Set(['dev-tech', 'design-content', 'management-logistics'])
 const LINK_ACCESS = new Set(['active', 'blocked', 'legacy', 'none'])
@@ -23,14 +26,18 @@ export function validateStaffConfirmationVerifyBody(body) {
   return { ok: true, value: { token: body.token } }
 }
 
+// `workLinks` is optional (missing means none); any other field is refused.
 export function validateStaffConfirmationSubmitBody(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return { ok: false }
-  if (!Object.keys(body).every((key) => ['token', 'motivation'].includes(key)) || Object.keys(body).length !== 2) return { ok: false }
+  const keys = Object.keys(body)
+  if (!keys.every((key) => SUBMIT_FIELDS.has(key)) || !keys.includes('token') || !keys.includes('motivation')) return { ok: false }
   if (typeof body.token !== 'string') return { ok: false }
   const motivation = normalizeMotivation(body.motivation)
   const length = motivationLength(motivation)
   if (length < 150 || length > 2000) return { ok: false, field: 'motivation' }
-  return { ok: true, value: { token: body.token, motivation } }
+  const workLinks = validateStaffWorkLinks(body.workLinks)
+  if (!workLinks.ok) return { ok: false, field: 'workLinks', errors: workLinks.errors }
+  return { ok: true, value: { token: body.token, motivation, workLinks: workLinks.value } }
 }
 
 export function parseStaffConfirmationListOptions(params) {

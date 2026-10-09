@@ -2,7 +2,7 @@
 
 ## Business flow
 
-Every eligible Staff Join candidate has one stable private confirmation URL. An invitation creates the confirmation lifecycle and its first stable credential. The candidate can submit a 150–2000 character motivation letter, and the same URL later reports that the submission was received. If a super administrator requests a revision, the same URL shows the revision message and accepts exactly one next version.
+Every eligible Staff Join candidate has one stable private confirmation URL. An invitation creates the confirmation lifecycle and its first stable credential. The candidate can submit a 150–2000 character motivation letter, optionally with up to five links to their work, and the same URL later reports that the submission was received. If a super administrator requests a revision, the same URL shows the revision message and accepts exactly one next version.
 
 Confirmation state and link access are independent:
 
@@ -43,17 +43,37 @@ Changing this secret changes every derived token. Future master-key rotation the
 
 ## Database
 
-The original migration `20261016120000_staff_confirmation_workflow.sql` remains unchanged. Forward migration `20261017120000_stable_staff_confirmation_links.sql` adds stable credential metadata, access state, indexes, views, and replacement RPC behavior.
+The original migration `20261016120000_staff_confirmation_workflow.sql` remains unchanged. Forward migration `20261017120000_stable_staff_confirmation_links.sql` adds stable credential metadata, access state, indexes, views, and replacement RPC behavior. Forward migration `20261019120000_staff_confirmation_work_links.sql` adds versioned work links (see below).
 
 Important functions:
 
-- `staff_submit_confirmation(text, text, timestamptz)` locks application → credential → confirmation, validates eligibility/access/deadline, creates one immutable next version, and moves the confirmation to `submitted`. The credential is not consumed. A concurrent or repeated POST sees `submitted` and returns the existing version.
+- `staff_submit_confirmation_v2(text, text, text[], timestamptz)` locks application → credential → confirmation, validates eligibility/access/deadline, creates one immutable next version holding the motivation and its work links, and moves the confirmation to `submitted`. The credential is not consumed. A concurrent or repeated POST sees `submitted` and returns the existing version. The web API uses this function.
+- `staff_submit_confirmation(text, text, timestamptz)` is kept for code deployed before `20261019120000`; it delegates to v2 with no links, so the lifecycle logic exists once.
 - `admin_apply_stable_staff_confirmation_action(...)` is the authoritative transaction for create/ensure, block, unblock, regenerate, deadline extension, revision, and final confirmation.
 - `admin_record_staff_link_audit(...)` records reveal/export events without credential material.
 - `membership_require_staff_confirmation()` remains the acceptance guard; Staff cannot be accepted before confirmation.
 - `membership_close_staff_confirmation()` invalidates current credentials immediately when an application is declined or archived.
 
 The service-only `admin_staff_link_credentials` view carries nonce/version/hash metadata required for reconstruction. It contains no raw token or URL and is not granted to `public`, `anon`, or `authenticated`.
+
+## Motivation form and work links
+
+The candidate page asks one shared question for every team — “What attracts you to this team, and what would you like to bring to it?” — under the label **Motivation letter** (required, 150–2000 characters, plain text, paragraphs preserved). The verified projection includes `staffDepartmentKey`, which selects a small department-specific hint, example placeholder and first-link placeholder from `src/pages/join/staffMotivationGuidance.js`. The hint never implies that professional experience is required. The page copy is English, like the rest of the public Join flow.
+
+**Portfolio or links to your work** is optional for every department. The section starts empty with **Add a link**; each row is a URL input with a Remove button, up to five rows. Validation lives in `shared/membership/staff-work-links.js` and is used by the page, the API and the admin dossier:
+
+- 0–5 links; `workLinks` may be omitted (treated as `[]`), any other request field is refused;
+- each link is trimmed, parsed with `new URL()` and must be an absolute `http:` or `https:` URL with a dotted hostname and no embedded username/password; `javascript:`, `data:`, `file:`, `ftp:`, `mailto:`, `tel:` and relative URLs are rejected;
+- at most 500 characters before and after canonical serialization (lower-case scheme/host, punycode, default port dropped — paths, query strings and fragments are kept);
+- duplicates after normalization are rejected; errors are returned per index (`invalid`, `scheme`, `too_long`, `credentials`, `duplicate`, `empty`) and never echo the URL.
+
+Request body: `{ token, motivation, workLinks? }`. The 16 KB body limit is unchanged: the form sends canonical (ASCII) URLs, so even a worst-case valid payload stays under 15 KB.
+
+**The server never fetches submitted URLs** (no HEAD/GET, no reachability or metadata checks) — that would create SSRF exposure. Only structure and scheme are validated; administrators open links themselves.
+
+Storage: `membership_staff_confirmation_submissions.work_links text[] not null default '{}'`, constrained to at most five elements of 1–500 characters with an `http(s)://` prefix (`membership_staff_work_links_valid`). Links belong to the submission version, never to the confirmation, and are written in the same transaction as the motivation. A revision therefore creates version N+1 with its own links; earlier versions are never rewritten.
+
+The admin dossier shows each version as **Motivation** then **Work / portfolio**. Links are labelled from the hostname only (GitHub, Behance, Instagram, YouTube, … or the bare hostname), open with `target="_blank" rel="noopener noreferrer"`, and only values that pass the shared validator become clickable. Work links are deliberately absent from the Staff confirmation queue, the private-link CSV, notifications and global search.
 
 ## Link lifecycle
 
@@ -163,6 +183,8 @@ Do not deploy or apply migrations from development work. Production setup order 
 12. Verify revision version 2 uses the same URL.
 13. Verify regenerate invalidates the old URL and export returns the new URL.
 14. Verify PostgreSQL and logs contain no raw token or private URL.
+
+Work links (`20261019120000_staff_confirmation_work_links.sql`) must be applied **before** deploying the code that uses them: the new API calls `staff_submit_confirmation_v2` and the dossier selects `work_links`. The migration is backward compatible with the previously deployed code (existing versions get `{}`, the original RPC keeps working).
 
 ## Manual validation
 

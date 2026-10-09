@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Activity, ArrowRight, BriefcaseBusiness, CalendarDays, Check, ChevronDown, Clock3, Copy, ExternalLink, FileText, Link2, Mail, MoreHorizontal, Plus, RefreshCw, Send, UserCheck } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
+import { describeStaffWorkLink } from '../../shared/membership/staff-work-links.js'
 import { FlipGrid, useGrow } from './adminMotion'
 import { useAdmin } from './AdminStore'
 import { AVAILABILITY, APPLICATION_STATUSES, DEPARTMENTS, EXPERIENCE, LEVELS, POLES, dateLabel, filterRecords, initialsOf } from './adminModel'
@@ -131,6 +132,29 @@ const CONFIRMATION_TONES = Object.freeze({
 
 const LINK_ACCESS_LABELS = Object.freeze({ active: 'Active', blocked: 'Blocked', legacy: 'Legacy', none: 'Not created' })
 
+// Work links belong to one motivation version. Only links that parse as http(s)
+// become clickable; labels come from the hostname, never from fetched metadata.
+function MotivationWorkLinks({ links }) {
+  const items = (Array.isArray(links) ? links : []).map((link) => ({ link, display: describeStaffWorkLink(link) }))
+  return <div className="adm-motivation-links">
+    <span className="adm-motivation-label">Work / portfolio</span>
+    {items.length ? <ul>{items.map(({ link, display }, index) => <li key={`${index}:${link}`}>
+      {display
+        ? <a href={display.href} target="_blank" rel="noopener noreferrer" title={display.href}><b>{display.label}</b><small>{display.detail}</small><ExternalLink size={13} aria-hidden="true"/><span className="sr-only"> (opens in a new tab)</span></a>
+        : <span className="adm-motivation-links__unsafe">{link}</span>}
+    </li>)}</ul> : <p>No links shared with this version.</p>}
+  </div>
+}
+
+function MotivationVersion({ submission, latest = false }) {
+  return <article className={latest ? 'is-latest' : undefined}>
+    <header><b>Version {submission.version}{latest ? ' · Latest' : ''}</b><time dateTime={submission.submittedAt}>{candidateDateLabel(submission.submittedAt)}</time></header>
+    <span className="adm-motivation-label">Motivation</span>
+    <p>{submission.motivation}</p>
+    <MotivationWorkLinks links={submission.workLinks}/>
+  </article>
+}
+
 function StaffConfirmationPanel({ confirmation, onRevealLink }) {
   const status = confirmation?.statusKey || 'not_invited'
   const [revealed, setRevealed] = useState(null)
@@ -184,14 +208,8 @@ function StaffConfirmationPanel({ confirmation, onRevealLink }) {
       {confirmation.revisionMessage && <div className="adm-confirmation-revision"><span>Revision message</span><p>{confirmation.revisionMessage}</p></div>}
       {latestSubmission && <div className="adm-motivation-history">
         <header><span>Latest motivation</span><small>Version {latestSubmission.version}</small></header>
-        <article className="is-latest">
-          <div><b>Version {latestSubmission.version}</b><time dateTime={latestSubmission.submittedAt}>{candidateDateLabel(latestSubmission.submittedAt)}</time></div>
-          <p>{latestSubmission.motivation}</p>
-        </article>
-        {previousSubmissions.length > 0 && <details className="adm-motivation-previous"><summary>Previous versions <span>{previousSubmissions.length}</span><ChevronDown size={14} aria-hidden="true"/></summary><div>{previousSubmissions.map((submission) => <article key={submission.id}>
-          <div><b>Version {submission.version}</b><time dateTime={submission.submittedAt}>{candidateDateLabel(submission.submittedAt)}</time></div>
-          <p>{submission.motivation}</p>
-        </article>)}</div></details>}
+        <MotivationVersion submission={latestSubmission} latest/>
+        {previousSubmissions.length > 0 && <details className="adm-motivation-previous"><summary>Previous versions <span>{previousSubmissions.length}</span><ChevronDown size={14} aria-hidden="true"/></summary><div>{previousSubmissions.map((submission) => <MotivationVersion key={submission.id} submission={submission}/>)}</div></details>}
       </div>}
     </> : <p className="adm-confirmation-empty">This Staff candidate has not received a private confirmation invitation yet.</p>}
   </div>

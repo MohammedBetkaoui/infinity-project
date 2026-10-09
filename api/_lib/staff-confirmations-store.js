@@ -71,10 +71,11 @@ export function createStaffConfirmationsStore(supabase) {
       return data
     },
 
-    async submit({ tokenHash, motivation, now }) {
-      const { data, error } = await supabase.rpc('staff_submit_confirmation', {
+    async submit({ tokenHash, motivation, workLinks = [], now }) {
+      const { data, error } = await supabase.rpc('staff_submit_confirmation_v2', {
         p_token_hash: tokenHash,
         p_motivation: motivation,
+        p_work_links: workLinks,
         p_now: now.toISOString(),
       })
       if (error) fail('staff_confirmation_submit', error)
@@ -104,7 +105,7 @@ export function createStaffConfirmationsStore(supabase) {
       }
       if (!submissions) return detail
       const { data: versions, error: versionsError } = await supabase.from('membership_staff_confirmation_submissions')
-        .select('id, version, motivation, submitted_at')
+        .select('id, version, motivation, work_links, submitted_at')
         .eq('confirmation_id', data.id)
         .order('version', { ascending: false })
       if (versionsError) fail('staff_confirmation_submissions', versionsError)

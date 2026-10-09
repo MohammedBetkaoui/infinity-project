@@ -1996,10 +1996,21 @@
 .adm-motivation-history > header small { color: var(--adm-muted); font-size: 9px; }
 .adm-motivation-history article { min-width: 0; padding: 14px; border: 1px solid var(--adm-line); border-radius: var(--adm-radius-control); background: var(--adm-surface-raised); }
 .adm-motivation-history article.is-latest { box-shadow: inset 3px 0 var(--adm-accent-fg); }
-.adm-motivation-history article > div { display: flex; justify-content: space-between; gap: 16px; padding-bottom: 11px; border-bottom: 1px solid var(--adm-line); }
-.adm-motivation-history article b { font-size: 11px; }
+.adm-motivation-history article > header { display: flex; justify-content: space-between; gap: 16px; padding-bottom: 11px; border-bottom: 1px solid var(--adm-line); }
+.adm-motivation-history article > header b { font-size: 11px; }
 .adm-motivation-history article time { color: var(--adm-muted); font-size: 9px; }
-.adm-motivation-history article p { max-width: 75ch; margin: 12px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--adm-ink); font-size: 12px; line-height: 1.75; }
+.adm-motivation-label { display: block; margin-top: 12px; color: var(--adm-muted); font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.adm-motivation-history article > p { max-width: 75ch; margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--adm-ink); font-size: 12px; line-height: 1.75; }
+.adm-motivation-links { min-width: 0; margin-top: 14px; padding-top: 2px; border-top: 1px dashed var(--adm-line); }
+.adm-motivation-links ul { display: grid; gap: 6px; margin: 7px 0 0; padding: 0; list-style: none; }
+.adm-motivation-links li { min-width: 0; }
+.adm-motivation-links a { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px 10px; min-height: 36px; padding: 7px 10px; border: 1px solid var(--adm-line); border-radius: 8px; background: var(--adm-surface-soft); color: var(--adm-ink); text-decoration: none; transition: border-color .15s var(--adm-ease); }
+.adm-motivation-links a:hover { border-color: var(--adm-line-strong); }
+.adm-motivation-links a b { max-width: 24ch; overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.adm-motivation-links a small { min-width: 0; overflow: hidden; color: var(--adm-muted); font: 10px/1.4 var(--adm-font-mono); text-overflow: ellipsis; white-space: nowrap; }
+.adm-motivation-links a svg { color: var(--adm-accent-fg); }
+.adm-motivation-links p { margin: 6px 0 0; color: var(--adm-muted); font-size: 11px; }
+.adm-motivation-links__unsafe { display: block; overflow-wrap: anywhere; color: var(--adm-muted); font: 10px/1.5 var(--adm-font-mono); }
 .adm-motivation-previous { min-width: 0; }
 .adm-motivation-previous > summary { display: flex; align-items: center; width: 100%; min-height: 40px; gap: 8px; padding: 0 4px; color: var(--adm-secondary); font-size: 11px; font-weight: 750; cursor: pointer; list-style: none; }
 .adm-motivation-previous > summary::-webkit-details-marker { display: none; }
@@ -2036,7 +2047,9 @@
   .adm-staff-export-dialog dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .adm-staff-confirmation-panel__state { grid-template-columns: auto 1fr; }
   .adm-staff-confirmation-panel__state .adm-status { grid-column: 1 / -1; justify-self: start; }
-  .adm-motivation-history article > div { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .adm-motivation-history article > header { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .adm-motivation-links a { grid-template-columns: minmax(0, 1fr) auto; }
+  .adm-motivation-links a small { grid-column: 1 / -1; grid-row: 2; }
 }
 
 /* Persistent administrator notifications --------------------------------- */

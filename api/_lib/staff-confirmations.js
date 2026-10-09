@@ -29,6 +29,8 @@ function candidateProjection(confirmation, application, now) {
     reference: application.reference || `JOIN-${String(application.id).slice(0, 8).toUpperCase()}`,
     displayName: application.full_name,
     staffDepartment: STAFF_DEPARTMENT_LABELS[application.staff_department] || application.primary_field,
+    // Selects the department-specific motivation guidance on the public page.
+    staffDepartmentKey: STAFF_DEPARTMENT_LABELS[application.staff_department] ? application.staff_department : null,
     status,
     expiresAt: confirmation.expires_at,
     revisionMessage: status === 'revision_requested' ? confirmation.revision_message : null,
@@ -59,11 +61,12 @@ export function createStaffConfirmationsService({ store, notify, now = () => new
       return { ok: true, status: 'valid', confirmation: candidateProjection(confirmation, application, clock) }
     },
 
-    async submit(rawToken, motivation) {
+    // Motivation and work links are one version, written by one RPC transaction.
+    async submit(rawToken, motivation, workLinks = []) {
       if (!isPlausibleStaffConfirmationToken(rawToken)) return { ok: false, status: 'invalid' }
       try {
         const result = await store.submit({
-          tokenHash: hashStaffConfirmationToken(rawToken), motivation, now: now(),
+          tokenHash: hashStaffConfirmationToken(rawToken), motivation, workLinks, now: now(),
         })
         if (!result) throw Object.assign(new Error('staff_confirmation_submit_empty'), { code: 'database_error' })
         if (!result.already_submitted) {
@@ -87,6 +90,9 @@ export function createStaffConfirmationsService({ store, notify, now = () => new
         if (message.includes('staff_confirmation_expired')) return { ok: false, status: 'expired' }
         if (message.includes('staff_confirmation_unavailable')) return { ok: false, status: 'unavailable' }
         if (message.includes('staff_confirmation_already_submitted')) return { ok: true, status: 'already_submitted' }
+        // Field errors first: their names also start with "staff_confirmation_invalid".
+        if (message.includes('staff_confirmation_invalid_work_links')) return { ok: false, status: 'invalid_work_links' }
+        if (message.includes('staff_confirmation_invalid_motivation')) return { ok: false, status: 'invalid_motivation' }
         if (['28000', 'P0002'].includes(error?.code)
           || message.includes('staff_confirmation_invalid')
           || message.includes('staff_confirmation_inactive')) return { ok: false, status: 'invalid' }

@@ -130,6 +130,7 @@ function mapStaffConfirmation(row, now = new Date()) {
       id: submission.id,
       version: submission.version,
       motivation: submission.motivation,
+      workLinks: Array.isArray(submission.work_links) ? submission.work_links : [],
       submittedAt: submission.submitted_at,
     })),
   }

@@ -8,6 +8,10 @@ const MAX_BODY_BYTES = 16 * 1024
 const INVALID_MESSAGE = 'This Staff confirmation link is invalid or no longer active.'
 const EXPIRED_MESSAGE = 'This invitation is no longer active. Please contact Infinity Club.'
 const UNAVAILABLE_MESSAGE = 'This Staff confirmation link is currently unavailable. Please contact Infinity Club.'
+const FIELD_MESSAGES = Object.freeze({
+  motivation: 'Your motivation must be between 150 and 2000 characters.',
+  workLinks: 'Add up to 5 links, each a complete http:// or https:// address of at most 500 characters.',
+})
 
 export function isStrictStaffConfirmationOrigin(req, env = process.env) {
   if (!env.VERCEL) return true
@@ -71,10 +75,12 @@ function createHandler(kind, {
     }
     const parsed = validate(parsedBody.value)
     if (!parsed.ok) {
+      // Per-link problems are reported by index and code only; submitted URLs are never echoed.
       send(res, 400, {
         success: false,
-        message: parsed.field === 'motivation' ? 'Your motivation must be between 150 and 2000 characters.' : 'Invalid request.',
+        message: FIELD_MESSAGES[parsed.field] || 'Invalid request.',
         ...(parsed.field ? { field: parsed.field } : {}),
+        ...(parsed.errors?.length ? { errors: parsed.errors } : {}),
       })
       return
     }
@@ -82,7 +88,7 @@ function createHandler(kind, {
     try {
       const service = createService()
       const result = submit
-        ? await service.submit(parsed.value.token, parsed.value.motivation)
+        ? await service.submit(parsed.value.token, parsed.value.motivation, parsed.value.workLinks)
         : await service.verify(parsed.value.token)
       if (result.ok) {
         send(res, 200, {
@@ -103,7 +109,11 @@ function createHandler(kind, {
         return
       }
       if (result.status === 'invalid_motivation') {
-        send(res, 400, { success: false, status: 'invalid_motivation', field: 'motivation', message: 'Your motivation must be between 150 and 2000 characters.' })
+        send(res, 400, { success: false, status: 'invalid_motivation', field: 'motivation', message: FIELD_MESSAGES.motivation })
+        return
+      }
+      if (result.status === 'invalid_work_links') {
+        send(res, 400, { success: false, status: 'invalid_work_links', field: 'workLinks', message: FIELD_MESSAGES.workLinks })
         return
       }
       send(res, 401, { success: false, status: 'invalid', message: INVALID_MESSAGE })
