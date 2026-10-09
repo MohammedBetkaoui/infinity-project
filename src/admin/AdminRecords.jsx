@@ -95,8 +95,8 @@ export function Facts({ items, missingLabel = 'Not provided' }) {
   return <dl className="adm-detail-grid">{items.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value || missingLabel}</dd></div>)}</dl>
 }
 
-export function History({ items = [], translate = (value) => value, locale = 'en-GB', emptyTitle = 'Historical data incomplete', emptyCopy = 'No earlier actions were imported for this demonstration record. New actions will appear here.' }) {
-  return <div className="adm-history">{items.length ? [...items].reverse().map((item, index) => <article key={`${item.at}-${index}`}><i/><div><b>{translate(item.title)}</b>{item.note && <p>{item.note}</p>}<small>{translate(item.actor)} · {new Date(item.at).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' })}</small></div><StatusBadge tone="neutral">{translate(item.kind || 'Update')}</StatusBadge></article>) : <div className="adm-history-incomplete"><p>{emptyTitle}</p><small>{emptyCopy}</small></div>}</div>
+export function History({ items = [], translate = (value) => value, locale = 'en-GB', formatDate, emptyTitle = 'Historical data incomplete', emptyCopy = 'No earlier actions were imported for this demonstration record. New actions will appear here.' }) {
+  return <div className="adm-history">{items.length ? [...items].reverse().map((item, index) => <article key={`${item.at}-${index}`}><i/><div><b>{translate(item.title)}</b>{item.note && <p>{item.note}</p>}<small>{translate(item.actor)} · <time dateTime={item.at}>{formatDate ? formatDate(item.at) : new Date(item.at).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' })}</time></small></div><StatusBadge tone="neutral">{translate(item.kind || 'Update')}</StatusBadge></article>) : <div className="adm-history-incomplete"><p>{emptyTitle}</p><small>{emptyCopy}</small></div>}</div>
 }
 
 export function SummaryStrip({ items }) {

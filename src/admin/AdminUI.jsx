@@ -169,7 +169,7 @@ export function ChipGroup({ options, value, onChange, label }) {
   </div>
 }
 
-export function Modal({ open, onClose, title, eyebrow = 'Confirmation', children, footer, wide = false, className = '', closeLabel = 'Close' }) {
+export function Modal({ open, onClose, title, eyebrow = 'Confirmation', headerContent, children, footer, wide = false, className = '', closeLabel = 'Close' }) {
   const ref = useRef(null)
   const layer = useRef(null)
   const titleId = useId()
@@ -179,7 +179,7 @@ export function Modal({ open, onClose, title, eyebrow = 'Confirmation', children
   return (
     <div ref={layer} className="adm-modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <section ref={ref} tabIndex={-1} className={`adm-modal ${wide ? 'is-wide' : ''} ${className}`.trim()} role="dialog" aria-modal="true" aria-labelledby={titleId}>
-        <header><div><p className="adm-eyebrow">{eyebrow}</p><h2 id={titleId}>{title}</h2></div><IconButton label={closeLabel} onClick={onClose}><X size={19} /></IconButton></header>
+        <header>{headerContent ? headerContent({ titleId }) : <div><p className="adm-eyebrow">{eyebrow}</p><h2 id={titleId}>{title}</h2></div>}<IconButton label={closeLabel} onClick={onClose}><X size={19} /></IconButton></header>
         <div className="adm-modal__body">{children}</div>
         {footer && <footer>{footer}</footer>}
       </section>
@@ -431,11 +431,11 @@ function useDialog(ref, open, onClose) {
   }, [open, ref])
 }
 
-export function Drawer({ title, eyebrow, children, onClose, footer, className = '', closeLabel = 'Close details' }) {
+export function Drawer({ title, eyebrow, headerContent, children, onClose, footer, className = '', closeLabel = 'Close details' }) {
   const ref = useRef(null)
   const layer = useRef(null)
   const titleId = useId()
   useDialog(ref, true, onClose)
   useDialogMotion(layer, { kind: 'drawer' })
-  return <div ref={layer} className="adm-drawer-layer"><button className="adm-drawer-scrim" onClick={onClose} tabIndex={-1} aria-label={closeLabel} /><aside ref={ref} className={`adm-drawer ${className}`} role="dialog" aria-modal="true" aria-labelledby={titleId}><header className="adm-drawer__head"><div><p className="adm-eyebrow">{eyebrow}</p><h2 id={titleId}>{title}</h2></div><IconButton label={closeLabel} onClick={onClose}><X size={20}/></IconButton></header><div className="adm-drawer__scroll">{children}</div>{footer && <footer className="adm-drawer__actions">{footer}</footer>}</aside></div>
+  return <div ref={layer} className="adm-drawer-layer"><button className="adm-drawer-scrim" onClick={onClose} tabIndex={-1} aria-label={closeLabel} /><aside ref={ref} className={`adm-drawer ${className}`} role="dialog" aria-modal="true" aria-labelledby={titleId}><header className="adm-drawer__head">{headerContent ? headerContent({ titleId }) : <div><p className="adm-eyebrow">{eyebrow}</p><h2 id={titleId}>{title}</h2></div>}<IconButton label={closeLabel} onClick={onClose}><X size={20}/></IconButton></header><div className="adm-drawer__scroll">{children}</div>{footer && <footer className="adm-drawer__actions">{footer}</footer>}</aside></div>
 }

@@ -317,6 +317,14 @@ test('the real Applications page does not persist Join records in browser storag
   assert.doesNotMatch(page, /is-candidate-drawer/)
   assert.match(people, /Africa\/Algiers/)
   assert.match(people, /<time className=.*adm-submitted-at/)
-  assert.match(styles, /\.adm-modal\.is-wide\.is-candidate-modal\s*\{[^}]*width:\s*min\(90vw,1320px\)/)
+  assert.match(people, /CandidateReviewHeader/)
+  assert.match(people, /Masked private confirmation link/)
+  assert.match(people, /Previous versions/)
+  for (const action of ['start_review', 'schedule_interview', 'accept_member', 'change_staff_department', 'block_staff_confirmation_link', 'regenerate_staff_confirmation_link', 'decline', 'archive']) {
+    assert.match(people, new RegExp(`action: ['"]${action}['"]`), action)
+  }
+  assert.match(styles, /\.adm-modal\.is-wide\.is-candidate-modal\s*\{[^}]*width:\s*min\(1320px,\s*calc\(100vw - 48px\)\)/)
+  assert.match(styles, /\.adm-candidate-grid\s*\{[^}]*display:\s*flex/)
+  assert.doesNotMatch(styles.match(/\/\* Join candidate decision dossier \*\/[\s\S]*?\.adm-history-incomplete/)?.[0] || '', /#(?:00516B|003E52|094A36)/i)
   assert.match(await read('src/admin/AdminApp.jsx'), /<ApplicationsPage/)
 })

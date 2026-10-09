@@ -7,7 +7,7 @@ import { ActionDialog, RecordTable, RecordToolbar } from './AdminRecords'
 import ApplicationsBoard from './ApplicationsBoard'
 import StaffConfirmationsView from './StaffConfirmationsView'
 import { applicationActionPayload } from './applicationMoves'
-import { ApplicationSubmittedAt, CandidateActionBar, CandidateDossier } from './PeoplePages'
+import { ApplicationSubmittedAt, CandidateActionBar, CandidateDossier, CandidateReviewHeader } from './PeoplePages'
 import { APPLICATION_STATUSES, AVAILABILITY, DEPARTMENTS, EXPERIENCE, LEVELS, POLES } from './adminModel'
 import { Avatar, Button, Modal, PageHeader, SegmentedControl, StatusBadge, Tabs } from './AdminUI'
 import { useAdminApplicationActions, useAdminApplications } from './useAdminApplications'
@@ -294,7 +294,7 @@ export default function ApplicationsPage() {
     {detailLoading && <div className="adm-applications-detail-loading" role="status"><RefreshCw size={16}/><span>Opening secure application…</span></div>}
     {detailError && !detailLoading && <div className="adm-inline-application-error" role="alert"><span>{detailError}</span><button onClick={() => setDetailError('')}>Dismiss</button></div>}
 
-    {detail && <Modal open wide className="is-candidate-modal" title="Application review" eyebrow={detail.ref} onClose={() => setDetail(null)} footer={<CandidateActionBar detail={detail} request={requestAction}/> }>
+    {detail && <Modal open wide className="is-candidate-modal" title="Application review" eyebrow={detail.ref} headerContent={({ titleId }) => <CandidateReviewHeader detail={detail} titleId={titleId}/>} onClose={() => setDetail(null)} footer={<CandidateActionBar detail={detail} request={requestAction}/> }>
       <CandidateDossier detail={detail} onRevealStaffLink={() => revealStaffLink(detail.id)}/>
     </Modal>}
 

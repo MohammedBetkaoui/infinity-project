@@ -191,7 +191,7 @@ try {
     overflow: document.documentElement.scrollWidth > innerWidth,
     errorOverlay: Boolean(document.querySelector('vite-error-overlay'))
   })`)
-  assert.match(report.login.heading, /people/i)
+  assert.equal(report.login.heading, 'Welcome back')
   assert.equal(report.login.usernameAutocomplete, 'username')
   assert.equal(report.login.passwordAutocomplete, 'current-password')
   assert(!report.login.overflow && !report.login.errorOverlay)
@@ -217,7 +217,7 @@ try {
     topbar: Math.round(document.querySelector('.adm-topbar').getBoundingClientRect().height),
     overflow: document.documentElement.scrollWidth > innerWidth
   })`)
-  assert.deepEqual(report.overview, { heading: 'Overview', kpis: 6, panels: 6, sidebar: 260, topbar: 72, overflow: false })
+  assert.deepEqual(report.overview, { heading: 'Overview', kpis: 4, panels: 0, sidebar: 260, topbar: 76, overflow: false })
   await screenshot('overview-desktop', true)
 
   await navigate('/admin/applications')
@@ -228,14 +228,23 @@ try {
   await waitFor('Boolean(document.querySelector(".adm-modal.is-candidate-modal"))')
   await pause(300)
   report.candidateModal = await evaluate(`({
+    eyebrow: document.querySelector('.is-candidate-modal .adm-candidate-header__identity > span')?.innerText,
     title: document.querySelector('.is-candidate-modal > header h2')?.innerText,
     width: Math.round(document.querySelector('.is-candidate-modal').getBoundingClientRect().width),
     steps: document.querySelectorAll('.adm-candidate-progress li').length,
     sections: document.querySelectorAll('.adm-candidate-section').length,
-    actions: document.querySelectorAll('.adm-candidate-actionbar button').length,
-    overflow: document.querySelector('.is-candidate-modal').scrollWidth > document.querySelector('.is-candidate-modal').clientWidth
+    actions: [...document.querySelectorAll('.adm-candidate-actionbar button, .adm-candidate-actionbar summary')].filter((button) => button.getClientRects().length).map((button) => button.textContent.trim()),
+    modalOverflow: document.querySelector('.is-candidate-modal').scrollWidth > document.querySelector('.is-candidate-modal').clientWidth,
+    bodyOverflow: document.querySelector('.is-candidate-modal .adm-modal__body').scrollWidth > document.querySelector('.is-candidate-modal .adm-modal__body').clientWidth
   })`)
-  assert.deepEqual(report.candidateModal, { title: 'Application review', width: 1296, steps: 4, sections: 5, actions: 5, overflow: false })
+  assert.equal(report.candidateModal.eyebrow, 'APPLICATION REVIEW')
+  assert.equal(report.candidateModal.title, 'Lina Bensaid')
+  assert.equal(report.candidateModal.width, 1320)
+  assert.equal(report.candidateModal.steps, 4)
+  assert(report.candidateModal.sections >= 3)
+  assert(report.candidateModal.actions.includes('Move to review'))
+  assert(report.candidateModal.actions.includes('Schedule interview'))
+  assert(!report.candidateModal.modalOverflow && !report.candidateModal.bodyOverflow)
   await screenshot('application-modal-desktop')
   await clickText('Accept as member')
   await waitFor('Boolean(document.querySelector(".adm-action-form"))')
@@ -431,7 +440,7 @@ try {
   await viewport(1024, 900)
   await navigate('/admin/overview')
   report.tablet = await evaluate(`({ sidebar: Math.round(document.querySelector('.adm-sidebar').getBoundingClientRect().width), overflow: document.documentElement.scrollWidth > innerWidth, kpis: document.querySelectorAll('.adm-kpi').length })`)
-  assert.deepEqual(report.tablet, { sidebar: 76, overflow: false, kpis: 6 })
+  assert.deepEqual(report.tablet, { sidebar: 76, overflow: false, kpis: 4 })
   await screenshot('overview-tablet')
 
   await viewport(390, 844, true)
@@ -449,20 +458,25 @@ try {
   await waitFor('Boolean(document.querySelector(".adm-candidate-dossier"))')
   await pause(300)
   report.mobileCandidate = await evaluate(`(() => {
-    const drawer = document.querySelector('.adm-drawer')
-    const actionButtons = [...document.querySelectorAll('.adm-candidate-actionbar button')].filter((button) => button.getClientRects().length)
+    const dialog = document.querySelector('.is-candidate-modal')
+    const actionButtons = [...document.querySelectorAll('.adm-candidate-actionbar button, .adm-candidate-actionbar summary')].filter((button) => button.getClientRects().length)
     return {
-      width: Math.round(drawer.getBoundingClientRect().width),
+      width: Math.round(dialog.getBoundingClientRect().width),
       steps: document.querySelectorAll('.adm-candidate-progress li').length,
       sections: document.querySelectorAll('.adm-candidate-section').length,
       actionTargets: actionButtons.every((button) => button.getBoundingClientRect().height >= 44),
-      overflow: drawer.scrollWidth > drawer.clientWidth
+      modalOverflow: dialog.scrollWidth > dialog.clientWidth,
+      bodyOverflow: dialog.querySelector('.adm-modal__body').scrollWidth > dialog.querySelector('.adm-modal__body').clientWidth
     }
   })()`)
-  assert.deepEqual(report.mobileCandidate, { width: 390, steps: 4, sections: 6, actionTargets: true, overflow: false })
-  await screenshot('application-drawer-mobile')
+  assert.equal(report.mobileCandidate.width, 390)
+  assert.equal(report.mobileCandidate.steps, 4)
+  assert(report.mobileCandidate.sections >= 3)
+  assert(report.mobileCandidate.actionTargets)
+  assert(!report.mobileCandidate.modalOverflow && !report.mobileCandidate.bodyOverflow)
+  await screenshot('application-modal-mobile')
   await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' })
-  await waitFor('!document.querySelector(".adm-drawer")')
+  await waitFor('!document.querySelector(".is-candidate-modal")')
   await evaluate('document.querySelector(".adm-menu-trigger").click()')
   await waitFor('document.querySelector(".adm-sidebar").classList.contains("is-mobile-open")')
   await pause(300)

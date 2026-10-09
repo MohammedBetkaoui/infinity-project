@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Activity, ArrowRight, CalendarDays, Check, Clock3, Copy, ExternalLink, FileText, GraduationCap, Link2, Mail, Phone, Plus, RefreshCw, Send, UserCheck } from 'lucide-react'
+import { Activity, ArrowRight, BriefcaseBusiness, CalendarDays, Check, ChevronDown, Clock3, Copy, ExternalLink, FileText, Link2, Mail, MoreHorizontal, Plus, RefreshCw, Send, UserCheck } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { FlipGrid, useGrow } from './adminMotion'
 import { useAdmin } from './AdminStore'
@@ -12,12 +12,29 @@ const submissionDate = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month:
 const submissionWeekday = new Intl.DateTimeFormat('en-GB', { weekday: 'short', timeZone: SUBMISSION_TIME_ZONE })
 const submissionTime = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: SUBMISSION_TIME_ZONE })
 
-export function ApplicationSubmittedAt({ value, compact = false }) {
+const candidateDateParts = (value) => {
   const parsed = new Date(value)
-  if (!Number.isFinite(parsed.getTime())) return <span className="adm-submitted-at is-missing">Not recorded</span>
-  return <time className={`adm-submitted-at ${compact ? 'is-compact' : ''}`} dateTime={parsed.toISOString()}>
-    <b>{compact ? submissionDate.format(parsed) : `${submissionWeekday.format(parsed)}, ${submissionDate.format(parsed)}`}</b>
-    <small><span>{submissionTime.format(parsed)}</span><em>Algiers time</em></small>
+  if (!Number.isFinite(parsed.getTime())) return null
+  return { parsed, date: submissionDate.format(parsed), time: submissionTime.format(parsed) }
+}
+
+const candidateDateLabel = (value) => {
+  const parts = candidateDateParts(value)
+  return parts ? `${parts.date} · ${parts.time}` : '—'
+}
+
+function CandidateDate({ value }) {
+  const parts = candidateDateParts(value)
+  if (!parts) return <span>—</span>
+  return <time dateTime={parts.parsed.toISOString()} title={parts.parsed.toISOString()}>{parts.date} · {parts.time}</time>
+}
+
+export function ApplicationSubmittedAt({ value, compact = false }) {
+  const parts = candidateDateParts(value)
+  if (!parts) return <span className="adm-submitted-at is-missing">Not recorded</span>
+  return <time className={`adm-submitted-at ${compact ? 'is-compact' : ''}`} dateTime={parts.parsed.toISOString()}>
+    <b>{compact ? parts.date : `${submissionWeekday.format(parts.parsed)}, ${parts.date}`}</b>
+    <small><span>{parts.time}</span><em>Algiers time</em></small>
   </time>
 }
 
@@ -69,11 +86,24 @@ const CANDIDATE_STAGES = [
   { label: 'Decision', copy: 'Final outcome' },
 ]
 
+export function CandidateReviewHeader({ detail, titleId }) {
+  return <div className="adm-candidate-header">
+    <Avatar initials={detail.initials}/>
+    <div className="adm-candidate-header__identity">
+      <span>Application review</span>
+      <h2 id={titleId}>{detail.name}</h2>
+      <p>{detail.type} · {detail.track || 'Join application'}</p>
+      <code>{detail.ref || detail.id}</code>
+    </div>
+    <StatusBadge>{detail.status}</StatusBadge>
+  </div>
+}
+
 function CandidateProgress({ status }) {
   const current = { New: 0, 'In review': 1, Interview: 2, Accepted: 3, Declined: 3, Archived: 3 }[status] ?? 0
   const terminal = ['Accepted', 'Declined', 'Archived'].includes(status)
   return <section className="adm-candidate-progress" aria-labelledby="candidate-progress-title">
-    <header><div><span>Application route</span><h3 id="candidate-progress-title">Review progress</h3></div><StatusBadge>{status}</StatusBadge></header>
+    <header><div><span>Application route</span><h3 id="candidate-progress-title">Review progress</h3></div></header>
     <ol>{CANDIDATE_STAGES.map((stage, index) => {
       const complete = index < current || (index === current && terminal && status === 'Accepted')
       const active = index === current
@@ -86,8 +116,8 @@ function CandidateProgress({ status }) {
   </section>
 }
 
-function CandidateSection({ title, copy, children }) {
-  return <section className="adm-candidate-section"><header><div><h3>{title}</h3><p>{copy}</p></div></header>{children}</section>
+function CandidateSection({ title, copy, className = '', children }) {
+  return <section className={`adm-candidate-section ${className}`.trim()}><header><div><h3>{title}</h3>{copy && <p>{copy}</p>}</div></header>{children}</section>
 }
 
 const CONFIRMATION_LABELS = Object.freeze({
@@ -95,9 +125,11 @@ const CONFIRMATION_LABELS = Object.freeze({
   revision_requested: 'Revision requested', confirmed: 'Confirmed', expired: 'Invitation expired', revoked: 'Invitation revoked',
 })
 
-const confirmationDate = (value) => value ? new Date(value).toLocaleString('en-GB', {
-  dateStyle: 'medium', timeStyle: 'short', timeZone: 'Africa/Algiers',
-}) : '—'
+const CONFIRMATION_TONES = Object.freeze({
+  submitted: 'success', confirmed: 'success', revision_requested: 'warning', expired: 'warning', revoked: 'declined',
+})
+
+const LINK_ACCESS_LABELS = Object.freeze({ active: 'Active', blocked: 'Blocked', legacy: 'Legacy', none: 'Not created' })
 
 function StaffConfirmationPanel({ confirmation, onRevealLink }) {
   const status = confirmation?.statusKey || 'not_invited'
@@ -105,13 +137,15 @@ function StaffConfirmationPanel({ confirmation, onRevealLink }) {
   const [linkBusy, setLinkBusy] = useState('')
   const [linkError, setLinkError] = useState('')
   const linkAccess = confirmation?.linkAccess || 'none'
+  const submissions = [...(confirmation?.submissions || [])].sort((left, right) => Number(right.version || 0) - Number(left.version || 0))
+  const [latestSubmission, ...previousSubmissions] = submissions
   const handlePrivateLink = async (kind) => {
     if (!onRevealLink || linkBusy) return
     setLinkBusy(kind)
     setLinkError('')
     const result = revealed || await onRevealLink()
     if (!result?.ok) {
-      setLinkError(result?.message || 'The private link could not be revealed.')
+      setLinkError(result?.message || 'Unable to reveal link.')
       setLinkBusy('')
       return
     }
@@ -123,37 +157,41 @@ function StaffConfirmationPanel({ confirmation, onRevealLink }) {
       window.setTimeout(() => setLinkBusy(''), 1500)
     } catch {
       setLinkBusy('')
-      setLinkError('The private link could not be copied or opened.')
+      setLinkError('Unable to copy or open the private link.')
     }
   }
   return <div className="adm-staff-confirmation-panel">
     <div className="adm-staff-confirmation-panel__state">
       <span><FileText size={17} aria-hidden="true"/></span>
-      <div><small>Confirmation status</small><b>{CONFIRMATION_LABELS[status] || status}</b></div>
-      <StatusBadge tone={status === 'submitted' || status === 'confirmed' ? 'success' : status === 'revision_requested' ? 'warning' : 'neutral'}>{CONFIRMATION_LABELS[status] || status}</StatusBadge>
+      <div><small>Confirmation status</small><b>Staff confirmation</b></div>
+      <StatusBadge tone={CONFIRMATION_TONES[status] || 'neutral'}>{CONFIRMATION_LABELS[status] || status}</StatusBadge>
     </div>
     {confirmation ? <>
       <div className="adm-confirmation-private-link">
-        <header><div><small>Private confirmation link</small><b>{linkAccess === 'blocked' ? 'Blocked' : linkAccess === 'active' ? 'Active' : linkAccess === 'legacy' ? 'Legacy credential' : 'Not created'}</b></div><StatusBadge tone={linkAccess === 'active' ? 'success' : linkAccess === 'blocked' ? 'warning' : 'neutral'}>{linkAccess}</StatusBadge></header>
+        <header><div><small>Private invitation</small><b>Candidate-only access</b></div><span className={`adm-link-access-status is-${linkAccess}`}><i aria-hidden="true"/>{LINK_ACCESS_LABELS[linkAccess] || linkAccess}</span></header>
         {confirmation.linkReconstructable ? <>
-          <code>{revealed?.privateLink || 'https://www.infinty-bba.com/join/staff-confirmation#token=••••••••'}</code>
-          <div><Button variant="secondary" icon={linkBusy === 'copy-done' ? <Check size={14}/> : <Copy size={14}/>} onClick={() => handlePrivateLink('copy')} disabled={Boolean(linkBusy)}>{linkBusy === 'copy-done' ? 'Copied' : 'Copy link'}</Button><Button variant="secondary" icon={<ExternalLink size={14}/>} onClick={() => handlePrivateLink('open')} disabled={Boolean(linkBusy)}>Open</Button></div>
+          <code aria-label="Masked private confirmation link">www.infinty-bba.com/join/staff-confirmation#token=••••••••</code>
+          <div><Button variant="secondary" aria-label="Copy private confirmation link" icon={linkBusy === 'copy-done' ? <Check size={14}/> : <Copy size={14}/>} onClick={() => handlePrivateLink('copy')} disabled={Boolean(linkBusy)}>{linkBusy === 'copy' ? 'Copying…' : linkBusy === 'copy-done' ? 'Copied' : 'Copy link'}</Button><Button variant="secondary" aria-label="Open private confirmation link" icon={<ExternalLink size={14}/>} onClick={() => handlePrivateLink('open')} disabled={Boolean(linkBusy)}>{linkBusy === 'open' ? 'Opening…' : 'Open'}</Button></div>
         </> : <p>{linkAccess === 'legacy' ? 'Link unavailable under the legacy credential model. Create a stable link explicitly to reveal it.' : 'No private link has been created for this candidate.'}</p>}
         {linkError && <p className="adm-form-error" role="alert">{linkError}</p>}
       </div>
-      <Facts items={[
-        ['Invited', confirmationDate(confirmation.invitedAt)],
-        ['Deadline', confirmationDate(confirmation.expiresAt)],
-        ['Last submitted', confirmationDate(confirmation.submittedAt)],
-        ['Versions', String(confirmation.submissions?.length || 0)],
-      ]}/>
+      <dl className="adm-confirmation-facts">
+        <div><dt>Invited</dt><dd><CandidateDate value={confirmation.invitedAt}/></dd></div>
+        <div><dt>Deadline</dt><dd><CandidateDate value={confirmation.expiresAt}/></dd></div>
+        <div><dt>Last submitted</dt><dd><CandidateDate value={confirmation.submittedAt}/></dd></div>
+        <div><dt>Versions</dt><dd>{submissions.length}</dd></div>
+      </dl>
       {confirmation.revisionMessage && <div className="adm-confirmation-revision"><span>Revision message</span><p>{confirmation.revisionMessage}</p></div>}
-      {confirmation.submissions?.length > 0 && <div className="adm-motivation-history">
-        <header><span>Motivation history</span><small>Plain text · newest first</small></header>
-        {confirmation.submissions.map((submission) => <article key={submission.id}>
-          <div><b>Version {submission.version}</b><time dateTime={submission.submittedAt}>{confirmationDate(submission.submittedAt)}</time></div>
+      {latestSubmission && <div className="adm-motivation-history">
+        <header><span>Latest motivation</span><small>Version {latestSubmission.version}</small></header>
+        <article className="is-latest">
+          <div><b>Version {latestSubmission.version}</b><time dateTime={latestSubmission.submittedAt}>{candidateDateLabel(latestSubmission.submittedAt)}</time></div>
+          <p>{latestSubmission.motivation}</p>
+        </article>
+        {previousSubmissions.length > 0 && <details className="adm-motivation-previous"><summary>Previous versions <span>{previousSubmissions.length}</span><ChevronDown size={14} aria-hidden="true"/></summary><div>{previousSubmissions.map((submission) => <article key={submission.id}>
+          <div><b>Version {submission.version}</b><time dateTime={submission.submittedAt}>{candidateDateLabel(submission.submittedAt)}</time></div>
           <p>{submission.motivation}</p>
-        </article>)}
+        </article>)}</div></details>}
       </div>}
     </> : <p className="adm-confirmation-empty">This Staff candidate has not received a private confirmation invitation yet.</p>}
   </div>
@@ -161,42 +199,40 @@ function StaffConfirmationPanel({ confirmation, onRevealLink }) {
 
 export function CandidateDossier({ detail, note = '', setNote, onSave, noteSaving = false, onRevealStaffLink }) {
   return <div className="adm-candidate-dossier">
-    <section className="adm-candidate-overview">
-      <div className="adm-candidate-overview__rail"><code>{detail.ref || detail.id}</code><span>JOIN INTAKE / {detail.form}</span></div>
-      <div className="adm-candidate-overview__identity"><Avatar initials={detail.initials}/><div><span>{detail.type} application</span><h3>{detail.name}</h3><p>{detail.level} · {detail.speciality}</p></div><StatusBadge>{detail.status}</StatusBadge></div>
-      <dl><div><dt>Submitted</dt><dd><ApplicationSubmittedAt value={detail.submittedAt || detail.date}/></dd></div><div><dt>Source</dt><dd>{detail.source}</dd></div><div><dt>Consent</dt><dd><Check size={13}/>{detail.consent === false ? 'Not recorded' : 'Recorded'}</dd></div></dl>
+    <section className="adm-candidate-overview" aria-labelledby="candidate-record-title">
+      <header><div><span>Candidate details</span><h3 id="candidate-record-title">Identity and academic record</h3></div><small>Supplied with the Join form</small></header>
+      <dl className="adm-candidate-quickfacts"><div><dt>Submitted</dt><dd><CandidateDate value={detail.submittedAt || detail.date}/></dd></div><div><dt>Source</dt><dd>{detail.source}</dd></div><div><dt>Consent</dt><dd><Check size={13} aria-hidden="true"/>{detail.consent === false ? 'Not recorded' : 'Recorded'}</dd></div></dl>
+      <dl className="adm-candidate-record"><div><dt>Email</dt><dd>{detail.email}</dd></div><div><dt>Phone</dt><dd>{detail.phone || 'Not provided'}</dd></div><div><dt>Study level</dt><dd>{detail.level}</dd></div><div><dt>Faculty</dt><dd>{detail.faculty || '—'}</dd></div><div><dt>Academic department</dt><dd>{detail.speciality || 'Not provided'}</dd></div></dl>
     </section>
 
     <CandidateProgress status={detail.status}/>
 
-    <CandidateSection title="Identity & contact" copy="Contact details supplied with the Join form.">
-      <div className="adm-candidate-contact-grid"><div><i><Mail size={16}/></i><span><small>Email address</small><b>{detail.email}</b></span></div><div><i><Phone size={16}/></i><span><small>Phone number</small><b>{detail.phone || 'Not provided'}</b></span></div></div>
-    </CandidateSection>
-
-    <CandidateSection title="Academic profile" copy="Current study level, faculty and department.">
-      <div className="adm-candidate-profile-grid"><div className="adm-candidate-feature"><i><GraduationCap size={18}/></i><span>Study level</span><strong>{detail.level}</strong></div><div><span>Faculty</span><b>{detail.faculty || '—'}</b></div><div><span>Department</span><b>{detail.speciality || 'Not provided'}</b></div></div>
-    </CandidateSection>
-
-    <CandidateSection title="Join profile" copy={detail.type === 'Staff' ? 'Requested department is kept separate from the internal role assigned after acceptance.' : 'Declared interest, experience and semester availability.'}>
-      <div className="adm-candidate-track"><span>{detail.type === 'Staff' ? 'Requested staff department' : 'Primary interest'}</span><strong>{detail.track}</strong><StatusBadge tone={detail.type === 'Staff' ? 'info' : 'neutral'}>{detail.type}</StatusBadge></div>
-      <Facts items={[["Experience level", detail.experience], ['Availability', detail.availability]]}/>
-      {detail.interviewAt && <div className="adm-candidate-callout is-interview"><CalendarDays size={17}/><div><span>Interview scheduled</span><b>{detail.interviewAt.replace('T', ' ')} · {detail.interviewLocation}</b></div></div>}
-    </CandidateSection>
-
-    {detail.type === 'Staff' && <CandidateSection title="Staff confirmation" copy="Private invitation, motivation history and final Staff decision.">
-      <StaffConfirmationPanel confirmation={detail.staffConfirmation} onRevealLink={onRevealStaffLink}/>
-    </CandidateSection>}
-
-    <CandidateSection title="Intake metadata" copy="Administrative traceability for this Join application.">
-      <Facts items={[["Application type", detail.type], ['Submission date', detail.date], ['Source', detail.source], ['Form version', detail.form], ['Contact consent', 'Recorded']]}/>
-    </CandidateSection>
-
-    {onSave && setNote && <CandidateSection title="Internal notes" copy="Visible to Infinity administrators only.">
-      <label className="sr-only" htmlFor="candidate-note">Administrative note</label><textarea id="candidate-note" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add review context for your colleagues…"/><button className="adm-save-note" onClick={onSave} disabled={noteSaving}>{noteSaving ? 'Saving note…' : 'Save internal note'}</button>
-    </CandidateSection>}
-
-    <CandidateSection title="Application history" copy="Decisions and follow-ups recorded by the administration."><History items={detail.history}/></CandidateSection>
+    <div className="adm-candidate-grid">
+      <div className="adm-candidate-column is-review">
+        {detail.type === 'Staff' && <CandidateSection className="is-confirmation" title="Staff confirmation" copy="Private invitation, motivation history and final Staff decision.">
+          <StaffConfirmationPanel confirmation={detail.staffConfirmation} onRevealLink={onRevealStaffLink}/>
+        </CandidateSection>}
+        <CandidateSection className="is-history" title="Application history" copy="Decisions and follow-ups recorded by the administration."><History items={detail.history} formatDate={candidateDateLabel}/></CandidateSection>
+      </div>
+      <div className="adm-candidate-column is-profile">
+        <CandidateSection className="is-join-profile" title="Join profile" copy={detail.type === 'Staff' ? 'The requested department remains separate from the role assigned after acceptance.' : 'Declared interest, experience and availability.'}>
+          <div className="adm-candidate-track"><i><BriefcaseBusiness size={17} aria-hidden="true"/></i><span>{detail.type === 'Staff' ? 'Requested staff department' : 'Primary interest'}</span><strong>{detail.track}</strong></div>
+          <Facts items={[["Experience", detail.experience], ['Availability', detail.availability]]}/>
+          {detail.interviewAt && <div className="adm-candidate-callout is-interview"><CalendarDays size={17}/><div><span>Interview scheduled</span><b><CandidateDate value={detail.interviewAt}/> · {detail.interviewLocation}</b></div></div>}
+        </CandidateSection>
+        <CandidateSection className="is-metadata" title="Intake metadata" copy="Administrative traceability for this Join application.">
+          <Facts items={[["Application type", detail.type], ['Submitted', <CandidateDate value={detail.submittedAt || detail.date}/>], ['Source', detail.source], ['Form version', detail.form], ['Contact consent', detail.consent === false ? 'Not recorded' : 'Recorded']]}/>
+        </CandidateSection>
+        {onSave && setNote && <CandidateSection className="is-notes" title="Internal notes" copy="Visible to Infinity administrators only.">
+          <label className="sr-only" htmlFor="candidate-note">Administrative note</label><textarea id="candidate-note" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add review context for your colleagues…"/><button className="adm-save-note" onClick={onSave} disabled={noteSaving}>{noteSaving ? 'Saving note…' : 'Save internal note'}</button>
+        </CandidateSection>}
+      </div>
+    </div>
   </div>
+}
+
+function CandidateActionMenu({ label, icon, className = '', children }) {
+  return <details className={`adm-candidate-actionmenu ${className}`.trim()}><summary>{icon}<span>{label}</span><ChevronDown size={14} aria-hidden="true"/></summary><div className="adm-candidate-actionmenu__popover" role="group" aria-label={`${label} actions`}>{children}</div></details>
 }
 
 export function CandidateActionBar({ detail, request }) {
@@ -206,18 +242,86 @@ export function CandidateActionBar({ detail, request }) {
   const confirmationStatus = confirmation?.statusKey || 'not_invited'
   const confirmationVersion = confirmation?.updatedAt
   const linkAccess = confirmation?.linkAccess || 'none'
-  const staffPrimary = detail.type === 'Staff' && !closed ? <>
-    {confirmationStatus === 'not_invited' && <Button onClick={() => request('Invite to Staff confirmation', null, { action: 'invite_staff_confirmation' })} disabled={!can('invite_staff_confirmation')} icon={<Send size={15}/>}>Invite to confirmation</Button>}
-    {confirmationStatus === 'submitted' && <Button onClick={() => request('Confirm Staff membership', null, { action: 'confirm_staff_membership' })} disabled={!can('confirm_staff_membership')} icon={<Check size={15}/>}>Confirm Staff membership</Button>}
-    {confirmationStatus === 'confirmed' && <span className="adm-confirmation-final"><Check size={14}/> Staff membership confirmed</span>}
-  </> : null
+  const fromMenu = (event, ...args) => {
+    event.currentTarget.closest('details')?.removeAttribute('open')
+    request(...args)
+  }
+  const startReview = (menu = false) => menu
+    ? <button onClick={(event) => fromMenu(event, 'Move application to review', { status: 'In review' }, { action: 'start_review' })} disabled={!can('start_review') || detail.status === 'In review' || detail.status === 'Accepted' || detail.status === 'Archived'}>Move to review</button>
+    : <Button onClick={() => request('Move application to review', { status: 'In review' }, { action: 'start_review' })} disabled={!can('start_review') || detail.status === 'In review' || detail.status === 'Accepted' || detail.status === 'Archived'} icon={<ArrowRight size={15}/>}>Move to review</Button>
+  const scheduleInterview = (menu = false) => menu
+    ? <button onClick={(event) => fromMenu(event, 'Schedule interview', null, { action: 'schedule_interview', fields: [{ name: 'interviewAt', label: 'Interview date and time', type: 'datetime-local', required: true }, { name: 'interviewLocation', label: 'Location / meeting room', required: true }], patch: undefined, schedule: true })} disabled={!can('schedule_interview') || closed}><CalendarDays size={14}/>Schedule interview</button>
+    : <Button variant="secondary" onClick={() => request('Schedule interview', null, { action: 'schedule_interview', fields: [{ name: 'interviewAt', label: 'Interview date and time', type: 'datetime-local', required: true }, { name: 'interviewLocation', label: 'Location / meeting room', required: true }], patch: undefined, schedule: true })} disabled={!can('schedule_interview') || closed} icon={<CalendarDays size={15}/>}>Schedule interview</Button>
+  const inviteConfirmation = (menu = false) => menu
+    ? <button onClick={(event) => fromMenu(event, 'Invite to Staff confirmation', null, { action: 'invite_staff_confirmation' })} disabled={!can('invite_staff_confirmation')}><Send size={14}/>Invite to confirmation</button>
+    : <Button onClick={() => request('Invite to Staff confirmation', null, { action: 'invite_staff_confirmation' })} disabled={!can('invite_staff_confirmation')} icon={<Send size={15}/>}>Invite to confirmation</Button>
+  const confirmMembership = (menu = false) => menu
+    ? <button onClick={(event) => fromMenu(event, 'Confirm Staff membership', null, { action: 'confirm_staff_membership' })} disabled={!can('confirm_staff_membership')}><Check size={14}/>Confirm Staff membership</button>
+    : <Button onClick={() => request('Confirm Staff membership', null, { action: 'confirm_staff_membership' })} disabled={!can('confirm_staff_membership')} icon={<Check size={15}/>}>Confirm Staff membership</Button>
+  const acceptMember = (menu = false) => menu
+    ? <button onClick={(event) => fromMenu(event, 'Accept as member', { status: 'Accepted' }, { action: 'accept_member' })} disabled={!can('accept_member') || detail.status === 'Accepted' || detail.status === 'Archived'}><Check size={14}/>Accept as member</button>
+    : <Button onClick={() => request('Accept as member', { status: 'Accepted' }, { action: 'accept_member' })} disabled={!can('accept_member') || detail.status === 'Accepted' || detail.status === 'Archived'} icon={<Check size={15}/>}>Accept as member</Button>
+
+  let primaryKey = ''
+  if (!closed && detail.status === 'New' && can('start_review')) primaryKey = 'start_review'
+  else if (!closed && detail.type === 'Staff' && confirmationStatus === 'not_invited' && can('invite_staff_confirmation')) primaryKey = 'invite_staff_confirmation'
+  else if (!closed && detail.type === 'Staff' && confirmationStatus === 'submitted' && can('confirm_staff_membership')) primaryKey = 'confirm_staff_membership'
+  else if (!closed && detail.type !== 'Staff' && can('accept_member')) primaryKey = 'accept_member'
+  else if (!closed && can('schedule_interview')) primaryKey = 'schedule_interview'
+
+  const renderPrimary = () => primaryKey === 'start_review' ? startReview()
+    : primaryKey === 'invite_staff_confirmation' ? inviteConfirmation()
+      : primaryKey === 'confirm_staff_membership' ? confirmMembership()
+        : primaryKey === 'accept_member' ? acceptMember()
+          : primaryKey === 'schedule_interview' ? scheduleInterview()
+            : confirmationStatus === 'confirmed' ? <span className="adm-confirmation-final"><Check size={14}/>Staff membership confirmed</span>
+              : null
+
+  const workflowActions = () => <>
+    {primaryKey !== 'start_review' && !closed && detail.status !== 'In review' && startReview(true)}
+    {detail.type !== 'Staff' && primaryKey !== 'accept_member' && acceptMember(true)}
+    {detail.type === 'Staff' && <button onClick={(event) => fromMenu(event, 'Change requested department', null, { action: 'change_staff_department', fields: [{ name: 'track', label: 'Department', options: DEPARTMENTS, value: detail.track }] })} disabled={!can('change_staff_department') || detail.status === 'Archived'}>Change department</button>}
+    {detail.type === 'Staff' && confirmationStatus === 'not_invited' && primaryKey !== 'invite_staff_confirmation' && inviteConfirmation(true)}
+    {detail.type === 'Staff' && confirmationStatus === 'submitted' && primaryKey !== 'confirm_staff_membership' && confirmMembership(true)}
+    {detail.type === 'Staff' && confirmationStatus === 'submitted' && <button onClick={(event) => fromMenu(event, 'Request a motivation revision', null, { action: 'request_staff_confirmation_revision', fields: [{ name: 'revisionMessage', label: 'Message to the candidate', type: 'textarea', required: true, maxLength: 1000, placeholder: 'Explain what should be clearer in the new version…' }], confirmationVersion, description: 'The candidate can submit the revision using the existing private link. No new URL will be created.', submit: 'Request revision' })} disabled={!can('request_staff_confirmation_revision')}><Clock3 size={14}/>Request revision</button>}
+  </>
+  const hasWorkflow = !closed && (
+    (primaryKey !== 'start_review' && detail.status !== 'In review')
+    || (detail.type !== 'Staff' && primaryKey !== 'accept_member')
+    || detail.type === 'Staff'
+  )
+
+  const privateLinkActions = () => <>
+    {!confirmation.linkReconstructable && <button onClick={(event) => fromMenu(event, 'Create stable private link', null, { action: 'create_stable_staff_confirmation_link', confirmationVersion, description: 'The legacy hash-only link cannot be displayed. Creating a stable link permanently invalidates the legacy credential.', submit: 'Create stable link' })} disabled={!can('create_stable_staff_confirmation_link')}><Link2 size={14}/>Create stable link</button>}
+    {confirmation.linkReconstructable && linkAccess !== 'blocked' && <button onClick={(event) => fromMenu(event, 'Block private link?', null, { action: 'block_staff_confirmation_link', confirmationVersion, description: `Candidate: ${detail.name}\nReference: ${detail.ref}\n\nThe candidate will no longer be able to use this link until you unblock it. The URL itself will not change.`, submit: 'Block link' })} disabled={!can('block_staff_confirmation_link')}>Block link</button>}
+    {confirmation.linkReconstructable && linkAccess === 'blocked' && <button onClick={(event) => fromMenu(event, 'Unblock private link?', null, { action: 'unblock_staff_confirmation_link', confirmationVersion, description: 'The exact same private URL will become usable again.', submit: 'Unblock link' })} disabled={!can('unblock_staff_confirmation_link')}>Unblock link</button>}
+    {confirmationStatus === 'expired' && <button onClick={(event) => fromMenu(event, 'Extend Staff confirmation deadline', null, { action: 'extend_staff_confirmation_deadline', confirmationVersion, description: 'The deadline will be extended by seven days. The private URL will not change.', submit: 'Extend deadline' })} disabled={!can('extend_staff_confirmation_deadline')}><Clock3 size={14}/>Extend deadline</button>}
+    {confirmation.linkReconstructable && <button className="is-warning" onClick={(event) => fromMenu(event, 'Regenerate private link?', null, { action: 'regenerate_staff_confirmation_link', confirmationVersion, danger: true, description: 'The previous link will permanently stop working. Any previous email, CSV, or copied message containing the old URL will become invalid.', submit: 'Generate new link' })} disabled={!can('regenerate_staff_confirmation_link')}><RefreshCw size={14}/>Regenerate link</button>}
+  </>
+  const closeActions = () => <>
+    <button className="is-danger" onClick={(event) => fromMenu(event, 'Decline application', { status: 'Declined' }, { action: 'decline', danger: true })} disabled={!can('decline') || detail.status === 'Declined' || detail.status === 'Archived'}>Decline application</button>
+    <button onClick={(event) => fromMenu(event, 'Archive application', { status: 'Archived' }, { action: 'archive', danger: true })} disabled={!can('archive') || detail.status === 'Archived'}>Archive application</button>
+  </>
+
   return <div className="adm-candidate-actionbar">
-    <header><div><span>Decision workspace</span><b>Choose the next administrative step</b></div><code>{detail.ref || detail.id}</code></header>
-    <div className="adm-candidate-actionbar__primary">{detail.type === 'Staff' ? staffPrimary : <Button onClick={() => request('Accept as member', { status: 'Accepted' }, { action: 'accept_member' })} disabled={!can('accept_member') || detail.status === 'Accepted' || detail.status === 'Archived'} icon={<Check size={15}/>}>Accept as member</Button>}<Button variant="secondary" onClick={() => request('Schedule interview', null, { action: 'schedule_interview', fields: [{ name: 'interviewAt', label: 'Interview date and time', type: 'datetime-local', required: true }, { name: 'interviewLocation', label: 'Location / meeting room', required: true }], patch: undefined, schedule: true })} disabled={!can('schedule_interview') || closed}><CalendarDays size={15}/>Schedule interview</Button></div>
-    <div className="adm-candidate-actionbar__workflow"><span>Workflow</span><button onClick={() => request('Move application to review', { status: 'In review' }, { action: 'start_review' })} disabled={!can('start_review') || detail.status === 'In review' || detail.status === 'Accepted' || detail.status === 'Archived'}>Move to review</button>{detail.type === 'Staff' && <button onClick={() => request('Change requested department', null, { action: 'change_staff_department', fields: [{ name: 'track', label: 'Department', options: DEPARTMENTS, value: detail.track }] })} disabled={!can('change_staff_department') || detail.status === 'Archived'}>Change department</button>}</div>
-    {detail.type === 'Staff' && confirmation && !closed && <div className="adm-candidate-actionbar__workflow"><span>Private link</span>{!confirmation.linkReconstructable && <button onClick={() => request('Create stable private link', null, { action: 'create_stable_staff_confirmation_link', confirmationVersion, description: 'The legacy hash-only link cannot be displayed. Creating a stable link permanently invalidates the legacy credential.', submit: 'Create stable link' })} disabled={!can('create_stable_staff_confirmation_link')}><Link2 size={13}/>Create stable link</button>}{confirmation.linkReconstructable && linkAccess !== 'blocked' && <button onClick={() => request('Block private link?', null, { action: 'block_staff_confirmation_link', confirmationVersion, description: `Candidate: ${detail.name}\nReference: ${detail.ref}\n\nThe candidate will no longer be able to use this link until you unblock it. The URL itself will not change.`, submit: 'Block link' })} disabled={!can('block_staff_confirmation_link')}>Block link</button>}{confirmation.linkReconstructable && linkAccess === 'blocked' && <button onClick={() => request('Unblock private link?', null, { action: 'unblock_staff_confirmation_link', confirmationVersion, description: 'The exact same private URL will become usable again.', submit: 'Unblock link' })} disabled={!can('unblock_staff_confirmation_link')}>Unblock link</button>}{confirmation.linkReconstructable && <button onClick={() => request('Regenerate private link?', null, { action: 'regenerate_staff_confirmation_link', confirmationVersion, danger: true, description: 'The previous link will permanently stop working. Any previous email, CSV, or copied message containing the old URL will become invalid.', submit: 'Generate new link' })} disabled={!can('regenerate_staff_confirmation_link')}><RefreshCw size={13}/>Regenerate</button>}{confirmationStatus === 'expired' && <button onClick={() => request('Extend Staff confirmation deadline', null, { action: 'extend_staff_confirmation_deadline', confirmationVersion, description: 'The deadline will be extended by seven days. The private URL will not change.', submit: 'Extend deadline' })} disabled={!can('extend_staff_confirmation_deadline')}><Clock3 size={13}/>Extend deadline</button>}</div>}
-    {detail.type === 'Staff' && confirmationStatus === 'submitted' && <div className="adm-candidate-actionbar__workflow"><span>Motivation review</span><button onClick={() => request('Request a motivation revision', null, { action: 'request_staff_confirmation_revision', fields: [{ name: 'revisionMessage', label: 'Message to the candidate', type: 'textarea', required: true, maxLength: 1000, placeholder: 'Explain what should be clearer in the new version…' }], confirmationVersion, description: 'The candidate can submit the revision using the existing private link. No new URL will be created.', submit: 'Request revision' })} disabled={!can('request_staff_confirmation_revision')}><Clock3 size={13}/>Request revision</button></div>}
-    <div className="adm-candidate-actionbar__critical"><span>Close application</span><button className="is-danger" onClick={() => request('Decline application', { status: 'Declined' }, { action: 'decline', danger: true })} disabled={!can('decline') || detail.status === 'Declined' || detail.status === 'Archived'}>Decline</button><button onClick={() => request('Archive application', { status: 'Archived' }, { action: 'archive', danger: true })} disabled={!can('archive') || detail.status === 'Archived'}>Archive</button></div>
+    <header><span>Decision workspace</span><b>Choose the next administrative step</b></header>
+    <div className="adm-candidate-actionbar__desktop">
+      <div className="adm-candidate-actionbar__primary">{renderPrimary()}{primaryKey !== 'schedule_interview' && !closed && scheduleInterview()}</div>
+      <div className="adm-candidate-actionbar__menus">
+        {hasWorkflow && <CandidateActionMenu label="Workflow" icon={<BriefcaseBusiness size={14} aria-hidden="true"/>}>{workflowActions()}</CandidateActionMenu>}
+        {detail.type === 'Staff' && confirmation && !closed && <CandidateActionMenu label="Private link" icon={<Link2 size={14} aria-hidden="true"/>}>{privateLinkActions()}</CandidateActionMenu>}
+        <CandidateActionMenu label="More" icon={<MoreHorizontal size={15} aria-hidden="true"/>}><div className="adm-actionmenu-group"><span>Close application</span>{closeActions()}</div></CandidateActionMenu>
+      </div>
+    </div>
+    <div className="adm-candidate-actionbar__mobile">
+      {renderPrimary()}
+      <CandidateActionMenu label="More" icon={<MoreHorizontal size={16} aria-hidden="true"/>} className="is-mobile-more">
+        {primaryKey !== 'schedule_interview' && !closed && <div className="adm-actionmenu-group"><span>Next steps</span>{scheduleInterview(true)}</div>}
+        {hasWorkflow && <div className="adm-actionmenu-group"><span>Workflow</span>{workflowActions()}</div>}
+        {detail.type === 'Staff' && confirmation && !closed && <div className="adm-actionmenu-group"><span>Private link</span>{privateLinkActions()}</div>}
+        <div className="adm-actionmenu-group"><span>Close application</span>{closeActions()}</div>
+      </CandidateActionMenu>
+    </div>
   </div>
 }
 
@@ -315,7 +419,7 @@ export default function PeoplePage({ collection }) {
         <RecordTable className={`adm-people-table-view ${isStaff ? 'is-staff' : 'is-members'}`} records={visible} columns={columns} selected={selected} onSelect={setSelected} onOpen={open} rowClassName={(record) => record.status === 'Active' ? 'is-profile-active' : 'is-profile-followup'} onBulk={openBulkAction}/>
       </>}
     </div>
-    {detail && <Drawer className={application ? 'is-candidate-drawer' : ''} title={application ? 'Application review' : isStaff ? 'Operational profile' : 'Member profile'} eyebrow={detail.id} onClose={() => setDetailId(null)} footer={application ? <CandidateActionBar detail={detail} request={request}/> : <>
+    {detail && <Drawer className={application ? 'is-candidate-drawer' : ''} title={application ? 'Application review' : isStaff ? 'Operational profile' : 'Member profile'} eyebrow={detail.id} headerContent={application ? ({ titleId }) => <CandidateReviewHeader detail={detail} titleId={titleId}/> : undefined} onClose={() => setDetailId(null)} footer={application ? <CandidateActionBar detail={detail} request={request}/> : <>
       <Button onClick={() => request(isStaff ? 'Assign internal role' : 'Edit member profile', null, { fields: isStaff ? [{ name: 'role', label: 'Internal role', value: detail.role, required: true }] : [{ name: 'name', label: 'Name', value: detail.name, required: true }, { name: 'email', label: 'Email', type: 'email', value: detail.email, required: true }, { name: 'level', label: 'Level', options: LEVELS, value: detail.level }, { name: 'status', label: 'Status', options: ['Active', 'On pause', 'Inactive', 'Alumni'], value: detail.status }] })}>{isStaff ? 'Assign a role' : 'Edit profile'}</Button><Button variant="secondary" onClick={() => request(isStaff ? 'Move department' : 'Change primary pole', null, { fields: [{ name: isStaff ? 'department' : 'pole', label: isStaff ? 'Current department' : 'Primary pole', options: isStaff ? DEPARTMENTS : ['Unassigned', ...POLES], value: isStaff ? detail.department : detail.pole }] })}>{isStaff ? 'Move department' : 'Change pole'}</Button><div>{isStaff ? <><button onClick={() => request('Assign project', null, { project: true, fields: [{ name: 'project', label: 'Project', options: ['AIVEX operations', 'Autumn workshops', 'Infinity website', 'Integration day'] }] })}>Add to project</button><button onClick={() => request('Change availability', null, { fields: [{ name: 'availability', label: 'Availability', options: AVAILABILITY }] })}>Availability</button></> : <button onClick={() => request('Convert member to staff', null, { convert: true, fields: [{ name: 'department', label: 'Department', options: DEPARTMENTS }, { name: 'role', label: 'Assigned role', required: true }] })}>Convert to staff</button>}<button className="is-danger" onClick={() => request('Deactivate profile', { status: 'Inactive' }, { danger: true })}>Deactivate</button><button onClick={() => request('Archive profile', { status: 'Archived' }, { danger: true })}>Archive</button></div>
     </>}>{application ? <CandidateDossier detail={detail} note={note} setNote={setNote} onSave={() => { if (!note.trim()) { addToast('Note is empty', 'Write a note before saving.'); return } update(collection, detail.id, { note }, 'Internal note saved') }}/> : <><div className="adm-candidate-identity"><Avatar initials={detail.initials}/><div><h3>{detail.name}</h3><p>{detail.role || detail.pole}</p></div><StatusBadge>{detail.status}</StatusBadge></div>
       <section className="adm-detail-section"><h4><span>01</span>Identity & academic path</h4><Facts items={[["Email", detail.email], ['Phone', detail.phone], ['Study level', detail.level], ['Speciality', detail.speciality || 'Information systems']]}/></section>
