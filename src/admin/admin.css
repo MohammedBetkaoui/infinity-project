@@ -1729,6 +1729,9 @@
   .adm-table .adm-row-action { display: block; grid-column: 1 / -1; min-height: 44px; padding: 10px 0 0; border: 0; }
   .adm-row-action button { display: flex; width: 100%; min-height: 44px; justify-content: center; align-items: center; gap: 7px; color: var(--adm-accent-fg); background: var(--adm-surface-soft); border-radius: var(--adm-radius-pill); }
   .adm-row-action button span { display: inline; font-size: 13px; font-weight: 700; }
+  .adm-applications-table .adm-table .adm-row-action { width: 100%; }
+  .adm-applications-table .adm-row-action button { box-sizing: border-box; flex-direction: row-reverse; justify-content: space-between; width: 100%; min-width: 0; padding: 0 14px; border: 1px solid var(--adm-line); border-radius: 11px; }
+  .adm-applications-table .adm-row-action button span { white-space: nowrap; }
   .adm-aivex-table-view .adm-table { min-width: 0; }
   .adm-aivex-table-view .adm-table :is(th, td) { width: auto !important; }
   .adm-aivex-table-view .adm-table tbody tr.is-aivex-attention { box-shadow: inset 3px 0 var(--adm-amber), var(--adm-shadow-card); }

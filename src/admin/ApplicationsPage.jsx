@@ -275,6 +275,7 @@ export default function ApplicationsPage() {
       {layout === 'board' ? <ApplicationsBoard key={boardVersion} search={deferredSearch} filters={filters} sort={sortValue} counts={counts} onOpen={open} onChanged={refresh} onShowStage={(stage) => { setLayout('list'); resetScope(() => setTab(stage)) }} addToast={addToast}/> : <>
 
       {error ? <div className="adm-state-error adm-applications-error" role="alert"><TriangleAlert size={24}/><h3>Applications could not be loaded</h3><p>{error}</p><Button onClick={refresh} variant="secondary" icon={<RefreshCw size={15}/>}>Try again</Button></div> : loading ? <ApplicationsSkeleton/> : <RecordTable
+        className="adm-applications-table"
         records={records}
         columns={columns}
         selected={selected}
