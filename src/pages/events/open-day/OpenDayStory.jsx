@@ -5,7 +5,7 @@ function NotePhoto({ id, className = '', annotation }) {
   const photo = openDayPhotos[id]
   return (
     <figure className={`od-note-photo ${className}`} data-od-reveal="">
-      <img src={photo.src} width={photo.width} height={photo.height} alt={photo.alt} loading="lazy" decoding="async" />
+      <div className="od-photo-media"><img src={photo.src} width={photo.width} height={photo.height} alt={photo.alt} loading="lazy" decoding="async" /></div>
       <figcaption><span className="od-label">{annotation}</span><span>{photo.caption}</span></figcaption>
     </figure>
   )

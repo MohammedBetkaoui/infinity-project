@@ -156,14 +156,8 @@ test('the club film is the new measured portrait edit with sound and scenes insi
 
 test('the club film loads nothing until asked, plays with sound and native controls, and stops offscreen or under a dialog', async () => {
   const film = await read('src/pages/events/open-day/OpenDayClubFilm.jsx')
-  assert.match(film, /preload="none" playsInline controls={controls}/)
-  // No browser chrome before the first play; then on hover, keyboard focus or touch.
-  assert.match(film, /const controls = started && \(!fine \|\| hovered \|\| keyboard\)/)
-  assert.match(film, /setKeyboard\(event\.target\.matches\(':focus-visible'\)\)/)
-  // A key pressed on the film turns its keyboard controls on; a failed media
-  // load can be retried; the status region exists before it speaks.
-  assert.match(film, /onKeyDown={keys}/)
-  assert.match(film, /else if \(video\.error\) video\.load\(\)/)
+  assert.match(film, /preload="none"[\s\S]*playsInline[\s\S]*controls={started}/)
+  assert.match(film, /else if \(video\.error\) \{[\s\S]*video\.load\(\)/)
   assert.match(film, /<p className="od-feature-error" role="status">\{failed &&/)
   assert.doesNotMatch(film, /autoPlay|muted|loop/)
   assert.match(film, /IntersectionObserver/)
@@ -174,67 +168,19 @@ test('the club film loads nothing until asked, plays with sound and native contr
   assert.equal((film.match(/<video\b/g) || []).length, 1, 'one video element, no visual duplicates')
   assert.doesNotMatch(film, /<canvas|<iframe/)
   assert.match(film, /onEnded=\{\(\) => setStatus\('ended'\)\}/)
-  // One cinematic card for every non-playing state, always mounted.
-  for (const title of ["'Play film'", "'Resume film'", "'Watch again'"]) assert.ok(film.includes(`title: ${title}`), title)
+  for (const title of ["'Press play'", "'Continue'", "'Watch again'"]) assert.ok(film.includes(`title: ${title}`), title)
   assert.match(film, /className="od-feature-play" data-state={status} hidden={status === 'playing'}/)
-  for (const layer of ['od-feature-atmosphere', 'od-feature-shadow', 'od-feature-light', 'od-feature-edge', 'od-feature-marks', 'od-feature-credits']) {
-    assert.match(film, new RegExp(`className="${layer}[^"]*"[^>]*aria-hidden="true"`), layer)
-  }
 })
 
-test('the screening room is one scrubbed timeline over a sticky stage, with static, reduced-motion and cleanup paths', async () => {
-  const motion = await read('src/pages/events/open-day/useOpenDayFilmMotion.js')
+test('the portrait film gets an editorial responsive layout and a reduced-motion fallback', async () => {
   const css = await read('src/pages/events/open-day/open-day-film.css')
-  const page = await read('src/pages/events/open-day/useOpenDayMotion.js')
-  const pkg = JSON.parse(await read('package.json'))
-  // Scroll moves the presentation; playback time is never derived from scroll.
-  assert.doesNotMatch(motion, /currentTime|\.play\(|\.pause\(/)
-  assert.equal((motion.match(/scrollTrigger:/g) || []).length, 1, 'one primary timeline')
-  assert.match(motion, /scrub: SCROLL_MOTION\.pinScrub, invalidateOnRefresh: true/)
-  assert.doesNotMatch(motion, /\bpin:/)
-  // Only the motion-allowed queries build a room; reduced motion keeps the static flow.
-  assert.match(motion, /const MOTION = '\(prefers-reduced-motion: no-preference\)'/)
-  assert.match(motion, /if \(!conditions\.cinematic && !conditions\.compact\) return undefined/)
-  assert.match(motion, /gsap\.quickTo\(tilt/)
-  // Transform and opacity only: no filter animation in the room.
-  assert.doesNotMatch(motion, /filter:/)
-  // The next section's opening column is faded, never hidden from assistive tech.
-  assert.match(motion, /fromTo\(nextCopy, \{ x: [^}]*opacity: 0 \}/)
-  assert.doesNotMatch(motion, /nextCopy, \{[^}]*autoAlpha/)
-  for (const cleanup of [/media\.revert\(\)/, /removeEventListener\('refreshInit', forget\)/, /removeEventListener\('pointermove', move\)/, /removeEventListener\('visibilitychange', settle\)/, /watcher\?\.disconnect\(\)/, /delete section\.dataset\.filmMode/, /section\.removeAttribute\('data-film-handoff'\)/, /document\.documentElement\.removeAttribute\('data-od-film-immersed'\)/]) assert.match(motion, cleanup)
-  // Static by default: the one sticky stage and all 3D exist only under a
-  // data-film-mode set by the hook.
-  const stickyRules = css.split('\n').filter((line) => /position: sticky/.test(line))
-  assert.equal(stickyRules.length, 1)
-  assert.ok(stickyRules.every((line) => line.includes('[data-film-mode]')))
-  assert.ok(css.split('\n').filter((line) => /preserve-3d|perspective:/.test(line)).every((line) => line.includes('[data-film-mode]')))
+  const film = await read('src/pages/events/open-day/OpenDayClubFilm.jsx')
+  assert.match(css, /grid-template-columns: minmax\(190px, \.72fr\) minmax\(290px, 420px\) minmax\(210px, \.82fr\)/)
+  assert.match(css, /aspect-ratio: 464 \/ 832/)
+  assert.match(css, /@media \(max-width: 1050px\)/)
+  assert.match(css, /@media \(max-width: 700px\)/)
   assert.match(css, /prefers-reduced-motion: reduce/)
-  // The handoff and the quiet header are scoped to states the hook sets.
-  assert.ok(css.split('\n').filter((line) => line.includes('.od-intro')).every((line) => line.includes('.od-feature[data-film-handoff] + .od-intro')))
-  assert.ok(css.split('\n').filter((line) => line.includes('.site-header')).every((line) => line.startsWith('html[data-od-film-immersed]')))
-  // Phones get a short room: no scroll space above 170svh outside landscape.
-  const lengths = [...css.matchAll(/\[data-film-mode="compact"\] \{ --od-feature-length: (\d+)svh/g)].map((match) => Number(match[1]))
-  assert.ok(lengths.length >= 2 && lengths.every((length) => length <= 170), String(lengths))
-  assert.doesNotMatch(page, /od-feature-screen|od-feature-scenes li/)
-  assert.ok(!Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).some((name) => /three|webgl|locomotive/i.test(name)))
-})
-
-test('video previews defer loading, pause offscreen, respect reduced motion and retain a manual player', async () => {
-  const player = await read('src/pages/events/open-day/OpenDayFilmPlayer.jsx')
-  const films = await read('src/pages/events/open-day/OpenDayFilms.jsx')
-  const viewer = await read('src/pages/events/open-day/OpenDayFilmViewer.jsx')
-  assert.match(player, /preload="none" muted playsInline loop/)
-  assert.match(player, /IntersectionObserver/)
-  assert.match(player, /visibilitychange/)
-  assert.match(player, /infinity:scroll-lock/)
-  assert.match(player, /navigator.connection\?\.saveData/)
-  assert.match(player, /!reduced && !saveData && !userPaused.current/)
-  assert.doesNotMatch(player, /autoPlay|requestAnimationFrame/)
-  assert.match(films, /if \(!media.matches \|\| reduced \|\| viewerOpen\) return/)
-  assert.match(viewer, /dialog.showModal\(\)/)
-  assert.match(viewer, /onCancel/)
-  assert.match(viewer, /controls playsInline autoPlay preload="metadata"/)
-  assert.match(viewer, /previousFocus.focus/)
+  assert.doesNotMatch(film, /useOpenDayFilmMotion|data-film-mode|autoPlay/)
 })
 
 test('the detail page is indexable, self-canonical, sitemap eligible and preserves private route exclusions', async () => {

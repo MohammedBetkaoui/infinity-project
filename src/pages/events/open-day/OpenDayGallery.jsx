@@ -14,9 +14,10 @@ export default function OpenDayGallery() {
         </header>
         <div className="od-contact-sheet">
           {openDayGallery.map((photo, index) => (
-            <figure key={photo.id} className={`od-sheet-image od-sheet-image--${photo.id}`} data-od-reveal="">
+            <figure key={photo.id} className={`od-sheet-image od-sheet-image--${photo.id}`} data-gallery-card="">
               <button type="button" onClick={() => setActiveIndex(index)} aria-label={`Enlarge image ${index + 1}: ${photo.alt}`} aria-haspopup="dialog">
                 <img src={photo.src} width={photo.width} height={photo.height} alt={photo.alt} loading="lazy" decoding="async" />
+                <span className="od-image-hover-label od-label" aria-hidden="true">View frame</span>
                 <span className="od-image-expand" aria-hidden="true"><Expand size={18} /></span>
               </button>
               <figcaption><span className="od-image-number">{String(index + 1).padStart(2, '0')}</span><span>{photo.caption}</span><span className="od-label">{photo.kind === 'activity' ? 'Activity' : 'Open Day'}</span></figcaption>

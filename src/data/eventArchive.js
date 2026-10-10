@@ -58,10 +58,10 @@ const realEvents = [
     href: '/events/open-day-2026',
     description: 'Discovery, conversation and hands-on experiences: a chance to meet Infinity Club and the people behind its projects.',
     image: {
-      src: '/open-day/photo_1_2026-10-06_14-13-06.jpg',
-      width: 960,
+      src: '/open-day/photo_1_2026-10-10_15-09-43.jpg',
+      width: 1024,
       height: 1280,
-      alt: 'Overhead view of students gathering around activity tables and chessboards in the faculty hall.',
+      alt: 'Students gathered around the Infinity Club challenge table during Open Day.',
     },
   },
   fromClub('DesignLab v2', { id: 'designlab-v2-2026', edition: 'Second edition' }),
