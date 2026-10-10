@@ -1963,11 +1963,14 @@
 .adm-private-link-cell button:disabled { opacity: .48; cursor: wait; }
 .adm-private-link-unavailable { color: var(--adm-muted); font-size: 10px; }
 .adm-staff-confirmation-panel { display: grid; min-width: 0; gap: 12px; }
-.adm-staff-confirmation-panel__state { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; min-width: 0; padding: 11px 12px; border: 1px solid var(--adm-line); border-radius: var(--adm-radius-control); background: var(--adm-surface-soft); }
+.adm-staff-confirmation-panel__state { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, auto); gap: 10px; align-items: center; min-width: 0; padding: 11px 12px; border: 1px solid var(--adm-line); border-radius: var(--adm-radius-control); background: var(--adm-surface-soft); }
 .adm-staff-confirmation-panel__state > span { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: rgb(var(--adm-tint-rgb) / .35); color: var(--adm-accent-fg); }
 .adm-staff-confirmation-panel__state > div { display: grid; min-width: 0; gap: 1px; }
 .adm-staff-confirmation-panel__state small { color: var(--adm-muted); font-size: 9px; text-transform: uppercase; letter-spacing: .08em; }
 .adm-staff-confirmation-panel__state b { font-size: 12px; }
+.adm-confirmation-review-status { justify-items: end; max-width: 100%; padding-inline-start: 10px; border-inline-start: 1px solid var(--adm-line); text-align: end; }
+.adm-confirmation-review-status > small { line-height: 1.4; white-space: nowrap; }
+.adm-confirmation-review-status > .adm-status { max-width: 100%; min-height: 24px; margin-top: 3px; padding: 3px 9px; line-height: 1.35; text-align: start; white-space: normal; overflow-wrap: anywhere; }
 .adm-confirmation-empty { margin: 0; padding: 14px; border: 1px dashed var(--adm-line-strong); border-radius: var(--adm-radius-control); color: var(--adm-muted); font-size: 11px; line-height: 1.65; }
 .adm-confirmation-private-link { display: grid; min-width: 0; gap: 9px; padding: 12px; border: 1px solid var(--adm-line); border-radius: var(--adm-radius-control); background: var(--adm-surface-soft); }
 .adm-confirmation-private-link > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -2045,8 +2048,8 @@
   .adm-staff-confirmation-summary { align-items: stretch; flex-direction: column; }
   .adm-invitation-dialog dl { grid-template-columns: 1fr; }
   .adm-staff-export-dialog dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .adm-staff-confirmation-panel__state { grid-template-columns: auto 1fr; }
-  .adm-staff-confirmation-panel__state .adm-status { grid-column: 1 / -1; justify-self: start; }
+  .adm-staff-confirmation-panel__state { grid-template-columns: auto minmax(0, 1fr); }
+  .adm-confirmation-review-status { grid-column: 1 / -1; justify-items: start; width: 100%; padding: 9px 0 0; border-inline-start: 0; border-top: 1px solid var(--adm-line); text-align: start; }
   .adm-motivation-history article > header { align-items: flex-start; flex-direction: column; gap: 4px; }
   .adm-motivation-links a { grid-template-columns: minmax(0, 1fr) auto; }
   .adm-motivation-links a small { grid-column: 1 / -1; grid-row: 2; }

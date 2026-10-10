@@ -130,6 +130,16 @@ const CONFIRMATION_TONES = Object.freeze({
   submitted: 'success', confirmed: 'success', revision_requested: 'warning', expired: 'warning', revoked: 'declined',
 })
 
+const CONFIRMATION_STATUS_HINTS = Object.freeze({
+  not_invited: 'Invitation not sent',
+  invited: 'Response pending',
+  submitted: 'Submission received',
+  revision_requested: 'Update pending',
+  confirmed: 'Review complete',
+  expired: 'Follow-up required',
+  revoked: 'Access closed',
+})
+
 const LINK_ACCESS_LABELS = Object.freeze({ active: 'Active', blocked: 'Blocked', legacy: 'Legacy', none: 'Not created' })
 
 // Work links belong to one motivation version. Only links that parse as http(s)
@@ -157,6 +167,7 @@ function MotivationVersion({ submission, latest = false }) {
 
 function StaffConfirmationPanel({ confirmation, onRevealLink }) {
   const status = confirmation?.statusKey || 'not_invited'
+  const statusLabel = CONFIRMATION_LABELS[status] || status
   const [revealed, setRevealed] = useState(null)
   const [linkBusy, setLinkBusy] = useState('')
   const [linkError, setLinkError] = useState('')
@@ -188,7 +199,10 @@ function StaffConfirmationPanel({ confirmation, onRevealLink }) {
     <div className="adm-staff-confirmation-panel__state">
       <span><FileText size={17} aria-hidden="true"/></span>
       <div><small>Confirmation status</small><b>Staff confirmation</b></div>
-      <StatusBadge tone={CONFIRMATION_TONES[status] || 'neutral'}>{CONFIRMATION_LABELS[status] || status}</StatusBadge>
+      <div className="adm-confirmation-review-status" role="status" aria-label={`Confirmation status: ${statusLabel}`}>
+        <small>{CONFIRMATION_STATUS_HINTS[status] || 'Current status'}</small>
+        <StatusBadge tone={CONFIRMATION_TONES[status] || 'neutral'}>{statusLabel}</StatusBadge>
+      </div>
     </div>
     {confirmation ? <>
       <div className="adm-confirmation-private-link">
