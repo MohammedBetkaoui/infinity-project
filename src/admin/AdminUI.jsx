@@ -224,7 +224,7 @@ function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen, language 
         className={({ isActive }) => `${isActive ? 'is-active' : ''} ${item.icon === 'aivex' ? 'is-aivex' : ''}`}
         title={collapsed ? t(item.label) : undefined}
       >
-        <Icon size={19} aria-hidden="true" />
+        <span className="adm-nav-icon"><Icon size={18} aria-hidden="true" /></span>
         <span className="adm-nav-label">{t(item.label)}</span>
         {badge > 0 && <em><span aria-hidden="true">{badge}</span><span className="sr-only">{badge} {t('to review')}</span></em>}
       </NavLink>
