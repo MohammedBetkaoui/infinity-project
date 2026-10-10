@@ -70,7 +70,7 @@ export default function StaffConfirmationsView({ onOpen, onRevealLink }) {
     }
   }, [onRevealLink, linkAction.id])
   const columns = useMemo(() => [
-    { key: 'name', label: 'Candidate', render: (record) => <span className="adm-staff-confirmation-person"><b>{record.name}</b><small>{record.ref}</small></span> },
+    { key: 'name', label: 'Candidate', render: (record) => <span className="adm-staff-confirmation-person"><b>{record.name}</b><span className="adm-staff-confirmation-person__department">{record.staffDepartment}</span><small>{record.ref}</small></span> },
     { key: 'staffDepartment', label: 'Requested department' },
     { key: 'applicationStatus', label: 'Application', render: (record) => <StatusBadge tone="neutral">{record.applicationStatus}</StatusBadge> },
     { key: 'statusKey', label: 'Confirmation', render: (record) => <StatusBadge tone={STATUS_TONES[record.statusKey] || 'info'}>{STATUS_LABELS[record.statusKey] || record.statusKey}</StatusBadge> },
@@ -101,7 +101,17 @@ export default function StaffConfirmationsView({ onOpen, onRevealLink }) {
       {linkAction.error && <div className="adm-inline-application-error" role="alert"><span>{linkAction.error}</span><button onClick={() => setLinkAction({ id: '', kind: '', error: '' })}>Dismiss</button></div>}
       {error ? <div className="adm-state-error" role="alert"><TriangleAlert size={24}/><h3>Staff confirmations could not be loaded</h3><p>{error}</p><Button onClick={refresh} variant="secondary">Try again</Button></div>
         : loading ? <div className="adm-skeleton-group" role="status" aria-label="Loading Staff confirmations">{Array.from({ length: 5 }, (_, index) => <div className="adm-skeleton-row" key={index}><i/><span/><span/></div>)}</div>
-          : <RecordTable records={records} columns={columns} onOpen={(record) => onOpen(record.applicationId)} pagination={pagination} onPageChange={setPage} emptyTitle={tab === 'All' ? 'No Staff confirmations yet' : `No ${tab.toLowerCase()} confirmations`}/>}
+          : <RecordTable
+            records={records}
+            columns={columns}
+            className="adm-staff-confirmation-table"
+            rowClassName={(record) => `is-confirmation-${record.statusKey || 'not_invited'}`}
+            labels={{ openFile: 'Review application' }}
+            onOpen={(record) => onOpen(record.applicationId)}
+            pagination={pagination}
+            onPageChange={setPage}
+            emptyTitle={tab === 'All' ? 'No Staff confirmations yet' : `No ${tab.toLowerCase()} confirmations`}
+          />}
     </div>
   </div>
 }
