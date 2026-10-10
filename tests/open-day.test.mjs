@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import { eventArchive } from '../src/data/eventArchive.js'
 import { groupEventsByYear, layoutYear } from '../src/pages/events/archiveLayout.js'
 import { openDayGallery } from '../src/pages/events/open-day/openDayGallery.js'
-import { clubFilm, filmTime } from '../src/pages/events/open-day/openDayFilms.js'
+import { clubFilm, filmTime, sceneAt, sceneSpans } from '../src/pages/events/open-day/openDayFilms.js'
 import { ROUTES, jsonLdFor, routeFor } from '../src/seo/seoConfig.js'
 import { renderRoute, sitemap } from '../scripts/seo-build.mjs'
 
@@ -120,6 +120,16 @@ function mp4Video(bytes) {
   }
 }
 
+// Lossy (VP8) or extended (VP8X) WebP: read the frame size from the file.
+function webpSize(bytes) {
+  assert.equal(bytes.toString('ascii', 0, 4), 'RIFF')
+  assert.equal(bytes.toString('ascii', 8, 12), 'WEBP')
+  const chunk = bytes.toString('ascii', 12, 16)
+  if (chunk === 'VP8 ') return { width: bytes.readUInt16LE(26) & 0x3fff, height: bytes.readUInt16LE(28) & 0x3fff }
+  if (chunk === 'VP8X') return { width: 1 + bytes.readUIntLE(24, 3), height: 1 + bytes.readUIntLE(27, 3) }
+  throw new Error(`unsupported WebP chunk ${chunk}`)
+}
+
 async function pngSize(path) {
   const poster = await readFile(new URL(`../public${path}`, import.meta.url))
   assert.equal(poster.toString('hex', 0, 8), '89504e470d0a1a0a')
@@ -154,12 +164,14 @@ test('the club film is the new measured portrait edit with sound and scenes insi
   })
 })
 
-test('the club film loads nothing until asked, plays with sound and native controls, and stops offscreen or under a dialog', async () => {
+test('the club film loads nothing until asked, plays with sound under house controls, and stops offscreen or under a dialog', async () => {
   const film = await read('src/pages/events/open-day/OpenDayClubFilm.jsx')
-  assert.match(film, /preload="none"[\s\S]*playsInline[\s\S]*controls={started}/)
+  const video = film.match(/<video\b[^>]*>/)[0]
+  assert.match(video, /preload="none"[\s\S]*playsInline/)
+  assert.doesNotMatch(video, /\b(autoPlay|muted|loop|controls)\b/, 'no autoplay, forced mute, loop or native controls')
+  assert.doesNotMatch(film, /autoPlay/)
   assert.match(film, /else if \(video\.error\) \{[\s\S]*video\.load\(\)/)
   assert.match(film, /<p className="od-feature-error" role="status">\{failed &&/)
-  assert.doesNotMatch(film, /autoPlay|muted|loop/)
   assert.match(film, /IntersectionObserver/)
   assert.match(film, /infinity:scroll-lock/)
   assert.match(film, /loadedmetadata/)
@@ -167,9 +179,42 @@ test('the club film loads nothing until asked, plays with sound and native contr
   assert.match(film, /<h2 id="od-feature-title">/)
   assert.equal((film.match(/<video\b/g) || []).length, 1, 'one video element, no visual duplicates')
   assert.doesNotMatch(film, /<canvas|<iframe/)
-  assert.match(film, /onEnded=\{\(\) => setStatus\('ended'\)\}/)
+  assert.match(film, /setStatus\('ended'\)/)
   for (const title of ["'Press play'", "'Continue'", "'Watch again'"]) assert.ok(film.includes(`title: ${title}`), title)
   assert.match(film, /className="od-feature-play" data-state={status} hidden={status === 'playing'}/)
+})
+
+test('the house controls work by keyboard, pointer and screen reader, full screen included', async () => {
+  const film = await read('src/pages/events/open-day/OpenDayClubFilm.jsx')
+  assert.match(film, /role="group" aria-label="Film controls" hidden={!started}/)
+  assert.match(film, /type="range"[\s\S]*step="any"[\s\S]*aria-label="Seek in the film"[\s\S]*aria-valuetext=/)
+  assert.match(film, /aria-label={playing \? 'Pause the film' : 'Play the film'}/)
+  assert.match(film, /aria-pressed={muted} aria-label="Mute sound"/)
+  assert.match(film, /frame\.requestFullscreen\(\)[\s\S]*webkitEnterFullscreen/)
+  assert.match(film, /fullscreenchange/)
+  for (const key of ["'k'", "'m'", "'f'", "'Home'", "'End'"]) assert.ok(film.includes(key), key)
+  // The controls never rest while a keyboard user is inside them.
+  assert.match(film, /querySelector\(':focus-visible'\)/)
+  // A chapter pressed below the fold brings the screen into view before playing.
+  assert.match(film, /bringIntoView\(\)\s*video\.play\(\)/)
+})
+
+test('chapter spans tile the runtime and every chapter has its own decoded frame', async () => {
+  assert.equal(sceneSpans.length, clubFilm.scenes.length)
+  assert.equal(sceneSpans[0].start, 0)
+  assert.equal(sceneSpans.at(-1).end, 1)
+  sceneSpans.forEach((span, index) => {
+    assert.ok(span.end > span.start, `span ${index}`)
+    if (index) assert.equal(span.start, sceneSpans[index - 1].end)
+  })
+  assert.equal(sceneAt(0), 0)
+  assert.equal(sceneAt(clubFilm.scenes[2].time), 2)
+  assert.equal(sceneAt(clubFilm.duration), clubFilm.scenes.length - 1)
+  assert.equal(new Set(clubFilm.scenes.map((scene) => scene.thumb)).size, clubFilm.scenes.length)
+  for (const scene of clubFilm.scenes) {
+    assert.match(scene.thumb, /^\/open-day\/posters\/scene-\d\d\.webp$/)
+    assert.deepEqual(webpSize(await readFile(new URL(`../public${scene.thumb}`, import.meta.url))), { width: 96, height: 172 }, scene.thumb)
+  }
 })
 
 test('the portrait film gets an editorial responsive layout and a reduced-motion fallback', async () => {
@@ -180,6 +225,8 @@ test('the portrait film gets an editorial responsive layout and a reduced-motion
   assert.match(css, /@media \(max-width: 1050px\)/)
   assert.match(css, /@media \(max-width: 700px\)/)
   assert.match(css, /prefers-reduced-motion: reduce/)
+  assert.match(css, /\.od-feature-frame:fullscreen/)
+  assert.match(css, /scaleX\(clamp\(0, \(var\(--film-progress\) - var\(--start\)\)/)
   assert.doesNotMatch(film, /useOpenDayFilmMotion|data-film-mode|autoPlay/)
 })
 
