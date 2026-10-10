@@ -2076,8 +2076,8 @@
   .adm-staff-confirmation-table .adm-table td:is([data-column="invitedAt"], [data-column="submittedAt"])::before { font-size: 9px; font-weight: 750; letter-spacing: .07em; text-transform: uppercase; }
   .adm-staff-confirmation-table .adm-table td[data-column="invitedAt"] { padding-right: 10px; border-right: 1px solid var(--adm-line); }
   .adm-staff-confirmation-table .adm-confirmation-date { font-size: 10px; line-height: 1.5; }
-  .adm-staff-confirmation-table .adm-table .adm-row-action { min-height: 0; padding: 5px 0 0; border-top: 1px solid var(--adm-line-strong); }
-  .adm-staff-confirmation-table .adm-row-action button { flex-direction: row-reverse; justify-content: space-between; min-height: 46px; padding: 0 14px; border: 1px solid var(--adm-line); border-radius: 11px; font-weight: 750; }
+  .adm-staff-confirmation-table .adm-table .adm-row-action { width: 100%; min-height: 0; padding: 5px 0 0; border-top: 1px solid var(--adm-line-strong); }
+  .adm-staff-confirmation-table .adm-row-action button { box-sizing: border-box; flex-direction: row-reverse; justify-content: space-between; width: 100%; min-width: 0; min-height: 46px; padding: 0 14px; border: 1px solid var(--adm-line); border-radius: 11px; font-weight: 750; }
   .adm-staff-confirmation-table .adm-row-action button span { white-space: nowrap; }
   .adm-invitation-dialog dl { grid-template-columns: 1fr; }
   .adm-staff-export-dialog dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
