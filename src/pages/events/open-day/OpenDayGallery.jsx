@@ -19,7 +19,7 @@ export default function OpenDayGallery() {
                 <img src={photo.src} width={photo.width} height={photo.height} alt={photo.alt} loading="lazy" decoding="async" />
                 <span className="od-image-expand" aria-hidden="true"><Expand size={18} /></span>
               </button>
-              <figcaption><span className="od-image-number">{String(index + 1).padStart(2, '0')}</span><span>{photo.caption}</span><span className="od-label">{photo.kind === 'artwork' ? 'Artwork' : 'Open Day'}</span></figcaption>
+              <figcaption><span className="od-image-number">{String(index + 1).padStart(2, '0')}</span><span>{photo.caption}</span><span className="od-label">{photo.kind === 'activity' ? 'Activity' : 'Open Day'}</span></figcaption>
             </figure>
           ))}
         </div>

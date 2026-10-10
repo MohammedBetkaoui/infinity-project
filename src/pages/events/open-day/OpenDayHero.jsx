@@ -27,7 +27,7 @@ export default function OpenDayHero() {
             <div className="od-hero-image">
               <img src={photo.src} width={photo.width} height={photo.height} alt={photo.alt} loading="eager" fetchPriority="high" decoding="async" />
             </div>
-            <figcaption><span className="od-label">01 / The faculty hall</span><span className="od-label">05 · OCT · 26</span></figcaption>
+            <figcaption><span className="od-label">01 / Inside the stand</span><span className="od-label">05 · OCT · 26</span></figcaption>
           </figure>
         </div>
         <div className="od-hero-foot od-label"><span>Faculty of Mathematics and Computer Science</span><span>University of Bordj Bou Arreridj</span></div>

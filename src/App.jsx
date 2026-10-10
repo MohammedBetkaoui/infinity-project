@@ -30,10 +30,8 @@ const AivexStatusPage = lazy(() => import('./pages/aivex/status/AivexStatusPage'
 // Back-office: its own chunk, so none of it ships with the public site.
 const AdminApp = lazy(() => import('./admin/AdminApp'))
 
-// TEMPORARY: the Open Day page is paused until its launch, so its route shows
-// a holding screen instead. OpenDayPage and its folder are untouched; set
-// this back to false to bring the page back.
-const OPEN_DAY_PAUSED = true
+// The holding screen stays available for a future pause, but Open Day is live.
+const OPEN_DAY_PAUSED = false
 
 function SitePage({ children, mainRef, motionTrigger, busy = false }) {
   return (

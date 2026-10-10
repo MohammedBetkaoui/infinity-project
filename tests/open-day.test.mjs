@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import { eventArchive } from '../src/data/eventArchive.js'
 import { groupEventsByYear, layoutYear } from '../src/pages/events/archiveLayout.js'
 import { openDayGallery } from '../src/pages/events/open-day/openDayGallery.js'
-import { clubFilm, filmTime, openDayFilms } from '../src/pages/events/open-day/openDayFilms.js'
+import { clubFilm, filmTime } from '../src/pages/events/open-day/openDayFilms.js'
 import { ROUTES, jsonLdFor, routeFor } from '../src/seo/seoConfig.js'
 import { renderRoute, sitemap } from '../scripts/seo-build.mjs'
 
@@ -47,7 +47,7 @@ test('Open Day is a real completed 2026 event and the first standard card below 
   assert.ok(eventArchive.filter((item) => item.isMock).every((item) => item.status === 'past'))
 })
 
-test('the gallery covers every suitable local image, with measured dimensions and truthful artwork labeling', async () => {
+test('the gallery covers every supplied local image, with measured dimensions and truthful activity labeling', async () => {
   const files = (await readdir(new URL('../public/open-day/', import.meta.url))).filter((name) => !name.startsWith('.') && /\.(jpg|jpeg|png|webp|avif)$/i.test(name))
   assert.equal(openDayGallery.length, 10)
   assert.equal(new Set(openDayGallery.map((photo) => photo.src)).size, openDayGallery.length)
@@ -61,17 +61,18 @@ test('the gallery covers every suitable local image, with measured dimensions an
     assert.deepEqual(jpegDimensions(bytes), { width: photo.width, height: photo.height }, photo.src)
     assert.equal(photo.orientation, photo.width === photo.height ? 'square' : 'portrait')
   }
-  const artwork = openDayGallery.find((photo) => photo.id === 'spin')
-  assert.equal(artwork.kind, 'artwork')
-  assert.match(artwork.alt, /artwork/)
-  assert.match(artwork.caption, /artwork/)
+  const activity = openDayGallery.find((photo) => photo.id === 'spin')
+  assert.equal(activity.kind, 'activity')
+  assert.match(activity.alt, /challenge wheel/)
+  assert.match(activity.caption, /challenge/)
 })
 
 test('the lazy detail route uses the shared shell and only one H1', async () => {
   const app = await read('src/App.jsx')
   assert.match(app, /const OpenDayPage = lazy\(/)
+  assert.match(app, /const OPEN_DAY_PAUSED = false/)
   assert.match(app, /path="\/events\/open-day-2026" element={<SitePage motionTrigger="viewport"><Suspense/)
-  const components = await Promise.all(['OpenDayPage', 'OpenDayHero', 'OpenDayStory', 'OpenDayGallery', 'OpenDayLightbox', 'OpenDayFilms', 'OpenDayFilmPlayer', 'OpenDayFilmViewer', 'OpenDayClubFilm'].map((file) => read(`src/pages/events/open-day/${file}.jsx`)))
+  const components = await Promise.all(['OpenDayPage', 'OpenDayHero', 'OpenDayStory', 'OpenDayGallery', 'OpenDayLightbox', 'OpenDayClubFilm'].map((file) => read(`src/pages/events/open-day/${file}.jsx`)))
   assert.equal((components.join('\n').match(/<h1\b/g) || []).length, 1)
   assert.doesNotMatch(components.join('\n'), /<Navbar|<Footer|<PageHero|<iframe/)
   assert.match(components[1], /<Link to="\/events"/)
@@ -119,39 +120,31 @@ function mp4Video(bytes) {
   }
 }
 
-async function webpSize(path) {
+async function pngSize(path) {
   const poster = await readFile(new URL(`../public${path}`, import.meta.url))
-  assert.equal(poster.toString('ascii', 0, 4), 'RIFF')
-  assert.equal(poster.toString('ascii', 8, 16), 'WEBPVP8 ')
-  return { width: poster.readUInt16LE(26) & 0x3fff, height: poster.readUInt16LE(28) & 0x3fff }
+  assert.equal(poster.toString('hex', 0, 8), '89504e470d0a1a0a')
+  return { width: poster.readUInt32BE(16), height: poster.readUInt32BE(20) }
 }
 
-test('every local video is either the club film or one of three reels, with accurate measured dimensions/durations and posters', async () => {
+test('the supplied Open Day folder has one measured film and a matching local poster', async () => {
   const files = (await readdir(new URL('../public/open-day/', import.meta.url))).filter((name) => /\.mp4$/i.test(name))
-  assert.deepEqual([clubFilm, ...openDayFilms].map((film) => film.src.split('/').at(-1)).sort(), files.sort())
-  assert.equal(openDayFilms.length, 3)
-  for (const film of openDayFilms) {
-    assert.match(film.src, /^\/open-day\/.+\.mp4$/)
-    assert.match(film.poster, /^\/open-day\/posters\/.+\.webp$/)
-    assert.ok(film.description && film.label && film.note)
-    const video = mp4Video(await readFile(new URL(`../public${film.src}`, import.meta.url)))
-    assert.equal(video.width, film.width)
-    assert.equal(video.height, film.height)
-    assert.ok(Math.abs(video.duration - film.duration) < .1, film.src)
-    assert.deepEqual(await webpSize(film.poster), { width: 540, height: 960 })
-  }
+  assert.deepEqual([clubFilm.src.split('/').at(-1)], files)
+  assert.match(clubFilm.src, /^\/open-day\/.+\.mp4$/)
+  assert.match(clubFilm.poster, /^\/open-day\/posters\/.+\.png$/)
+  assert.deepEqual(await pngSize(clubFilm.poster), { width: clubFilm.width, height: clubFilm.height })
   assert.equal(filmTime(17.833), '00:17')
   assert.equal(filmTime(Number.NaN), '00:00')
 })
 
-test('the club film is a measured landscape file with sound, streamable from the start, with a matching poster and scenes inside its runtime', async () => {
+test('the club film is the new measured portrait edit with sound and scenes inside its runtime', async () => {
   const video = mp4Video(await readFile(new URL(`../public${clubFilm.src}`, import.meta.url)))
   assert.deepEqual({ width: video.width, height: video.height }, { width: clubFilm.width, height: clubFilm.height })
-  assert.equal(clubFilm.width / clubFilm.height, 16 / 9)
+  assert.deepEqual({ width: clubFilm.width, height: clubFilm.height }, { width: 464, height: 832 })
+  assert.ok(clubFilm.height > clubFilm.width)
   assert.ok(Math.abs(video.duration - clubFilm.duration) < .1)
   assert.equal(video.audio, true)
-  assert.ok(video.layout.indexOf('moov') < video.layout.indexOf('mdat'), 'moov precedes mdat so playback starts without a tail request')
-  assert.deepEqual(await webpSize(clubFilm.poster), { width: clubFilm.width, height: clubFilm.height })
+  assert.ok(video.layout.includes('moov'))
+  assert.deepEqual(await pngSize(clubFilm.poster), { width: clubFilm.width, height: clubFilm.height })
   assert.ok(clubFilm.description.length > 60)
   assert.equal(clubFilm.scenes[0].time, 0)
   clubFilm.scenes.forEach((scene, index) => {

@@ -40,8 +40,8 @@
 .od-date-month > span { color: var(--od-muted); font-size: 13px; }
 .od-hero-print { position: relative; justify-self: end; width: min(100%, 480px); padding: 8px 8px 0; background: var(--od-cream); color: var(--od-dark); transform: rotate(-1.15deg); box-shadow: 12px 18px 0 rgb(158 215 196 / .055); }
 .od-print-edge { position: absolute; top: 0; left: -26px; writing-mode: vertical-rl; color: var(--od-muted); font-size: 8px; }
-.od-hero-image { position: relative; overflow: hidden; aspect-ratio: 3 / 4; }
-.od-hero-image img { display: block; width: 100%; height: auto; }
+.od-hero-image { position: relative; overflow: hidden; aspect-ratio: 4 / 5; }
+.od-hero-image img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .od-hero-print figcaption { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; padding-inline: 8px; }
 .od-hero-foot { display: flex; justify-content: space-between; gap: 28px; padding-top: 18px; border-top: 1px solid rgb(182 206 197 / .25); color: var(--od-muted); }
 
@@ -152,16 +152,16 @@
 .od-gallery-note .od-gallery-help { margin-top: 10px; color: var(--od-paper-ink); font-size: 11px; line-height: 1.7; }
 .od-contact-sheet { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 76px 24px; align-items: start; padding-block: 52px 70px; }
 .od-sheet-image { min-width: 0; }
-.od-sheet-image--hall { grid-column: 1 / span 5; }
-.od-sheet-image--gathering { grid-column: 7 / span 3; margin-top: 90px !important; }
-.od-sheet-image--conversation { grid-column: 10 / span 3; margin-top: 230px !important; }
+.od-sheet-image--hall { grid-column: 1 / span 4; }
+.od-sheet-image--gathering { grid-column: 5 / span 4; margin-top: 100px !important; }
+.od-sheet-image--conversation { grid-column: 9 / span 4; margin-top: 34px !important; }
 .od-sheet-image--chess { grid-column: 2 / span 4; }
-.od-sheet-image--chess-table { grid-column: 7 / span 3; margin-top: 64px !important; }
-.od-sheet-image--spin { grid-column: 10 / span 3; margin-top: 160px !important; }
-.od-sheet-image--clue-board { grid-column: 1 / span 5; }
-.od-sheet-image--clues { grid-column: 8 / span 4; margin-top: 90px !important; }
-.od-sheet-image--frame-pair-one { grid-column: 3 / span 4; }
-.od-sheet-image--frame-pair-two { grid-column: 7 / span 4; margin-top: 52px !important; }
+.od-sheet-image--spin { grid-column: 7 / span 3; margin-top: 90px !important; }
+.od-sheet-image--awards { grid-column: 10 / span 3; margin-top: 170px !important; }
+.od-sheet-image--game-table { grid-column: 1 / span 4; }
+.od-sheet-image--frame { grid-column: 5 / span 4; margin-top: 88px !important; }
+.od-sheet-image--chess-duel { grid-column: 9 / span 4; margin-top: 20px !important; }
+.od-sheet-image--spin-lab { grid-column: 4 / span 5; margin-top: 52px !important; }
 .od-sheet-image button { position: relative; display: block; width: 100%; padding: 0; border: 0; cursor: zoom-in; background: var(--od-dark); color: var(--od-cream); }
 .od-sheet-image img { display: block; width: 100%; height: auto; }
 .od-image-expand { position: absolute; bottom: 12px; right: 12px; display: grid; place-items: center; width: 40px; height: 40px; background: #002a1ee6; transition: background .2s; }
@@ -205,7 +205,7 @@
   .od-play-layout { gap: 48px; }
   .od-contact-sheet { gap: 60px 18px; }
   .od-sheet-image--gathering { margin-top: 48px !important; }
-  .od-sheet-image--conversation { margin-top: 140px !important; }
+  .od-sheet-image--awards { margin-top: 110px !important; }
   .od-print-edge { left: -18px; }
 }
 @media (max-width: 1023px), (max-height: 739px), (prefers-reduced-motion: reduce) {
@@ -263,8 +263,8 @@
   .od-contact-sheet { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 34px 14px; padding-block: 32px 40px; }
   .od-contact-sheet .od-sheet-image { grid-column: 1 / -1; margin-top: 0 !important; }
   .od-contact-sheet .od-sheet-image--spin { width: 78%; justify-self: center; }
-  .od-contact-sheet .od-sheet-image--frame-pair-one { grid-column: 1; }
-  .od-contact-sheet .od-sheet-image--frame-pair-two { grid-column: 2; }
+  .od-contact-sheet .od-sheet-image--frame { grid-column: 1; }
+  .od-contact-sheet .od-sheet-image--chess-duel { grid-column: 2; }
   .od-sheet-image figcaption { gap: 5px 8px; font-size: 10px; }
   .od-sheet-end { font-size: 8px; }
   .od-closing h2 { font-size: clamp(43px, 9.4vw, 68px); line-height: 1.05; }

@@ -1,192 +1,123 @@
-/* The club film. Without motion (no JS, reduced motion) it is a large
-   editorial frame in the page flow. useOpenDayFilmMotion sets data-film-mode
-   and the section becomes a sticky screening room: one scrubbed timeline
-   moves a camera toward the screen, into it, and hands the film on. */
-.od-feature { --od-feature-gutter: 48px; position: relative; overflow-x: clip; background: #00170f; }
-.od-feature-atmosphere, .od-feature-shadow, .od-feature-light, .od-feature-credits { display: none; }
-.od-feature-stage { padding-block: clamp(64px, 7vw, 104px) clamp(72px, 8vw, 112px); }
+.od-feature {
+  position: relative;
+  overflow: hidden;
+  padding-block: clamp(76px, 9vw, 132px);
+  background:
+    radial-gradient(circle at 52% 48%, rgb(158 215 196 / .09), transparent 34%),
+    linear-gradient(145deg, #00170f, #00261c 58%, #00170f);
+  color: var(--od-cream);
+}
 
-.od-feature-heading { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .55fr); align-items: end; gap: 60px; padding-bottom: 34px; border-bottom: 1px solid rgb(182 206 197 / .25); }
-.od-feature-heading h2 { margin-top: 26px; font-size: clamp(64px, 7.5vw, 106px); line-height: .9; }
-/* Display, not <br>: SplitText re-wraps the heading, and the room sets it on one line. */
-.od-feature-heading h2 .od-feature-accent { display: block; color: var(--od-mint); }
-.od-feature-intro > p { color: var(--od-muted); font-size: 15px; line-height: 1.8; }
-.od-feature-specs { display: flex; flex-wrap: wrap; gap: 10px 32px; margin: 24px 0 0; }
+.od-feature::before {
+  content: 'OPEN DAY';
+  position: absolute;
+  top: 38%;
+  left: 50%;
+  color: transparent;
+  font-family: Rajdhani, sans-serif;
+  font-size: clamp(150px, 23vw, 350px);
+  font-weight: 600;
+  line-height: .72;
+  letter-spacing: -.065em;
+  white-space: nowrap;
+  -webkit-text-stroke: 1px rgb(158 215 196 / .08);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.od-feature-shell { position: relative; z-index: 1; }
+
+.od-feature-heading { padding-bottom: clamp(34px, 5vw, 62px); border-bottom: 1px solid rgb(182 206 197 / .22); }
+.od-feature-title-row { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(260px, .55fr); align-items: end; gap: clamp(28px, 6vw, 88px); margin-top: 24px; }
+.od-feature-heading h2 { margin: 0; font-size: clamp(62px, 8.5vw, 126px); line-height: .76; letter-spacing: -.055em; }
+.od-feature-heading h2 span { color: var(--od-mint); }
+.od-feature-title-row > p { max-width: 43ch; margin: 0; color: var(--od-muted); font-size: 15px; line-height: 1.8; }
+
+.od-feature-layout { display: grid; grid-template-columns: minmax(190px, .72fr) minmax(290px, 420px) minmax(210px, .82fr); align-items: center; gap: clamp(30px, 5vw, 76px); margin-top: clamp(48px, 7vw, 92px); }
+
+.od-feature-context { align-self: stretch; display: flex; flex-direction: column; justify-content: center; }
+.od-feature-index { display: block; margin-bottom: auto; padding-bottom: 38px; color: var(--od-mint); }
+.od-feature-pull { max-width: 12ch; margin: 0 0 22px; font-family: Rajdhani, sans-serif; font-size: clamp(28px, 3vw, 43px); font-weight: 500; line-height: 1.02; letter-spacing: -.025em; }
+.od-feature-context > p:not(.od-feature-pull) { max-width: 34ch; margin: 0; color: var(--od-muted); font-size: 13px; line-height: 1.75; }
+.od-feature-specs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: auto 0 0; padding-top: 38px; }
+.od-feature-specs div { padding-top: 10px; border-top: 1px solid rgb(182 206 197 / .22); }
 .od-feature-specs dt { color: var(--od-muted); }
-.od-feature-specs dd { margin: 2px 0 0; color: var(--od-cream); font-size: 12px; }
+.od-feature-specs dd { margin: 4px 0 0; color: var(--od-cream); font-size: 10px; }
 
-.od-feature-scene, .od-feature-scenes { width: min(100% - var(--od-feature-gutter) * 2, 1280px, max(480px, calc((100svh - 200px) * 16 / 9))); margin-inline: auto; }
-.od-feature-scene { margin-top: 56px; }
-.od-feature-tilt { position: relative; }
-.od-feature-frame { position: relative; overflow: hidden; isolation: isolate; border-radius: 4px; background: #000d08; }
-.od-feature-frame video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; background: #000d08; }
-.od-feature-frame video:focus-visible { outline: 2px solid var(--od-mint); outline-offset: -4px; }
-.od-feature-shade { position: absolute; inset: 0; background: linear-gradient(to top, rgb(0 23 15 / .88), rgb(0 23 15 / .28) 46%, rgb(0 23 15 / 0) 72%); opacity: 0; pointer-events: none; transition: opacity .5s; }
+.od-feature-screen-column { width: 100%; max-width: 420px; margin-inline: auto; }
+.od-feature-frame { position: relative; overflow: hidden; isolation: isolate; aspect-ratio: 464 / 832; background: #000c08; box-shadow: 0 34px 90px rgb(0 8 5 / .42); }
+.od-feature-frame video { display: block; width: 100%; height: 100%; object-fit: cover; background: #000c08; }
+.od-feature-frame video:focus-visible { outline: 2px solid var(--od-mint); outline-offset: -5px; }
+.od-feature-frame::after { content: ''; position: absolute; z-index: 4; inset: 0; border: 1px solid rgb(213 237 227 / .27); pointer-events: none; }
+.od-feature-shade { position: absolute; z-index: 1; inset: 0; background: linear-gradient(to top, rgb(0 17 11 / .92), rgb(0 17 11 / .14) 58%, rgb(0 17 11 / 0)); opacity: 0; pointer-events: none; transition: opacity .45s; }
 .od-feature:not([data-film-state="playing"]) .od-feature-shade { opacity: 1; }
-/* A hairline lit from above: the only edge the screen needs. */
-.od-feature-edge { position: absolute; inset: 0; border: 1px solid rgb(182 206 197 / .3); border-radius: inherit; box-shadow: inset 0 1px 0 rgb(241 235 221 / .16); pointer-events: none; }
-.od-feature-marks { position: absolute; z-index: 3; inset: 0; pointer-events: none; }
-.od-feature-mark { position: absolute; width: 18px; height: 18px; border: 0 solid var(--od-mint); pointer-events: none; }
-.od-feature-mark--tl { top: -11px; left: -11px; border-width: 1px 0 0 1px; }
-.od-feature-mark--tr { top: -11px; right: -11px; border-width: 1px 1px 0 0; }
-.od-feature-mark--bl { bottom: -11px; left: -11px; border-width: 0 0 1px 1px; }
-.od-feature-mark--br { right: -11px; bottom: -11px; border-width: 0 1px 1px 0; }
-.od-feature-error { position: absolute; z-index: 4; top: 12px; right: 12px; left: 12px; padding: 10px 12px; background: #00170fe6; font-size: 11px; line-height: 1.6; }
-.od-feature-error a { text-decoration: underline; }
-.od-feature-error:empty { padding: 0; background: none; }
+.od-feature-corner { position: absolute; z-index: 5; width: 34px; height: 34px; border: 0 solid var(--od-mint); pointer-events: none; }
+.od-feature-corner--top { top: 14px; left: 14px; border-width: 1px 0 0 1px; }
+.od-feature-corner--bottom { right: 14px; bottom: 14px; border-width: 0 1px 1px 0; }
 
-/* The film card: play, resume or watch again. Before the first play the
-   whole screen is its hit area; afterwards it stops above the native
-   control bar, which a hover or focus can summon. */
-.od-feature-play { position: absolute; z-index: 2; inset: 0; display: flex; align-items: flex-end; width: 100%; padding: clamp(18px, 3.2vw, 44px); border: 0; background: none; color: var(--od-cream); text-align: left; cursor: pointer; }
+.od-feature-play { position: absolute; z-index: 3; inset: 0; display: flex; align-items: flex-end; gap: 16px; width: 100%; padding: clamp(22px, 4vw, 34px); border: 0; background: none; color: var(--od-cream); text-align: left; cursor: pointer; }
 .od-feature-play[hidden] { display: none; }
-.od-feature-play:is([data-state="paused"], [data-state="ended"]) { bottom: 56px; }
-.od-feature-play-inner { display: flex; align-items: center; gap: clamp(14px, 2vw, 26px); }
-.od-feature-play-mark { position: relative; display: grid; place-items: center; flex-shrink: 0; width: clamp(56px, 6.2vw, 84px); aspect-ratio: 1; border: 1px solid rgb(241 235 221 / .72); border-radius: 50%; transition: border-color .3s, transform .45s var(--ease-smooth); }
-.od-feature-play-mark::after { content: ''; position: absolute; inset: -1px; border: 1px solid var(--od-mint); border-radius: 50%; opacity: 0; transition: transform .55s var(--ease-smooth), opacity .4s; }
-.od-feature-play-mark svg { color: var(--od-mint); transition: transform .4s var(--ease-smooth); }
-.od-feature-play:not([data-state="ended"]) .od-feature-play-mark svg { margin-left: 3px; fill: currentColor; }
-.od-feature-play-copy { display: grid; gap: 6px; transition: transform .45s var(--ease-smooth); }
-.od-feature-play-copy > strong { font-family: Rajdhani, sans-serif; font-size: clamp(26px, 2.8vw, 40px); font-weight: 500; line-height: .95; letter-spacing: -.02em; }
+.od-feature-play:is([data-state="paused"], [data-state="ended"]) { bottom: 54px; }
+.od-feature-play-mark { position: relative; display: grid; place-items: center; flex: 0 0 auto; width: 58px; aspect-ratio: 1; border: 1px solid rgb(241 235 221 / .72); border-radius: 50%; color: var(--od-mint); transition: transform .35s var(--ease-smooth), border-color .35s; }
+.od-feature-play-mark::after { content: ''; position: absolute; inset: -6px; border: 1px solid rgb(158 215 196 / .3); border-radius: inherit; transition: inset .35s var(--ease-smooth), opacity .35s; }
+.od-feature-play-mark svg { fill: currentColor; }
+.od-feature-play[data-state="ended"] .od-feature-play-mark svg { fill: none; }
+.od-feature-play-copy { display: grid; gap: 4px; }
 .od-feature-play-copy > .od-label:first-child { color: var(--od-mint); }
 .od-feature-play-copy > .od-label:last-child { color: var(--od-muted); }
-.od-feature-play:is(:hover, :focus-visible) .od-feature-play-mark { border-color: var(--od-cream); transform: scale(1.04); }
-.od-feature-play:is(:hover, :focus-visible) .od-feature-play-mark::after { opacity: 1; transform: scale(1.2); }
-.od-feature-play:not([data-state="ended"]):is(:hover, :focus-visible) .od-feature-play-mark svg { transform: translateX(3px); }
-.od-feature-play[data-state="ended"]:is(:hover, :focus-visible) .od-feature-play-mark svg { transform: rotate(-40deg); }
-.od-feature-play:is(:hover, :focus-visible) .od-feature-play-copy { transform: translateX(4px); }
+.od-feature-play-copy strong { font-family: Rajdhani, sans-serif; font-size: clamp(25px, 3.1vw, 36px); font-weight: 500; line-height: 1; }
+.od-feature-play:is(:hover, :focus-visible) .od-feature-play-mark { border-color: var(--od-mint); transform: scale(1.05); }
+.od-feature-play:is(:hover, :focus-visible) .od-feature-play-mark::after { inset: -10px; opacity: .58; }
+.od-feature-play:focus-visible { outline: 2px solid var(--od-mint); outline-offset: -5px; }
 
-.od-feature-scenes { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0 18px; margin-top: 34px; padding: 0; list-style: none; }
-.od-feature-scenes button { display: grid; align-content: start; gap: 6px; width: 100%; height: 100%; min-height: 44px; padding: 14px 0 6px; border: 0; border-top: 1px solid rgb(182 206 197 / .25); background: none; color: var(--od-muted); text-align: left; cursor: pointer; transition: border-color .25s, box-shadow .25s; }
-.od-feature-scenes button > strong { font-family: Rajdhani, sans-serif; font-size: 21px; font-weight: 500; line-height: 1.1; color: var(--od-cream); }
-.od-feature-scenes button > span:last-child { font-size: 12px; line-height: 1.6; }
-.od-feature-scenes button:hover, .od-feature-scenes button[data-past="true"] { border-top-color: rgb(158 215 196 / .55); }
-.od-feature-scenes button[aria-current="true"] { border-top-color: var(--od-mint); box-shadow: inset 0 1px 0 var(--od-mint); }
-.od-feature-scenes button[aria-current="true"] > .od-label { color: var(--od-mint); }
+.od-feature-error { position: absolute; z-index: 6; top: 16px; right: 16px; left: 16px; margin: 0; padding: 10px 12px; background: rgb(0 23 15 / .94); font-size: 11px; line-height: 1.5; }
+.od-feature-error:empty { padding: 0; }
+.od-feature-error a { text-decoration: underline; }
+.od-feature-credit { display: flex; justify-content: space-between; gap: 18px; margin: 13px 0 0; color: var(--od-muted); }
 
-/* ---------- The screening room ----------
-   Stacking, back to front: section background < the next section when it
-   slides under (z 1) < the sticky stage (z 2), whose own atmosphere sits at
-   its back (z -1). The stage lets clicks through except on its text, its
-   screen and its scene index. */
-.od-feature[data-film-mode] { --od-feature-top: 104px; --od-feature-bottom: 44px; --od-feature-length: 230svh; background: var(--od-dark); }
-.od-feature[data-film-mode="cinematic"]:not([data-film-handoff]) { --od-feature-length: 200svh; }
-.od-feature[data-film-mode="compact"] { --od-feature-length: 140svh; }
-.od-feature[data-film-mode] .od-feature-space { height: var(--od-feature-length); }
-.od-feature[data-film-mode] .od-feature-stage { position: sticky; z-index: 2; top: 0; height: 100svh; padding: 0; pointer-events: none; }
-.od-feature[data-film-mode] :is(.od-feature-kicker, #od-feature-title, .od-feature-intro, .od-feature-tilt, .od-feature-scenes) { pointer-events: auto; }
-.od-feature[data-film-mode] .od-feature-heading { padding: 0; border: 0; }
+.od-feature-chapters > .od-label { display: block; margin-bottom: 22px; color: var(--od-mint); }
+.od-feature-chapters ol { margin: 0; padding: 0; list-style: none; }
+.od-feature-chapters li { border-top: 1px solid rgb(182 206 197 / .2); }
+.od-feature-chapters li:last-child { border-bottom: 1px solid rgb(182 206 197 / .2); }
+.od-feature-chapters button { display: grid; grid-template-columns: 58px minmax(0, 1fr); width: 100%; padding: 18px 0; border: 0; background: none; color: var(--od-muted); text-align: left; cursor: pointer; transition: padding-left .3s var(--ease-smooth), background .3s; }
+.od-feature-chapter-time { grid-row: 1 / 3; display: grid; align-content: start; gap: 5px; color: var(--od-muted); }
+.od-feature-chapter-time span { color: var(--od-mint); }
+.od-feature-chapters button > strong { font-family: Rajdhani, sans-serif; font-size: 20px; font-weight: 500; line-height: 1.1; color: var(--od-cream); }
+.od-feature-chapters button > span:last-child { margin-top: 5px; font-size: 11px; line-height: 1.5; }
+.od-feature-chapters button:is(:hover, :focus-visible), .od-feature-chapters button[aria-current="true"] { padding-left: 10px; background: rgb(158 215 196 / .055); }
+.od-feature-chapters button[aria-current="true"] > strong { color: var(--od-mint); }
 
-.od-feature[data-film-mode] .od-feature-atmosphere { position: absolute; z-index: -1; inset: 0; display: block; background: var(--od-dark); pointer-events: none; }
-.od-feature-atmosphere > span { position: absolute; inset: 0; }
-.od-feature-deep { background: #001b14; opacity: 0; }
-.od-feature-glow { background: radial-gradient(ellipse 50% 44% at 50% 52%, rgb(158 215 196 / .12), rgb(158 215 196 / 0) 72%); opacity: 0; }
-.od-feature-vignette { background: radial-gradient(ellipse 82% 76% at 50% 50%, rgb(0 12 8 / 0) 54%, rgb(0 12 8 / .55)); opacity: 0; }
-.od-feature-dim { background: #00140f; opacity: 0; transition: opacity .9s var(--ease-smooth); }
-.od-feature[data-film-state="playing"] .od-feature-dim { opacity: .55; }
-/* The room's lower edge, feathered, for the curtain lift into the notes. */
-.od-feature[data-film-handoff] .od-feature-atmosphere::after { content: ''; position: absolute; top: 100%; right: 0; left: 0; height: 24svh; background: linear-gradient(var(--od-dark), rgb(0 42 30 / .55) 45%, rgb(0 42 30 / 0)); }
-
-.od-feature[data-film-mode] :is(.od-feature-rig, .od-feature-tilt) { transform-style: preserve-3d; }
-.od-feature[data-film-active] :is(.od-feature-rig, .od-feature-tilt, .od-feature-atmosphere) { will-change: transform; }
-.od-feature[data-film-mode] .od-feature-edge { border-color: rgb(158 215 196 / .32); }
-/* A soft cast shadow: a radial plate, so it darkens beneath the screen too. */
-.od-feature[data-film-mode] .od-feature-shadow { position: absolute; inset: 4% -6% -14%; display: block; background: radial-gradient(closest-side, rgb(0 14 9 / .62), rgb(0 14 9 / .3) 55%, rgb(0 14 9 / 0)); pointer-events: none; }
-.od-feature[data-film-mode] .od-feature-light { position: absolute; inset: -16% -9%; display: block; background: radial-gradient(closest-side, rgb(158 215 196 / .16), rgb(158 215 196 / 0)); opacity: 0; transform: translateZ(-30px); transition: opacity .6s var(--ease-smooth); pointer-events: none; }
-.od-feature-tilt:has(.od-feature-play:is(:hover, :focus-visible)) .od-feature-light { opacity: 1; }
-.od-feature[data-film-mode] .od-feature-play { transform-style: preserve-3d; }
-/* The screen can run edge to edge: keep the focus ring inside it. */
-.od-feature[data-film-mode] .od-feature-play:focus-visible { outline-offset: -6px; }
-.od-feature[data-film-mode] .od-feature-credits { position: absolute; top: calc(100% + 12px); right: 0; left: 0; display: flex; justify-content: space-between; gap: 20px; margin: 0; color: var(--od-muted); pointer-events: none; }
-.od-feature-credits > span { line-height: 1; transition: opacity .5s; }
-.od-feature[data-film-state="playing"] .od-feature-credits > span { opacity: 0; }
-
-/* Landscape: title above, scene index below, the screen in the space left. */
-.od-feature[data-film-mode="cinematic"] .od-feature-heading { position: absolute; top: var(--od-feature-top); right: 0; left: 0; grid-template-columns: minmax(0, 1fr) minmax(0, 36ch); gap: 18px 48px; pointer-events: none; }
-.od-feature[data-film-mode="cinematic"] .od-feature-heading h2 { margin-top: 14px; font-size: clamp(42px, 5.2vw, 82px); line-height: .95; }
-.od-feature[data-film-mode="cinematic"] .od-feature-intro > p { font-size: 13px; line-height: 1.7; }
-.od-feature[data-film-mode="cinematic"] .od-feature-specs { gap: 6px 26px; margin-top: 12px; }
-.od-feature[data-film-mode="cinematic"] .od-feature-scene { position: absolute; inset: var(--od-feature-top) 0 var(--od-feature-bottom); display: grid; place-items: center; width: auto; margin: 0; perspective-origin: 50% 46%; }
-.od-feature[data-film-mode="cinematic"] .od-feature-rig { width: min(94%, calc((100svh - var(--od-feature-top) - var(--od-feature-bottom)) * 16 / 9)); }
-.od-feature[data-film-mode="cinematic"] .od-feature-scenes { position: absolute; right: 0; bottom: 16px; left: 0; width: min(100% - var(--od-feature-gutter) * 2, 1280px); margin: 0 auto; }
-.od-feature[data-film-mode] .od-feature-scenes button { gap: 3px; padding: 10px 0 4px; }
-.od-feature[data-film-mode] .od-feature-scenes button > strong { font-size: 17px; }
-.od-feature[data-film-mode] .od-feature-scenes button > span:last-child { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-
-/* Portrait: one centred cluster (title, screen, scene index) that the
-   camera works inside, so no part of the room is left empty. */
-.od-feature[data-film-mode="compact"] .od-feature-stage { display: flex; flex-direction: column; justify-content: center; gap: clamp(14px, 2.4svh, 22px); padding: 84px 0 16px; }
-.od-feature[data-film-mode="compact"] .od-feature-heading { grid-template-columns: 1fr; gap: 10px; }
-.od-feature[data-film-mode="compact"] .od-feature-heading h2 { margin-top: 8px; font-size: clamp(36px, 10.5vw, 56px); line-height: .95; }
-.od-feature[data-film-mode="compact"] .od-feature-intro > p { font-size: 12.5px; line-height: 1.6; }
-.od-feature[data-film-mode="compact"] .od-feature-specs { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.od-feature[data-film-mode="compact"] .od-feature-scene { position: relative; display: grid; place-items: center; width: 100%; margin: 0; perspective-origin: 50% 50%; }
-.od-feature[data-film-mode="compact"] .od-feature-rig { width: min(100%, calc((100svh - 300px) * 16 / 9)); }
-.od-feature[data-film-mode="compact"] .od-feature-marks { display: none; }
-.od-feature[data-film-mode="compact"] .od-feature-shadow { inset: 4% 0 -12%; }
-.od-feature[data-film-mode="compact"] .od-feature-light { inset: -12% 0; }
-.od-feature[data-film-mode="compact"] .od-feature-credits { top: calc(100% + 10px); right: 12px; left: 12px; font-size: 8px; }
-.od-feature[data-film-mode="compact"] .od-feature-play { padding: 16px; }
-.od-feature[data-film-mode="compact"] .od-feature-play-mark { width: 50px; }
-.od-feature[data-film-mode="compact"] .od-feature-play-copy > strong { font-size: 24px; }
-.od-feature[data-film-mode="compact"] .od-feature-scenes { position: relative; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 12px; width: min(100% - var(--od-feature-gutter) * 2, 640px); margin: 0 auto; }
-.od-feature[data-film-mode="compact"] .od-feature-scenes button { padding-top: 8px; }
-.od-feature[data-film-mode="compact"] .od-feature-scenes button > strong { font-size: 15px; }
-
-/* The handoff: the field notes slide under the stage, their top meeting the
-   stage's at release, and keep a 16:9 slot for the film in their left
-   column, above the date register. */
-.od-feature[data-film-handoff] + .od-intro { position: relative; z-index: 1; margin-top: -100svh; padding-top: max(108px, clamp(70px, 8vw, 116px)); }
-.od-feature[data-film-handoff] + .od-intro .od-intro-layout { grid-template-columns: minmax(0, 1.12fr) minmax(0, .88fr); }
-.od-feature[data-film-handoff] + .od-intro .od-intro-register { padding-top: calc(56.25% + clamp(36px, 4vw, 56px)); }
-.od-feature[data-film-handoff] + .od-intro h2 { font-size: clamp(46px, 4.6vw, 70px); }
-.od-feature[data-film-handoff] + .od-intro .od-intro-copy { grid-template-columns: 1fr; gap: 18px; }
-
-/* While the film holds the room the site header goes quiet. Only colours
-   change (the header already transitions them); hover and focus restore it. */
-html[data-od-film-immersed] .site-header .site-nav { border-color: rgb(158 215 196 / .07); background: rgb(0 20 14 / .55); box-shadow: none; }
-html[data-od-film-immersed] .site-header :is(.nav-link, .menu-toggle):not(:hover, :focus-visible) { color: rgb(185 204 191 / .62); }
-html[data-od-film-immersed] .site-header .nav-join:not(:hover, :focus-visible) { border-color: rgb(208 228 206 / .3); background: rgb(208 228 206 / 0); color: #d0e4ce; }
-
-@media (max-width: 1023px) {
-  .od-feature { --od-feature-gutter: 32px; }
-  .od-feature-scenes { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 18px; }
-  .od-feature[data-film-mode="cinematic"] .od-feature-heading { grid-template-columns: minmax(0, 1fr) minmax(0, 30ch); gap: 14px 32px; }
-  .od-feature[data-film-mode="cinematic"] .od-feature-scenes { gap: 2px 18px; }
+@media (max-width: 1050px) {
+  .od-feature-title-row { grid-template-columns: 1fr; }
+  .od-feature-title-row > p { justify-self: end; }
+  .od-feature-layout { grid-template-columns: minmax(280px, 410px) minmax(260px, 1fr); align-items: start; }
+  .od-feature-screen-column { grid-row: 1 / 3; }
+  .od-feature-context { min-height: 0; padding-top: 12px; }
+  .od-feature-index { margin-bottom: 34px; padding-bottom: 0; }
+  .od-feature-pull { max-width: 16ch; }
+  .od-feature-specs { margin-top: 34px; padding-top: 0; }
+  .od-feature-chapters { align-self: end; }
 }
-@media (min-width: 1024px) {
-  .od-feature[data-film-mode="cinematic"] .od-feature-heading h2 .od-feature-accent { display: inline; }
-}
-@media (min-width: 600px) {
-  .od-feature[data-film-mode="compact"] { --od-feature-length: 165svh; }
-  .od-feature[data-film-mode="compact"] .od-feature-rig { width: min(92%, calc((100svh - 340px) * 16 / 9)); }
-}
-@media (max-width: 767px) {
-  .od-feature { --od-feature-gutter: 20px; }
-  .od-feature-stage { padding-block: 60px 64px; }
-  .od-feature-heading { grid-template-columns: 1fr; gap: 22px; padding-bottom: 26px; }
-  .od-feature-heading h2 { font-size: clamp(54px, 13vw, 78px); }
-  .od-feature-intro > p { font-size: 13px; }
-  .od-feature-scene { margin-top: 34px; }
-  .od-feature-mark { width: 12px; height: 12px; }
-  .od-feature-mark--tl { top: -7px; left: -7px; }
-  .od-feature-mark--tr { top: -7px; right: -7px; }
-  .od-feature-mark--bl { bottom: -7px; left: -7px; }
-  .od-feature-mark--br { right: -7px; bottom: -7px; }
-  .od-feature-scenes { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 14px; margin-top: 26px; }
-  .od-feature-scenes button { padding-bottom: 12px; }
-  .od-feature-scenes button > strong { font-size: 18px; }
-  .od-feature-scenes button > span:last-child { font-size: 11px; }
-}
-/* Short landscape phones: the screen first, the index left to the controls. */
-@media (max-height: 559px) {
-  .od-feature[data-film-mode="compact"] .od-feature-stage { padding-top: 76px; }
-  .od-feature[data-film-mode="compact"] .od-feature-rig { width: min(100%, calc((100svh - 150px) * 16 / 9)); }
-  .od-feature[data-film-mode="compact"] :is(.od-feature-intro, .od-feature-scenes) { display: none; }
-  .od-feature[data-film-mode="compact"] .od-feature-heading h2 { font-size: 30px; }
-  .od-feature[data-film-mode="compact"] .od-feature-heading h2 .od-feature-accent { display: inline; }
+
+@media (max-width: 700px) {
+  .od-feature { padding-block: 66px 80px; }
+  .od-feature::before { top: 32%; font-size: 42vw; }
+  .od-feature-title-row { gap: 24px; margin-top: 18px; }
+  .od-feature-heading h2 { font-size: clamp(58px, 19vw, 90px); line-height: .79; }
+  .od-feature-title-row > p { font-size: 13px; }
+  .od-feature-layout { grid-template-columns: 1fr; gap: 38px; margin-top: 42px; }
+  .od-feature-screen-column { grid-row: auto; max-width: 360px; }
+  .od-feature-context { order: 2; }
+  .od-feature-screen-column { order: 1; }
+  .od-feature-chapters { order: 3; }
+  .od-feature-index { margin-bottom: 24px; }
+  .od-feature-pull { max-width: 15ch; font-size: 34px; }
+  .od-feature-context > p:not(.od-feature-pull) { max-width: 46ch; }
+  .od-feature-play { padding: 24px; }
+  .od-feature-play-mark { width: 52px; }
+  .od-feature-credit { font-size: 8px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .od-feature :is(.od-feature-shade, .od-feature-play-mark, .od-feature-play-mark::after, .od-feature-play-mark svg, .od-feature-play-copy, .od-feature-scenes button, .od-feature-credits > span) { transition: none; }
+  .od-feature :is(.od-feature-shade, .od-feature-play-mark, .od-feature-play-mark::after, .od-feature-chapters button) { transition: none; }
 }

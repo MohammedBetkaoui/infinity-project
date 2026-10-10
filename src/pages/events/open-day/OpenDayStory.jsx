@@ -1,6 +1,5 @@
 import { ArrowUpRight } from 'lucide-react'
 import { openDayPhotos } from './openDayGallery.js'
-import OpenDayFilms from './OpenDayFilms.jsx'
 
 function NotePhoto({ id, className = '', annotation }) {
   const photo = openDayPhotos[id]
@@ -28,8 +27,6 @@ export default function OpenDayStory() {
         </div>
       </section>
 
-      <OpenDayFilms />
-
       <section className="od-conversations" aria-labelledby="od-moments-title">
         <div className="page-container">
           <header className="od-section-rail"><h2 id="od-moments-title" className="od-label">What the day felt like</h2><span className="od-label" aria-hidden="true">Notes from the faculty / 2026</span></header>
@@ -51,14 +48,14 @@ export default function OpenDayStory() {
           <header className="od-play-heading"><p className="od-label">Moment 03 / Play</p><h2 id="od-play-title">Your move.</h2><p>There was more than one way to join in. A chessboard invited the next move; <em>The Last Equation</em> clue board invited a closer look.</p></header>
           <div className="od-play-layout">
             <NotePhoto id="chess" annotation="03.A / At the chessboards" />
-            <div className="od-clue-note"><span className="od-label od-margin-note">Look closer. Follow a thread.</span><NotePhoto id="clue-board" annotation="03.B / The Last Equation" /></div>
+            <div className="od-clue-note"><span className="od-label od-margin-note">Choose a table. Join the next round.</span><NotePhoto id="game-table" annotation="03.B / Games around the table" /></div>
           </div>
         </div>
       </section>
 
       <section className="od-spin" aria-labelledby="od-spin-title">
         <div className="page-container od-spin-layout">
-          <NotePhoto id="spin" annotation="03.C / Spin-game artwork" />
+          <NotePhoto id="spin-lab" annotation="03.C / Physical meets digital" />
           <div className="od-spin-copy">
             <p className="od-label od-mint">Another way to take part</p>
             <h2 id="od-spin-title">SPIN. PLAY.<br />REPEAT.</h2>
