@@ -20,10 +20,14 @@ export default function CustomCursor() {
       const enter = (event) => {
         const target = event.target instanceof Element && event.target.closest('a, button, [data-cursor], .team-stage')
         const drag = target?.matches('.team-stage, [data-cursor="drag"]')
-        ring.dataset.state = drag ? 'drag' : target ? 'hover' : 'default'
+        // A play target turns the ring into a labelled button. It grows by size,
+        // not scale, so the label stays crisp.
+        const play = target?.matches('[data-cursor="play"]')
+        ring.dataset.state = drag ? 'drag' : play ? 'play' : target ? 'hover' : 'default'
+        ring.dataset.label = play ? target.dataset.cursorLabel || 'Play' : ''
         // Measure once on entry. Only the cursor is magnetic, so scroll transforms on CTAs remain untouched.
         bounds = target?.matches('[data-magnetic]') ? target.getBoundingClientRect() : null
-        gsap.to(ring, { scale: drag ? 1.6 : target ? 1.28 : .7, duration: .24, ease: GSAP_EASE.smooth, overwrite: 'auto' })
+        gsap.to(ring, { scale: play ? 1 : drag ? 1.6 : target ? 1.28 : .7, duration: .24, ease: GSAP_EASE.smooth, overwrite: 'auto' })
       }
       const move = (event) => {
         if (event.pointerType !== 'mouse') return

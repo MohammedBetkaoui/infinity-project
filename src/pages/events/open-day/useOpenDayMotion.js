@@ -1,5 +1,45 @@
 import useScrollAnimations from '../../../hooks/useScrollAnimations'
 
+// The projector opening plays once, and only for a screen still below the
+// fold: a visitor who arrives lower (anchor, back navigation) finds the film
+// open. Lamp line, flicker, the gate parts, then the strip and the play disc.
+function armProjector({ gsap, ScrollTrigger }, scope) {
+  const frame = scope.querySelector('.od-feature-frame')
+  if (!frame || frame.getBoundingClientRect().top <= window.innerHeight * .9) return
+  const q = gsap.utils.selector(scope)
+  const parts = q('.od-feature-shutter, .od-feature-slit, .od-feature-flash')
+  const settled = q('.od-feature-play-disc, .od-feature-play-copy > *, .od-feature-credit, .od-feature-leak')
+
+  gsap.set(parts, { visibility: 'visible' })
+  gsap.set(q('.od-feature-slit'), { scaleX: 0 })
+  gsap.set(q('.od-feature-flash'), { opacity: 0 })
+  gsap.set(q('.od-feature-leak'), { xPercent: -100, opacity: 0 })
+  gsap.set(q('.od-strip-drift'), { x: 70, opacity: 0 })
+  gsap.set(q('.od-feature-play-disc'), { scale: .6, opacity: 0 })
+  gsap.set(q('.od-feature-play-copy > *'), { y: 14, opacity: 0 })
+  gsap.set(q('.od-feature-credit'), { opacity: 0 })
+
+  const opening = gsap.timeline({
+    paused: true,
+    defaults: { ease: 'expo.out' },
+    // Hand everything back to the base CSS: hover states and the hidden gate.
+    onComplete: () => gsap.set([...parts, ...settled], { clearProps: 'all' }),
+  })
+  opening
+    .to(q('.od-feature-leak'), { xPercent: 170, duration: 1.3, ease: 'power2.inOut' }, 0)
+    .to(q('.od-feature-leak'), { keyframes: [{ opacity: 1, duration: .3 }, { opacity: 1, duration: .55 }, { opacity: 0, duration: .45 }], ease: 'none' }, 0)
+    .to(q('.od-feature-slit'), { scaleX: 1, duration: .45 }, .12)
+    .to(q('.od-feature-flash'), { keyframes: [{ opacity: .75, duration: .05 }, { opacity: .12, duration: .07 }, { opacity: .45, duration: .05 }, { opacity: 0, duration: .45 }], ease: 'none' }, .5)
+    .to(q('.od-feature-shutter--top'), { yPercent: -101, duration: .9, ease: 'expo.inOut' }, .45)
+    .to(q('.od-feature-shutter--bottom'), { yPercent: 101, duration: .9, ease: 'expo.inOut' }, .45)
+    .to(q('.od-feature-slit'), { opacity: 0, duration: .4, ease: 'power1.out' }, .6)
+    .to(q('.od-strip-drift'), { x: 0, opacity: 1, duration: 1.3 }, .7)
+    .to(q('.od-feature-play-disc'), { scale: 1, opacity: 1, duration: .9, ease: 'back.out(1.5)' }, .95)
+    .to(q('.od-feature-play-copy > *'), { y: 0, opacity: 1, duration: .7, stagger: .07 }, 1)
+    .to(q('.od-feature-credit'), { opacity: 1, duration: .6 }, 1.1)
+  ScrollTrigger.create({ trigger: frame, start: 'center 75%', once: true, onEnter: () => opening.play() })
+}
+
 export default function useOpenDayMotion(pageRef) {
   useScrollAnimations(pageRef, (motion) => {
     const { gsap, reduced, compact } = motion
@@ -10,15 +50,13 @@ export default function useOpenDayMotion(pageRef) {
     motion.revealSection('.od-date > span', { mode: 'fade', trigger: pageRef.current.querySelector('.od-date'), stagger: .08, once: true })
     motion.revealSection('[data-od-reveal]', { mode: 'depth', once: true })
     motion.revealSection('[data-gallery-card]', { mode: 'depth', once: true })
-    motion.revealSection('.od-feature-screen-column', { mode: 'depth', once: true })
-    // The screen opens like a shutter lifting off the projection.
-    motion.revealSection('.od-feature-frame', { mode: 'wipe', color: '#00170f', once: true })
     motion.revealSection('.od-feature-context > *, .od-feature-chapters > *', { mode: 'fade', trigger: pageRef.current.querySelector('.od-feature-layout'), stagger: .07, once: true })
     motion.revealSection('.od-intro-copy > p, .od-play-heading > p, .od-spin-copy > p, .od-gallery-note, .od-closing-bottom > *', { mode: 'fade', once: true })
 
     pageRef.current.querySelectorAll('.od-intro h2, .od-moment-copy h3, .od-play h2, .od-spin h2, .od-gallery h2, .od-closing h2, .od-feature-heading h2')
       .forEach((heading) => motion.revealText(heading, { once: true, drift: false }))
     if (reduced) return
+    armProjector(motion, pageRef.current)
 
     const intro = gsap.timeline({ defaults: { ease: 'expo.out' } })
     intro
@@ -44,6 +82,8 @@ export default function useOpenDayMotion(pageRef) {
       gsap.fromTo('.od-feature-heading', { y: 18 }, { y: -18, ease: 'none', scrollTrigger: { trigger: '.od-feature', start: 'top bottom', end: 'bottom top', scrub: .65 } })
       // A slow dolly-in: the screen settles to full size as it reaches the middle.
       gsap.fromTo('.od-feature-stage', { scale: .93 }, { scale: 1, ease: 'none', scrollTrigger: { trigger: '.od-feature-layout', start: 'top bottom', end: 'center center', scrub: .6 } })
+      // The strip is pulled through the gate as the page moves.
+      gsap.fromTo('.od-strip-drift', { y: 46 }, { y: -46, ease: 'none', scrollTrigger: { trigger: '.od-feature-layout', start: 'top bottom', end: 'bottom top', scrub: .8 } })
       pageRef.current.querySelectorAll('.od-margin-note, .od-intro-register').forEach((note) => {
         gsap.fromTo(note, { x: -10 }, { x: 0, ease: 'none', scrollTrigger: { trigger: note, start: 'top 85%', end: 'top 45%', scrub: .5 } })
       })

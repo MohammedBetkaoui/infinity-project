@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import { eventArchive } from '../src/data/eventArchive.js'
 import { groupEventsByYear, layoutYear } from '../src/pages/events/archiveLayout.js'
 import { openDayGallery } from '../src/pages/events/open-day/openDayGallery.js'
-import { clubFilm, filmTime, sceneAt, sceneSpans } from '../src/pages/events/open-day/openDayFilms.js'
+import { clubFilm, filmStrip, filmTime, sceneAt, sceneSpans } from '../src/pages/events/open-day/openDayFilms.js'
 import { ROUTES, jsonLdFor, routeFor } from '../src/seo/seoConfig.js'
 import { renderRoute, sitemap } from '../scripts/seo-build.mjs'
 
@@ -215,6 +215,49 @@ test('chapter spans tile the runtime and every chapter has its own decoded frame
     assert.match(scene.thumb, /^\/open-day\/posters\/scene-\d\d\.webp$/)
     assert.deepEqual(webpSize(await readFile(new URL(`../public${scene.thumb}`, import.meta.url))), { width: 96, height: 172 }, scene.thumb)
   }
+})
+
+test('the 35 mm strip is one measured sprite of real frames that runs one loop per screening', async () => {
+  const { frames, frameWidth, frameHeight, gap, times } = filmStrip
+  assert.match(filmStrip.src, /^\/open-day\/posters\/[^/]+\.webp$/)
+  assert.deepEqual(webpSize(await readFile(new URL(`../public${filmStrip.src}`, import.meta.url))), { width: frameWidth, height: frames * (frameHeight + gap) })
+  assert.equal(times.length, frames)
+  times.forEach((time, index) => {
+    assert.ok(time > 0 && time < clubFilm.duration, `frame ${index}`)
+    if (index) assert.ok(time > times[index - 1], 'frames ascend')
+  })
+  const strip = await read('src/pages/events/open-day/OpenDayFilmStrip.jsx')
+  const css = await read('src/pages/events/open-day/open-day-film.css')
+  assert.match(strip, /<div className="od-strip" aria-hidden="true">/)
+  assert.match(strip, /alt="" loading="lazy" decoding="async"/)
+  assert.match(css, /\.od-strip-reel \{[^}]*translate3d\(0, calc\(var\(--film-progress\) \* -50%\), 0\)/)
+  assert.match(css, /prefers-reduced-motion: reduce[\s\S]*\.od-strip-reel \{ transform: none; \}/)
+})
+
+test('chapters start on hard cuts and the cut is checked every frame', async () => {
+  // Cuts measured by frame difference in the supplied file.
+  assert.deepEqual(clubFilm.scenes.map((scene) => scene.time), [0, 5.03, 12.63, 26.93])
+  const film = await read('src/pages/events/open-day/OpenDayClubFilm.jsx')
+  assert.match(film, /const paint = useCallback\(\(\) => \{[\s\S]*?setScene\(sceneAt\(time\)\)[\s\S]*?\}, \[\]\)/)
+  assert.match(film, /key={scene} className="od-feature-caption"/)
+  assert.match(film, /key={`cut-\$\{scene\}`} className="od-feature-cut"/)
+})
+
+test('the projector opening runs once, only for a screen still below the fold, and leaves base CSS behind', async () => {
+  const motion = await read('src/pages/events/open-day/useOpenDayMotion.js')
+  const css = await read('src/pages/events/open-day/open-day-film.css')
+  assert.match(motion, /getBoundingClientRect\(\)\.top <= window\.innerHeight \* \.9\) return/)
+  assert.match(motion, /once: true, onEnter: \(\) => opening\.play\(\)/)
+  assert.match(motion, /clearProps: 'all'/)
+  assert.match(motion, /if \(reduced\) return\s*armProjector\(/)
+  assert.doesNotMatch(motion, /clipPath|clip-path|filter:/)
+  for (const part of ['shutter', 'slit', 'flash']) assert.match(css, new RegExp(`\\.od-feature-${part} \\{[^}]*visibility: hidden`), part)
+  const tilt = await read('src/pages/events/open-day/useScreenTilt.js')
+  assert.match(tilt, /\(hover: hover\) and \(pointer: fine\)/)
+  assert.match(tilt, /if \(!enabled \|\| reduced/)
+  const film = await read('src/pages/events/open-day/OpenDayClubFilm.jsx')
+  assert.match(film, /useScreenTilt\(stageRef, status === 'idle'\)/)
+  assert.match(film, /data-cursor="play"/)
 })
 
 test('the portrait film gets an editorial responsive layout and a reduced-motion fallback', async () => {
