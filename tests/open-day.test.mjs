@@ -260,6 +260,40 @@ test('the projector opening runs once, only for a screen still below the fold, a
   assert.match(film, /data-cursor="play"/)
 })
 
+test('every photograph is exposed once, only below the fold, through decorative frame chrome', async () => {
+  const chrome = await read('src/pages/events/open-day/OpenDayFrameChrome.jsx')
+  const story = await read('src/pages/events/open-day/OpenDayStory.jsx')
+  const gallery = await read('src/pages/events/open-day/OpenDayGallery.jsx')
+  const motion = await read('src/pages/events/open-day/useOpenDayMotion.js')
+  const css = await read('src/pages/events/open-day/open-day.css')
+  for (const part of ['od-photo-corner od-photo-corner--top', 'od-photo-corner od-photo-corner--bottom', 'od-frame-code od-label', 'od-photo-shutter']) {
+    assert.match(chrome, new RegExp(`className="${part}" aria-hidden="true"`), part)
+  }
+  for (const source of [story, gallery]) {
+    assert.match(source, /<OpenDayFrameChrome frame=/)
+    assert.match(source, /className="od-photo-lens"><img /)
+  }
+  assert.match(css, /\.od-photo-shutter \{[^}]*visibility: hidden/)
+  assert.match(motion, /function exposePhotos[\s\S]*getBoundingClientRect\(\)\.top <= window\.innerHeight \* \.92\) return[\s\S]*once: true, onEnter: \(\) => exposure\.play\(\)/)
+  assert.match(motion, /armProjector\(motion, pageRef\.current\)\s*exposePhotos\(motion, pageRef\.current\)/)
+  assert.doesNotMatch(motion, /data-od-reveal|data-gallery-card/)
+})
+
+test('the viewer flies a photo out of and back into its print, over an ambient copy, keeping its accessibility', async () => {
+  const modal = await read('src/pages/events/open-day/OpenDayLightbox.jsx')
+  const gallery = await read('src/pages/events/open-day/OpenDayGallery.jsx')
+  const css = await read('src/pages/events/open-day/open-day.css')
+  assert.match(gallery, /originOf={originOf}/)
+  assert.match(modal, /className="od-lightbox-ambient" style={{ backgroundImage: `url\(\$\{photo\.src\}\)` }} aria-hidden="true"/)
+  assert.match(modal, /image\.decode\(\)/)
+  assert.match(modal, /gsap\.fromTo\(image, offsetFrom\(print, image\)/)
+  assert.match(modal, /if \(shouldReduceMotion\(\)\) return undefined/)
+  // StrictMode mounts twice: the opening must revert, never freeze halfway.
+  assert.match(modal, /tween\.revert\(\)/)
+  assert.match(modal, /event\.key === 'Escape'\) \{ event\.preventDefault\(\); requestClose\(\)/)
+  assert.match(css, /\.od-lightbox-ambient \{[^}]*filter: blur\(70px\)[^}]*animation: od-ambient-in \.9s ease backwards/)
+})
+
 test('the portrait film gets an editorial responsive layout and a reduced-motion fallback', async () => {
   const css = await read('src/pages/events/open-day/open-day-film.css')
   const film = await read('src/pages/events/open-day/OpenDayClubFilm.jsx')

@@ -40,6 +40,38 @@ function armProjector({ gsap, ScrollTrigger }, scope) {
   ScrollTrigger.create({ trigger: frame, start: 'center 75%', once: true, onEnter: () => opening.play() })
 }
 
+// Every photograph is exposed once, in the film's language: the shutter lifts
+// off the frame, the lens pulls focus, then the caption rule draws and the
+// marks settle. Like the projector, only frames still below the fold are
+// armed; anything already in view keeps the base CSS untouched.
+function exposePhotos({ gsap, ScrollTrigger }, scope) {
+  scope.querySelectorAll('.od-photo-media, .od-sheet-image button').forEach((media) => {
+    if (media.getBoundingClientRect().top <= window.innerHeight * .92) return
+    const shutter = media.querySelector('.od-photo-shutter')
+    const lens = media.querySelector('.od-photo-lens')
+    const marks = [...media.querySelectorAll('.od-photo-corner, .od-frame-code')]
+    const caption = media.closest('figure')?.querySelector('figcaption')
+    const lines = caption ? [...caption.children] : []
+    const touched = [shutter, lens, ...marks, caption, ...lines].filter(Boolean)
+
+    gsap.set(shutter, { visibility: 'visible' })
+    // The hover transition would drag the focus pull; clearProps restores it.
+    gsap.set(lens, { scale: 1.22, transition: 'none' })
+    gsap.set(marks, { opacity: 0, transition: 'none' })
+    if (caption) gsap.set(caption, { '--od-rule': 0 })
+    gsap.set(lines, { opacity: 0, y: 10 })
+
+    const exposure = gsap.timeline({ paused: true, onComplete: () => gsap.set(touched, { clearProps: 'all' }) })
+    exposure
+      .to(shutter, { scaleY: 0, duration: 1.05, ease: 'expo.inOut' }, 0)
+      .to(lens, { scale: 1, duration: 1.7, ease: 'expo.out' }, .2)
+      .to(marks, { opacity: 1, duration: .5, stagger: .08 }, .85)
+    if (caption) exposure.to(caption, { '--od-rule': 1, duration: .9, ease: 'expo.inOut' }, .55)
+    exposure.to(lines, { opacity: 1, y: 0, duration: .8, ease: 'expo.out', stagger: .06 }, .75)
+    ScrollTrigger.create({ trigger: media, start: 'top 82%', once: true, onEnter: () => exposure.play() })
+  })
+}
+
 export default function useOpenDayMotion(pageRef) {
   useScrollAnimations(pageRef, (motion) => {
     const { gsap, reduced, compact } = motion
@@ -48,8 +80,6 @@ export default function useOpenDayMotion(pageRef) {
     // owns cleanup and responds live when reduced motion changes.
     motion.revealSection('.od-hero-image', { mode: 'horizontal', color: '#002a1e', once: true })
     motion.revealSection('.od-date > span', { mode: 'fade', trigger: pageRef.current.querySelector('.od-date'), stagger: .08, once: true })
-    motion.revealSection('[data-od-reveal]', { mode: 'depth', once: true })
-    motion.revealSection('[data-gallery-card]', { mode: 'depth', once: true })
     motion.revealSection('.od-feature-context > *, .od-feature-chapters > *', { mode: 'fade', trigger: pageRef.current.querySelector('.od-feature-layout'), stagger: .07, once: true })
     motion.revealSection('.od-intro-copy > p, .od-play-heading > p, .od-spin-copy > p, .od-gallery-note, .od-closing-bottom > *', { mode: 'fade', once: true })
 
@@ -57,6 +87,7 @@ export default function useOpenDayMotion(pageRef) {
       .forEach((heading) => motion.revealText(heading, { once: true, drift: false }))
     if (reduced) return
     armProjector(motion, pageRef.current)
+    exposePhotos(motion, pageRef.current)
 
     const intro = gsap.timeline({ defaults: { ease: 'expo.out' } })
     intro
@@ -67,13 +98,16 @@ export default function useOpenDayMotion(pageRef) {
       .from('.od-hero-actions', { opacity: 0, y: 12, duration: .7 }, .58)
       .from('.od-hero-foot', { opacity: 0, duration: .7 }, .7)
 
-    // Slow image settling gives the supplied photos depth without changing
-    // their crop or obscuring the people and activities in them.
-    pageRef.current.querySelectorAll('.od-photo-media img, .od-sheet-image img').forEach((image) => {
-      gsap.fromTo(image, { scale: 1.055 }, {
-        scale: 1,
+    // Camera move: each photograph drifts inside its frame as the page moves,
+    // alternating sideways so the sheet never slides as one block. The 1.12
+    // scale keeps the drift inside the crop, so no edge ever shows.
+    pageRef.current.querySelectorAll('.od-photo-lens img').forEach((image, index) => {
+      const drift = index % 2 ? -1 : 1
+      gsap.fromTo(image, { scale: 1.12, yPercent: -4, xPercent: -drift }, {
+        yPercent: 4,
+        xPercent: drift,
         ease: 'none',
-        scrollTrigger: { trigger: image, start: 'top 96%', end: 'bottom 32%', scrub: .55 },
+        scrollTrigger: { trigger: image.parentElement, start: 'top bottom', end: 'bottom top', scrub: .6 },
       })
     })
 

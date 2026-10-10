@@ -1,11 +1,17 @@
 import { ArrowUpRight } from 'lucide-react'
-import { openDayPhotos } from './openDayGallery.js'
+import OpenDayFrameChrome from './OpenDayFrameChrome.jsx'
+import { openDayGallery, openDayPhotos } from './openDayGallery.js'
 
+// The lens takes the exposure's focus pull; the image inside takes the
+// camera move on scroll. The code points to the same frame on the sheet.
 function NotePhoto({ id, className = '', annotation }) {
   const photo = openDayPhotos[id]
   return (
-    <figure className={`od-note-photo ${className}`} data-od-reveal="">
-      <div className="od-photo-media"><img src={photo.src} width={photo.width} height={photo.height} alt={photo.alt} loading="lazy" decoding="async" /></div>
+    <figure className={`od-note-photo ${className}`}>
+      <div className="od-photo-media">
+        <div className="od-photo-lens"><img src={photo.src} width={photo.width} height={photo.height} alt={photo.alt} loading="lazy" decoding="async" /></div>
+        <OpenDayFrameChrome frame={openDayGallery.indexOf(photo) + 1} />
+      </div>
       <figcaption><span className="od-label">{annotation}</span><span>{photo.caption}</span></figcaption>
     </figure>
   )

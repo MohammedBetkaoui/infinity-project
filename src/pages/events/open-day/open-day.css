@@ -133,12 +133,24 @@
 .od-moment-copy > p:not(.od-label) { max-width: 42ch; margin-top: 18px; color: var(--od-muted); font-size: 14px; line-height: 1.85; }
 .od-moment-copy .od-topics { margin-top: 22px; padding-top: 16px; border-top: 1px solid rgb(182 206 197 / .25); color: var(--od-muted); }
 .od-photo-media { position: relative; overflow: hidden; background: #00170f; box-shadow: 0 24px 70px rgb(0 10 7 / .2); }
-.od-photo-media::after { content: ''; position: absolute; inset: 0; border: 1px solid rgb(182 206 197 / .22); box-shadow: inset 0 0 0 6px rgb(0 42 30 / .04); pointer-events: none; }
+.od-photo-media::after { content: ''; position: absolute; z-index: 5; inset: 0; border: 1px solid rgb(182 206 197 / .22); box-shadow: inset 0 0 0 6px rgb(0 42 30 / .04); pointer-events: none; }
 .od-note-photo img { display: block; width: 100%; height: auto; transform-origin: center; }
-.od-note-photo figcaption { display: grid; gap: 5px; margin-top: 13px; padding-top: 10px; border-top: 1px solid rgb(182 206 197 / .3); }
+.od-note-photo figcaption { display: grid; gap: 5px; margin-top: 13px; padding-top: 10px; }
 .od-note-photo figcaption > span:last-child { font-size: 11px; line-height: 1.6; color: var(--od-muted); }
-.od-paper .od-note-photo figcaption { border-color: rgb(0 42 30 / .25); }
 .od-paper .od-note-photo figcaption > span:last-child { color: var(--od-paper-ink); }
+
+/* Every photograph wears the film's viewfinder: a lens that takes the focus
+   pull, two corner marks, its contact-sheet code, and a shutter the exposure
+   lifts (hidden unless that runs). Captions draw their rule from --od-rule. */
+.od-photo-lens { position: relative; display: block; overflow: hidden; transform-origin: 50% 50%; transition: transform .9s var(--ease-smooth); }
+.od-photo-corner { position: absolute; z-index: 3; width: 22px; height: 22px; border: 0 solid var(--od-mint); pointer-events: none; transition: transform .45s var(--ease-smooth), opacity .3s; }
+.od-photo-corner--top { top: 12px; right: 12px; border-width: 1px 1px 0 0; }
+.od-photo-corner--bottom { bottom: 12px; left: 12px; border-width: 0 0 1px 1px; }
+.od-frame-code { position: absolute; z-index: 3; top: 12px; left: 12px; display: flex; align-items: center; gap: 6px; padding: 4px 7px; background: rgb(0 23 15 / .66); color: var(--od-cream); font-size: 8px; line-height: 1.3; pointer-events: none; }
+.od-frame-code::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--od-mint); }
+.od-photo-shutter { position: absolute; z-index: 4; inset: -1px; background: var(--od-dark); border-bottom: 1px solid var(--od-mint); box-shadow: 0 10px 26px -10px rgb(158 215 196 / .55); transform-origin: 50% 0; visibility: hidden; pointer-events: none; }
+.od-note-photo figcaption, .od-sheet-image figcaption { position: relative; }
+.od-note-photo figcaption::before, .od-sheet-image figcaption::before { content: ''; position: absolute; top: 0; right: 0; left: 0; height: 1px; background: currentColor; opacity: .28; transform: scaleX(var(--od-rule, 1)); transform-origin: left; }
 
 /* Different pace: a move on the board, a thread to follow. */
 .od-play { position: relative; padding-block: clamp(82px, 9vw, 128px); }
@@ -165,8 +177,12 @@
 .od-gallery-note > p:first-child { color: var(--od-paper-ink); font-size: 15px; line-height: 1.85; }
 .od-gallery-note .od-label { margin-top: 28px; }
 .od-gallery-note .od-gallery-help { margin-top: 10px; color: var(--od-paper-ink); font-size: 11px; line-height: 1.7; }
-.od-contact-sheet { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 88px 26px; align-items: start; padding-block: 64px 88px; }
-.od-sheet-image { min-width: 0; }
+.od-contact-sheet { position: relative; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 88px 26px; align-items: start; padding-block: 64px 88px; }
+.od-sheet-image { min-width: 0; transition: opacity .55s var(--ease-smooth); }
+.od-contact-sheet::before, .od-contact-sheet::after { content: ''; position: absolute; top: 64px; bottom: 88px; width: 9px; background: repeating-linear-gradient(to bottom, rgb(0 42 30 / 0) 0 9px, rgb(0 42 30 / .14) 9px 19px, rgb(0 42 30 / 0) 19px 28px); pointer-events: none; }
+.od-contact-sheet::before { left: -30px; }
+.od-contact-sheet::after { right: -30px; }
+.od-sheet-edge { position: absolute; top: 140px; left: -46px; color: var(--od-paper-ink); font-size: 8px; white-space: nowrap; opacity: .6; writing-mode: vertical-rl; transform: rotate(180deg); pointer-events: none; }
 .od-sheet-image--hall { grid-column: 1 / span 4; }
 .od-sheet-image--gathering { grid-column: 5 / span 4; margin-top: 100px !important; }
 .od-sheet-image--conversation { grid-column: 9 / span 4; margin-top: 34px !important; }
@@ -187,7 +203,14 @@
 .od-sheet-image button:is(:hover, :focus-visible) img { filter: saturate(1.06) contrast(1.025); }
 .od-sheet-image button:is(:hover, :focus-visible) .od-image-hover-label { opacity: 1; transform: translateY(0); }
 .od-sheet-image button:is(:hover, :focus-visible) .od-image-expand { background: var(--od-green); transform: rotate(5deg) scale(1.05); }
-.od-sheet-image figcaption { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 7px 12px; margin-top: 13px; padding-top: 10px; border-top: 1px solid rgb(0 42 30 / .25); font-size: 11px; line-height: 1.6; }
+.od-sheet-image button:is(:hover, :focus-visible) .od-photo-lens { transform: scale(1.04); }
+.od-sheet-image button:is(:hover, :focus-visible) .od-photo-corner--top { transform: translate(-4px, 4px); }
+.od-sheet-image button:is(:hover, :focus-visible) .od-photo-corner--bottom { opacity: 0; }
+/* Spotlight: the print under the pointer stays lit while the rest of the sheet steps back. */
+@media (hover: hover) and (pointer: fine) {
+  .od-contact-sheet:has(button:hover) .od-sheet-image:not(:has(button:hover)) { opacity: .42; }
+}
+.od-sheet-image figcaption { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 7px 12px; margin-top: 13px; padding-top: 10px; font-size: 11px; line-height: 1.6; }
 .od-image-number { grid-row: span 2; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 17px; }
 .od-sheet-image figcaption > span:nth-child(2) { color: var(--od-paper-ink); }
 .od-sheet-image figcaption > .od-label { font-size: 8px; }
@@ -207,16 +230,21 @@
 /* Outside #root so the entire shared shell can become inert while open. */
 .od-lightbox { position: fixed; z-index: 120; inset: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 16px; padding: max(16px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); color: #f1ebdd; isolation: isolate; overscroll-behavior: contain; }
 .od-lightbox-backdrop { position: absolute; z-index: -1; inset: 0; background: #00170f; }
+.od-lightbox-ambient { position: absolute; z-index: -1; inset: -12%; background: center / cover no-repeat; filter: blur(70px) saturate(1.5) brightness(.5); opacity: .85; pointer-events: none; animation: od-ambient-in .9s ease backwards; }
+@keyframes od-ambient-in { from { opacity: 0; } }
 .od-lightbox-head { display: flex; justify-content: space-between; gap: 20px; align-items: center; }
 .od-lightbox button { display: grid; place-items: center; min-width: 48px; min-height: 48px; border: 1px solid #b6cec55c; color: #f1ebdd; background: #094a36; cursor: pointer; }
 .od-lightbox button:hover { background: #002a1e; }
 .od-lightbox-figure { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 0; margin: 0; pointer-events: none; }
-.od-lightbox-figure img { display: block; width: auto; height: auto; max-width: 100%; max-height: calc(100% - 56px); object-fit: contain; pointer-events: auto; }
+.od-lightbox-figure img { display: block; width: auto; height: auto; max-width: 100%; max-height: calc(100% - 56px); object-fit: contain; pointer-events: auto; box-shadow: 0 40px 120px rgb(0 8 5 / .55); }
+.od-lightbox-figure img.is-swap { animation: od-photo-swap .4s ease backwards; }
+@keyframes od-photo-swap { from { opacity: 0; } }
 .od-lightbox-figure figcaption { display: flex; justify-content: center; gap: 22px; width: 100%; margin-top: 16px; font-size: 12px; line-height: 1.5; }
 .od-lightbox-figure figcaption > span:first-child { flex-shrink: 0; font-family: 'JetBrains Mono', ui-monospace, monospace; color: #9ed7c4; }
 .od-lightbox-controls { display: flex; justify-content: center; gap: 18px; }
 
 @media (max-width: 1023px) {
+  .od-contact-sheet::before, .od-contact-sheet::after, .od-sheet-edge { display: none; }
   .od-hero-layout { gap: 32px; }
   .open-day-page .od-hero h1 { font-size: clamp(108px, 16vw, 164px); }
   .od-hero-foot { font-size: 8px; }
@@ -313,6 +341,9 @@
   .open-day-page [data-motion-reveal] { opacity: 1 !important; transform: none !important; }
   .open-day-page .motion-curtain { display: none !important; }
   .open-day-page :is(.od-text-link svg, .od-image-expand, .od-image-hover-label, .od-sheet-image button, .od-sheet-image img) { transition: none; }
+  .open-day-page :is(.od-sheet-image, .od-photo-lens, .od-photo-corner) { transition: none; }
+  .od-sheet-image button:is(:hover, :focus-visible) :is(.od-photo-lens, .od-photo-corner--top) { transform: none; }
+  :is(.od-lightbox-ambient, .od-lightbox-figure img.is-swap) { animation: none; }
   .od-title-word, .od-hero-print, .od-hero-actions, .od-film-marquee span, .od-intro-register, .od-margin-note, .od-film-note-rule i { transform: none !important; opacity: 1 !important; }
   .od-film-note h3, .od-film-strip > button { transition: none; }
 }
