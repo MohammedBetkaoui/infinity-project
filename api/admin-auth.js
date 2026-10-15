@@ -2,6 +2,7 @@ import { createServerAdminAuthService, requireAdminSession } from './_lib/admin-
 import { createServerAdminApplicationsService } from './_lib/admin-applications.js'
 import { createServerAdminPeopleService } from './_lib/admin-people.js'
 import { createServerAdminAivexService } from './_lib/admin-aivex.js'
+import { createServerAdminActivityService } from './_lib/admin-activity.js'
 import {
   createServerAdminAivexCampaignSettingsService, validateAivexCampaignSettingsBody,
 } from './_lib/admin-aivex-campaign-settings.js'
@@ -16,6 +17,7 @@ import {
 import { AIVEX_EDITION } from '../shared/aivex/contract-v4.js'
 import { canAccessApplications } from './_lib/admin-applications-permissions.js'
 import { canAccessPeople } from './_lib/admin-people-permissions.js'
+import { parseActivityListOptions } from './_lib/admin-activity-validation.js'
 import {
   isApplicationId, parseApplicationListOptions, validateApplicationActionBody,
   validateApplicationBulkBody,
@@ -299,6 +301,47 @@ export function createAdminOverviewHandler({
     } catch (error) {
       safeAdminAuthLog('overview', error)
       return sendAdminJson(res, 503, { success: false, message: 'Unable to load the administrative overview right now.' })
+    }
+  }
+}
+
+export function createAdminActivityHandler({
+  createService = createServerAdminActivityService,
+  requireSession = requireAdminSession,
+  env = process.env,
+  enabled = adminAuthEnabled,
+} = {}) {
+  return async function adminActivityHandler(req, res) {
+    res.setHeader('Allow', 'GET')
+    if (req.method !== 'GET') {
+      return sendAdminJson(res, 405, { success: false, message: 'Method not allowed.' })
+    }
+    if (!enabled(env)) {
+      return sendAdminJson(res, 503, { success: false, message: 'Administrative activity is not enabled yet.' })
+    }
+
+    let session
+    try {
+      session = await requireSession(req)
+    } catch (error) {
+      safeAdminAuthLog('activity_session', error)
+      return sendAdminJson(res, 503, { success: false, message: 'Administrative service unavailable.' })
+    }
+    if (!session) return sendAdminJson(res, 401, { success: false, message: 'Your session has expired.' })
+    if (session.user.role !== 'super_admin') {
+      return sendAdminJson(res, 403, { success: false, message: 'This workspace is restricted to super administrators.' })
+    }
+
+    const url = new URL(req.url || '/', 'http://localhost')
+    const parsed = parseActivityListOptions(url.searchParams)
+    if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid activity filters.' })
+
+    try {
+      const result = await createService().list(parsed.value, session.user)
+      return sendAdminJson(res, 200, { success: true, ...result })
+    } catch (error) {
+      safeAdminAuthLog('activity', error)
+      return sendAdminJson(res, 503, { success: false, message: 'Unable to load the activity log right now.' })
     }
   }
 }
@@ -911,6 +954,7 @@ export function createAdminRouter(handlers = {}) {
   const auth = handlers.auth || createAdminAuthRouter()
   const preferences = handlers.preferences || createAdminPreferencesHandler()
   const overview = handlers.overview || createAdminOverviewHandler()
+  const activity = handlers.activity || createAdminActivityHandler()
   const applications = handlers.applications || createAdminApplicationsHandler()
   const people = handlers.people || createAdminPeopleHandler()
   const aivex = handlers.aivex || createAdminAivexHandler()
@@ -920,6 +964,7 @@ export function createAdminRouter(handlers = {}) {
     if (path.startsWith('auth/')) return auth(req, res)
     if (path === 'settings/preferences') return preferences(req, res)
     if (path === 'overview') return overview(req, res)
+    if (path === 'activity') return activity(req, res)
     if (path === 'applications' || path.startsWith('applications/')) return applications(req, res)
     if (path === 'members' || path.startsWith('members/') || path === 'staff' || path.startsWith('staff/')) return people(req, res)
     if (path === 'aivex' || path.startsWith('aivex/')) return aivex(req, res)

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, CalendarClock, Check, CircleAlert, Eye, EyeOff, LoaderCircle, LockKeyhole, Monitor, Moon, RefreshCw, ShieldCheck, Sun, TriangleAlert, User } from 'lucide-react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import InfinityMark from '../components/InfinityMark'
@@ -8,12 +8,13 @@ import { ADMIN_ACCENTS, useAdminAccent } from './adminAccent'
 import { ADMIN_THEMES, useAdminTheme, useThemeColor, useThemeSwitch } from './adminTheme'
 import { safeAdminReturnTo } from './adminAuthPath'
 import { useAdmin } from './AdminStore'
-import { dateLabel, filterRecords, timeLabel } from './adminModel'
+import { dateLabel, timeLabel } from './adminModel'
 import { Button, PageHeader, SegmentedControl, StatusBadge, Tabs } from './AdminUI'
 import { ActionDialog, Facts, RecordTable, RecordToolbar, SummaryStrip } from './AdminRecords'
 import AivexCampaignSettings from './AivexCampaignSettings'
 import AdminNotificationSettings from './AdminNotificationSettings'
 import { useAdminAivexCampaignSettings } from './useAdminAivexCampaignSettings'
+import { useAdminActivity } from './useAdminActivity'
 import { formatCampaignDateTime } from '../../shared/aivex/campaign-schedule.js'
 
 export function LoginPage() {
@@ -88,14 +89,59 @@ export function LoginPage() {
 }
 
 export function ActivityPage() {
-  const { state } = useAdmin()
   const [params] = useSearchParams()
   const [search, setSearch] = useState('')
-  const [filters, setFilters] = useState(params.get('sensitivity') ? { sensitivity: params.get('sensitivity') } : {})
+  const deferredSearch = useDeferredValue(search.trim())
+  const requestedSensitivity = String(params.get('sensitivity') || '').toLowerCase()
+  const [filters, setFilters] = useState(
+    ['standard', 'confidential'].includes(requestedSensitivity) ? { sensitivity: requestedSensitivity } : {},
+  )
+  const [page, setPage] = useState(1)
+  const [sort, setSort] = useState({ key: 'at', asc: false })
   const [detail, setDetail] = useState(null)
-  const records = state.activities.map((a) => ({ ...a, day: dateLabel(a.at) }))
-  const visible = filterRecords(records, search.trim(), filters)
-  return <div className="adm-page adm-activity-page"><PageHeader eyebrow="Accountability · Audit trail" title="Activity log" description="A clear record of decisions, changes and confidential document access."/><SummaryStrip items={[{ label: 'Recorded actions', value: records.length }, { label: 'Confidential events', value: records.filter((r) => r.sensitivity === 'Confidential').length }, { label: 'Administrators', value: new Set(records.map((r) => r.actor)).size }]}/><div className="adm-work-panel"><RecordToolbar search={search} onSearch={setSearch} placeholder="Search action, team or candidate…" filters={filters} onFilters={setFilters} definitions={[{ key: 'actor', label: 'Administrator', options: [...new Set(records.map((r) => r.actor))] }, { key: 'objectType', label: 'Object type', options: ['Application', 'Member', 'Staff', 'AIVEX', 'Administration'] }, { key: 'action', label: 'Action', options: [...new Set(records.map((r) => r.action))] }, { key: 'day', label: 'Date', options: [...new Set(records.map((r) => r.day))] }, { key: 'sensitivity', label: 'Sensitivity', options: ['Standard', 'Confidential'] }]}/><RecordTable records={visible} pageSize={8} onOpen={setDetail} columns={[{ key: 'action', label: 'Action', render: (a) => <span className={`adm-log-action ${a.sensitivity === 'Confidential' ? 'is-confidential' : ''}`}>{a.sensitivity === 'Confidential' ? <LockKeyhole size={16} aria-hidden="true"/> : <Check size={16} aria-hidden="true"/>}<span><b>{a.action}</b><small>{a.entity}</small></span></span> }, { key: 'entity', label: 'Team / candidate' }, { key: 'actor', label: 'Administrator' }, { key: 'objectType', label: 'Object', secondary: true }, { key: 'at', label: 'Date / time', render: (a) => <span>{dateLabel(a.at)}<small className="adm-cell-sub">{timeLabel(a.at)}</small></span> }, { key: 'sensitivity', label: 'Sensitivity', render: (a) => <StatusBadge tone={a.sensitivity === 'Confidential' ? 'sensitive' : 'neutral'}>{a.sensitivity}</StatusBadge> }]}/></div>{detail && <ActionDialog action={{ title: detail.action, reason: false, description: `${detail.entity} · ${detail.actor} · ${dateLabel(detail.at)}, ${timeLabel(detail.at)}. ${detail.note || 'No additional internal note.'}`, submit: 'Close', fields: [] }} onClose={() => setDetail(null)} onSubmit={() => {}}/>}</div>
+  const sortKeys = {
+    at: 'created', action: 'action', entity: 'subject', actor: 'actor',
+    objectType: 'object', sensitivity: 'sensitivity',
+  }
+  const sortValue = `${sortKeys[sort.key] || 'created'}_${sort.asc ? 'asc' : 'desc'}`
+  const { records, pagination, summary, facets, loading, error, refresh } = useAdminActivity({
+    page, search: deferredSearch, filters, sort: sortValue,
+  })
+  const resetScope = useCallback((callback) => { callback(); setPage(1) }, [])
+  const labels = useMemo(() => Object.fromEntries([
+    ...(facets.actions || []).map((item) => [item.key, item.label]),
+    ...(facets.objectTypes || []).map((item) => [item.key, item.label]),
+    ['standard', 'Standard'], ['confidential', 'Confidential'],
+  ]), [facets.actions, facets.objectTypes])
+  const optionLabel = useCallback((value) => labels[value] || value, [labels])
+  const definitions = useMemo(() => [
+    { key: 'actor', label: 'Administrator', options: facets.actors || [] },
+    { key: 'objectType', label: 'Object type', options: (facets.objectTypes || []).map((item) => item.key) },
+    { key: 'action', label: 'Action', options: (facets.actions || []).map((item) => item.key) },
+    { key: 'sensitivity', label: 'Sensitivity', options: ['standard', 'confidential'] },
+    { key: 'dateFrom', label: 'From date', type: 'date', options: [] },
+    { key: 'dateTo', label: 'To date', type: 'date', options: [] },
+  ], [facets.actions, facets.actors, facets.objectTypes])
+  const columns = useMemo(() => [
+    { key: 'action', label: 'Action', render: (record) => <span className={`adm-log-action ${record.sensitivity === 'confidential' ? 'is-confidential' : ''}`}>{record.sensitivity === 'confidential' ? <LockKeyhole size={16} aria-hidden="true"/> : <Check size={16} aria-hidden="true"/>}<span><b>{record.action}</b><small>{record.entity}</small></span></span> },
+    { key: 'entity', label: 'Team / candidate' },
+    { key: 'actor', label: 'Administrator' },
+    { key: 'objectType', label: 'Object', secondary: true },
+    { key: 'at', label: 'Date / time', render: (record) => <span>{dateLabel(record.at)}<small className="adm-cell-sub">{timeLabel(record.at)}</small></span> },
+    { key: 'sensitivity', label: 'Sensitivity', render: (record) => <StatusBadge tone={record.sensitivity === 'confidential' ? 'sensitive' : 'neutral'}>{optionLabel(record.sensitivity)}</StatusBadge> },
+  ], [optionLabel])
+
+  return <div className="adm-page adm-activity-page">
+    <PageHeader eyebrow="Accountability · Live audit trail" title="Activity log" description="Real database records of decisions, changes and confidential document access." actions={<Button variant="secondary" onClick={refresh} disabled={loading} icon={<RefreshCw className={loading ? 'adm-spin' : ''} size={15}/>}>{loading ? 'Refreshing…' : 'Refresh log'}</Button>}/>
+    <SummaryStrip items={[{ label: 'Recorded actions', value: summary.recordedActions }, { label: 'Confidential events', value: summary.confidentialEvents }, { label: 'Administrators', value: summary.administrators }]}/>
+    <div className="adm-work-panel">
+      <RecordToolbar search={search} onSearch={(value) => resetScope(() => setSearch(value))} placeholder="Search action, team or candidate…" filters={filters} onFilters={(value) => resetScope(() => setFilters(value))} definitions={definitions} quickDefinitions={[{ key: 'sensitivity', label: 'Sensitivity', allLabel: 'All sensitivity levels', options: ['standard', 'confidential'] }]} resultCount={pagination.total} filterLabel="All filters" getOptionLabel={optionLabel}/>
+      {error ? <div className="adm-state-error" role="alert"><TriangleAlert size={24}/><h3>Activity log could not be loaded</h3><p>{error}</p><Button onClick={refresh} variant="secondary">Try again</Button></div>
+        : loading && !records.length ? <div className="adm-skeleton-group" role="status" aria-label="Loading the live activity log">{Array.from({ length: 6 }, (_, index) => <div className="adm-skeleton-row" key={index}><i/><span/><b/></div>)}</div>
+          : <RecordTable className={loading ? 'is-refreshing' : ''} records={records} onOpen={setDetail} columns={columns} pagination={pagination} onPageChange={setPage} controlledSort={sort} onSortChange={(value) => resetScope(() => setSort(value))} emptyTitle="No audited activity matches this scope"/>}
+    </div>
+    {detail && <ActionDialog action={{ title: detail.action, reason: false, description: `${detail.entity} · ${detail.actor} · ${dateLabel(detail.at)}, ${timeLabel(detail.at)}. ${detail.note || 'No additional internal note.'}`, submit: 'Close', fields: [] }} onClose={() => setDetail(null)} onSubmit={() => {}}/>}
+  </div>
 }
 
 function PasswordSecurityPanel({ addToast }) {
