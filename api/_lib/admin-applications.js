@@ -240,9 +240,7 @@ export function createAdminApplicationsService({
   const credentialProposal = async (current) => {
     const confirmationId = current?.confirmation_id || createId()
     const credentialVersion = await store.nextCredentialVersion(current?.confirmation_id)
-    const expiresAt = current?.expires_at && new Date(current.expires_at).getTime() > now().getTime()
-      ? new Date(current.expires_at)
-      : staffConfirmationExpiryFrom(now())
+    const expiresAt = staffConfirmationExpiryFrom()
     return {
       ...prepareStableStaffConfirmationCredential({
         confirmationId,
@@ -376,7 +374,7 @@ export function createAdminApplicationsService({
             : null
           const proposal = CREDENTIAL_ACTIONS.has(input.action) ? await credentialProposal(current) : null
           const deadline = ['request_staff_confirmation_revision', 'extend_staff_confirmation_deadline'].includes(input.action)
-            ? staffConfirmationExpiryFrom(now())
+            ? staffConfirmationExpiryFrom()
             : proposal?.expiresAt
           const actionResult = await store.applyStaffConfirmationAction({
             applicationId,

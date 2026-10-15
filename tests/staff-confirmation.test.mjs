@@ -27,7 +27,7 @@ const APPLICATION_ID = '11111111-1111-4111-8111-111111111111'
 const CONFIRMATION_ID = '22222222-2222-4222-8222-222222222222'
 const SUBMISSION_ID = '33333333-3333-4333-8333-333333333333'
 const NOW = new Date('2026-10-09T09:00:00.000Z')
-const EXPIRES = '2026-10-16T09:00:00.000Z'
+const EXPIRES = '2026-11-01T22:59:59.999Z'
 const MOTIVATION = 'I want to help the Dev and Tech team build useful student projects, contribute consistently, learn from experienced members, and share what I know with other students. This is meaningful to me.'
 const LINK_SECRET = 'test-only-staff-link-secret-material-32-bytes-minimum'
 const LINK_NONCE = Buffer.alloc(16, 9).toString('base64url')
@@ -535,6 +535,7 @@ test('admin invitation creates a stable reconstructable fragment link without pe
   assert.equal(store.persisted().includes(result.invitation.url), false)
   assert.equal(result.invitation.linkState, 'active')
   assert.ok(result.invitation.message.includes(result.invitation.url))
+  assert.match(result.invitation.message, /Deadline:\n1 November 2026 at 23:59/)
   assert.match(result.invitation.message, /Please do not share this link/)
   assert.equal(result.application.staffConfirmation.linkReconstructable, true)
 

@@ -16,6 +16,7 @@
     "test:contract": "node --test tests/aivex-contract-v4.test.mjs",
     "admin:create-user": "node scripts/admin-create-user.mjs",
     "admin:reset-password": "node scripts/admin-reset-password.mjs",
+    "staff:set-deadline": "node scripts/staff-set-confirmation-deadline.mjs",
     "aivex:purge-identity": "node scripts/aivex-purge-expired-identity-documents.mjs",
     "aivex:cleanup-staging": "node scripts/aivex-cleanup-staging-uploads.mjs"
   },

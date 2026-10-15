@@ -1,6 +1,8 @@
 import { createHash, createHmac, randomBytes } from 'node:crypto'
 
-export const STAFF_CONFIRMATION_TTL_DAYS = 7
+// One campaign-wide deadline for every Staff candidate private link.
+// 23:59:59.999 in Africa/Algiers is 22:59:59.999 UTC on 1 November 2026.
+export const STAFF_CONFIRMATION_DEADLINE_ISO = '2026-11-01T22:59:59.999Z'
 const TOKEN_BYTES = 32
 const NONCE_BYTES = 16
 export const STAFF_CONFIRMATION_DERIVATION_VERSION = 1
@@ -78,8 +80,8 @@ export function prepareStableStaffConfirmationCredential({
   }
 }
 
-export function staffConfirmationExpiryFrom(now) {
-  return new Date(now.getTime() + STAFF_CONFIRMATION_TTL_DAYS * 24 * 60 * 60 * 1000)
+export function staffConfirmationExpiryFrom() {
+  return new Date(STAFF_CONFIRMATION_DEADLINE_ISO)
 }
 
 export function staffConfirmationSiteOrigin(req, env = process.env) {
