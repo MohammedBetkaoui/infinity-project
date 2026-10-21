@@ -14,6 +14,7 @@ const STAFF_SORTS = new Set(['name_asc', 'name_desc', 'department_asc', 'departm
 const STAFF_DEPARTMENTS = new Set(['dev-tech', 'design-content', 'management-logistics'])
 const ATTENDANCE_STATUSES = new Set(['expected', 'present', 'absent', 'excused'])
 const INVITATION_SCOPES = new Set(['all_active', 'primary_pole'])
+const EVENT_TRANSITIONS = new Set(['planned', 'registration_open', 'registration_closed', 'ongoing', 'completed', 'cancelled', 'archived'])
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 const single = (params, name) => {
@@ -73,6 +74,17 @@ export function parseEventMemberOptions(params) {
   if (raw.q.length > 100 || raw.pole.length > 120) return { ok: false }
   if (!MEMBER_SORTS.has(sort)) return { ok: false }
   return { ok: true, value: { ...raw, page, limit, sort } }
+}
+
+export function parseEventInvitationOptions(params) {
+  const q = single(params, 'q')
+  const pageText = single(params, 'page') || '1'
+  const limitText = single(params, 'limit') || '50'
+  if (q === null || !/^\d+$/.test(pageText) || !/^\d+$/.test(limitText)) return { ok: false }
+  const page = Number(pageText)
+  const limit = Number(limitText)
+  if (page < 1 || page > 100000 || limit < 1 || limit > 100 || q.length > 100) return { ok: false }
+  return { ok: true, value: { q, page, limit } }
 }
 
 export function parseEventStaffOptions(params) {
@@ -209,4 +221,31 @@ export function validateEventScannerBody(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return { ok: false }
   if (!isEventId(body.staffProfileId) || typeof body.enabled !== 'boolean') return { ok: false }
   return { ok: true, value: { staffProfileId: body.staffProfileId, enabled: body.enabled } }
+}
+
+export function validateEventInvitationSendBody(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return { ok: false }
+  if (body.all === true) return { ok: true, value: { all: true } }
+  if (!Array.isArray(body.invitationIds) || body.invitationIds.length < 1 || body.invitationIds.length > 100) return { ok: false }
+  if (body.invitationIds.some((id) => !isEventId(id))) return { ok: false }
+  const invitationIds = [...new Set(body.invitationIds)]
+  if (invitationIds.length !== body.invitationIds.length) return { ok: false }
+  return { ok: true, value: { invitationIds } }
+}
+
+export function validateEventScannerCredentialBody(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body) || !isEventId(body.eventOrganizerId)) return { ok: false }
+  if (!['generate', 'regenerate', 'revoke'].includes(body.action)) return { ok: false }
+  return { ok: true, value: { eventOrganizerId: body.eventOrganizerId, action: body.action } }
+}
+
+export function validateEventTransitionBody(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)
+    || !EVENT_TRANSITIONS.has(body.nextStatus) || !validTimestamp(body.expectedUpdatedAt)) return { ok: false }
+  return { ok: true, value: { nextStatus: body.nextStatus, expectedUpdatedAt: new Date(body.expectedUpdatedAt).toISOString() } }
+}
+
+export function validateEventAttendanceFinalizeBody(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body) || body.confirm !== true) return { ok: false }
+  return { ok: true, value: { confirm: true } }
 }

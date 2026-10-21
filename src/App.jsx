@@ -25,6 +25,8 @@ const OpenDayPage = lazy(() => import('./pages/events/open-day/OpenDayPage'))
 const ContactPage = lazy(() => import('./pages/contact/ContactPage'))
 const JoinPage = lazy(() => import('./pages/join/JoinPage'))
 const StaffConfirmationPage = lazy(() => import('./pages/join/StaffConfirmationPage'))
+const WorkshopRegistrationPage = lazy(() => import('./pages/workshops/WorkshopRegistrationPage'))
+const WorkshopScannerPage = lazy(() => import('./pages/workshops/WorkshopScannerPage'))
 const AivexRegisterPage = lazy(() => import('./pages/aivex/register/AivexRegisterPage'))
 const AivexStatusPage = lazy(() => import('./pages/aivex/status/AivexStatusPage'))
 // Back-office: its own chunk, so none of it ships with the public site.
@@ -135,6 +137,8 @@ export default function App() {
         <Route path="/aivex" element={<AivexRoute />} />
         <Route path="/join" element={<SitePage><Suspense fallback={<p className="page-container py-40" role="status">Opening the application...</p>}><JoinPage /></Suspense></SitePage>} />
         <Route path="/join/staff-confirmation" element={<SitePage><Suspense fallback={<p className="page-container py-40" role="status">Verifying your private invitation...</p>}><StaffConfirmationPage /></Suspense></SitePage>} />
+        <Route path="/workshops/register" element={<Suspense fallback={null}><WorkshopRegistrationPage /></Suspense>} />
+        <Route path="/workshops/scan" element={<Suspense fallback={null}><WorkshopScannerPage /></Suspense>} />
         <Route path="/about" element={<SitePage motionTrigger="viewport"><AboutPage /></SitePage>} />
         <Route path="/events" element={<SitePage motionTrigger="viewport"><EventsPage /></SitePage>} />
         <Route path="/events/open-day-2026" element={<SitePage motionTrigger="viewport"><Suspense fallback={<p className="page-container py-40" role="status">Opening the Open Day journal...</p>}>{OPEN_DAY_PAUSED ? <PagePaused label="Open Day 2026" /> : <OpenDayPage />}</Suspense></SitePage>} />

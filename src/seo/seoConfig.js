@@ -180,6 +180,24 @@ export const ROUTES = [
     noCanonical: true,
     noSocial: true,
   },
+  {
+    path: '/workshops/register',
+    title: 'Workshop registration | Infinity Club',
+    description: 'Private Infinity Club workshop registration page.',
+    robots: NOINDEX_NOFOLLOW,
+    sitemap: false,
+    noCanonical: true,
+    noSocial: true,
+  },
+  {
+    path: '/workshops/scan',
+    title: 'Workshop scanner | Infinity Club',
+    description: 'Private Infinity Club workshop scanner.',
+    robots: NOINDEX_NOFOLLOW,
+    sitemap: false,
+    noCanonical: true,
+    noSocial: true,
+  },
 ]
 
 export const routeFor = (pathname) => {

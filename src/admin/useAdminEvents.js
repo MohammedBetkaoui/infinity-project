@@ -86,6 +86,24 @@ export function useAdminEventMembers({ eventId, page, limit = 25, search, pole, 
   return { ...state, loading: state.loading || state.resolvedKey !== requestKey, refresh: useCallback(() => setRefreshKey((value) => value + 1), []) }
 }
 
+export function useAdminEventInvitations({ eventId, page = 1, limit = 50, active = true }) {
+  const { request } = useAdminAuth()
+  const [state, setState] = useState({ records: [], pagination: { page, limit, total: 0 }, emailConfigured: false, loading: active, error: '' })
+  const [nonce, setNonce] = useState(0)
+  useEffect(() => {
+    if (!active || !eventId) return
+    const controller = new AbortController()
+    request(`/api/admin/events/${encodeURIComponent(eventId)}/invitations?page=${page}&limit=${limit}`, { signal: controller.signal })
+      .then(({ response, body }) => {
+        if (!response.ok) throw new Error(body.message || 'Unable to load invited participants.')
+        setState({ records: body.data || [], pagination: body.pagination, emailConfigured: Boolean(body.emailConfigured), loading: false, error: '' })
+      })
+      .catch((error) => { if (error.name !== 'AbortError') setState((current) => ({ ...current, loading: false, error: error.message })) })
+    return () => controller.abort()
+  }, [active, eventId, limit, nonce, page, request])
+  return { ...state, refresh: () => setNonce((value) => value + 1) }
+}
+
 export function useAdminEventOrganizers(eventId, active = true) {
   const { request } = useAdminAuth()
   const [state, setState] = useState({ organizers: [], loading: true, error: '' })
@@ -183,5 +201,21 @@ export function useAdminEventActions() {
     if (!guard(`${eventId}:scanner`)) return { ok: false, message: 'Another event action is still being saved.' }
     return post(`/api/admin/events/${encodeURIComponent(eventId)}/scanner-access`, { staffProfileId, enabled })
   }, [post])
-  return { create, update, invite, assignOrganizers, removeOrganizer, setScannerAccess }
+  const sendInvitations = useCallback(async (eventId, input) => {
+    if (!guard(`${eventId}:send-invitations`)) return { ok: false, message: 'Another event action is still being saved.' }
+    return post(`/api/admin/events/${encodeURIComponent(eventId)}/invitations/send`, input)
+  }, [post])
+  const scannerCredential = useCallback(async (eventId, eventOrganizerId, action) => {
+    if (!guard(`${eventId}:scanner-credential`)) return { ok: false, message: 'Another event action is still being saved.' }
+    return post(`/api/admin/events/${encodeURIComponent(eventId)}/scanner-credentials`, { eventOrganizerId, action })
+  }, [post])
+  const transition = useCallback(async (eventId, nextStatus, expectedUpdatedAt) => {
+    if (!guard(`${eventId}:lifecycle`)) return { ok: false, message: 'Another event action is still being saved.' }
+    return post(`/api/admin/events/${encodeURIComponent(eventId)}/lifecycle`, { nextStatus, expectedUpdatedAt })
+  }, [post])
+  const finalizeAttendance = useCallback(async (eventId) => {
+    if (!guard(`${eventId}:attendance-finalize`)) return { ok: false, message: 'Another event action is still being saved.' }
+    return post(`/api/admin/events/${encodeURIComponent(eventId)}/attendance/finalize`, { confirm: true })
+  }, [post])
+  return { create, update, invite, assignOrganizers, removeOrganizer, setScannerAccess, sendInvitations, scannerCredential, transition, finalizeAttendance }
 }

@@ -55,6 +55,14 @@ const ACTION_LABELS = Object.freeze({
   organizer_removed: 'Event organizer removed',
   scanner_access_prepared: 'Scanner access prepared',
   scanner_access_revoked: 'Scanner access revoked',
+  invitation_sent: 'Workshop invitation sent',
+  invitation_resent: 'Workshop invitation resent',
+  participant_registered: 'Workshop participant registered',
+  scanner_access_generated: 'Private scanner access generated',
+  scanner_access_regenerated: 'Private scanner access regenerated',
+  participant_checked_in: 'Workshop participant checked in',
+  attendance_finalized: 'Workshop attendance finalized',
+  workshop_status_changed: 'Workshop status changed',
 })
 
 const OBJECT_LABELS = Object.freeze({

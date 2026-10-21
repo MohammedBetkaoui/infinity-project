@@ -1954,6 +1954,15 @@
 .adm-row-action .adm-event-organizer-actions button:hover { color: var(--adm-on-accent); background: var(--adm-green); }
 .adm-row-action .adm-event-organizer-actions button.is-danger { color: var(--adm-error); }
 .adm-row-action .adm-event-organizer-actions button.is-danger:hover { color: var(--adm-on-accent); background: var(--adm-error); }
+.adm-event-section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin: 18px 0 14px; }
+.adm-event-section-heading h4 { margin: 0; }
+.adm-event-section-heading p { margin: 5px 0 0; color: var(--adm-muted); font-size: 13px; }
+.adm-inline-warning { padding: 12px 14px; border: 1px solid rgb(var(--adm-amber-rgb) / .35); border-radius: var(--adm-radius-control); background: rgb(var(--adm-amber-rgb) / .08); color: var(--adm-ink); font-size: 13px; }
+.adm-event-scanner-state { display: grid; gap: 7px; min-width: 210px; }
+.adm-event-scanner-state > small { color: var(--adm-muted); }
+.adm-private-link { display: grid; gap: 6px; max-width: 360px; }
+.adm-private-link input { width: 100%; min-width: 0; border: 1px solid var(--adm-line); border-radius: 8px; padding: 8px 10px; background: var(--adm-surface); color: var(--adm-muted); font-size: 11px; }
+.adm-private-link button { display: inline-flex; align-items: center; gap: 6px; width: max-content; }
 .adm-event-staff-picker { display: grid; gap: 16px; }
 .adm-event-staff-picker > .adm-search { width: 100%; }
 .adm-error-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
@@ -1970,6 +1979,8 @@
   .adm-event-invite-actions .adm-button { width: 100%; }
   .adm-row-action .adm-event-organizer-actions { display: grid; }
   .adm-row-action .adm-event-organizer-actions button { width: 100%; min-height: 42px; }
+  .adm-event-section-heading { align-items: stretch; flex-direction: column; }
+  .adm-private-link { max-width: 260px; }
   .adm-events-page > .adm-tabs { border-radius: var(--adm-radius-card) var(--adm-radius-card) 0 0; }
 }
 .adm-app.is-aivex-ar .adm-document-review-guide { box-shadow: inset -3px 0 var(--adm-accent-fg); }

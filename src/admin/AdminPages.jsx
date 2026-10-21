@@ -47,6 +47,14 @@ const ACTION_LABELS = Object.freeze({
   aivex_team_arrival_confirmed: 'AIVEX team arrival confirmed',
   aivex_team_marked_absent: 'AIVEX team marked absent',
   aivex_team_attendance_reset: 'AIVEX attendance reset',
+  invitation_sent: 'Workshop invitation sent',
+  invitation_resent: 'Workshop invitation resent',
+  participant_registered: 'Workshop participant registered',
+  scanner_access_generated: 'Private scanner access generated',
+  scanner_access_regenerated: 'Private scanner access regenerated',
+  participant_checked_in: 'Workshop participant checked in',
+  attendance_finalized: 'Workshop attendance finalized',
+  workshop_status_changed: 'Workshop status changed',
 })
 
 const percent = (value, total) => total > 0 ? Math.round((value / total) * 100) : 0

@@ -1,6 +1,10 @@
 import { createServerSupabaseClient } from './aivex-server.js'
 import { canManageEvents } from './admin-events-permissions.js'
 import { createAdminEventsStore } from './admin-events-store.js'
+import { createWorkshopEmailProvider, workshopInvitationEmail } from './admin-events-email.js'
+import {
+  buildWorkshopRegistrationUrl, buildWorkshopScannerUrl, generateWorkshopToken, hashWorkshopToken,
+} from './workshop-tokens.js'
 
 const TYPE_LABELS = Object.freeze({
   workshop: 'Workshop', competition: 'Competition', conference: 'Conference',
@@ -22,6 +26,14 @@ const ACTION_TITLES = Object.freeze({
   organizer_removed: 'Event organizer removed',
   scanner_access_prepared: 'Scanner access enabled for organizer',
   scanner_access_revoked: 'Scanner access disabled for organizer',
+  invitation_sent: 'Workshop invitation sent',
+  invitation_resent: 'Workshop invitation resent',
+  participant_registered: 'Participant registered',
+  scanner_access_generated: 'Private scanner access generated',
+  scanner_access_regenerated: 'Private scanner access regenerated',
+  participant_checked_in: 'Participant checked in',
+  attendance_finalized: 'Attendance finalized',
+  workshop_status_changed: 'Workshop status changed',
 })
 const initials = (name) => String(name || '').split(' ').filter(Boolean).map((part) => part[0]).slice(0, 2).join('').toUpperCase()
 
@@ -117,6 +129,8 @@ function mapInvitedMember(row) {
 function mapOrganizer(row) {
   const staff = row.staff || {}
   const member = staff.member || {}
+  const accesses = (Array.isArray(row.scanner_access) ? row.scanner_access : [row.scanner_access]).filter(Boolean)
+  const access = accesses.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0] || null
   return {
     id: row.id,
     staffProfileId: row.staff_profile_id,
@@ -127,6 +141,10 @@ function mapOrganizer(row) {
     role: staff.internal_role || 'Unassigned',
     staffStatus: staff.status || null,
     scannerEnabled: Boolean(row.scanner_enabled),
+    scannerAccess: access ? {
+      id: access.id, status: access.status, startsAt: access.starts_at, expiresAt: access.expires_at,
+      lastUsedAt: access.last_used_at || null, revokedAt: access.revoked_at || null,
+    } : null,
     assignedAt: row.assigned_at,
   }
 }
@@ -157,7 +175,22 @@ function mapAttendanceRow(row) {
     status: ATTENDANCE_LABELS[row.attendance_status] || row.attendance_status,
     statusKey: row.attendance_status,
     checkedInAt: row.checked_in_at || null,
+    checkedInBy: row.scanner?.organizer?.staff?.member?.full_name || null,
     updatedAt: row.updated_at,
+  }
+}
+
+function mapHistoricalInvitation(row) {
+  const member = row.member || {}
+  const registeredName = [row.participant_first_name, row.participant_last_name].filter(Boolean).join(' ')
+  return {
+    id: row.id, memberId: row.member_id, name: registeredName || member.full_name || 'Unknown member',
+    canonicalName: member.full_name || '', initials: initials(registeredName || member.full_name),
+    email: member.email || '', pole: member.primary_pole || 'Unassigned', level: member.study_year || '',
+    memberStatus: member.status || null, invitationStatus: row.invitation_status,
+    emailDeliveryStatus: row.email_delivery_status, invitedAt: row.invited_at,
+    sentAt: row.sent_at || null, openedAt: row.opened_at || null, registeredAt: row.registered_at || null,
+    tokenExpiresAt: row.token_expires_at || null,
   }
 }
 
@@ -165,17 +198,24 @@ function publicEventError(error) {
   const message = error?.databaseMessage || ''
   if (error?.code === '42501' || message.includes('administrator_not_authorized')) return { status: 403, message: 'You do not have permission to perform this action.' }
   if (error?.code === 'P0002' || message.includes('event_not_found')) return { status: 404, message: 'This event no longer exists.' }
-  if (message.includes('organizer_not_found')) return { status: 404, message: 'This organizer is no longer part of the event.' }
+  if (message.includes('organizer_not_found') || message.includes('invitation_not_found')) return { status: 404, message: 'This event relationship no longer exists.' }
   if (error?.code === '40001' || message.includes('event_conflict')) return { status: 409, message: 'This event was updated by another administrator. Refresh it before continuing.' }
   if (message.includes('unknown_member')) return { status: 409, message: 'Some selected members are no longer available. Refresh the list and try again.' }
   if (message.includes('unknown_staff')) return { status: 409, message: 'Some selected organizers are no longer available. Refresh the list and try again.' }
+  if (message.includes('registration_not_open')) return { status: 409, message: 'Open workshop registration before sending invitations.' }
+  if (message.includes('scanner_not_enabled')) return { status: 409, message: 'Enable scanner eligibility for this organizer first.' }
+  if (message.includes('organizer_not_eligible')) return { status: 409, message: 'This organizer is no longer active staff.' }
+  if (message.includes('invalid_event_transition')) return { status: 409, message: 'This workshop cannot move to that lifecycle state.' }
+  if (message.includes('attendance_not_finalizable')) return { status: 409, message: 'Attendance can only be finalized after the workshop is completed.' }
   if (error?.code === '23503') return { status: 409, message: 'Some selected people are no longer available. Refresh the list and try again.' }
   if (error?.code === '23505') return { status: 409, message: 'This change conflicts with an existing record.' }
   if (error?.code === '22023' || error?.code === '23514') return { status: 409, message: 'This action is not valid for the current event.' }
   return null
 }
 
-export function createAdminEventsService({ store, now = () => new Date() } = {}) {
+export function createAdminEventsService({
+  store, now = () => new Date(), origin, emailProvider = createWorkshopEmailProvider(), tokenGenerator = generateWorkshopToken,
+} = {}) {
   if (!store) throw Object.assign(new Error('admin_events_store_required'), { stage: 'configuration', code: 'configuration_error' })
   const detail = async (eventId) => {
     const row = await store.find(eventId)
@@ -247,6 +287,15 @@ export function createAdminEventsService({ store, now = () => new Date() } = {})
         },
       }
     },
+    async invitations(eventId, options) {
+      if (!await store.find(eventId)) return null
+      const { rows, count } = await store.invitedParticipants(eventId, options)
+      return {
+        data: rows.map(mapHistoricalInvitation),
+        pagination: { page: options.page, limit: options.limit, total: count, pages: Math.max(1, Math.ceil(count / options.limit)) },
+        emailConfigured: Boolean(emailProvider.configured),
+      }
+    },
     async invite(eventId, input, user) {
       if (!canManageEvents(user.role, 'invite_members')) return { ok: false, status: 403, message: 'You do not have permission to invite members.' }
       try {
@@ -309,7 +358,111 @@ export function createAdminEventsService({ store, now = () => new Date() } = {})
       try {
         await store.setScannerAccess({ eventId, staffProfileId: input.staffProfileId, enabled: input.enabled, adminUserId: user.id, now: now() })
         const rows = await store.organizers(eventId)
+        if (!input.enabled) {
+          const organizer = rows.find((row) => row.staff_profile_id === input.staffProfileId)
+          if (organizer) await store.revokeScannerAccess({ eventId, eventOrganizerId: organizer.id, adminUserId: user.id, now: now() })
+        }
         return { ok: true, enabled: input.enabled, organizers: rows.map((row) => mapOrganizer(row)) }
+      } catch (error) {
+        const publicError = publicEventError(error)
+        if (publicError) return { ok: false, ...publicError }
+        throw error
+      }
+    },
+    async sendInvitations(eventId, input, user) {
+      if (!canManageEvents(user.role, 'invite_members')) return { ok: false, status: 403, message: 'You do not have permission to send invitations.' }
+      if (!emailProvider.configured) return { ok: false, status: 503, message: 'Workshop email delivery is not configured.' }
+      if (!origin) return { ok: false, status: 503, message: 'The public workshop origin is not configured.' }
+      const invitationIds = input.all ? await store.allInvitationIds(eventId) : input.invitationIds
+      const outcomes = []
+      let cursor = 0
+      const worker = async () => {
+        while (cursor < invitationIds.length) {
+          const invitationId = invitationIds[cursor++]
+          const rawToken = tokenGenerator()
+          const current = now()
+          let prepared = null
+          try {
+            const event = await store.find(eventId)
+            if (!event) throw Object.assign(new Error('event_not_found'), { databaseMessage: 'event_not_found', code: 'P0002' })
+            const eventEnd = new Date(event.ends_at || event.starts_at).getTime() + 12 * 60 * 60 * 1000
+            const expiresAt = new Date(Math.max(current.getTime() + 60 * 60 * 1000, eventEnd))
+            prepared = await store.prepareInvitationDelivery({
+              invitationId, eventId, adminUserId: user.id, tokenHash: hashWorkshopToken(rawToken), expiresAt, now: current,
+            })
+            const registrationUrl = buildWorkshopRegistrationUrl(origin, rawToken)
+            const message = workshopInvitationEmail({
+              eventTitle: prepared.event_title, memberName: prepared.member_name, startsAt: prepared.starts_at,
+              location: prepared.location, speakerName: prepared.speaker_name, registrationUrl,
+            })
+            const delivered = await emailProvider.send({ to: prepared.email, ...message })
+            await store.finishInvitationDelivery({
+              invitationId, eventId, adminUserId: user.id, success: delivered.ok,
+              providerMessageId: delivered.messageId, resent: Boolean(prepared.resent), now: now(),
+            })
+            outcomes.push({ id: invitationId, ok: delivered.ok })
+          } catch (error) {
+            if (prepared) await store.finishInvitationDelivery({
+              invitationId, eventId, adminUserId: user.id, success: false,
+              providerMessageId: null, resent: Boolean(prepared.resent), now: now(),
+            }).catch(() => {})
+            const mapped = publicEventError(error)
+            if (mapped && invitationIds.length === 1) throw error
+            outcomes.push({ id: invitationId, ok: false })
+          }
+        }
+      }
+      try {
+        await Promise.all(Array.from({ length: Math.min(5, invitationIds.length) }, worker))
+      } catch (error) {
+        const publicError = publicEventError(error)
+        if (publicError) return { ok: false, ...publicError }
+        throw error
+      }
+      const sent = outcomes.filter((item) => item.ok).length
+      return { ok: true, sent, failed: outcomes.length - sent, total: outcomes.length }
+    },
+    async scannerCredential(eventId, input, user) {
+      if (!canManageEvents(user.role, 'set_scanner_access')) return { ok: false, status: 403, message: 'You do not have permission to manage scanner links.' }
+      try {
+        if (input.action === 'revoke') {
+          const revoked = await store.revokeScannerAccess({ eventId, eventOrganizerId: input.eventOrganizerId, adminUserId: user.id, now: now() })
+          return { ok: true, revoked }
+        }
+        if (!origin) return { ok: false, status: 503, message: 'The public workshop origin is not configured.' }
+        const event = await store.find(eventId)
+        if (!event) return { ok: false, status: 404, message: 'Event not found.' }
+        const current = now()
+        const rawToken = tokenGenerator()
+        const eventEnd = new Date(event.ends_at || event.starts_at).getTime() + 12 * 60 * 60 * 1000
+        const expiresAt = new Date(Math.max(current.getTime() + 60 * 60 * 1000, eventEnd))
+        const access = await store.generateScannerAccess({
+          eventId, eventOrganizerId: input.eventOrganizerId, adminUserId: user.id,
+          tokenHash: hashWorkshopToken(rawToken), startsAt: current, expiresAt, now: current,
+        })
+        return { ok: true, access, privateUrl: buildWorkshopScannerUrl(origin, rawToken) }
+      } catch (error) {
+        const publicError = publicEventError(error)
+        if (publicError) return { ok: false, ...publicError }
+        throw error
+      }
+    },
+    async transition(eventId, input, user) {
+      if (!canManageEvents(user.role, 'update_event')) return { ok: false, status: 403, message: 'You do not have permission to change this workshop.' }
+      try {
+        await store.transitionEvent({ eventId, adminUserId: user.id, ...input, now: now() })
+        return { ok: true, event: await detail(eventId) }
+      } catch (error) {
+        const publicError = publicEventError(error)
+        if (publicError) return { ok: false, ...publicError }
+        throw error
+      }
+    },
+    async finalizeAttendance(eventId, user) {
+      if (!canManageEvents(user.role, 'update_event')) return { ok: false, status: 403, message: 'You do not have permission to finalize attendance.' }
+      try {
+        const finalized = await store.finalizeAttendance({ eventId, adminUserId: user.id, now: now() })
+        return { ok: true, finalized }
       } catch (error) {
         const publicError = publicEventError(error)
         if (publicError) return { ok: false, ...publicError }
@@ -334,6 +487,7 @@ export function createAdminEventsService({ store, now = () => new Date() } = {})
           ? {
               registered: event.registeredCount,
               present: event.presentCount,
+              remaining: Math.max(0, event.registeredCount - event.presentCount),
               absent: event.absentCount,
               attendanceRate: event.attendanceRate,
             }
@@ -349,6 +503,6 @@ export function createAdminEventsService({ store, now = () => new Date() } = {})
   }
 }
 
-export function createServerAdminEventsService() {
-  return createAdminEventsService({ store: createAdminEventsStore(createServerSupabaseClient()) })
+export function createServerAdminEventsService(options = {}) {
+  return createAdminEventsService({ store: createAdminEventsStore(createServerSupabaseClient()), ...options })
 }

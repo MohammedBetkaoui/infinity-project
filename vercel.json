@@ -35,7 +35,7 @@
         { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "Strict-Transport-Security", "value": "max-age=63072000" },
-        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=(), payment=(), usb=()" }
+        { "key": "Permissions-Policy", "value": "camera=(self), microphone=(), geolocation=(), payment=(), usb=()" }
       ]
     },
     {
@@ -67,11 +67,23 @@
       "headers": [
         { "key": "Referrer-Policy", "value": "no-referrer" }
       ]
+    },
+    {
+      "source": "/workshops/(register|scan)",
+      "headers": [
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
     }
   ],
   "rewrites": [
     { "source": "/api/join/staff-confirmation/verify", "destination": "/api/join?__join_action=staff-confirmation-verify" },
     { "source": "/api/join/staff-confirmation/submit", "destination": "/api/join?__join_action=staff-confirmation-submit" },
+    { "source": "/api/workshops/invitation", "destination": "/api/join?__join_action=workshop-invitation" },
+    { "source": "/api/workshops/register", "destination": "/api/join?__join_action=workshop-register" },
+    { "source": "/api/workshops/scanner/session", "destination": "/api/join?__join_action=workshop-scanner-session" },
+    { "source": "/api/workshops/scanner/context", "destination": "/api/join?__join_action=workshop-scanner-context" },
+    { "source": "/api/workshops/scanner/check-in", "destination": "/api/join?__join_action=workshop-scanner-check-in" },
     { "source": "/api/admin/:path*", "destination": "/api/admin-auth?__admin_path=:path*" },
     { "source": "/aivex", "destination": "/aivex/index.html" },
     { "source": "/aivex/register", "destination": "/aivex/register/index.html" },
@@ -83,6 +95,8 @@
     { "source": "/events/open-day-2026", "destination": "/events/open-day-2026/index.html" },
     { "source": "/join", "destination": "/join/index.html" },
     { "source": "/join/staff-confirmation", "destination": "/join/staff-confirmation/index.html" },
+    { "source": "/workshops/register", "destination": "/workshops/register/index.html" },
+    { "source": "/workshops/scan", "destination": "/workshops/scan/index.html" },
     { "source": "/admin", "destination": "/admin/index.html" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]

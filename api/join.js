@@ -30,6 +30,7 @@ import { verifyTurnstileToken } from './_lib/turnstile.js'
 import {
   createStaffConfirmationSubmitHandler, createStaffConfirmationVerifyHandler,
 } from './_lib/staff-confirmation-handlers.js'
+import { createWorkshopHandler } from './_lib/workshop-handlers.js'
 
 const MAX_BODY_BYTES = 65536
 const RATE_LIMIT = { max: 8, windowMs: 10 * 60 * 1000 }
@@ -408,10 +409,20 @@ async function joinApplicationHandler(req, res) {
 
 const staffConfirmationVerifyHandler = createStaffConfirmationVerifyHandler()
 const staffConfirmationSubmitHandler = createStaffConfirmationSubmitHandler()
+const workshopInvitationHandler = createWorkshopHandler('invitation')
+const workshopRegistrationHandler = createWorkshopHandler('register')
+const workshopScannerSessionHandler = createWorkshopHandler('scanner-session')
+const workshopScannerContextHandler = createWorkshopHandler('scanner-context')
+const workshopScannerCheckInHandler = createWorkshopHandler('scanner-check-in')
 
 export default function handler(req, res) {
   const action = new URL(req.url || '/', 'http://localhost').searchParams.get('__join_action')
   if (action === 'staff-confirmation-verify') return staffConfirmationVerifyHandler(req, res)
   if (action === 'staff-confirmation-submit') return staffConfirmationSubmitHandler(req, res)
+  if (action === 'workshop-invitation') return workshopInvitationHandler(req, res)
+  if (action === 'workshop-register') return workshopRegistrationHandler(req, res)
+  if (action === 'workshop-scanner-session') return workshopScannerSessionHandler(req, res)
+  if (action === 'workshop-scanner-context') return workshopScannerContextHandler(req, res)
+  if (action === 'workshop-scanner-check-in') return workshopScannerCheckInHandler(req, res)
   return joinApplicationHandler(req, res)
 }

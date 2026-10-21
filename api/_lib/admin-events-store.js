@@ -80,11 +80,22 @@ export function createAdminEventsStore(supabase) {
     },
     async organizers(eventId) {
       const { data, error } = await supabase.from('club_event_organizers')
-        .select('id, staff_profile_id, role_label, scanner_enabled, assigned_at, staff:club_staff_profiles(id, internal_role, current_department, status, member:club_members(full_name))')
+        .select('id, staff_profile_id, role_label, scanner_enabled, assigned_at, staff:club_staff_profiles(id, internal_role, current_department, status, member:club_members(full_name)), scanner_access:club_event_scanner_access(id, status, starts_at, expires_at, revoked_at, last_used_at, created_at)')
         .eq('event_id', eventId)
         .order('assigned_at', { ascending: true })
       if (error) fail('events_organizers', error)
       return data || []
+    },
+    async invitedParticipants(eventId, options) {
+      const from = (options.page - 1) * options.limit
+      let query = supabase.from('club_event_invitations')
+        .select('id, event_id, member_id, invitation_status, invited_at, registered_at, sent_at, opened_at, email_delivery_status, token_expires_at, participant_first_name, participant_last_name, member:club_members(full_name, email, primary_pole, study_year, status)', { count: 'exact' })
+        .eq('event_id', eventId)
+      const search = safeSearch(options.q)
+      if (search) query = query.or(`participant_first_name.ilike.%${search}%,participant_last_name.ilike.%${search}%`)
+      const { data, error, count } = await query.order('invited_at', { ascending: false }).range(from, from + options.limit - 1)
+      if (error) fail('events_invited_participants', error)
+      return { rows: data || [], count: Number(count || 0) }
     },
     async memberPoles() {
       const { data, error } = await supabase.from('club_members').select('primary_pole').eq('status', 'active').limit(5000)
@@ -144,7 +155,7 @@ export function createAdminEventsStore(supabase) {
     async attendance(eventId, options) {
       const from = (options.page - 1) * options.limit
       let query = supabase.from('club_event_attendance')
-        .select('id, member_id, attendance_status, checked_in_at, updated_at, member:club_members(full_name, primary_pole, study_year)', { count: 'exact' })
+        .select('id, member_id, attendance_status, checked_in_at, updated_at, member:club_members(full_name, primary_pole, study_year), scanner:club_event_scanner_access(event_organizer_id, organizer:club_event_organizers(staff:club_staff_profiles(member:club_members(full_name))))', { count: 'exact' })
         .eq('event_id', eventId)
       if (options.status) query = query.eq('attendance_status', options.status)
       const { data, error, count } = await query
@@ -197,6 +208,59 @@ export function createAdminEventsStore(supabase) {
       })
       if (error) fail('events_scanner_access', error)
       return Array.isArray(data) ? data[0] : data
+    },
+    async prepareInvitationDelivery({ invitationId, eventId, adminUserId, tokenHash, expiresAt, now }) {
+      const { data, error } = await supabase.rpc('admin_prepare_event_invitation_delivery', {
+        p_invitation_id: invitationId, p_event_id: eventId, p_admin_user_id: adminUserId,
+        p_token_hash: tokenHash, p_expires_at: expiresAt.toISOString(), p_now: now.toISOString(),
+      })
+      if (error) fail('events_prepare_invitation_delivery', error)
+      return Array.isArray(data) ? data[0] : data
+    },
+    async finishInvitationDelivery({ invitationId, eventId, adminUserId, success, providerMessageId, resent, now }) {
+      const { data, error } = await supabase.rpc('admin_finish_event_invitation_delivery', {
+        p_invitation_id: invitationId, p_event_id: eventId, p_admin_user_id: adminUserId,
+        p_success: success, p_provider_message_id: providerMessageId || null, p_resent: resent, p_now: now.toISOString(),
+      })
+      if (error) fail('events_finish_invitation_delivery', error)
+      return Array.isArray(data) ? data[0] : data
+    },
+    async allInvitationIds(eventId, limit = 500) {
+      const { data, error } = await supabase.from('club_event_invitations').select('id')
+        .eq('event_id', eventId).in('invitation_status', ['invited', 'registered']).limit(limit)
+      if (error) fail('events_invitation_ids', error)
+      return (data || []).map((row) => row.id)
+    },
+    async generateScannerAccess({ eventId, eventOrganizerId, adminUserId, tokenHash, startsAt, expiresAt, now }) {
+      const { data, error } = await supabase.rpc('admin_generate_event_scanner_access', {
+        p_event_id: eventId, p_event_organizer_id: eventOrganizerId, p_admin_user_id: adminUserId,
+        p_token_hash: tokenHash, p_starts_at: startsAt.toISOString(), p_expires_at: expiresAt.toISOString(), p_now: now.toISOString(),
+      })
+      if (error) fail('events_generate_scanner_access', error)
+      return Array.isArray(data) ? data[0] : data
+    },
+    async revokeScannerAccess({ eventId, eventOrganizerId, adminUserId, now }) {
+      const { data, error } = await supabase.rpc('admin_revoke_event_scanner_access', {
+        p_event_id: eventId, p_event_organizer_id: eventOrganizerId,
+        p_admin_user_id: adminUserId, p_now: now.toISOString(),
+      })
+      if (error) fail('events_revoke_scanner_access', error)
+      return Array.isArray(data) ? data[0] : data
+    },
+    async transitionEvent({ eventId, adminUserId, nextStatus, expectedUpdatedAt, now }) {
+      const { data, error } = await supabase.rpc('admin_transition_club_event', {
+        p_event_id: eventId, p_admin_user_id: adminUserId, p_next_status: nextStatus,
+        p_expected_updated_at: expectedUpdatedAt, p_now: now.toISOString(),
+      })
+      if (error) fail('events_transition', error)
+      return Array.isArray(data) ? data[0] : data
+    },
+    async finalizeAttendance({ eventId, adminUserId, now }) {
+      const { data, error } = await supabase.rpc('admin_finalize_club_event_attendance', {
+        p_event_id: eventId, p_admin_user_id: adminUserId, p_now: now.toISOString(),
+      })
+      if (error) fail('events_finalize_attendance', error)
+      return Number(Array.isArray(data) ? data[0] : data)
     },
   }
 }

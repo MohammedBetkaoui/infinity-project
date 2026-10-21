@@ -33,10 +33,11 @@ import {
   validatePeopleBulkBody, validatePeopleCreateBody,
 } from './_lib/admin-people-validation.js'
 import {
-  isEventId, parseEventAttendanceOptions, parseEventListOptions, parseEventMemberOptions, parseEventStaffOptions,
-  validateEventCreateBody, validateEventInviteBody, validateEventOrganizersBody,
-  validateEventRemoveOrganizerBody, validateEventScannerBody, validateEventUpdateBody,
+  isEventId, parseEventAttendanceOptions, parseEventInvitationOptions, parseEventListOptions, parseEventMemberOptions, parseEventStaffOptions,
+  validateEventAttendanceFinalizeBody, validateEventCreateBody, validateEventInvitationSendBody, validateEventInviteBody, validateEventOrganizersBody,
+  validateEventRemoveOrganizerBody, validateEventScannerBody, validateEventScannerCredentialBody, validateEventTransitionBody, validateEventUpdateBody,
 } from './_lib/admin-events-validation.js'
+import { workshopSiteOrigin } from './_lib/workshop-tokens.js'
 import {
   isAivexDocumentKey, isAivexReference, parseAcceptedAivexStudentOptions,
   parseAivexAttendanceEdition, parseAivexListOptions,
@@ -606,17 +607,21 @@ export function createAdminEventsHandler({
     const detailMatch = path.match(/^events\/([0-9a-f-]+)$/i)
     const membersMatch = path.match(/^events\/([0-9a-f-]+)\/members$/i)
     const invitationsMatch = path.match(/^events\/([0-9a-f-]+)\/invitations$/i)
+    const invitationSendMatch = path.match(/^events\/([0-9a-f-]+)\/invitations\/send$/i)
     const staffMatch = path.match(/^events\/([0-9a-f-]+)\/staff$/i)
     const organizersMatch = path.match(/^events\/([0-9a-f-]+)\/organizers$/i)
     const organizerRemoveMatch = path.match(/^events\/([0-9a-f-]+)\/organizers\/remove$/i)
     const scannerMatch = path.match(/^events\/([0-9a-f-]+)\/scanner-access$/i)
+    const scannerCredentialMatch = path.match(/^events\/([0-9a-f-]+)\/scanner-credentials$/i)
+    const lifecycleMatch = path.match(/^events\/([0-9a-f-]+)\/lifecycle$/i)
     const statisticsMatch = path.match(/^events\/([0-9a-f-]+)\/statistics$/i)
     const attendanceMatch = path.match(/^events\/([0-9a-f-]+)\/attendance$/i)
-    const detailPath = rootMatch || detailMatch || membersMatch || invitationsMatch || staffMatch || organizersMatch || organizerRemoveMatch || scannerMatch || statisticsMatch || attendanceMatch
+    const attendanceFinalizeMatch = path.match(/^events\/([0-9a-f-]+)\/attendance\/finalize$/i)
+    const detailPath = rootMatch || detailMatch || membersMatch || invitationsMatch || invitationSendMatch || staffMatch || organizersMatch || organizerRemoveMatch || scannerMatch || scannerCredentialMatch || lifecycleMatch || statisticsMatch || attendanceMatch || attendanceFinalizeMatch
     if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(req.method) && !trustedOrigin(req, env)) return sendAdminJson(res, 403, { success: false, message: 'Request rejected.' })
 
     try {
-      const service = createService()
+      const service = createService({ origin: workshopSiteOrigin(req, env) })
       if (rootMatch && req.method === 'GET') {
         const parsed = parseEventListOptions(url.searchParams)
         if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid event filters.' })
@@ -630,7 +635,7 @@ export function createAdminEventsHandler({
         if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: result.message })
         return sendAdminJson(res, 201, { success: true, event: result.event })
       }
-      const eventId = detailMatch?.[1] || membersMatch?.[1] || invitationsMatch?.[1] || staffMatch?.[1] || organizersMatch?.[1] || organizerRemoveMatch?.[1] || scannerMatch?.[1] || statisticsMatch?.[1] || attendanceMatch?.[1]
+      const eventId = detailMatch?.[1] || membersMatch?.[1] || invitationsMatch?.[1] || invitationSendMatch?.[1] || staffMatch?.[1] || organizersMatch?.[1] || organizerRemoveMatch?.[1] || scannerMatch?.[1] || scannerCredentialMatch?.[1] || lifecycleMatch?.[1] || statisticsMatch?.[1] || attendanceMatch?.[1] || attendanceFinalizeMatch?.[1]
       if (detailMatch && req.method === 'GET') {
         if (!isEventId(eventId)) return sendAdminJson(res, 404, { success: false, message: 'Event not found.' })
         const event = await service.detail(eventId, session.user)
@@ -660,6 +665,22 @@ export function createAdminEventsHandler({
         const result = await service.invite(eventId, parsed.value, session.user)
         if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: result.message })
         return sendAdminJson(res, 200, { success: true, invited: result.invited })
+      }
+      if (invitationsMatch && req.method === 'GET') {
+        if (!isEventId(eventId)) return sendAdminJson(res, 404, { success: false, message: 'Event not found.' })
+        const parsed = parseEventInvitationOptions(url.searchParams)
+        if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid invitation filters.' })
+        const result = await service.invitations(eventId, parsed.value, session.user)
+        return result ? sendAdminJson(res, 200, { success: true, ...result }) : sendAdminJson(res, 404, { success: false, message: 'Event not found.' })
+      }
+      if (invitationSendMatch && req.method === 'POST') {
+        if (!isEventId(eventId)) return sendAdminJson(res, 404, { success: false, message: 'Event not found.' })
+        if (!isJsonContentType(req)) return sendAdminJson(res, 415, { success: false, message: 'Unsupported request.' })
+        const parsed = validateEventInvitationSendBody(await readJsonBody(req, MAX_EVENTS_BODY_BYTES))
+        if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid invitation delivery request.' })
+        const result = await service.sendInvitations(eventId, parsed.value, session.user)
+        if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: result.message })
+        return sendAdminJson(res, 200, { success: true, sent: result.sent, failed: result.failed, total: result.total })
       }
       if (staffMatch && req.method === 'GET') {
         if (!isEventId(eventId)) return sendAdminJson(res, 404, { success: false, message: 'Event not found.' })
@@ -700,6 +721,24 @@ export function createAdminEventsHandler({
         if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: result.message })
         return sendAdminJson(res, 200, { success: true, enabled: result.enabled, organizers: result.organizers })
       }
+      if (scannerCredentialMatch && req.method === 'POST') {
+        if (!isEventId(eventId)) return sendAdminJson(res, 404, { success: false, message: 'Event not found.' })
+        if (!isJsonContentType(req)) return sendAdminJson(res, 415, { success: false, message: 'Unsupported request.' })
+        const parsed = validateEventScannerCredentialBody(await readJsonBody(req, MAX_EVENTS_BODY_BYTES))
+        if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid scanner credential request.' })
+        const result = await service.scannerCredential(eventId, parsed.value, session.user)
+        if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: result.message })
+        return sendAdminJson(res, 200, { success: true, revoked: result.revoked, access: result.access, privateUrl: result.privateUrl })
+      }
+      if (lifecycleMatch && req.method === 'POST') {
+        if (!isEventId(eventId)) return sendAdminJson(res, 404, { success: false, message: 'Event not found.' })
+        if (!isJsonContentType(req)) return sendAdminJson(res, 415, { success: false, message: 'Unsupported request.' })
+        const parsed = validateEventTransitionBody(await readJsonBody(req, MAX_EVENTS_BODY_BYTES))
+        if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid workshop transition.' })
+        const result = await service.transition(eventId, parsed.value, session.user)
+        if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: result.message })
+        return sendAdminJson(res, 200, { success: true, event: result.event })
+      }
       if (statisticsMatch && req.method === 'GET') {
         if (!isEventId(eventId)) return sendAdminJson(res, 404, { success: false, message: 'Event not found.' })
         const event = await service.detail(eventId, session.user)
@@ -712,11 +751,22 @@ export function createAdminEventsHandler({
         const result = await service.attendance(eventId, parsed.value, session.user)
         return result ? sendAdminJson(res, 200, { success: true, ...result }) : sendAdminJson(res, 404, { success: false, message: 'Event not found.' })
       }
+      if (attendanceFinalizeMatch && req.method === 'POST') {
+        if (!isEventId(eventId)) return sendAdminJson(res, 404, { success: false, message: 'Event not found.' })
+        if (!isJsonContentType(req)) return sendAdminJson(res, 415, { success: false, message: 'Unsupported request.' })
+        const parsed = validateEventAttendanceFinalizeBody(await readJsonBody(req, MAX_EVENTS_BODY_BYTES))
+        if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Explicit confirmation is required.' })
+        const result = await service.finalizeAttendance(eventId, session.user)
+        if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: result.message })
+        return sendAdminJson(res, 200, { success: true, finalized: result.finalized })
+      }
       res.setHeader('Allow', rootMatch
         ? 'GET, POST'
         : detailMatch
           ? 'GET, PATCH'
-          : invitationsMatch || organizersMatch || organizerRemoveMatch || scannerMatch
+          : invitationsMatch
+            ? 'GET, POST'
+            : invitationSendMatch || organizersMatch || organizerRemoveMatch || scannerMatch || scannerCredentialMatch || lifecycleMatch || attendanceFinalizeMatch
             ? 'POST'
             : 'GET')
       return sendAdminJson(res, detailPath ? 405 : 404, { success: false, message: detailPath ? 'Method not allowed.' : 'Not found.' })

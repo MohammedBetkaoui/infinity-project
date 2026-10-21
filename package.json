@@ -23,6 +23,7 @@
   "dependencies": {
     "@studio-freight/lenis": "^1.0.42",
     "@supabase/supabase-js": "^2.116.0",
+    "@zxing/browser": "^0.1.5",
     "busboy": "^1.6.0",
     "file-type": "^22.1.1",
     "framer-motion": "13.2.0",
