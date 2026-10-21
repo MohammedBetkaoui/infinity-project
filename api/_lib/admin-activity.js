@@ -48,6 +48,13 @@ const ACTION_LABELS = Object.freeze({
   staff_confirmation_invitation_revoked: 'Staff confirmation invitation revoked',
   staff_link_revealed: 'Staff private link revealed',
   staff_link_csv_exported: 'Staff private links exported',
+  event_created: 'Event created',
+  event_updated: 'Event updated',
+  members_invited: 'Members invited to event',
+  organizer_added: 'Event organizer added',
+  organizer_removed: 'Event organizer removed',
+  scanner_access_prepared: 'Scanner access prepared',
+  scanner_access_revoked: 'Scanner access revoked',
 })
 
 const OBJECT_LABELS = Object.freeze({
@@ -58,6 +65,7 @@ const OBJECT_LABELS = Object.freeze({
   club_staff: 'Staff',
   aivex_settings: 'AIVEX settings',
   staff_link_export: 'Administration',
+  club_event: 'Event',
 })
 
 const text = (value, fallback, max = 240) => {

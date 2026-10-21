@@ -23,6 +23,7 @@ test('typed prefixes narrow the scope', () => {
   assert.equal(parseInput('APP: lina').scope, 'applications')
   assert.equal(parseInput('member:selma').scope, 'members')
   assert.equal(parseInput('staff: anis').scope, 'staff')
+  assert.equal(parseInput('event: workshop').scope, 'events')
   assert.equal(parseInput('aivex:nova').scope, 'aivex')
   assert.equal(parseInput('student: amine').scope, 'students')
   assert.deepEqual(parseInput('lina'), { scope: null, prefix: '', text: 'lina' })
@@ -39,7 +40,7 @@ test('AIVEX and JOIN references are recognised in their public format only', () 
 })
 
 test('a source the role may not read is never asked', () => {
-  assert.deepEqual(allowedSources('super_admin'), ['applications', 'members', 'staff', 'aivex', 'students'])
+  assert.deepEqual(allowedSources('super_admin'), ['applications', 'members', 'staff', 'events', 'aivex', 'students'])
   assert.deepEqual(allowedSources('administrator'), ['aivex', 'students'])
   assert.deepEqual(allowedSources('reviewer'), ['aivex', 'students'])
   assert.deepEqual(allowedSources('guest'), [])
@@ -81,12 +82,15 @@ test('list rows never expose phone, RFID or identity details', () => {
   const application = toSearchItem('applications', { id: 'a1', ref: 'JOIN-261040', name: 'Lina', email: 'lina@x.dz', phone: '+213 666', status: 'New' })
   assert.doesNotMatch(JSON.stringify(application), /\+213|lina@x\.dz/)
   assert.equal(application.path, '/admin/applications?record=a1&stage=New')
+  const event = toSearchItem('events', { id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', title: 'Machine Learning', typeLabel: 'Workshop', speaker: 'Dr Ahmed', startsAt: '2026-10-28T08:00:00.000Z', status: 'Planned' })
+  assert.equal(event.path, '/admin/events/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee')
+  assert.match(event.detail, /Workshop · Dr Ahmed · 28 Oct 2026/)
 })
 
 test('pages and actions follow the role and the shell', () => {
   const reviewerPages = searchStatic(SEARCH_PAGES, '', { role: 'reviewer', shell: 'aivex', limit: 50 }).map((entry) => entry.id)
   assert.ok(reviewerPages.includes('page:aivex'))
-  assert.ok(!reviewerPages.some((id) => /members|staff|applications|settings|activity|overview/.test(id)))
+  assert.ok(!reviewerPages.some((id) => /members|staff|events|applications|settings|activity|overview/.test(id)))
   assert.equal(searchStatic(SEARCH_PAGES, 'students', { role: 'super_admin' })[0].id, 'page:aivex:students')
   const fullActions = searchStatic(SEARCH_ACTIONS, '', { role: 'super_admin', limit: 50 }).map((entry) => entry.id)
   const aivexActions = searchStatic(SEARCH_ACTIONS, '', { role: 'reviewer', shell: 'aivex', limit: 50 }).map((entry) => entry.id)

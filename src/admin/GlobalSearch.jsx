@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useSy
 import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
-  ArrowRight, ArrowUpRight, Bell, FileClock, FileText, GraduationCap, History, Languages, LayoutDashboard,
+  ArrowRight, ArrowUpRight, Bell, CalendarDays, FileClock, FileText, GraduationCap, History, Languages, LayoutDashboard,
   LogOut, Monitor, Moon, Palette, PanelLeft, RefreshCw, RotateCcw, Search, SearchX, Settings, Sun, Trophy,
   UserCog, Users, X,
 } from 'lucide-react'
@@ -17,12 +17,12 @@ import { aivexPath, translateAivex } from './AivexI18n'
 import { clearSearchMemory, rememberOpened, rememberSearch, useAdminSearch } from './useAdminSearch'
 
 const ICONS = Object.freeze({
-  overview: LayoutDashboard, applications: FileText, members: Users, staff: UserCog, aivex: Trophy,
+  overview: LayoutDashboard, applications: FileText, members: Users, staff: UserCog, events: CalendarDays, aivex: Trophy,
   students: GraduationCap, activity: FileClock, settings: Settings, light: Sun, dark: Moon, system: Monitor,
   accent: Palette, sidebar: PanelLeft, notifications: Bell, refresh: RefreshCw, language: Languages,
   signout: LogOut, recent: History,
 })
-const DEFAULT_PAGES = ['page:overview', 'page:applications', 'page:members', 'page:staff', 'page:aivex', 'page:aivex:students', 'page:activity', 'page:settings:Workspace']
+const DEFAULT_PAGES = ['page:overview', 'page:applications', 'page:members', 'page:staff', 'page:events', 'page:aivex', 'page:aivex:students', 'page:activity', 'page:settings:Workspace']
 const SEARCH_SHORTCUT = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '') ? '⌘K' : 'Ctrl K'
 const COMPACT_QUERY = '(max-width: 767px)'
 const subscribeCompact = (listener) => {
@@ -369,7 +369,7 @@ export default function GlobalSearch({ shell = 'full', language = 'en', onToggle
         <p className="sr-only" aria-live="polite">{announcement}</p>
         <footer className="adm-command__footer">
           <span className="adm-command__keys"><kbd>↑</kbd><kbd>↓</kbd> {t('move')} <kbd>↵</kbd> {t('open')} <kbd>Esc</kbd> {t('close')} <kbd>Alt</kbd><kbd>←</kbd><kbd>→</kbd> {t('scope')}</span>
-          <span><code>&gt;</code> {t('Actions')} · <code>/</code> {t('Pages')}{shell === 'full' && <> · <code>app:</code> <code>member:</code> <code>staff:</code></>} · <code>aivex:</code> <code>student:</code></span>
+          <span><code>&gt;</code> {t('Actions')} · <code>/</code> {t('Pages')}{shell === 'full' && <> · <code>app:</code> <code>member:</code> <code>staff:</code> <code>event:</code></>} · <code>aivex:</code> <code>student:</code></span>
         </footer>
       </section>
     </div>, layer)}

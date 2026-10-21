@@ -91,6 +91,7 @@ export const SCOPES = Object.freeze([
   { key: 'applications', label: 'Applications' },
   { key: 'members', label: 'Members' },
   { key: 'staff', label: 'Staff' },
+  { key: 'events', label: 'Events' },
   { key: 'aivex', label: 'AIVEX files' },
   { key: 'students', label: 'Students' },
 ])
@@ -101,6 +102,7 @@ export const SEARCH_PREFIXES = Object.freeze([
   { prefix: 'app:', scope: 'applications' },
   { prefix: 'member:', scope: 'members' },
   { prefix: 'staff:', scope: 'staff' },
+  { prefix: 'event:', scope: 'events' },
   { prefix: 'aivex:', scope: 'aivex' },
   { prefix: 'student:', scope: 'students' },
 ])
@@ -134,6 +136,7 @@ export const SEARCH_SOURCES = Object.freeze({
   applications: { label: 'Applications', endpoint: '/api/admin/applications', sort: 'submitted_desc', access: FULL },
   members: { label: 'Members', endpoint: '/api/admin/members', sort: 'joined_desc', access: FULL },
   staff: { label: 'Staff', endpoint: '/api/admin/staff', sort: 'joined_desc', access: FULL },
+  events: { label: 'Events', endpoint: '/api/admin/events', sort: 'starts_desc', access: FULL },
   aivex: { label: 'AIVEX files', endpoint: '/api/admin/aivex', sort: 'attention_asc', access: AIVEX },
   students: { label: 'Students', endpoint: '/api/admin/aivex/students', sort: 'name_asc', access: AIVEX },
 })
@@ -174,6 +177,7 @@ export function toSearchItem(source, record) {
   if (source === 'applications') return { id: `applications:${record.id}`, source, title: record.name, reference: record.ref, initials: record.initials || initialsOf(record.name), detail: [record.ref, record.type, record.level, record.speciality].filter(Boolean).join(' · '), status: record.status, path: `/admin/applications?record=${encodeURIComponent(record.id)}${record.status ? `&stage=${encodeURIComponent(record.status)}` : ''}` }
   if (source === 'members') return { id: `members:${record.id}`, source, title: record.name, reference: record.ref, initials: record.initials || initialsOf(record.name), detail: [record.level, record.speciality, record.pole].filter(Boolean).join(' · '), status: record.status, path: `/admin/members?record=${encodeURIComponent(record.id)}` }
   if (source === 'staff') return { id: `staff:${record.id}`, source, title: record.name, reference: record.ref, initials: record.initials || initialsOf(record.name), detail: [record.role, record.department].filter(Boolean).join(' · '), status: record.status, path: `/admin/staff?record=${encodeURIComponent(record.id)}` }
+  if (source === 'events') return { id: `events:${record.id}`, source, title: record.title, reference: record.ref, icon: 'events', detail: [record.typeLabel, record.speaker, record.startsAt ? new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Africa/Algiers' }).format(new Date(record.startsAt)) : ''].filter(Boolean).join(' · '), status: record.status, path: `/admin/events/${encodeURIComponent(record.id)}` }
   if (source === 'aivex') return { id: `aivex:${record.ref}`, source, title: record.name, reference: record.ref, icon: 'aivex', detail: [record.ref, record.institution].filter(Boolean).join(' · '), status: record.document, path: `/admin/aivex/${encodeURIComponent(record.ref)}` }
   if (source === 'students') return { id: `students:${record.id}`, source, title: record.name, reference: record.reference, initials: initialsOf(record.name), detail: [record.teamName, record.institutionName].filter(Boolean).join(' · '), path: `/admin/aivex/${encodeURIComponent(record.reference)}` }
   return null
@@ -184,6 +188,7 @@ export const sourceListPath = (source, items = []) => ({
   applications: `/admin/applications${items[0]?.status ? `?stage=${encodeURIComponent(items[0].status)}` : ''}`,
   members: '/admin/members',
   staff: '/admin/staff',
+  events: '/admin/events',
   aivex: '/admin/aivex',
   students: '/admin/aivex?view=students',
 }[source])
@@ -199,6 +204,7 @@ export const SEARCH_PAGES = Object.freeze([
   ...STAGES.map((stage) => ({ id: `page:applications:${stage}`, title: `Applications · ${stage}`, detail: 'Application stage', path: `/admin/applications?stage=${encodeURIComponent(stage)}`, icon: 'applications', access: FULL, keywords: 'stage candidates' })),
   { id: 'page:members', title: 'Members', detail: 'Community directory', path: '/admin/members', icon: 'members', access: FULL, keywords: 'people directory' },
   { id: 'page:staff', title: 'Staff', detail: 'Operational roster', path: '/admin/staff', icon: 'staff', access: FULL, keywords: 'team departments' },
+  { id: 'page:events', title: 'Events', detail: 'Workshops and club operations', path: '/admin/events', icon: 'events', access: FULL, keywords: 'calendar workshops competitions conferences' },
   { id: 'page:aivex', title: 'AIVEX files', detail: 'Administrative files', path: '/admin/aivex', icon: 'aivex', access: AIVEX, keywords: 'teams dossiers review' },
   { id: 'page:aivex:participation', title: 'AIVEX participation', detail: 'Attendance on the day', path: '/admin/aivex?view=participation', icon: 'aivex', access: AIVEX, keywords: 'attendance present absent' },
   { id: 'page:aivex:students', title: 'Accepted students', detail: 'Final accepted-team roster', path: '/admin/aivex?view=students', icon: 'students', access: AIVEX, keywords: 'aivex roster students' },

@@ -5,6 +5,7 @@ import { SEARCH_LIMIT, SEARCH_SOURCES, allowedSources, detectReference, parseInp
 import { applicationsQueryString } from './useAdminApplications'
 import { peopleQueryString } from './useAdminPeople'
 import { acceptedStudentsQueryString, aivexQueryString } from './useAdminAivex'
+import { eventsQueryString } from './useAdminEvents'
 
 // The global search asks the existing list endpoints, five rows each. Some of
 // them are expensive (an AIVEX list re-evaluates the whole edition and an
@@ -19,6 +20,7 @@ const listQuery = {
   applications: (search) => applicationsQueryString({ page: 1, limit: SEARCH_LIMIT, status: '', search, filters: {}, sort: SEARCH_SOURCES.applications.sort }),
   members: (search) => peopleQueryString({ page: 1, limit: SEARCH_LIMIT, search, filters: {}, sort: SEARCH_SOURCES.members.sort }),
   staff: (search) => peopleQueryString({ page: 1, limit: SEARCH_LIMIT, search, filters: {}, sort: SEARCH_SOURCES.staff.sort }),
+  events: (search) => eventsQueryString({ page: 1, limit: SEARCH_LIMIT, search, filters: {}, sort: SEARCH_SOURCES.events.sort }),
   aivex: (search) => aivexQueryString({ page: 1, limit: SEARCH_LIMIT, search, filters: {}, sort: SEARCH_SOURCES.aivex.sort }),
   students: (search) => acceptedStudentsQueryString({ page: 1, limit: SEARCH_LIMIT, search, filters: {}, sort: SEARCH_SOURCES.students.sort }),
 }

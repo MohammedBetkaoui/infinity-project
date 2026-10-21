@@ -92,6 +92,14 @@ administration migration first: accepted Join applications are synchronized
 into the member directory, and Staff acceptances create both the linked member
 and operational staff profiles.
 
+To enable the internal Events workspace, apply
+`supabase/migrations/20261022120000_admin_club_events.sql`, then set the
+server-only `ADMIN_EVENTS_API_ENABLED=true` and redeploy. Apply the Members and
+Staff directory migration first: event invitations and organizer assignments
+reference those authoritative records and are never sourced from browser demo
+data. New events default to internal visibility; this switch does not publish
+them on the public Events archive.
+
 To enable the real AIVEX administration page, then apply
 `supabase/migrations/20260927120000_admin_aivex_operations.sql`, set the
 server-only `ADMIN_AIVEX_API_ENABLED=true`, and redeploy. The AIVEX flag must

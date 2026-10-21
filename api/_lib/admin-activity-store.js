@@ -54,13 +54,14 @@ async function fallbackList(supabase, options) {
   const auditRows = data || []
 
   const ids = (type) => auditRows.filter((row) => row.object_type === type).map((row) => row.object_id)
-  const [applications, registrations, members, staff] = await Promise.all([
+  const [applications, registrations, members, staff, events] = await Promise.all([
     rowsByIds(supabase, 'membership_applications', 'id, full_name, reference', ids('join_application')),
     rowsByIds(supabase, 'aivex_registrations', 'id, team_name, reference', [
       ...ids('aivex_registration'), ...ids('aivex_document'),
     ]),
     rowsByIds(supabase, 'club_members', 'id, full_name', ids('club_member')),
     rowsByIds(supabase, 'club_staff_profiles', 'id, member_id', ids('club_staff')),
+    rowsByIds(supabase, 'club_events', 'id, title, event_type', ids('club_event')),
   ])
   const staffMembers = await rowsByIds(supabase, 'club_members', 'id, full_name', staff.map((row) => row.member_id))
   const applicationMap = new Map(applications.map((row) => [row.id, [row.full_name, row.reference].filter(Boolean).join(' · ')]))
@@ -68,6 +69,7 @@ async function fallbackList(supabase, options) {
   const memberMap = new Map(members.map((row) => [row.id, row.full_name]))
   const staffMemberMap = new Map(staffMembers.map((row) => [row.id, row.full_name]))
   const staffMap = new Map(staff.map((row) => [row.id, staffMemberMap.get(row.member_id)]))
+  const eventMap = new Map(events.map((row) => [row.id, [row.title, row.event_type].filter(Boolean).join(' · ')]))
   const subject = (row) => {
     if (row.object_type === 'join_application') return applicationMap.get(row.object_id) || 'Join application'
     if (['aivex_registration', 'aivex_document'].includes(row.object_type)) return registrationMap.get(row.object_id) || 'AIVEX registration'
@@ -75,6 +77,7 @@ async function fallbackList(supabase, options) {
     if (row.object_type === 'club_staff') return staffMap.get(row.object_id) || 'Staff profile'
     if (row.object_type === 'aivex_settings') return `AIVEX Edition ${row.metadata?.edition || 2} campaign`
     if (row.object_type === 'staff_link_export') return `Staff private-link export · ${Number(row.metadata?.row_count || 0)} candidate(s)`
+    if (row.object_type === 'club_event') return eventMap.get(row.object_id) || 'Club event'
     return 'Administrative record'
   }
   const allRows = auditRows.map((row) => ({

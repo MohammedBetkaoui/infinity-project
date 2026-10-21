@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import {
-  AlertTriangle, ArrowRight, Bell, BriefcaseBusiness, Check, CheckCircle2,
+  AlertTriangle, ArrowRight, Bell, BriefcaseBusiness, CalendarDays, Check, CheckCircle2,
   ChevronDown, ChevronLeft, ChevronRight, Circle, FileClock, FileText,
   Filter, LayoutDashboard, LockKeyhole, LogOut, Menu, Moon, MoreHorizontal, Plus,
   Search, Settings, ShieldCheck, Sun, Trophy, UserCog, Users, X,
@@ -22,6 +22,7 @@ const icons = {
   applications: FileText,
   members: Users,
   staff: UserCog,
+  events: CalendarDays,
   aivex: Trophy,
   activity: FileClock,
   settings: Settings,
@@ -245,11 +246,11 @@ function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen, language 
         </div>
         <div className="adm-nav-group">
           <div className="adm-nav-group__label"><span>{t('Operations')}</span></div>
-          {navItems.slice(4, 6).map(renderNavItem)}
+          {navItems.slice(4, 7).map(renderNavItem)}
         </div>
         <div className="adm-nav-group adm-nav-group--system">
           <div className="adm-nav-group__label"><span>{t('System')}</span></div>
-          {navItems.slice(6).map(renderNavItem)}
+          {navItems.slice(7).map(renderNavItem)}
         </div>
       </nav>
       <div className="adm-sidebar__foot">
@@ -322,7 +323,7 @@ export function AdminShell({ children, collapsed, setCollapsed, mobileOpen, setM
   const language = pathname.startsWith('/admin/aivex') && new URLSearchParams(search).get('lang') === 'ar' ? 'ar' : 'en'
   const isArabic = language === 'ar'
   const t = (value) => translateAivex(value, language)
-  const livePeopleWorkspace = ['/admin/applications', '/admin/members', '/admin/staff'].includes(pathname)
+  const livePeopleWorkspace = ['/admin/applications', '/admin/members', '/admin/staff'].includes(pathname) || pathname.startsWith('/admin/events')
   const mainRef = useRef(null)
   usePageFade(mainRef, pathname)
   return (

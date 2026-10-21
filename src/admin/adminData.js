@@ -53,7 +53,8 @@ export const navItems = [
   { path: '/admin/applications', label: 'Applications', icon: 'applications', index: '02', count: 12 },
   { path: '/admin/members', label: 'Members', icon: 'members', index: '03' },
   { path: '/admin/staff', label: 'Staff', icon: 'staff', index: '04' },
-  { path: '/admin/aivex', label: 'AIVEX', icon: 'aivex', index: '05', count: 8 },
-  { path: '/admin/activity', label: 'Activity log', icon: 'activity', index: '06' },
-  { path: '/admin/settings', label: 'Settings', icon: 'settings', index: '07' },
+  { path: '/admin/events', label: 'Events', icon: 'events', index: '05' },
+  { path: '/admin/aivex', label: 'AIVEX', icon: 'aivex', index: '06', count: 8 },
+  { path: '/admin/activity', label: 'Activity log', icon: 'activity', index: '07' },
+  { path: '/admin/settings', label: 'Settings', icon: 'settings', index: '08' },
 ]
