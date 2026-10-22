@@ -1,17 +1,9 @@
 import { INFINITY_CLUB_PATH, INFINITY_CLUB_VIEWBOX, INFINITY_CLUB_ASPECT } from '../../components/infinity-club-geometry.js'
+import { WORKSHOP_BADGE } from './workshopBadgeTheme.js'
 
-const DEEP = '#002A1E'
-const GREEN = '#094A36'
-const CREAM = '#F6F3EA'
-const MINT = '#8FD9B8'
-const MINT_DEEP = '#0E6A4C'
-
-const BADGE_WIDTH = 1200
-const BADGE_HEIGHT = 1700
-const BADGE_RADIUS = 62
-const PANEL = { x: 48, y: 360, width: 1104, height: 1044, radius: 36 }
-const PANEL_INNER = 964
-const QR_CARD = { x: 330, y: 878, width: 540, height: 336, radius: 28, code: 256 }
+const { colors: C, panel: PANEL, header: HEADER, footer: FOOTER, title: TITLE, meta: META, qr: QR, name: NAME } = WORKSHOP_BADGE
+const BADGE_WIDTH = WORKSHOP_BADGE.width
+const BADGE_HEIGHT = WORKSHOP_BADGE.height
 const FONT_FAMILY = 'Inter, Arial, sans-serif'
 
 export function workshopBadgeFileName(participantName) {
@@ -33,14 +25,18 @@ export function eventSchedule(value) {
   const time = new Intl.DateTimeFormat('en-GB', {
     hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'Africa/Algiers',
   }).format(date)
-  return `${day} ${month.toUpperCase()} ${year} · ${time}`
+  return `${day} ${month.toUpperCase()} ${year} • ${time}`
 }
 
 const canvasFont = (weight, size) => `${weight} ${size}px ${FONT_FAMILY}`
 
-const track = (context, value, { weight = 800, size, spacing = 0, color }, cx, y, align = 'center') => {
+const setFont = (context, weight, size, spacing = 0) => {
   context.font = canvasFont(weight, size)
   context.letterSpacing = `${spacing}px`
+}
+
+const track = (context, value, { weight, size, spacing = 0, color }, cx, y, align = 'center') => {
+  setFont(context, weight, size, spacing)
   context.fillStyle = color
   context.textAlign = align
   context.fillText(value, cx, y)
@@ -50,6 +46,28 @@ const track = (context, value, { weight = 800, size, spacing = 0, color }, cx, y
 const roundRect = (context, x, y, width, height, radius) => {
   context.beginPath()
   context.roundRect(x, y, width, height, radius)
+}
+
+const hair = (context, x1, x2, y, color, lineWidth = 2) => {
+  context.save()
+  context.strokeStyle = color
+  context.lineWidth = lineWidth
+  context.beginPath()
+  context.moveTo(x1, y)
+  context.lineTo(x2, y)
+  context.stroke()
+  context.restore()
+}
+
+const vline = (context, x, y1, y2, color, lineWidth = 2) => {
+  context.save()
+  context.strokeStyle = color
+  context.lineWidth = lineWidth
+  context.beginPath()
+  context.moveTo(x, y1)
+  context.lineTo(x, y2)
+  context.stroke()
+  context.restore()
 }
 
 export const fitLines = (context, value, maxWidth, maxLines = 2) => {
@@ -109,31 +127,33 @@ const ribbon = (context, pathPoints, width, stops) => {
   context.restore()
 }
 
+const glow = (context, x, y, radius, color) => {
+  const gradient = context.createRadialGradient(x, y, 0, x, y, radius)
+  gradient.addColorStop(0, color)
+  gradient.addColorStop(1, 'rgba(0, 0, 0, 0)')
+  context.fillStyle = gradient
+  context.fillRect(0, 0, BADGE_WIDTH, BADGE_HEIGHT)
+}
+
 const paintArtwork = (context) => {
-  const sweep = context.createLinearGradient(0, 0, BADGE_WIDTH * 0.35, BADGE_HEIGHT)
-  sweep.addColorStop(0, DEEP)
-  sweep.addColorStop(0.52, GREEN)
-  sweep.addColorStop(0.8, '#063B2B')
-  sweep.addColorStop(1, '#042018')
+  const sweep = context.createLinearGradient(0, 0, BADGE_WIDTH * 0.34, BADGE_HEIGHT)
+  sweep.addColorStop(0, C.deep)
+  sweep.addColorStop(0.52, C.green)
+  sweep.addColorStop(0.82, '#063B2B')
+  sweep.addColorStop(1, '#04241A')
   context.fillStyle = sweep
   context.fillRect(0, 0, BADGE_WIDTH, BADGE_HEIGHT)
 
-  const glowTop = context.createRadialGradient(1040, 30, 0, 1040, 30, 640)
-  glowTop.addColorStop(0, 'rgba(143, 217, 184, 0.16)')
-  glowTop.addColorStop(1, 'rgba(143, 217, 184, 0)')
-  context.fillStyle = glowTop
-  context.fillRect(0, 0, BADGE_WIDTH, 640)
+  glow(context, 890, 40, 620, 'rgba(143, 217, 184, 0.15)')
+  glow(context, 130, 1400, 640, 'rgba(143, 217, 184, 0.10)')
+  glow(context, 960, 1240, 460, 'rgba(216, 197, 138, 0.05)')
 
-  const glowBottom = context.createRadialGradient(200, 1620, 0, 200, 1620, 720)
-  glowBottom.addColorStop(0, 'rgba(143, 217, 184, 0.10)')
-  glowBottom.addColorStop(1, 'rgba(143, 217, 184, 0)')
-  context.fillStyle = glowBottom
-  context.fillRect(0, 1060, BADGE_WIDTH, BADGE_HEIGHT - 1060)
-
-  for (const [offset, radiusValue] of [[-40, 318], [8, 262]]) {
+  for (const [offsetX, offsetY, radiusValue, alphaValue] of [
+    [-60, -70, 340, 0.05], [40, 30, 300, 0.04],
+  ]) {
     context.save()
-    context.translate(offset, offset)
-    context.strokeStyle = 'rgba(246, 243, 234, 0.06)'
+    context.translate(offsetX, offsetY)
+    context.strokeStyle = `rgba(246, 243, 234, ${alphaValue})`
     context.lineWidth = 2
     context.beginPath()
     context.arc(150, -50, radiusValue, 0, Math.PI * 2)
@@ -142,9 +162,9 @@ const paintArtwork = (context) => {
   }
 
   context.save()
-  context.translate(BADGE_WIDTH * 0.5, 140)
-  context.rotate(-0.28)
-  ribbon(context, [[-900, 60], [-280, -170], [200, 210], [920, -60]], 150, [
+  context.translate(BADGE_WIDTH * 0.5, 148)
+  context.rotate(-0.26)
+  ribbon(context, [[-920, 60], [-280, -170], [200, 210], [940, -60]], 150, [
     [0, 'rgba(143, 217, 184, 0)'],
     [0.42, 'rgba(143, 217, 184, 0.20)'],
     [0.68, 'rgba(246, 243, 234, 0.12)'],
@@ -153,7 +173,7 @@ const paintArtwork = (context) => {
   context.restore()
 
   context.save()
-  context.translate(BADGE_WIDTH * 0.44, 1660)
+  context.translate(BADGE_WIDTH * 0.46, 1680)
   context.rotate(0.24)
   ribbon(context, [[-880, 80], [-260, 190], [220, -110], [900, 100]], 120, [
     [0, 'rgba(143, 217, 184, 0)'],
@@ -163,90 +183,230 @@ const paintArtwork = (context) => {
   ])
   context.restore()
 
-  drawInfinityEmblem(context, BADGE_WIDTH * 0.5, 1180, 940, CREAM, 0.05)
+  context.save()
+  context.translate(BADGE_WIDTH * 0.12, 640)
+  context.rotate(0.62)
+  ribbon(context, [[-560, 0], [-160, -120], [160, 140], [560, 20]], 96, [
+    [0, 'rgba(216, 197, 138, 0)'],
+    [0.46, 'rgba(216, 197, 138, 0.10)'],
+    [0.8, 'rgba(246, 243, 234, 0.06)'],
+    [1, 'rgba(246, 243, 234, 0)'],
+  ])
+  context.restore()
+
+  hair(context, 250, 900, 168, C.goldHairline, 2)
+  hair(context, 120, 640, 1306, C.goldHairline, 2)
+  vline(context, 962, 60, 300, 'rgba(216, 197, 138, 0.35)', 2)
+
+  drawInfinityEmblem(context, BADGE_WIDTH * 0.5, 1090, 940, C.cream, 0.045)
+  drawInfinityEmblem(context, 918, 190, 240, C.mint, 0.05)
 }
 
-const paintHeader = (context) => {
-  const cx = BADGE_WIDTH / 2
-  drawInfinityEmblem(context, cx, 58, 182, CREAM)
-  track(context, 'INFINITY CLUB', { weight: 800, size: 44, spacing: 12, color: CREAM }, cx, 220)
-  track(context, 'OFFICIAL WORKSHOP PASS', { weight: 700, size: 20, spacing: 12, color: MINT }, cx, 258)
-  track(context, 'MOHAMED EL BACHIR EL IBRAHIMI UNIVERSITY', { weight: 500, size: 15, spacing: 4.5, color: 'rgba(246, 243, 234, 0.64)' }, cx, 294)
+const drawSideLines = (context, value, { baseline, color, lineColor, gap, length, weight, size, spacing }) => {
+  const text = String(value).toUpperCase()
+  const width = measuredWidth(context, { weight, size, spacing }, text)
+  const centerY = baseline - size * 0.32
+  for (const side of [-1, 1]) {
+    const start = BADGE_WIDTH / 2 + side * (width / 2 + gap)
+    hair(context, start, start + side * length, centerY, lineColor, 2)
+  }
+  track(context, text, { weight, size, spacing, color }, BADGE_WIDTH / 2, baseline)
+}
+
+const measuredWidth = (context, { weight, size, spacing = 0 }, value) => {
+  setFont(context, weight, size, spacing)
+  const width = context.measureText(value).width
+  context.letterSpacing = '0px'
+  return width
+}
+
+const chip = (context, centerX, centerY, diameter) => {
+  const radius = diameter / 2
   context.save()
-  context.globalAlpha = 0.4
-  context.fillStyle = MINT
-  context.fillRect(cx - 64, 318, 128, 2)
+  context.beginPath()
+  context.arc(centerX, centerY, radius, 0, Math.PI * 2)
+  context.fillStyle = C.white
+  context.fill()
+  context.strokeStyle = 'rgba(9, 74, 54, 0.55)'
+  context.lineWidth = 2
+  context.stroke()
   context.restore()
 }
 
-const paintFacts = (context, pass, titleBlock) => {
-  const cx = BADGE_WIDTH / 2
-  let y = titleBlock.lastBaseline + (titleBlock.lines.length === 3 ? 42 : 56)
-  track(context, 'DATE', { weight: 700, size: 14, spacing: 7, color: MINT_DEEP }, cx, y)
-  track(context, eventSchedule(pass.event.startsAt), { weight: 800, size: 30, spacing: 0.5, color: DEEP }, cx, y + 32)
-  y += 74
-  context.font = canvasFont(700, 24)
-  const locationLines = fitLines(context, pass.event.location, PANEL_INNER, 2)
-  track(context, 'LOCATION', { weight: 700, size: 14, spacing: 7, color: MINT_DEEP }, cx, y)
-  context.font = canvasFont(700, 24)
-  locationLines.forEach((line, index) => track(context, line, { weight: 700, size: 24, spacing: 0.4, color: 'rgba(0, 42, 30, 0.78)' }, cx, y + 32 + index * 32))
-  return y + 32 + (locationLines.length - 1) * 32
+const calendarIcon = (context, centerX, centerY) => {
+  context.save()
+  context.translate(centerX, centerY)
+  context.strokeStyle = C.green
+  context.fillStyle = C.green
+  context.lineWidth = 2.4
+  context.lineCap = 'round'
+  context.beginPath()
+  context.roundRect(-8, -5.5, 16, 13, 3)
+  context.moveTo(-8, -0.5)
+  context.lineTo(8, -0.5)
+  context.stroke()
+  context.beginPath()
+  context.moveTo(-4, -8)
+  context.lineTo(-4, -4)
+  context.moveTo(4, -8)
+  context.lineTo(4, -4)
+  context.stroke()
+  context.beginPath()
+  context.arc(0, 2.4, 1.6, 0, Math.PI * 2)
+  context.fill()
+  context.restore()
 }
 
-const paintParticipant = (context, pass) => {
+const pinIcon = (context, centerX, centerY) => {
+  context.save()
+  context.translate(centerX, centerY)
+  context.strokeStyle = C.green
+  context.lineWidth = 2.4
+  context.lineCap = 'round'
+  context.beginPath()
+  context.moveTo(0, 8)
+  context.bezierCurveTo(-6.5, 1.5, -6.5, -3.4, -6.5, -4.4)
+  context.arc(0, -4.4, 6.5, Math.PI, 0, false)
+  context.bezierCurveTo(6.5, -3.4, 6.5, 1.5, 0, 8)
+  context.stroke()
+  context.beginPath()
+  context.arc(0, -4.2, 2.2, 0, Math.PI * 2)
+  context.fillStyle = C.green
+  context.fill()
+  context.restore()
+}
+
+const paintMeta = (context, labelBaseline, pass) => {
   const cx = BADGE_WIDTH / 2
-  const roleBaseline = PANEL.y + PANEL.height - 34
-  track(context, 'PARTICIPANT', { weight: 800, size: 17, spacing: 9, color: MINT_DEEP }, cx, roleBaseline)
-  const name = fitFont(context, String(pass.participantName || 'Participant').toUpperCase(), {
-    maxWidth: PANEL_INNER, maxLines: 2, weight: 800, startSize: 64, minSize: 40,
+  const columns = [
+    { center: cx - META.columnSpread, label: 'DATE', icon: calendarIcon },
+    { center: cx + META.columnSpread, label: 'LOCATION', icon: pinIcon },
+  ]
+  const locationFit = fitFont(context, pass.event.location || '', {
+    maxWidth: META.locationMaxWidth, maxLines: 2, weight: 700, startSize: META.valueSize, minSize: 20,
   })
-  const lineHeight = Math.round(name.size * 1.16)
-  name.lines.forEach((line, index) => track(context, line, { weight: 800, size: name.size, spacing: 1, color: DEEP }, cx, roleBaseline - 62 - (name.lines.length - 1 - index) * lineHeight))
+  const lineStep = Math.round(locationFit.size * 1.24)
+  let valueBottom = labelBaseline + META.valueGap
+  columns.forEach((column, index) => {
+    const labelWidth = measuredWidth(context, { weight: 800, size: META.labelSize, spacing: META.labelSpacing }, column.label)
+    const groupWidth = META.chipDiameter + META.chipGap + labelWidth
+    const left = column.center - groupWidth / 2
+    chip(context, left + META.chipDiameter / 2, labelBaseline - 10, META.chipDiameter)
+    column.icon(context, left + META.chipDiameter / 2, labelBaseline - 10)
+    track(context, column.label, { weight: 800, size: META.labelSize, spacing: META.labelSpacing, color: C.mintDeep }, left + META.chipDiameter + META.chipGap, labelBaseline, 'left')
+    const valueLines = index === 0 ? [eventSchedule(pass.event.startsAt)] : locationFit.lines
+    valueLines.forEach((line, lineIndex) => {
+      const baseline = labelBaseline + META.valueGap + lineIndex * lineStep
+      track(context, line, { weight: 700, size: index === 0 ? META.valueSize : locationFit.size, spacing: 0.4, color: lineIndex ? C.inkSoft : C.deep }, left + META.chipDiameter + META.chipGap, baseline, 'left')
+    })
+    valueBottom = Math.max(valueBottom, labelBaseline + META.valueGap + (valueLines.length - 1) * lineStep)
+  })
+  vline(context, cx, labelBaseline - 34, valueBottom + 10, C.inkFaint, 2)
+  return valueBottom
 }
 
 const paintPanel = (context, pass, qrImage) => {
   roundRect(context, PANEL.x, PANEL.y, PANEL.width, PANEL.height, PANEL.radius)
-  context.fillStyle = CREAM
+  context.fillStyle = C.cream
   context.fill()
+  roundRect(context, PANEL.x + 10, PANEL.y + 10, PANEL.width - 20, PANEL.height - 20, PANEL.radius - 8)
+  context.save()
+  context.strokeStyle = C.goldSoft
+  context.lineWidth = 2.5
+  context.stroke()
+  context.restore()
 
   const cx = BADGE_WIDTH / 2
-  track(context, 'WORKSHOP', { weight: 800, size: 19, spacing: 9, color: MINT_DEEP }, cx, 428)
-  const title = fitFont(context, pass.event.title, {
-    maxWidth: PANEL_INNER, maxLines: 3, weight: 800, startSize: 54, minSize: 34,
+  drawSideLines(context, 'WORKSHOP', {
+    baseline: TITLE.labelBaseline, color: C.mintDeep, lineColor: 'rgba(14, 106, 76, 0.32)',
+    gap: TITLE.sideLineGap, length: TITLE.sideLineLength, weight: 800, size: TITLE.labelSize, spacing: TITLE.labelSpacing,
   })
-  const lineHeight = Math.round(title.size * 1.22)
-  const firstBaseline = 488
-  title.lines.forEach((line, index) => track(context, line, { weight: 800, size: title.size, spacing: 0.5, color: DEEP }, cx, firstBaseline + index * lineHeight))
-  const titleBlock = {
-    lines: title.lines,
-    lastBaseline: firstBaseline + (title.lines.length - 1) * lineHeight,
-  }
-  paintFacts(context, pass, titleBlock)
 
-  roundRect(context, QR_CARD.x, QR_CARD.y, QR_CARD.width, QR_CARD.height, QR_CARD.radius)
+  const titleValue = String(pass.event.title || '').toUpperCase()
+  let titleFit = fitFont(context, titleValue, {
+    maxWidth: WORKSHOP_BADGE.contentWidth, maxLines: 3, weight: 800,
+    startSize: TITLE.startSize, minSize: TITLE.minSize,
+  })
+  if (titleFit.lines.length >= 3) {
+    titleFit = fitFont(context, titleValue, {
+      maxWidth: WORKSHOP_BADGE.contentWidth, maxLines: 3, weight: 800,
+      startSize: TITLE.secondTierSize, minSize: TITLE.minSize,
+    })
+  }
+  const titleLine = Math.round(titleFit.size * TITLE.lineFactor)
+  titleFit.lines.forEach((line, index) => {
+    track(context, line, { weight: 800, size: titleFit.size, spacing: 0.5, color: C.deep }, cx, TITLE.firstBaseline + index * titleLine)
+  })
+  const titleLast = TITLE.firstBaseline + (titleFit.lines.length - 1) * titleLine
+
+  const nameValue = String(pass.participantName || 'Participant').toUpperCase()
+  const nameFit = fitFont(context, nameValue, {
+    maxWidth: NAME.maxWidth, maxLines: 2, weight: 800,
+    startSize: NAME.startSize, minSize: NAME.minSize,
+  })
+  const nameLine = Math.round(nameFit.size * NAME.lineFactor)
+  const nameTop = NAME.lastBaseline - (nameFit.lines.length - 1) * nameLine
+  const participantLabelBaseline = nameTop - NAME.labelGap
+  const cardLimit = participantLabelBaseline - NAME.cardGap
+
+  let metaGap = NAME.metaGap
+  let metaLabelBaseline = titleLast + metaGap
+  let cardTopInitial = metaLabelBaseline + META.valueGap + 46
+  const overflow = cardTopInitial + QR.minCardHeight - cardLimit
+  if (overflow > 0) {
+    metaGap = Math.max(46, metaGap - overflow)
+    metaLabelBaseline = titleLast + metaGap
+  }
+  const valueBottom = paintMeta(context, metaLabelBaseline, pass)
+  const cardTop = valueBottom + QR.topGap
+  const cardHeight = Math.max(QR.minCardHeight, Math.min(QR.maxCardHeight, cardLimit - cardTop))
+  const cardX = cx - QR.cardWidth / 2
+
+  roundRect(context, cardX, cardTop, QR.cardWidth, cardHeight, QR.cardRadius)
   context.save()
-  context.shadowColor = 'rgba(0, 42, 30, 0.16)'
-  context.shadowBlur = 42
-  context.shadowOffsetY = 16
-  context.fillStyle = '#FFFFFF'
+  context.shadowColor = 'rgba(0, 42, 30, 0.15)'
+  context.shadowBlur = 34
+  context.shadowOffsetY = 14
+  context.fillStyle = C.white
   context.fill()
   context.restore()
+  roundRect(context, cardX, cardTop, QR.cardWidth, cardHeight, QR.cardRadius)
   context.strokeStyle = 'rgba(0, 42, 30, 0.07)'
   context.lineWidth = 2
-  roundRect(context, QR_CARD.x, QR_CARD.y, QR_CARD.width, QR_CARD.height, QR_CARD.radius)
   context.stroke()
-  const qrLeft = cx - QR_CARD.code / 2
-  const qrTop = QR_CARD.y + 30
-  context.drawImage(qrImage, qrLeft, qrTop, QR_CARD.code, QR_CARD.code)
-  track(context, 'SCAN AT CHECK-IN', { weight: 700, size: 19, spacing: 8, color: '#2E6B55' }, cx, qrTop + QR_CARD.code + 40)
 
-  paintParticipant(context, pass)
+  const code = cardHeight - QR.topInset - QR.gapToScan - 14
+  const qrTop = cardTop + QR.topInset
+  context.drawImage(qrImage, cx - code / 2, qrTop, code, code)
+  track(context, 'SCAN AT CHECK-IN', { weight: 700, size: QR.scanSize, spacing: QR.scanSpacing, color: C.scanInk }, cx, qrTop + code + QR.gapToScan)
+
+  drawSideLines(context, 'PARTICIPANT', {
+    baseline: participantLabelBaseline, color: C.mintDeep, lineColor: 'rgba(14, 106, 76, 0.32)',
+    gap: NAME.sideLineGap, length: NAME.sideLineLength, weight: 800, size: NAME.labelSize, spacing: NAME.labelSpacing,
+  })
+  nameFit.lines.forEach((line, index) => {
+    track(context, line, { weight: 800, size: nameFit.size, spacing: 1, color: C.deep }, cx, nameTop + index * nameLine)
+  })
+}
+
+const paintHeader = (context) => {
+  const cx = BADGE_WIDTH / 2
+  drawInfinityEmblem(context, cx, HEADER.emblemTop, HEADER.emblemWidth, C.cream)
+  track(context, 'INFINITY CLUB', { weight: 800, size: HEADER.clubSize, spacing: HEADER.clubSpacing, color: C.cream }, cx, HEADER.clubBaseline)
+  drawSideLines(context, 'OFFICIAL WORKSHOP PASS', {
+    baseline: HEADER.passBaseline, color: C.mint, lineColor: 'rgba(143, 217, 184, 0.5)',
+    gap: TITLE.sideLineGap + 4, length: 118, weight: 700, size: HEADER.passSize, spacing: HEADER.passSpacing,
+  })
+  track(context, 'MOHAMED EL BACHIR EL IBRAHIMI UNIVERSITY', { weight: 500, size: HEADER.universitySize, spacing: HEADER.universitySpacing, color: 'rgba(246, 243, 234, 0.62)' }, cx, HEADER.universityBaseline)
 }
 
 const paintFooter = (context) => {
   const cx = BADGE_WIDTH / 2
-  drawInfinityEmblem(context, cx, 1470, 104, MINT)
-  track(context, 'NO LIMITS FOR INFINITERS', { weight: 800, size: 25, spacing: 11, color: 'rgba(246, 243, 234, 0.94)' }, cx, 1592)
+  drawInfinityEmblem(context, cx, FOOTER.emblemTop, FOOTER.emblemWidth, C.mint)
+  drawSideLines(context, 'NO LIMITS FOR INFINITERS', {
+    baseline: FOOTER.sloganBaseline, color: 'rgba(246, 243, 234, 0.94)', lineColor: 'rgba(216, 197, 138, 0.65)',
+    gap: FOOTER.sideLineGap, length: FOOTER.sideLineLength, weight: 800, size: FOOTER.sloganSize, spacing: FOOTER.sloganSpacing,
+  })
 }
 
 const svgImage = async (svgElement, size) => {
@@ -273,13 +433,15 @@ const svgImage = async (svgElement, size) => {
 export async function downloadWorkshopBadgePng(pass, qrSvgElement) {
   if (!pass?.event?.title || !pass?.qrPayload) throw new Error('badge_data_unavailable')
   await document.fonts?.ready
-  const qrImage = await svgImage(qrSvgElement, 560)
+  const qrImage = await svgImage(qrSvgElement, 640)
   const canvas = document.createElement('canvas')
-  canvas.width = 1200
-  canvas.height = 1700
-  const context = canvas.getContext('2d')
+  canvas.width = WORKSHOP_BADGE.canvasWidth
+  canvas.height = WORKSHOP_BADGE.canvasHeight
+  const context = canvas.getContext('2d', { alpha: true })
   if (!context) throw new Error('badge_canvas_unavailable')
-  roundRect(context, 0, 0, canvas.width, canvas.height, BADGE_RADIUS)
+  context.clearRect(0, 0, canvas.width, canvas.height)
+  context.scale(WORKSHOP_BADGE.scale, WORKSHOP_BADGE.scale)
+  roundRect(context, 0, 0, WORKSHOP_BADGE.width, WORKSHOP_BADGE.height, WORKSHOP_BADGE.radius)
   context.clip()
   paintArtwork(context)
   paintHeader(context)
