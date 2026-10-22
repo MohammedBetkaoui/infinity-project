@@ -23,7 +23,7 @@ const CONFIG = Object.freeze({
   invitation: { validate: validateInvitationTokenBody, limit: { max: 30, windowMs: 15 * 60 * 1000 } },
   register: { validate: validateWorkshopRegistrationBody, limit: { max: 10, windowMs: 15 * 60 * 1000 } },
   'scanner-session': { validate: validateScannerSessionBody, limit: { max: 20, windowMs: 15 * 60 * 1000 } },
-  'scanner-context': { validate: validateScannerContextBody, limit: { max: 120, windowMs: 15 * 60 * 1000 } },
+  'scanner-context': { validate: validateScannerContextBody, limit: { max: 240, windowMs: 15 * 60 * 1000 } },
   'scanner-check-in': { validate: validateWorkshopCheckInBody, limit: { max: 180, windowMs: 15 * 60 * 1000 } },
 })
 

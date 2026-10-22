@@ -322,3 +322,97 @@ test('internal Resend and workshop email-delivery code is removed', async () => 
   await assert.rejects(read('api/_lib/admin-events-email.js'))
 })
 
+test('scanner context exposes the lifecycle status and keeps registered/present/remaining current', async () => {
+  const contextRow = { event_id: EVENT_ID, event_title: 'Introduction to Machine Learning', organizer_name: 'Dr Ahmed', starts_at: NOW.toISOString(), location: 'FMI · Room 03', event_status: 'ongoing', registered: '12', present: '5', session_expires_at: NOW.toISOString() }
+  const store = {
+    async scannerContext() { return contextRow },
+    async exchangeScanner() { return { ...contextRow, event_status: 'registration_closed' } },
+  }
+  const service = createWorkshopsService({ store, now: () => NOW, origin: 'https://www.infinty-bba.com' })
+  const context = await service.scannerContext(TOKEN_A)
+  assert.equal(context.ok, true)
+  assert.equal(context.context.eventStatus, 'ongoing')
+  assert.equal(context.context.registered, 12)
+  assert.equal(context.context.present, 5)
+  assert.equal(context.context.remaining, 7)
+  const granted = await service.exchangeScanner(TOKEN_B)
+  assert.equal(granted.context.eventStatus, 'registration_closed')
+  const exhausted = { ...contextRow, registered: '4', present: '9' }
+  const other = createWorkshopsService({ store: { async scannerContext() { return exhausted } }, now: () => NOW, origin: 'https://www.infinty-bba.com' })
+  assert.equal((await other.scannerContext(TOKEN_A)).context.remaining, 0)
+})
+
+test('check_in_not_open keeps the server status instead of reporting Invalid QR', async () => {
+  const store = { async checkIn() { throw Object.assign(new Error('main: RPC failed'), { databaseMessage: 'check_in_not_open' }) } }
+  const service = createWorkshopsService({ store, now: () => NOW, origin: 'https://www.infinty-bba.com' })
+  const result = await service.checkIn({ sessionToken: TOKEN_A, qrToken: TOKEN_B })
+  assert.equal(result.ok, false)
+  assert.equal(result.status, 'not_open')
+  assert.equal(result.message, 'Workshop check-in is not open.')
+  const through = { async checkIn() { return { status: 'expired' } } }
+  assert.equal((await createWorkshopsService({ store: through, now: () => NOW, origin: 'https://www.infinty-bba.com' }).checkIn({ sessionToken: TOKEN_A, qrToken: TOKEN_B })).result.status, 'expired')
+
+  const response = () => ({ statusCode: 0, headers: {}, body: null, setHeader(k, v) { this.headers[k.toLowerCase()] = v }, end(v) { this.body = JSON.parse(v) } })
+  const request = (body) => {
+    const req = Readable.from([Buffer.from(JSON.stringify(body))])
+    req.method = 'POST'; req.url = '/api/join?__join_action=workshop-scanner-check-in'
+    req.headers = { 'content-type': 'application/json', origin: 'https://club.test', host: 'club.test' }
+    req.socket = { remoteAddress: '127.0.0.88' }
+    return req
+  }
+  const handler = createWorkshopHandler('scanner-check-in', {
+    enabled: () => true, trustedOrigin: () => true, rateLimit: async () => ({ allowed: true }),
+    createService: () => ({ checkIn: async () => ({ ok: false, status: 'not_open', message: 'Workshop check-in is not open.' }) }),
+  })
+  const res = response()
+  await handler(request({ sessionToken: TOKEN_A, qrPayload: buildWorkshopQrPayload('https://club.test', TOKEN_B) }), res)
+  assert.equal(res.statusCode, 409)
+  assert.equal(res.body.status, 'not_open')
+  assert.notEqual(res.body.status, 'invalid')
+})
+
+test('scanner page maps every server status and never converts not_open into Invalid QR', async () => {
+  const scanner = await read('src/pages/workshops/WorkshopScannerPage.jsx')
+  for (const status of ['checked_in', 'already_checked_in', 'invalid', 'expired', 'wrong_workshop', 'not_open']) {
+    assert.match(scanner, new RegExp(`\\b${status}:`))
+  }
+  assert.match(scanner, /not_open: \{ title: 'Check-in not open'/)
+  assert.match(scanner, /The workshop has not started yet\./)
+  assert.match(scanner, /SCAN_STATUSES\.includes\(payload\.status\)/)
+  assert.match(scanner, /\? payload\.status : 'invalid'/)
+  assert.match(scanner, /finally \{[\s\S]*loadContext\(sessionToken\)\.catch/)
+})
+
+test('scanner disables QR check-in until ongoing and keeps live stats fresh', async () => {
+  const scanner = await read('src/pages/workshops/WorkshopScannerPage.jsx')
+  assert.match(scanner, /checkInOpen = state\.context\?\.eventStatus === 'ongoing'/)
+  assert.match(scanner, /if \(!checkInOpen\) \{ setResult\(\{ status: 'not_open'/)
+  assert.match(scanner, /disabled=\{!checkInOpen\}/)
+  assert.match(scanner, /workshop-scanner-banner/)
+  assert.match(scanner, /Check-in not open/)
+  assert.match(scanner, /Check-in opens when the workshop is started\./)
+  assert.match(scanner, /window\.setInterval\(\(\) => \{ loadContext\(sessionToken\)\.catch\(\(\) => \{\}\) \}, 5000\)/)
+  assert.match(scanner, /window\.clearInterval\(timer\)/)
+  assert.match(scanner, /workshop-scanner-refresh/)
+  assert.match(scanner, /onClick=\{refreshStats\}/)
+  const store = { async scannerContext() { return { event_id: EVENT_ID, event_title: 't', organizer_name: 'o', starts_at: NOW.toISOString(), location: 'l', event_status: 'registration_closed', registered: '3', present: '1', session_expires_at: NOW.toISOString() } } }
+  const gated = await createWorkshopsService({ store, now: () => NOW, origin: 'https://www.infinty-bba.com' }).scannerContext(TOKEN_A)
+  assert.equal(gated.context.eventStatus, 'registration_closed')
+})
+
+test('scanner context SQL reports the lifecycle status without weakening the ongoing check-in gate', async () => {
+  const sql = await read('supabase/migrations/20261025120000_workshop_scanner_context_status.sql')
+  const base = (await read('supabase/migrations/20261023120000_workshop_registration_and_checkin.sql')).toLowerCase()
+  assert.match(sql, /create or replace function public\.public_event_scanner_context/)
+  assert.match(sql, /create or replace function public\.public_exchange_event_scanner_token/)
+  assert.equal((sql.match(/'event_status', event(_row)?\.status/g) || []).length, 2)
+  assert.doesNotMatch(sql, /create (or replace )?function public\.public_check_in_event_participant/)
+  assert.doesNotMatch(sql, /drop function if exists public\.public_check_in_event_participant/)
+  assert.match(sql, /invitation_status = 'registered'/)
+  assert.match(sql, /attendance_status = 'present'/)
+  assert.match(base, /status = 'ongoing'\)\s*\n\s*then raise exception 'check_in_not_open'/)
+  assert.match(base, /i\.invitation_status = 'registered'/)
+  assert.match(base, /a\.attendance_status = 'present'/)
+})
+
+

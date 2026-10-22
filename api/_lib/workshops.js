@@ -99,8 +99,8 @@ export function createWorkshopsService({ store, now = () => new Date(), origin, 
       const present = Number(row.present || 0)
       return {
         eventId: row.event_id, eventTitle: row.event_title, organizerName: row.organizer_name,
-        startsAt: row.starts_at, location: row.location, registered, present,
-        remaining: Math.max(0, registered - present), sessionExpiresAt: row.session_expires_at,
+        startsAt: row.starts_at, location: row.location, eventStatus: row.event_status || null,
+        registered, present, remaining: Math.max(0, registered - present), sessionExpiresAt: row.session_expires_at,
       }
     },
     async scannerContext(sessionToken) {
