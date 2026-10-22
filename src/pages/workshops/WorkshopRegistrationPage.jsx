@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
-import { CalendarDays, CheckCircle2, MapPin, UserRound } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { CalendarDays, CheckCircle2, Download, MapPin, UserRound } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
+import { downloadWorkshopBadgePng } from './workshopBadge.js'
 import './workshop.css'
+import './workshopBadge.css'
 
 const TOKEN_KEY = 'infinity-workshop-invitation-token'
 const api = async (path, body) => {
@@ -12,15 +14,26 @@ const api = async (path, body) => {
 const schedule = (value) => new Intl.DateTimeFormat('en-GB', { dateStyle: 'full', timeStyle: 'short', timeZone: 'Africa/Algiers' }).format(new Date(value))
 
 function WorkshopPass({ pass }) {
-  return <article className="workshop-pass" aria-label="Infinity Club digital workshop pass">
+  const qrRef = useRef(null)
+  const [downloading, setDownloading] = useState(false)
+  const [downloadError, setDownloadError] = useState('')
+  const download = async () => {
+    if (downloading) return
+    setDownloading(true)
+    setDownloadError('')
+    try { await downloadWorkshopBadgePng(pass, qrRef.current?.querySelector('svg')) }
+    catch { setDownloadError('The badge could not be downloaded. Please try again.') }
+    finally { setDownloading(false) }
+  }
+  return <><article className="workshop-pass" aria-label="Infinity Club digital workshop pass">
     <div className="workshop-pass__brand"><span>∞</span><div><b>Infinity Club</b><small>WORKSHOP PASS</small></div></div>
     <div className="workshop-pass__body">
       <div><p className="workshop-kicker">Admit one participant</p><h1>{pass.event.title}</h1><h2>{pass.participantName}</h2><p className="workshop-role">Participant</p></div>
-      <div className="workshop-pass__qr"><QRCodeSVG value={pass.qrPayload} size={220} level="M" marginSize={2}/><small>Present this code at check-in</small></div>
+      <div className="workshop-pass__qr" ref={qrRef}><QRCodeSVG value={pass.qrPayload} size={220} level="M" marginSize={2}/><small>Present this code at check-in</small></div>
     </div>
     <dl className="workshop-pass__facts"><div><dt>Date</dt><dd>{schedule(pass.event.startsAt)}</dd></div><div><dt>Location</dt><dd>{pass.event.location}</dd></div></dl>
     <footer>No Limits For Infiniters</footer>
-  </article>
+  </article><button className="workshop-pass-download" type="button" disabled={downloading} onClick={download}><Download size={18}/>{downloading ? 'Preparing badge…' : 'Download badge'}</button>{downloadError && <p className="workshop-pass-download-error" role="alert">{downloadError}</p>}</>
 }
 
 export default function WorkshopRegistrationPage() {

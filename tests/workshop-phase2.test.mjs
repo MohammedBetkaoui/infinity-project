@@ -2,17 +2,20 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { Readable } from 'node:stream'
 import { readFile } from 'node:fs/promises'
-import { createWorkshopEmailProvider, workshopInvitationEmail } from '../api/_lib/admin-events-email.js'
+import { createAdminEventsHandler } from '../api/admin-auth.js'
+import { buildWorkshopInvitationsCsv, createAdminEventsService } from '../api/_lib/admin-events.js'
 import { createWorkshopHandler } from '../api/_lib/workshop-handlers.js'
 import { createWorkshopsService } from '../api/_lib/workshops.js'
 import {
-  buildWorkshopQrPayload, generateWorkshopToken, hashWorkshopToken, tokenFromWorkshopQrPayload,
+  buildWorkshopQrPayload, deriveStableWorkshopToken, generateWorkshopToken, hashWorkshopToken,
+  prepareStableWorkshopCredential, tokenFromWorkshopQrPayload,
 } from '../api/_lib/workshop-tokens.js'
+import { workshopBadgeFileName } from '../src/pages/workshops/workshopBadge.js'
 import {
   normalizeParticipantName, validateScannerContextBody, validateWorkshopCheckInBody, validateWorkshopRegistrationBody,
 } from '../api/_lib/workshop-validation.js'
 import {
-  validateEventAttendanceFinalizeBody, validateEventInvitationSendBody,
+  validateEventAttendanceFinalizeBody, validateEventInvitationExportBody, validateEventInvitationLinkBody,
   validateEventScannerCredentialBody, validateEventTransitionBody,
 } from '../api/_lib/admin-events-validation.js'
 
@@ -23,6 +26,7 @@ const TOKEN_C = 'C'.repeat(43)
 const EVENT_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
 const ORGANIZER_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
 const NOW = new Date('2026-10-28T07:00:00.000Z')
+const LINK_ENV = { WORKSHOP_INVITATION_LINK_SECRET: 'correct-horse-battery-staple-workshop-secret-2026' }
 
 const invitationRow = (changes = {}) => ({
   invitation_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', invitation_status: 'invited', member_name: 'Amel Benali',
@@ -37,6 +41,20 @@ test('workshop credentials use 256-bit random tokens and SHA-256 hashes', () => 
   assert.match(raw, /^[A-Za-z0-9_-]{43}$/)
   assert.equal(hashWorkshopToken(raw).length, 64)
   assert.notEqual(hashWorkshopToken(TOKEN_A), TOKEN_A)
+  const stable = prepareStableWorkshopCredential({
+    purpose: 'invitation', invitationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    credentialVersion: 1, env: LINK_ENV,
+  })
+  assert.equal(stable.rawToken.length, 43)
+  assert.equal(stable.tokenHash, hashWorkshopToken(stable.rawToken))
+  assert.equal(stable.rawToken, deriveStableWorkshopToken({
+    purpose: 'invitation', invitationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    credentialVersion: 1, derivationVersion: 1,
+  }, LINK_ENV.WORKSHOP_INVITATION_LINK_SECRET))
+  assert.notEqual(stable.rawToken, prepareStableWorkshopCredential({
+    purpose: 'invitation', invitationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    credentialVersion: 2, env: LINK_ENV,
+  }).rawToken)
 })
 
 test('participant QR payload is opaque, contains no PII and parses only the check-in route', () => {
@@ -65,26 +83,25 @@ test('invalid, expired or cancelled invitations fail through one generic respons
   }
 })
 
-test('duplicate registration returns the existing registration while rotating one opaque QR', async () => {
+test('duplicate registration returns the existing registration and the same opaque QR pass', async () => {
   let registered = false
   const seenHashes = []
   const store = {
-    async openInvitation() { return invitationRow() },
+    async openInvitation() { return invitationRow({ qr_credential_version: registered ? 1 : null, qr_derivation_version: registered ? 1 : null }) },
     async register(input) {
       seenHashes.push(input.qrTokenHash)
       const already = registered
       registered = true
-      return { ...invitationRow(), first_name: input.firstName, last_name: input.lastName, already_registered: already, qr_expires_at: input.qrExpiresAt.toISOString() }
+      return { ...invitationRow(), first_name: input.firstName, last_name: input.lastName, already_registered: already, qr_credential_version: 1, qr_derivation_version: 1, qr_expires_at: input.qrExpiresAt.toISOString() }
     },
   }
-  const tokens = [TOKEN_A, TOKEN_B]
-  const service = createWorkshopsService({ store, now: () => NOW, origin: 'https://www.infinty-bba.com', tokenGenerator: () => tokens.shift() })
+  const service = createWorkshopsService({ store, now: () => NOW, origin: 'https://www.infinty-bba.com', env: LINK_ENV })
   const first = await service.register({ token: TOKEN_C, firstName: 'Amel', lastName: 'Benali' })
   const second = await service.register({ token: TOKEN_C, firstName: 'Amel', lastName: 'Benali' })
   assert.equal(first.alreadyRegistered, false)
   assert.equal(second.alreadyRegistered, true)
-  assert.notEqual(first.pass.qrPayload, second.pass.qrPayload)
-  assert.equal(new Set(seenHashes).size, 2)
+  assert.equal(first.pass.qrPayload, second.pass.qrPayload)
+  assert.equal(new Set(seenHashes).size, 1)
 })
 
 test('scanner permission, revoked/expired access and session validation fail closed', async () => {
@@ -144,22 +161,97 @@ test('public workshop handler is same-origin, rate-limited and independent from 
   assert.equal(adminCalled, false)
 })
 
-test('email provider never fakes delivery and sends no token to logs', async () => {
-  assert.equal(createWorkshopEmailProvider({ env: {} }).configured, false)
-  assert.deepEqual(await createWorkshopEmailProvider({ env: {} }).send({}), { ok: false, reason: 'not_configured' })
-  let sentBody
-  const provider = createWorkshopEmailProvider({
-    env: { EVENTS_EMAIL_PROVIDER: 'resend', RESEND_API_KEY: 'secret', EVENTS_EMAIL_FROM: 'Infinity <events@example.com>' },
-    fetchImpl: async (_url, init) => { sentBody = JSON.parse(init.body); return { ok: true, json: async () => ({ id: 'msg_123' }) } },
+test('stable workshop links repeat across CSV exports and regeneration invalidates the old credential', async () => {
+  const invitationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  const event = { id: EVENT_ID, title: 'ML, safely', starts_at: NOW.toISOString(), ends_at: '2026-10-28T11:00:00.000Z', event_type: 'workshop', status: 'registration_open' }
+  const candidate = {
+    id: invitationId, event_id: EVENT_ID, invitation_status: 'invited', invited_at: NOW.toISOString(), registered_at: null,
+    token_hash: null, token_expires_at: null, credential_version: null, credential_derivation_version: null, link_revoked_at: null,
+    participant_first_name: null, participant_last_name: null,
+    member: { full_name: '=Amel, "Benali"', email: 'amel@example.com', phone: '+213555000000', primary_pole: 'AI\nEngineering', study_year: 'M1' },
+  }
+  let credential = { ...candidate }
+  const audits = []
+  const store = {
+    find: async () => event,
+    exportInvitationRows: async () => [{ ...candidate, ...credential }],
+    invitationCredential: async () => credential,
+    async setInvitationLink(input) {
+      credential = {
+        ...credential, token_hash: input.tokenHash, token_expires_at: input.expiresAt.toISOString(),
+        credential_version: input.credentialVersion, credential_derivation_version: input.derivationVersion, link_revoked_at: null,
+      }
+      return {
+        invitation_id: invitationId, token_hash: input.tokenHash, expires_at: input.expiresAt.toISOString(),
+        credential_version: input.credentialVersion, derivation_version: input.derivationVersion, revoked_at: null,
+      }
+    },
+    async recordInvitationExport(input) { audits.push({ rowCount: input.rowCount }); return true },
+  }
+  const service = createAdminEventsService({ store, now: () => NOW, origin: 'https://www.infinty-bba.com', env: LINK_ENV })
+  const admin = { id: '11111111-1111-4111-8111-111111111111', role: 'super_admin' }
+  assert.equal((await service.exportInvitations(EVENT_ID, { ...admin, role: 'reviewer' })).status, 403)
+  const first = await service.exportInvitations(EVENT_ID, admin)
+  const second = await service.exportInvitations(EVENT_ID, admin)
+  const firstLink = first.csv.match(/https:\/\/www\.infinty-bba\.com\/workshops\/register\?t=[A-Za-z0-9_-]{43}/)?.[0]
+  const secondLink = second.csv.match(/https:\/\/www\.infinty-bba\.com\/workshops\/register\?t=[A-Za-z0-9_-]{43}/)?.[0]
+  assert.equal(firstLink, secondLink)
+  assert.match(first.csv, /^\uFEFF"workshop_reference","workshop_title"/)
+  assert.match(first.csv, /"amel@example\.com"/)
+  assert.match(first.csv, /"'=Amel, ""Benali"""/)
+  assert.match(first.csv, /"AI\nEngineering"/)
+  assert.deepEqual(audits, [{ rowCount: 1 }, { rowCount: 1 }])
+  assert.equal(JSON.stringify(audits).includes(firstLink), false)
+
+  const regenerated = await service.invitationLink(EVENT_ID, invitationId, { action: 'regenerate' }, admin)
+  assert.equal(regenerated.ok, true)
+  assert.notEqual(regenerated.privateLink, firstLink)
+  assert.equal(credential.credential_version, 2)
+  assert.notEqual(credential.token_hash, hashWorkshopToken(firstLink.split('t=')[1]))
+})
+
+test('CSV formula protection applies to member fields while preserving the opaque HTTPS link', () => {
+  const csv = buildWorkshopInvitationsCsv([{
+    workshopReference: 'EVT-1234', workshopTitle: '+SUM(1,2)', invitation_status: 'invited', registered_at: null,
+    privateRegistrationLink: `https://www.infinty-bba.com/workshops/register?t=${TOKEN_A}`,
+    member: { full_name: '@member', email: '-unsafe@example.com', phone: '=1+1', primary_pole: 'Web', study_year: 'L1' },
+  }])
+  assert.match(csv, /"'\+SUM\(1,2\)"/)
+  assert.match(csv, /"'@member"/)
+  assert.match(csv, /"'-unsafe@example\.com"/)
+  assert.match(csv, /"'=1\+1"/)
+  assert.match(csv, new RegExp(`"https://www\\.infinty-bba\\.com/workshops/register\\?t=${TOKEN_A}"`))
+})
+
+test('workshop invitation CSV endpoint rejects unauthenticated and non-full admins', async () => {
+  const makeRequest = () => {
+    const req = Readable.from([Buffer.from(JSON.stringify({ confirm: true }))])
+    req.method = 'POST'
+    req.url = `/api/admin-auth?__admin_path=events/${EVENT_ID}/invitations/export`
+    req.headers = { 'content-type': 'application/json', origin: 'https://club.test', host: 'club.test' }
+    return req
+  }
+  const makeResponse = () => ({
+    statusCode: 0, headers: {}, body: null,
+    setHeader(name, value) { this.headers[name.toLowerCase()] = value },
+    end(value) { this.body = value ? JSON.parse(value) : null },
   })
-  const message = workshopInvitationEmail({ ...invitationRow(), eventTitle: 'ML', memberName: 'Amel', startsAt: NOW.toISOString(), location: 'FMI', speakerName: 'Dr Ahmed', registrationUrl: `https://club.test/workshops/register?t=${TOKEN_A}` })
-  assert.deepEqual(await provider.send({ to: 'amel@example.com', ...message }), { ok: true, messageId: 'msg_123' })
-  assert.equal(sentBody.to[0], 'amel@example.com')
+  const common = { enabled: () => true, trustedOrigin: () => true, env: {}, createService: () => { throw new Error('service_must_not_run') } }
+  const unauthenticated = createAdminEventsHandler({ ...common, requireSession: async () => null })
+  const unauthenticatedResponse = makeResponse()
+  await unauthenticated(makeRequest(), unauthenticatedResponse)
+  assert.equal(unauthenticatedResponse.statusCode, 401)
+  const reviewer = createAdminEventsHandler({ ...common, requireSession: async () => ({ user: { id: 'r', role: 'reviewer' } }) })
+  const reviewerResponse = makeResponse()
+  await reviewer(makeRequest(), reviewerResponse)
+  assert.equal(reviewerResponse.statusCode, 403)
 })
 
 test('admin phase-2 actions validate UUIDs, confirmations and lifecycle input', () => {
-  assert.equal(validateEventInvitationSendBody({ all: true }).ok, true)
-  assert.equal(validateEventInvitationSendBody({ invitationIds: [EVENT_ID, EVENT_ID] }).ok, false)
+  assert.equal(validateEventInvitationExportBody({ confirm: true }).ok, true)
+  assert.equal(validateEventInvitationExportBody({ confirm: false }).ok, false)
+  assert.deepEqual(validateEventInvitationLinkBody({ action: 'reveal' }), { ok: true, value: { action: 'ensure' } })
+  assert.equal(validateEventInvitationLinkBody({ action: 'regenerate', confirm: false }).ok, false)
   assert.equal(validateEventScannerCredentialBody({ eventOrganizerId: ORGANIZER_ID, action: 'generate' }).ok, true)
   assert.equal(validateEventScannerCredentialBody({ eventOrganizerId: EVENT_ID, action: 'grant_admin' }).ok, false)
   assert.equal(validateEventTransitionBody({ nextStatus: 'ongoing', expectedUpdatedAt: NOW.toISOString() }).ok, true)
@@ -171,15 +263,23 @@ test('admin phase-2 actions validate UUIDs, confirmations and lifecycle input', 
 
 test('migration enforces cross-event integrity, row locks, lifecycle and explicit absence finalization', async () => {
   const sql = (await read('supabase/migrations/20261023120000_workshop_registration_and_checkin.sql')).toLowerCase()
+  const correctionSql = (await read('supabase/migrations/20261024120000_stable_workshop_invitation_links.sql')).toLowerCase()
   const phaseOneSql = (await read('supabase/migrations/20261022120000_admin_club_events.sql')).toLowerCase()
   for (const expected of [
     'club_event_participant_credentials', 'club_event_scanner_sessions', "token_hash ~ '^[a-f0-9]{64}$'",
     'for update', 'wrong_workshop', 'already_checked_in', 'admin_transition_club_event',
     'admin_finalize_club_event_attendance', "attendance_status = 'absent'", 'scanner_enabled = true',
-    'participant_checked_in', 'invitation_sent', 'scanner_access_generated',
+    'participant_checked_in', 'scanner_access_generated',
   ]) assert.match(sql, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   assert.match(sql, /foreign key \(scanner_access_id, event_id\)/)
   assert.match(phaseOneSql, /foreign key \(event_organizer_id, event_id\)/)
+  for (const expected of [
+    'credential_version', 'link_revoked_at', 'admin_set_event_invitation_link',
+    'workshop_invitation_links_exported', 'participant_credential_conflict', 'for update',
+  ]) assert.match(correctionSql, new RegExp(expected))
+  assert.match(correctionSql, /drop function if exists public\.admin_prepare_event_invitation_delivery/)
+  assert.match(correctionSql, /jsonb_build_object\('row_count', p_row_count\)/)
+  assert.doesNotMatch(correctionSql, /raw_token|private_registration_link/)
 })
 
 test('historical invitations, private routes and scanner sessionStorage are wired without localStorage', async () => {
@@ -192,11 +292,33 @@ test('historical invitations, private routes and scanner sessionStorage are wire
   assert.match(eventsUi, /Invited participants/)
   assert.match(eventsUi, /Generate access/)
   assert.match(eventsUi, /Finalize remaining as absent/)
-  assert.match(hooks, /\/invitations\/send/)
+  assert.match(hooks, /\/invitations\/export/)
+  assert.match(eventsUi, /Export invitations CSV/)
+  assert.match(eventsUi, /Copy link/)
+  assert.match(eventsUi, /Regenerate link/)
+  assert.match(register, /Download badge/)
   assert.match(scanner, /sessionStorage/)
   assert.doesNotMatch(register + scanner, /localStorage/)
   assert.match(scanner, /BarcodeDetector/)
   assert.match(scanner, /@zxing\/browser/)
   assert.match(vercel, /workshop-scanner-check-in/)
+})
+
+test('badge export has a safe PNG filename and complete high-resolution canvas content', async () => {
+  assert.equal(workshopBadgeFileName('Mohammed Bétkaoui'), 'Infinity-Workshop-Mohammed-Betkaoui.png')
+  assert.equal(workshopBadgeFileName('../../=danger'), 'Infinity-Workshop-danger.png')
+  const badge = await read('src/pages/workshops/workshopBadge.js')
+  assert.match(badge, /canvas\.width = 1800/)
+  assert.match(badge, /WORKSHOP PASS/)
+  assert.match(badge, /No Limits For Infiniters/)
+  assert.match(badge, /drawImage\(qrImage/)
+})
+
+test('internal Resend and workshop email-delivery code is removed', async () => {
+  const [env, service, ui, hook] = await Promise.all([
+    read('.env.example'), read('api/_lib/admin-events.js'), read('src/admin/EventsPages.jsx'), read('src/admin/useAdminEvents.js'),
+  ])
+  assert.doesNotMatch(env + service + ui + hook, /RESEND_API_KEY|EVENTS_EMAIL_PROVIDER|EVENTS_EMAIL_FROM|Send all invitations|invitations\/send/)
+  await assert.rejects(read('api/_lib/admin-events-email.js'))
 })
 

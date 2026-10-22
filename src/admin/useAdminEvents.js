@@ -88,7 +88,7 @@ export function useAdminEventMembers({ eventId, page, limit = 25, search, pole, 
 
 export function useAdminEventInvitations({ eventId, page = 1, limit = 50, active = true }) {
   const { request } = useAdminAuth()
-  const [state, setState] = useState({ records: [], pagination: { page, limit, total: 0 }, emailConfigured: false, loading: active, error: '' })
+  const [state, setState] = useState({ records: [], pagination: { page, limit, total: 0 }, loading: active, error: '' })
   const [nonce, setNonce] = useState(0)
   useEffect(() => {
     if (!active || !eventId) return
@@ -96,7 +96,7 @@ export function useAdminEventInvitations({ eventId, page = 1, limit = 50, active
     request(`/api/admin/events/${encodeURIComponent(eventId)}/invitations?page=${page}&limit=${limit}`, { signal: controller.signal })
       .then(({ response, body }) => {
         if (!response.ok) throw new Error(body.message || 'Unable to load invited participants.')
-        setState({ records: body.data || [], pagination: body.pagination, emailConfigured: Boolean(body.emailConfigured), loading: false, error: '' })
+        setState({ records: body.data || [], pagination: body.pagination, loading: false, error: '' })
       })
       .catch((error) => { if (error.name !== 'AbortError') setState((current) => ({ ...current, loading: false, error: error.message })) })
     return () => controller.abort()
@@ -163,7 +163,7 @@ export function useAdminEventAttendance({ eventId, page, limit = 50, status, act
 }
 
 export function useAdminEventActions() {
-  const { request } = useAdminAuth()
+  const { request, requestRaw } = useAdminAuth()
   const mutation = useRef(null)
   const guard = (token) => {
     if (mutation.current) return false
@@ -201,10 +201,36 @@ export function useAdminEventActions() {
     if (!guard(`${eventId}:scanner`)) return { ok: false, message: 'Another event action is still being saved.' }
     return post(`/api/admin/events/${encodeURIComponent(eventId)}/scanner-access`, { staffProfileId, enabled })
   }, [post])
-  const sendInvitations = useCallback(async (eventId, input) => {
-    if (!guard(`${eventId}:send-invitations`)) return { ok: false, message: 'Another event action is still being saved.' }
-    return post(`/api/admin/events/${encodeURIComponent(eventId)}/invitations/send`, input)
+  const invitationLink = useCallback(async (eventId, invitationId, action, confirm = false) => {
+    if (!guard(`${eventId}:invitation-link`)) return { ok: false, message: 'Another event action is still being saved.' }
+    return post(`/api/admin/events/${encodeURIComponent(eventId)}/invitations/${encodeURIComponent(invitationId)}/link`, { action, confirm })
   }, [post])
+  const exportInvitations = useCallback(async (eventId) => {
+    if (!guard(`${eventId}:export-invitations`)) return { ok: false, message: 'Another event action is still being saved.' }
+    try {
+      const response = await requestRaw(`/api/admin/events/${encodeURIComponent(eventId)}/invitations/export`, {
+        method: 'POST', body: JSON.stringify({ confirm: true }),
+      })
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        return { ok: false, status: response.status, message: body.message || 'The invitation export could not be created.' }
+      }
+      const blob = await response.blob()
+      const disposition = response.headers.get('content-disposition') || ''
+      const fileName = disposition.match(/filename="([^"]+)"/i)?.[1] || 'infinity-workshop-invitations.csv'
+      const href = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = href
+      anchor.download = fileName
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      window.setTimeout(() => URL.revokeObjectURL(href), 1000)
+      return { ok: true, rowCount: Number(response.headers.get('x-export-rows') || 0) }
+    } catch {
+      return { ok: false, message: 'Unable to reach the administration service.' }
+    } finally { release() }
+  }, [requestRaw])
   const scannerCredential = useCallback(async (eventId, eventOrganizerId, action) => {
     if (!guard(`${eventId}:scanner-credential`)) return { ok: false, message: 'Another event action is still being saved.' }
     return post(`/api/admin/events/${encodeURIComponent(eventId)}/scanner-credentials`, { eventOrganizerId, action })
@@ -217,5 +243,5 @@ export function useAdminEventActions() {
     if (!guard(`${eventId}:attendance-finalize`)) return { ok: false, message: 'Another event action is still being saved.' }
     return post(`/api/admin/events/${encodeURIComponent(eventId)}/attendance/finalize`, { confirm: true })
   }, [post])
-  return { create, update, invite, assignOrganizers, removeOrganizer, setScannerAccess, sendInvitations, scannerCredential, transition, finalizeAttendance }
+  return { create, update, invite, assignOrganizers, removeOrganizer, setScannerAccess, invitationLink, exportInvitations, scannerCredential, transition, finalizeAttendance }
 }

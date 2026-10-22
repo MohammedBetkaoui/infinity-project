@@ -48,7 +48,7 @@ export function createWorkshopHandler(kind, {
     const parsed = config.validate(body.value)
     if (!parsed.ok) return sendJson(res, 400, { success: false, message: kind.startsWith('scanner') ? 'Invalid scanner request.' : INVALID })
     try {
-      const service = createService({ origin: workshopSiteOrigin(req, env) })
+      const service = createService({ origin: workshopSiteOrigin(req, env), env })
       const result = kind === 'invitation' ? await service.invitation(parsed.value.token)
         : kind === 'register' ? await service.register(parsed.value)
           : kind === 'scanner-session' ? await service.exchangeScanner(parsed.value.token)

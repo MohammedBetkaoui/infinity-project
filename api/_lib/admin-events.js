@@ -1,9 +1,9 @@
 import { createServerSupabaseClient } from './aivex-server.js'
 import { canManageEvents } from './admin-events-permissions.js'
 import { createAdminEventsStore } from './admin-events-store.js'
-import { createWorkshopEmailProvider, workshopInvitationEmail } from './admin-events-email.js'
 import {
-  buildWorkshopRegistrationUrl, buildWorkshopScannerUrl, generateWorkshopToken, hashWorkshopToken,
+  WORKSHOP_CREDENTIAL_DERIVATION_VERSION, buildWorkshopRegistrationUrl, buildWorkshopScannerUrl,
+  generateWorkshopToken, hashWorkshopToken, prepareStableWorkshopCredential, workshopInvitationLinkSecret,
 } from './workshop-tokens.js'
 
 const TYPE_LABELS = Object.freeze({
@@ -26,8 +26,8 @@ const ACTION_TITLES = Object.freeze({
   organizer_removed: 'Event organizer removed',
   scanner_access_prepared: 'Scanner access enabled for organizer',
   scanner_access_revoked: 'Scanner access disabled for organizer',
-  invitation_sent: 'Workshop invitation sent',
-  invitation_resent: 'Workshop invitation resent',
+  workshop_invitation_links_exported: 'Workshop invitation links exported',
+  workshop_invitation_link_regenerated: 'Workshop invitation link regenerated',
   participant_registered: 'Participant registered',
   scanner_access_generated: 'Private scanner access generated',
   scanner_access_regenerated: 'Private scanner access regenerated',
@@ -186,12 +186,45 @@ function mapHistoricalInvitation(row) {
   return {
     id: row.id, memberId: row.member_id, name: registeredName || member.full_name || 'Unknown member',
     canonicalName: member.full_name || '', initials: initials(registeredName || member.full_name),
-    email: member.email || '', pole: member.primary_pole || 'Unassigned', level: member.study_year || '',
+    email: member.email || '', phone: member.phone || '', pole: member.primary_pole || 'Unassigned', level: member.study_year || '',
     memberStatus: member.status || null, invitationStatus: row.invitation_status,
-    emailDeliveryStatus: row.email_delivery_status, invitedAt: row.invited_at,
-    sentAt: row.sent_at || null, openedAt: row.opened_at || null, registeredAt: row.registered_at || null,
-    tokenExpiresAt: row.token_expires_at || null,
+    registrationStatus: row.registered_at ? 'Registered' : 'Not registered', invitedAt: row.invited_at,
+    openedAt: row.opened_at || null, registeredAt: row.registered_at || null,
+    privateLinkStatus: row.token_hash && row.credential_derivation_version === WORKSHOP_CREDENTIAL_DERIVATION_VERSION
+      && !row.link_revoked_at ? 'Ready' : 'Not generated',
   }
+}
+
+const csvCell = (value, { protectFormula = true } = {}) => {
+  let text = value == null ? '' : String(value).replace(/\r\n?/g, '\n')
+  if (protectFormula && /^[\t\r\n ]*[=+\-@]/.test(text)) text = `'${text}`
+  return `"${text.replace(/"/g, '""')}"`
+}
+
+const splitExportName = (row) => {
+  if (row.participant_first_name || row.participant_last_name) {
+    return { firstName: row.participant_first_name || '', lastName: row.participant_last_name || '' }
+  }
+  const words = String(row.member?.full_name || '').trim().split(/\s+/).filter(Boolean)
+  return { firstName: words[0] || '', lastName: words.slice(1).join(' ') }
+}
+
+export function buildWorkshopInvitationsCsv(rows) {
+  const headers = [
+    'workshop_reference', 'workshop_title', 'first_name', 'last_name', 'full_name', 'email', 'phone',
+    'pole', 'study_year', 'invitation_status', 'registration_status', 'private_registration_link',
+  ]
+  const lines = [headers.map((value) => csvCell(value)).join(',')]
+  for (const row of rows) {
+    const { firstName, lastName } = splitExportName(row)
+    const values = [
+      row.workshopReference, row.workshopTitle, firstName, lastName, row.member?.full_name || '',
+      row.member?.email || '', row.member?.phone || '', row.member?.primary_pole || '', row.member?.study_year || '',
+      row.invitation_status, row.registered_at ? 'registered' : 'not_registered', row.privateRegistrationLink,
+    ]
+    lines.push(values.map((value) => csvCell(value)).join(','))
+  }
+  return `\uFEFF${lines.join('\r\n')}\r\n`
 }
 
 function publicEventError(error) {
@@ -214,9 +247,47 @@ function publicEventError(error) {
 }
 
 export function createAdminEventsService({
-  store, now = () => new Date(), origin, emailProvider = createWorkshopEmailProvider(), tokenGenerator = generateWorkshopToken,
+  store, now = () => new Date(), origin, env = process.env, tokenGenerator = generateWorkshopToken,
 } = {}) {
   if (!store) throw Object.assign(new Error('admin_events_store_required'), { stage: 'configuration', code: 'configuration_error' })
+  const stableSecret = () => workshopInvitationLinkSecret(env)
+  const linkExpiry = (event, current) => {
+    const eventEnd = new Date(event.ends_at || event.starts_at).getTime() + 24 * 60 * 60 * 1000
+    return new Date(Math.max(current.getTime() + 60 * 60 * 1000, eventEnd))
+  }
+  const revealInvitationLink = async ({ event, eventId, invitationId, adminUserId, action = 'ensure' }) => {
+    const existing = await store.invitationCredential(eventId, invitationId)
+    if (!existing) throw Object.assign(new Error('invitation_not_found'), { databaseMessage: 'invitation_not_found', code: 'P0002' })
+    if (!origin) throw Object.assign(new Error('workshop_origin_missing'), { code: 'configuration_error', stage: 'workshop_origin' })
+    const isStable = existing.token_hash && existing.credential_derivation_version === WORKSHOP_CREDENTIAL_DERIVATION_VERSION
+    const credentialVersion = action === 'regenerate'
+      ? Number(existing.credential_version || 0) + 1
+      : (isStable ? Number(existing.credential_version) : 1)
+    const credential = prepareStableWorkshopCredential({
+      purpose: 'invitation', invitationId, credentialVersion, env, secret: stableSecret(),
+    })
+    let persisted = existing
+    if (action === 'regenerate' || !isStable) {
+      persisted = await store.setInvitationLink({
+        eventId, invitationId, adminUserId, action, tokenHash: credential.tokenHash,
+        credentialVersion: credential.credentialVersion, derivationVersion: credential.derivationVersion,
+        expiresAt: linkExpiry(event, now()), now: now(),
+      })
+    }
+    const persistedRevokedAt = persisted.revoked_at || persisted.link_revoked_at
+    const persistedExpiresAt = persisted.expires_at || persisted.token_expires_at
+    if (persistedRevokedAt || new Date(persistedExpiresAt || 0) <= now()) {
+      throw Object.assign(new Error('invitation_not_active'), { databaseMessage: 'invitation_not_active', code: '22023' })
+    }
+    if (persisted.token_hash !== credential.tokenHash) {
+      throw Object.assign(new Error('invitation_credential_conflict'), { databaseMessage: 'invitation_credential_conflict', code: '40001' })
+    }
+    return {
+      privateLink: buildWorkshopRegistrationUrl(origin, credential.rawToken),
+      credentialVersion: credential.credentialVersion,
+      expiresAt: persistedExpiresAt,
+    }
+  }
   const detail = async (eventId) => {
     const row = await store.find(eventId)
     if (!row) return null
@@ -293,7 +364,6 @@ export function createAdminEventsService({
       return {
         data: rows.map(mapHistoricalInvitation),
         pagination: { page: options.page, limit: options.limit, total: count, pages: Math.max(1, Math.ceil(count / options.limit)) },
-        emailConfigured: Boolean(emailProvider.configured),
       }
     },
     async invite(eventId, input, user) {
@@ -369,58 +439,51 @@ export function createAdminEventsService({
         throw error
       }
     },
-    async sendInvitations(eventId, input, user) {
-      if (!canManageEvents(user.role, 'invite_members')) return { ok: false, status: 403, message: 'You do not have permission to send invitations.' }
-      if (!emailProvider.configured) return { ok: false, status: 503, message: 'Workshop email delivery is not configured.' }
-      if (!origin) return { ok: false, status: 503, message: 'The public workshop origin is not configured.' }
-      const invitationIds = input.all ? await store.allInvitationIds(eventId) : input.invitationIds
-      const outcomes = []
-      let cursor = 0
-      const worker = async () => {
-        while (cursor < invitationIds.length) {
-          const invitationId = invitationIds[cursor++]
-          const rawToken = tokenGenerator()
-          const current = now()
-          let prepared = null
-          try {
-            const event = await store.find(eventId)
-            if (!event) throw Object.assign(new Error('event_not_found'), { databaseMessage: 'event_not_found', code: 'P0002' })
-            const eventEnd = new Date(event.ends_at || event.starts_at).getTime() + 12 * 60 * 60 * 1000
-            const expiresAt = new Date(Math.max(current.getTime() + 60 * 60 * 1000, eventEnd))
-            prepared = await store.prepareInvitationDelivery({
-              invitationId, eventId, adminUserId: user.id, tokenHash: hashWorkshopToken(rawToken), expiresAt, now: current,
-            })
-            const registrationUrl = buildWorkshopRegistrationUrl(origin, rawToken)
-            const message = workshopInvitationEmail({
-              eventTitle: prepared.event_title, memberName: prepared.member_name, startsAt: prepared.starts_at,
-              location: prepared.location, speakerName: prepared.speaker_name, registrationUrl,
-            })
-            const delivered = await emailProvider.send({ to: prepared.email, ...message })
-            await store.finishInvitationDelivery({
-              invitationId, eventId, adminUserId: user.id, success: delivered.ok,
-              providerMessageId: delivered.messageId, resent: Boolean(prepared.resent), now: now(),
-            })
-            outcomes.push({ id: invitationId, ok: delivered.ok })
-          } catch (error) {
-            if (prepared) await store.finishInvitationDelivery({
-              invitationId, eventId, adminUserId: user.id, success: false,
-              providerMessageId: null, resent: Boolean(prepared.resent), now: now(),
-            }).catch(() => {})
-            const mapped = publicEventError(error)
-            if (mapped && invitationIds.length === 1) throw error
-            outcomes.push({ id: invitationId, ok: false })
-          }
-        }
-      }
+    async invitationLink(eventId, invitationId, input, user) {
+      if (user?.role !== 'super_admin') return { ok: false, status: 403, message: 'You do not have permission to reveal private workshop links.' }
       try {
-        await Promise.all(Array.from({ length: Math.min(5, invitationIds.length) }, worker))
+        const event = await store.find(eventId)
+        if (!event) return { ok: false, status: 404, message: 'Event not found.' }
+        const link = await revealInvitationLink({ event, eventId, invitationId, adminUserId: user.id, action: input.action })
+        return { ok: true, ...link }
       } catch (error) {
         const publicError = publicEventError(error)
         if (publicError) return { ok: false, ...publicError }
         throw error
       }
-      const sent = outcomes.filter((item) => item.ok).length
-      return { ok: true, sent, failed: outcomes.length - sent, total: outcomes.length }
+    },
+    async exportInvitations(eventId, user) {
+      if (user?.role !== 'super_admin') return { ok: false, status: 403, message: 'You do not have permission to export private workshop links.' }
+      try {
+        stableSecret()
+        if (!origin) return { ok: false, status: 503, message: 'The public workshop origin is not configured.' }
+        const event = await store.find(eventId)
+        if (!event) return { ok: false, status: 404, message: 'Event not found.' }
+        const candidates = await store.exportInvitationRows(eventId)
+        const rows = []
+        for (const candidate of candidates) {
+          const link = await revealInvitationLink({
+            event, eventId, invitationId: candidate.id, adminUserId: user.id, action: 'ensure',
+          })
+          rows.push({
+            ...candidate,
+            workshopReference: `EVT-${String(eventId).slice(0, 8).toUpperCase()}`,
+            workshopTitle: event.title,
+            privateRegistrationLink: link.privateLink,
+          })
+        }
+        await store.recordInvitationExport({ eventId, adminUserId: user.id, rowCount: rows.length, now: now() })
+        return {
+          ok: true,
+          csv: buildWorkshopInvitationsCsv(rows),
+          fileName: `infinity-workshop-invitations-${String(eventId).slice(0, 8)}-${now().toISOString().slice(0, 10)}.csv`,
+          rowCount: rows.length,
+        }
+      } catch (error) {
+        const publicError = publicEventError(error)
+        if (publicError) return { ok: false, ...publicError }
+        throw error
+      }
     },
     async scannerCredential(eventId, input, user) {
       if (!canManageEvents(user.role, 'set_scanner_access')) return { ok: false, status: 403, message: 'You do not have permission to manage scanner links.' }

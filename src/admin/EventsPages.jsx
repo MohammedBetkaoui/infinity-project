@@ -1,5 +1,5 @@
 import { useDeferredValue, useMemo, useState } from 'react'
-import { ArrowLeft, Copy, Plus, RefreshCw, Send, TriangleAlert } from 'lucide-react'
+import { ArrowLeft, Copy, Download, Plus, RefreshCw, TriangleAlert } from 'lucide-react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useAdmin } from './AdminStore'
 import { RecordTable, RecordToolbar, SummaryStrip, Facts, History } from './AdminRecords'
@@ -240,7 +240,7 @@ function OverviewTab({ event, history }) {
 
 function InvitationsTab({ event, onChanged }) {
   const { addToast } = useAdmin()
-  const { invite, sendInvitations } = useAdminEventActions()
+  const { invite, invitationLink, exportInvitations } = useAdminEventActions()
   const [search, setSearch] = useState('')
   const deferredSearch = useDeferredValue(search.trim())
   const [pole, setPole] = useState('')
@@ -259,20 +259,33 @@ function InvitationsTab({ event, onChanged }) {
       addToast('Members invited', `${added} new invitation record${added === 1 ? '' : 's'} created for this workshop.`)
       setSelected([])
       refresh()
+      invitedList.refresh()
       onChanged?.()
     } finally { setPending('') }
   }
   const available = members.filter((member) => !member.invitation)
   const toggleMember = (id) => setSelected(selected.includes(id) ? selected.filter((value) => value !== id) : [...selected, id])
-  const send = async (input, label) => {
+  const copyPrivateLink = async (record, regenerate = false) => {
     if (pending) return
+    if (regenerate && !window.confirm(`Regenerate ${record.name}'s private registration link? The previous link will stop working immediately.`)) return
+    const label = `${regenerate ? 'regenerate' : 'copy'}:${record.id}`
     setPending(label)
     try {
-      const result = await sendInvitations(event.id, input)
-      if (!result.ok) return addToast('Invitations not sent', result.message)
-      addToast('Invitation delivery finished', `${result.sent} sent${result.failed ? `, ${result.failed} failed` : ''}.`)
+      const result = await invitationLink(event.id, record.id, regenerate ? 'regenerate' : 'reveal', regenerate)
+      if (!result.ok) return addToast('Private link unavailable', result.message)
+      await navigator.clipboard.writeText(result.privateLink)
+      addToast(regenerate ? 'Private link regenerated' : 'Private link copied', regenerate ? 'The previous link is no longer valid.' : 'The personal registration link is ready to paste.')
       invitedList.refresh()
-      onChanged?.()
+    } finally { setPending('') }
+  }
+  const exportCsv = async () => {
+    if (pending) return
+    setPending('export')
+    try {
+      const result = await exportInvitations(event.id)
+      if (!result.ok) return addToast('Export unavailable', result.message)
+      addToast('Invitation CSV exported', `${result.rowCount} private registration link${result.rowCount === 1 ? '' : 's'} prepared for n8n.`)
+      invitedList.refresh()
     } finally { setPending('') }
   }
   return <>
@@ -326,20 +339,19 @@ function InvitationsTab({ event, onChanged }) {
     <Pagination current={pagination.page} count={pagination.total} pageSize={pagination.limit} onChange={setPage}/>
     <section className="adm-detail-section">
       <div className="adm-event-section-heading"><div><h4>Invited participants</h4><p>Historical invitations remain visible if a member later becomes inactive or archived.</p></div>
-        <Button variant="secondary" icon={<Send size={15}/>} disabled={Boolean(pending) || !invitedList.records.length || !invitedList.emailConfigured} onClick={() => send({ all: true }, 'send-all')}>
-          {pending === 'send-all' ? 'Sending…' : 'Send all invitations'}
+        <Button variant="secondary" icon={<Download size={15}/>} disabled={Boolean(pending) || !invitedList.records.length} onClick={exportCsv}>
+          {pending === 'export' ? 'Exporting…' : 'Export invitations CSV'}
         </Button>
       </div>
-      {!invitedList.emailConfigured && <p className="adm-inline-warning">Email delivery is not configured. No message will be reported as sent.</p>}
       {invitedList.error ? <div className="adm-state-error" role="alert"><TriangleAlert size={22}/><p>{invitedList.error}</p><Button variant="secondary" onClick={invitedList.refresh}>Try again</Button></div>
         : invitedList.loading ? <EventsSkeleton/>
-        : invitedList.records.length ? <div className="adm-table-wrap"><table className="adm-table"><thead><tr><th>Participant</th><th>Pole</th><th>Invitation</th><th>Email</th><th>Sent</th><th>Registered</th><th aria-label="Actions"/></tr></thead>
+        : invitedList.records.length ? <div className="adm-table-wrap"><table className="adm-table"><thead><tr><th>Member</th><th>Email</th><th>Pole</th><th>Invitation</th><th>Registration</th><th>Private link</th><th aria-label="Actions"/></tr></thead>
           <tbody>{invitedList.records.map((record) => <tr key={record.id}>
-            <td><div className="adm-person-cell"><Avatar initials={record.initials} small/><span><b>{record.name}</b><small>{record.memberStatus && record.memberStatus !== 'active' ? record.memberStatus : record.email}</small></span></div></td>
-            <td>{record.pole}</td><td><StatusBadge>{record.invitationStatus}</StatusBadge></td>
-            <td><StatusBadge tone={record.emailDeliveryStatus === 'sent' ? 'success' : record.emailDeliveryStatus === 'failed' ? 'danger' : 'neutral'}>{record.emailDeliveryStatus.replace('_', ' ')}</StatusBadge></td>
-            <td>{eventCheckedAt(record.sentAt)}</td><td>{eventCheckedAt(record.registeredAt)}</td>
-            <td className="adm-row-action"><button disabled={Boolean(pending) || !invitedList.emailConfigured} onClick={() => send({ invitationIds: [record.id] }, `send:${record.id}`)}>{pending === `send:${record.id}` ? 'Sending…' : record.sentAt ? 'Resend' : 'Send'}</button></td>
+            <td><div className="adm-person-cell"><Avatar initials={record.initials} small/><span><b>{record.name}</b><small>{record.memberStatus && record.memberStatus !== 'active' ? record.memberStatus : eventCheckedAt(record.invitedAt)}</small></span></div></td>
+            <td>{record.email || '—'}</td><td>{record.pole}</td><td><StatusBadge>{record.invitationStatus}</StatusBadge></td>
+            <td><StatusBadge tone={record.registeredAt ? 'success' : 'neutral'}>{record.registrationStatus}</StatusBadge>{record.registeredAt && <small className="adm-table-date">{eventCheckedAt(record.registeredAt)}</small>}</td>
+            <td><StatusBadge tone={record.privateLinkStatus === 'Ready' ? 'success' : 'neutral'}>{record.privateLinkStatus}</StatusBadge></td>
+            <td className="adm-row-action"><button disabled={Boolean(pending)} onClick={() => copyPrivateLink(record)}>{pending === `copy:${record.id}` ? 'Copying…' : 'Copy link'}</button><button disabled={Boolean(pending)} onClick={() => copyPrivateLink(record, true)}>{pending === `regenerate:${record.id}` ? 'Regenerating…' : 'Regenerate link'}</button></td>
           </tr>)}</tbody></table></div>
         : <EmptyState title="No invited participants yet" copy="Invite active members above. Their historical records will appear here."/>}
     </section>

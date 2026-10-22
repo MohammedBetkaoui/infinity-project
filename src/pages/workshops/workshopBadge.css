@@ -1,0 +1,27 @@
+.workshop-pass-download {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: min(100%, 320px);
+  margin: 18px auto 0;
+  border: 1px solid #ffffff2e;
+  border-radius: 13px;
+  background: #7657ff;
+  color: #fff;
+  padding: 14px 20px;
+  font: 800 15px Inter, Arial, sans-serif;
+  cursor: pointer;
+}
+
+.workshop-pass-download:disabled {
+  opacity: .6;
+  cursor: wait;
+}
+
+.workshop-pass-download-error {
+  margin: 10px auto 0;
+  color: #ffb1be;
+  text-align: center;
+  font-size: 13px;
+}

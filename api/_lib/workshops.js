@@ -1,7 +1,8 @@
 import { createServerSupabaseClient } from './aivex-server.js'
 import { createWorkshopsStore } from './workshops-store.js'
 import {
-  buildWorkshopQrPayload, generateWorkshopToken, hashWorkshopToken,
+  WORKSHOP_CREDENTIAL_DERIVATION_VERSION, buildWorkshopQrPayload, generateWorkshopToken,
+  hashWorkshopToken, prepareStableWorkshopCredential, workshopInvitationLinkSecret,
 } from './workshop-tokens.js'
 
 const genericPrivateError = (status = 'invalid') => ({ ok: false, status, message: 'This private workshop link is invalid or no longer active.' })
@@ -25,7 +26,7 @@ const eventView = (row) => ({
   location: row.location, speaker: row.speaker_name || '',
 })
 
-export function createWorkshopsService({ store, now = () => new Date(), origin, tokenGenerator = generateWorkshopToken } = {}) {
+export function createWorkshopsService({ store, now = () => new Date(), origin, env = process.env, tokenGenerator = generateWorkshopToken } = {}) {
   if (!store) throw Object.assign(new Error('workshops_store_required'), { code: 'configuration_error', stage: 'workshops' })
   return {
     async invitation(rawToken) {
@@ -47,16 +48,22 @@ export function createWorkshopsService({ store, now = () => new Date(), origin, 
       const invitationTokenHash = hashWorkshopToken(input.token)
       const invitation = await store.openInvitation({ tokenHash: invitationTokenHash, now: now() })
       if (!invitation) return genericPrivateError()
-      const qrToken = tokenGenerator()
+      const qrCredential = prepareStableWorkshopCredential({
+        purpose: 'participant-pass', invitationId: invitation.invitation_id,
+        credentialVersion: Number(invitation.qr_credential_version || 1),
+        derivationVersion: Number(invitation.qr_derivation_version || WORKSHOP_CREDENTIAL_DERIVATION_VERSION),
+        env, secret: workshopInvitationLinkSecret(env),
+      })
       const current = now()
       const eventEnd = new Date(invitation.ends_at || invitation.starts_at).getTime()
       const qrExpiresAt = new Date(Math.max(current.getTime() + 60 * 60 * 1000, eventEnd + 24 * 60 * 60 * 1000))
       try {
         const row = await store.register({
           invitationTokenHash, firstName: input.firstName, lastName: input.lastName,
-          qrTokenHash: hashWorkshopToken(qrToken), qrExpiresAt, now: current,
+          qrTokenHash: qrCredential.tokenHash, qrCredentialVersion: qrCredential.credentialVersion,
+          qrDerivationVersion: qrCredential.derivationVersion, qrExpiresAt, now: current,
         })
-        const qrPayload = buildWorkshopQrPayload(origin, qrToken)
+        const qrPayload = buildWorkshopQrPayload(origin, qrCredential.rawToken)
         if (!qrPayload) throw Object.assign(new Error('workshop_origin_missing'), { code: 'configuration_error', stage: 'workshop_origin' })
         return {
           ok: true, alreadyRegistered: Boolean(row.already_registered),

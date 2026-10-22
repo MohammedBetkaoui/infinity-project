@@ -89,7 +89,7 @@ export function createAdminEventsStore(supabase) {
     async invitedParticipants(eventId, options) {
       const from = (options.page - 1) * options.limit
       let query = supabase.from('club_event_invitations')
-        .select('id, event_id, member_id, invitation_status, invited_at, registered_at, sent_at, opened_at, email_delivery_status, token_expires_at, participant_first_name, participant_last_name, member:club_members(full_name, email, primary_pole, study_year, status)', { count: 'exact' })
+        .select('id, event_id, member_id, invitation_status, invited_at, registered_at, opened_at, token_hash, token_expires_at, credential_version, credential_derivation_version, link_revoked_at, participant_first_name, participant_last_name, member:club_members(full_name, email, phone, primary_pole, study_year, status)', { count: 'exact' })
         .eq('event_id', eventId)
       const search = safeSearch(options.q)
       if (search) query = query.or(`participant_first_name.ilike.%${search}%,participant_last_name.ilike.%${search}%`)
@@ -209,27 +209,44 @@ export function createAdminEventsStore(supabase) {
       if (error) fail('events_scanner_access', error)
       return Array.isArray(data) ? data[0] : data
     },
-    async prepareInvitationDelivery({ invitationId, eventId, adminUserId, tokenHash, expiresAt, now }) {
-      const { data, error } = await supabase.rpc('admin_prepare_event_invitation_delivery', {
-        p_invitation_id: invitationId, p_event_id: eventId, p_admin_user_id: adminUserId,
-        p_token_hash: tokenHash, p_expires_at: expiresAt.toISOString(), p_now: now.toISOString(),
+    async invitationCredential(eventId, invitationId) {
+      const { data, error } = await supabase.from('club_event_invitations')
+        .select('id, event_id, invitation_status, token_hash, token_expires_at, credential_version, credential_derivation_version, link_revoked_at')
+        .eq('event_id', eventId).eq('id', invitationId).maybeSingle()
+      if (error) fail('events_invitation_credential', error)
+      return data
+    },
+    async exportInvitationRows(eventId) {
+      const rows = []
+      const pageSize = 500
+      for (let from = 0; ; from += pageSize) {
+        const { data, error } = await supabase.from('club_event_invitations')
+          .select('id, event_id, invitation_status, invited_at, registered_at, token_hash, token_expires_at, credential_version, credential_derivation_version, link_revoked_at, participant_first_name, participant_last_name, member:club_members(full_name, email, phone, primary_pole, study_year)')
+          .eq('event_id', eventId)
+          .in('invitation_status', ['invited', 'registered'])
+          .order('invited_at', { ascending: true })
+          .range(from, from + pageSize - 1)
+        if (error) fail('events_invitation_export_rows', error)
+        rows.push(...(data || []))
+        if (!data || data.length < pageSize) break
+      }
+      return rows
+    },
+    async setInvitationLink({ eventId, invitationId, adminUserId, action, tokenHash, credentialVersion, derivationVersion, expiresAt, now }) {
+      const { data, error } = await supabase.rpc('admin_set_event_invitation_link', {
+        p_event_id: eventId, p_invitation_id: invitationId, p_admin_user_id: adminUserId,
+        p_action: action, p_token_hash: tokenHash, p_credential_version: credentialVersion,
+        p_derivation_version: derivationVersion, p_expires_at: expiresAt.toISOString(), p_now: now.toISOString(),
       })
-      if (error) fail('events_prepare_invitation_delivery', error)
+      if (error) fail('events_set_invitation_link', error)
       return Array.isArray(data) ? data[0] : data
     },
-    async finishInvitationDelivery({ invitationId, eventId, adminUserId, success, providerMessageId, resent, now }) {
-      const { data, error } = await supabase.rpc('admin_finish_event_invitation_delivery', {
-        p_invitation_id: invitationId, p_event_id: eventId, p_admin_user_id: adminUserId,
-        p_success: success, p_provider_message_id: providerMessageId || null, p_resent: resent, p_now: now.toISOString(),
+    async recordInvitationExport({ eventId, adminUserId, rowCount, now }) {
+      const { data, error } = await supabase.rpc('admin_record_workshop_invitation_export', {
+        p_event_id: eventId, p_admin_user_id: adminUserId, p_row_count: rowCount, p_now: now.toISOString(),
       })
-      if (error) fail('events_finish_invitation_delivery', error)
-      return Array.isArray(data) ? data[0] : data
-    },
-    async allInvitationIds(eventId, limit = 500) {
-      const { data, error } = await supabase.from('club_event_invitations').select('id')
-        .eq('event_id', eventId).in('invitation_status', ['invited', 'registered']).limit(limit)
-      if (error) fail('events_invitation_ids', error)
-      return (data || []).map((row) => row.id)
+      if (error) fail('events_record_invitation_export', error)
+      return Boolean(Array.isArray(data) ? data[0] : data)
     },
     async generateScannerAccess({ eventId, eventOrganizerId, adminUserId, tokenHash, startsAt, expiresAt, now }) {
       const { data, error } = await supabase.rpc('admin_generate_event_scanner_access', {

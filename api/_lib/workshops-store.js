@@ -15,10 +15,11 @@ export function createWorkshopsStore(supabase) {
       if (error) fail('workshop_invitation_open', error)
       return first(data) || null
     },
-    async register({ invitationTokenHash, firstName, lastName, qrTokenHash, qrExpiresAt, now }) {
+    async register({ invitationTokenHash, firstName, lastName, qrTokenHash, qrCredentialVersion, qrDerivationVersion, qrExpiresAt, now }) {
       const { data, error } = await supabase.rpc('public_register_event_participant', {
         p_invitation_token_hash: invitationTokenHash, p_first_name: firstName, p_last_name: lastName,
-        p_qr_token_hash: qrTokenHash, p_qr_expires_at: qrExpiresAt.toISOString(), p_now: now.toISOString(),
+        p_qr_token_hash: qrTokenHash, p_qr_credential_version: qrCredentialVersion,
+        p_qr_derivation_version: qrDerivationVersion, p_qr_expires_at: qrExpiresAt.toISOString(), p_now: now.toISOString(),
       })
       if (error) fail('workshop_registration', error)
       return first(data)

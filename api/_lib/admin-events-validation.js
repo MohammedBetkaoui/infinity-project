@@ -223,14 +223,16 @@ export function validateEventScannerBody(body) {
   return { ok: true, value: { staffProfileId: body.staffProfileId, enabled: body.enabled } }
 }
 
-export function validateEventInvitationSendBody(body) {
+export function validateEventInvitationExportBody(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body) || body.confirm !== true) return { ok: false }
+  return { ok: true, value: { confirm: true } }
+}
+
+export function validateEventInvitationLinkBody(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return { ok: false }
-  if (body.all === true) return { ok: true, value: { all: true } }
-  if (!Array.isArray(body.invitationIds) || body.invitationIds.length < 1 || body.invitationIds.length > 100) return { ok: false }
-  if (body.invitationIds.some((id) => !isEventId(id))) return { ok: false }
-  const invitationIds = [...new Set(body.invitationIds)]
-  if (invitationIds.length !== body.invitationIds.length) return { ok: false }
-  return { ok: true, value: { invitationIds } }
+  if (body.action === 'reveal') return { ok: true, value: { action: 'ensure' } }
+  if (body.action === 'regenerate' && body.confirm === true) return { ok: true, value: { action: 'regenerate' } }
+  return { ok: false }
 }
 
 export function validateEventScannerCredentialBody(body) {

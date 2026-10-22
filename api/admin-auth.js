@@ -34,7 +34,7 @@ import {
 } from './_lib/admin-people-validation.js'
 import {
   isEventId, parseEventAttendanceOptions, parseEventInvitationOptions, parseEventListOptions, parseEventMemberOptions, parseEventStaffOptions,
-  validateEventAttendanceFinalizeBody, validateEventCreateBody, validateEventInvitationSendBody, validateEventInviteBody, validateEventOrganizersBody,
+  validateEventAttendanceFinalizeBody, validateEventCreateBody, validateEventInvitationExportBody, validateEventInvitationLinkBody, validateEventInviteBody, validateEventOrganizersBody,
   validateEventRemoveOrganizerBody, validateEventScannerBody, validateEventScannerCredentialBody, validateEventTransitionBody, validateEventUpdateBody,
 } from './_lib/admin-events-validation.js'
 import { workshopSiteOrigin } from './_lib/workshop-tokens.js'
@@ -607,7 +607,8 @@ export function createAdminEventsHandler({
     const detailMatch = path.match(/^events\/([0-9a-f-]+)$/i)
     const membersMatch = path.match(/^events\/([0-9a-f-]+)\/members$/i)
     const invitationsMatch = path.match(/^events\/([0-9a-f-]+)\/invitations$/i)
-    const invitationSendMatch = path.match(/^events\/([0-9a-f-]+)\/invitations\/send$/i)
+    const invitationExportMatch = path.match(/^events\/([0-9a-f-]+)\/invitations\/export$/i)
+    const invitationLinkMatch = path.match(/^events\/([0-9a-f-]+)\/invitations\/([0-9a-f-]+)\/link$/i)
     const staffMatch = path.match(/^events\/([0-9a-f-]+)\/staff$/i)
     const organizersMatch = path.match(/^events\/([0-9a-f-]+)\/organizers$/i)
     const organizerRemoveMatch = path.match(/^events\/([0-9a-f-]+)\/organizers\/remove$/i)
@@ -617,11 +618,11 @@ export function createAdminEventsHandler({
     const statisticsMatch = path.match(/^events\/([0-9a-f-]+)\/statistics$/i)
     const attendanceMatch = path.match(/^events\/([0-9a-f-]+)\/attendance$/i)
     const attendanceFinalizeMatch = path.match(/^events\/([0-9a-f-]+)\/attendance\/finalize$/i)
-    const detailPath = rootMatch || detailMatch || membersMatch || invitationsMatch || invitationSendMatch || staffMatch || organizersMatch || organizerRemoveMatch || scannerMatch || scannerCredentialMatch || lifecycleMatch || statisticsMatch || attendanceMatch || attendanceFinalizeMatch
+    const detailPath = rootMatch || detailMatch || membersMatch || invitationsMatch || invitationExportMatch || invitationLinkMatch || staffMatch || organizersMatch || organizerRemoveMatch || scannerMatch || scannerCredentialMatch || lifecycleMatch || statisticsMatch || attendanceMatch || attendanceFinalizeMatch
     if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(req.method) && !trustedOrigin(req, env)) return sendAdminJson(res, 403, { success: false, message: 'Request rejected.' })
 
     try {
-      const service = createService({ origin: workshopSiteOrigin(req, env) })
+      const service = createService({ origin: workshopSiteOrigin(req, env), env })
       if (rootMatch && req.method === 'GET') {
         const parsed = parseEventListOptions(url.searchParams)
         if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid event filters.' })
@@ -635,7 +636,7 @@ export function createAdminEventsHandler({
         if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: result.message })
         return sendAdminJson(res, 201, { success: true, event: result.event })
       }
-      const eventId = detailMatch?.[1] || membersMatch?.[1] || invitationsMatch?.[1] || invitationSendMatch?.[1] || staffMatch?.[1] || organizersMatch?.[1] || organizerRemoveMatch?.[1] || scannerMatch?.[1] || scannerCredentialMatch?.[1] || lifecycleMatch?.[1] || statisticsMatch?.[1] || attendanceMatch?.[1] || attendanceFinalizeMatch?.[1]
+      const eventId = detailMatch?.[1] || membersMatch?.[1] || invitationsMatch?.[1] || invitationExportMatch?.[1] || invitationLinkMatch?.[1] || staffMatch?.[1] || organizersMatch?.[1] || organizerRemoveMatch?.[1] || scannerMatch?.[1] || scannerCredentialMatch?.[1] || lifecycleMatch?.[1] || statisticsMatch?.[1] || attendanceMatch?.[1] || attendanceFinalizeMatch?.[1]
       if (detailMatch && req.method === 'GET') {
         if (!isEventId(eventId)) return sendAdminJson(res, 404, { success: false, message: 'Event not found.' })
         const event = await service.detail(eventId, session.user)
@@ -673,14 +674,24 @@ export function createAdminEventsHandler({
         const result = await service.invitations(eventId, parsed.value, session.user)
         return result ? sendAdminJson(res, 200, { success: true, ...result }) : sendAdminJson(res, 404, { success: false, message: 'Event not found.' })
       }
-      if (invitationSendMatch && req.method === 'POST') {
+      if (invitationExportMatch && req.method === 'POST') {
         if (!isEventId(eventId)) return sendAdminJson(res, 404, { success: false, message: 'Event not found.' })
         if (!isJsonContentType(req)) return sendAdminJson(res, 415, { success: false, message: 'Unsupported request.' })
-        const parsed = validateEventInvitationSendBody(await readJsonBody(req, MAX_EVENTS_BODY_BYTES))
-        if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid invitation delivery request.' })
-        const result = await service.sendInvitations(eventId, parsed.value, session.user)
+        const parsed = validateEventInvitationExportBody(await readJsonBody(req, MAX_EVENTS_BODY_BYTES))
+        if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Explicit export confirmation is required.' })
+        const result = await service.exportInvitations(eventId, session.user)
         if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: result.message })
-        return sendAdminJson(res, 200, { success: true, sent: result.sent, failed: result.failed, total: result.total })
+        return sendAdminCsv(res, result)
+      }
+      if (invitationLinkMatch && req.method === 'POST') {
+        const invitationId = invitationLinkMatch[2]
+        if (!isEventId(eventId) || !isEventId(invitationId)) return sendAdminJson(res, 404, { success: false, message: 'Invitation not found.' })
+        if (!isJsonContentType(req)) return sendAdminJson(res, 415, { success: false, message: 'Unsupported request.' })
+        const parsed = validateEventInvitationLinkBody(await readJsonBody(req, MAX_EVENTS_BODY_BYTES))
+        if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Invalid private-link request.' })
+        const result = await service.invitationLink(eventId, invitationId, parsed.value, session.user)
+        if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: result.message })
+        return sendAdminJson(res, 200, { success: true, privateLink: result.privateLink, expiresAt: result.expiresAt })
       }
       if (staffMatch && req.method === 'GET') {
         if (!isEventId(eventId)) return sendAdminJson(res, 404, { success: false, message: 'Event not found.' })
@@ -766,7 +777,7 @@ export function createAdminEventsHandler({
           ? 'GET, PATCH'
           : invitationsMatch
             ? 'GET, POST'
-            : invitationSendMatch || organizersMatch || organizerRemoveMatch || scannerMatch || scannerCredentialMatch || lifecycleMatch || attendanceFinalizeMatch
+          : invitationExportMatch || invitationLinkMatch || organizersMatch || organizerRemoveMatch || scannerMatch || scannerCredentialMatch || lifecycleMatch || attendanceFinalizeMatch
             ? 'POST'
             : 'GET')
       return sendAdminJson(res, detailPath ? 405 : 404, { success: false, message: detailPath ? 'Method not allowed.' : 'Not found.' })
@@ -811,8 +822,10 @@ function sendAdminCsv(res, exportResult) {
   res.setHeader('Content-Length', String(Buffer.byteLength(body, 'utf8')))
   res.setHeader('X-Content-Type-Options', 'nosniff')
   res.setHeader('X-Export-Rows', String(exportResult.rowCount))
-  res.setHeader('X-AIVEX-Export-Rows', String(exportResult.rowCount))
-  if (exportResult.truncated) res.setHeader('X-AIVEX-Export-Truncated', 'true')
+  if (String(exportResult.fileName || '').startsWith('aivex-')) {
+    res.setHeader('X-AIVEX-Export-Rows', String(exportResult.rowCount))
+    if (exportResult.truncated) res.setHeader('X-AIVEX-Export-Truncated', 'true')
+  }
   res.end(body)
 }
 
