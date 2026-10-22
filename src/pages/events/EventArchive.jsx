@@ -1,4 +1,4 @@
-import { Search, X } from 'lucide-react'
+import { LayoutGrid, List, Search, SlidersHorizontal, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { eventArchive } from '../../data/eventArchive'
 import { groupEventsByYear, padCount } from './archiveLayout'
@@ -16,6 +16,8 @@ const EVENT_COUNTS = eventArchive.reduce((counts, event) => {
   counts[eventStatus(event)] += 1
   return counts
 }, { all: 0, upcoming: 0, past: 0 })
+const CATEGORIES = [...new Set(eventArchive.map((event) => event.category).filter(Boolean))]
+  .sort((a, b) => a.localeCompare(b))
 
 // Tracks the year that crosses the upper-middle band of the viewport.
 function useCurrentYear(rootRef, sectionKey) {
@@ -45,29 +47,34 @@ function useCurrentYear(rootRef, sectionKey) {
 export default function EventArchive() {
   const rootRef = useRef(null)
   const [filter, setFilter] = useState('all')
+  const [category, setCategory] = useState('all')
   const [query, setQuery] = useState('')
+  const [view, setView] = useState('grid')
 
   const filteredEvents = useMemo(() => {
     const search = query.trim().toLocaleLowerCase()
     return eventArchive.filter((event) => {
       const matchesStatus = filter === 'all' || eventStatus(event) === filter
+      const matchesCategory = category === 'all' || event.category === category
       const matchesSearch = !search || [event.title, event.category, event.edition, event.description, event.year]
         .filter(Boolean)
         .some((value) => String(value).toLocaleLowerCase().includes(search))
-      return matchesStatus && matchesSearch
+      return matchesStatus && matchesCategory && matchesSearch
     })
-  }, [filter, query])
+  }, [category, filter, query])
 
   const years = useMemo(() => groupEventsByYear(filteredEvents), [filteredEvents])
   const sectionKey = years.map(({ year }) => year).join('-')
   const currentYear = useCurrentYear(rootRef, sectionKey)
   const resetFilters = () => {
     setFilter('all')
+    setCategory('all')
     setQuery('')
   }
+  const hasActiveFilters = filter !== 'all' || category !== 'all' || Boolean(query.trim())
 
   return (
-    <section id="event-archive" ref={rootRef} className="events-archive" aria-labelledby="events-archive-title">
+    <section id="event-archive" ref={rootRef} className={`events-archive is-${view}-view`} aria-labelledby="events-archive-title">
       <div className="page-container">
         <header className="events-archive-head">
           <p className="events-archive-eyebrow" data-animated-text=""><span>Curated archive</span><span>2024 — 2026</span></p>
@@ -91,22 +98,35 @@ export default function EventArchive() {
               </button>
             ))}
           </div>
-
-          <label className="events-search">
-            <span className="sr-only">Search events</span>
-            <Search size={16} strokeWidth={1.8} aria-hidden="true" />
-            <input
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search the archive"
-            />
-            {query && (
-              <button type="button" aria-label="Clear search" onClick={() => setQuery('')}>
-                <X size={15} aria-hidden="true" />
-              </button>
-            )}
-          </label>
+          <div className="events-toolbar-tools">
+            <label className="events-category">
+              <SlidersHorizontal size={15} strokeWidth={1.8} aria-hidden="true" />
+              <span className="sr-only">Filter by category</span>
+              <select value={category} onChange={(event) => setCategory(event.target.value)}>
+                <option value="all">All categories</option>
+                {CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}
+              </select>
+            </label>
+            <label className="events-search">
+              <span className="sr-only">Search events</span>
+              <Search size={16} strokeWidth={1.8} aria-hidden="true" />
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search events"
+              />
+              {query && (
+                <button type="button" aria-label="Clear search" onClick={() => setQuery('')}>
+                  <X size={15} aria-hidden="true" />
+                </button>
+              )}
+            </label>
+            <div className="events-view-switch" role="group" aria-label="Change event display">
+              <button type="button" className={view === 'grid' ? 'is-active' : undefined} aria-label="Grid view" aria-pressed={view === 'grid'} onClick={() => setView('grid')}><LayoutGrid size={16} aria-hidden="true" /></button>
+              <button type="button" className={view === 'list' ? 'is-active' : undefined} aria-label="List view" aria-pressed={view === 'list'} onClick={() => setView('list')}><List size={17} aria-hidden="true" /></button>
+            </div>
+          </div>
         </div>
 
         <div className="events-archive-subnav">
@@ -125,10 +145,11 @@ export default function EventArchive() {
           <p className="events-result-count" role="status" aria-live="polite">
             <strong>{padCount(filteredEvents.length)}</strong> {filteredEvents.length === 1 ? 'result' : 'results'}
           </p>
+          {hasActiveFilters && <button type="button" className="events-clear-filters" onClick={resetFilters}><X size={13} aria-hidden="true" />Clear filters</button>}
         </div>
 
         {years.map(({ year, events }, index) => (
-          <EventYearSection key={year} year={year} events={events} isLatest={index === 0} />
+          <EventYearSection key={year} year={year} events={events} isLatest={index === 0} view={view} />
         ))}
 
         {!years.length && (

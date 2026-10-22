@@ -1,4 +1,4 @@
-import { ArrowUpRight } from 'lucide-react'
+import { ArrowUpRight, CalendarDays } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import EventVisual from './EventVisual'
 
@@ -21,7 +21,6 @@ export default function EventCard({ cell, index, priority = false }) {
   const linked = Boolean(event.href)
   const titleId = `event-${event.id}-title`
   const actionId = `event-${event.id}-action`
-  const actionLabel = `Explore event${event.newTab ? ' (opens in a new tab)' : ''}`
 
   return (
     <article
@@ -46,17 +45,17 @@ export default function EventCard({ cell, index, priority = false }) {
             <h3 id={titleId}>{event.title}</h3>
             {linked && !featured && <ArrowUpRight className="event-card-arrow" size={20} strokeWidth={1.6} aria-hidden="true" />}
           </div>
-          <p className="event-card-edition"><span>{event.edition || event.year}</span><span>{event.year}</span></p>
+          <p className="event-card-edition"><span><CalendarDays size={13} aria-hidden="true" />{event.edition || event.year}</span><span>{event.year}</span></p>
           {event.description && <p className="event-card-description">{event.description}</p>}
-          {linked && (featured ? (
+          {linked ? (
             <span className="event-card-action" id={actionId}>
-              Explore event
+              View event
               <ArrowUpRight className="event-card-arrow" size={15} aria-hidden="true" />
               {event.newTab && <span className="sr-only"> (opens in a new tab)</span>}
             </span>
           ) : (
-            <span className="sr-only" id={actionId}>{actionLabel}</span>
-          ))}
+            <span className="event-card-archive-label">Archive entry</span>
+          )}
         </div>
       </CardLink>
     </article>

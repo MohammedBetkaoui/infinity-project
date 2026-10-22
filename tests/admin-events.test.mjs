@@ -200,3 +200,24 @@ test('Events UI is routed, searchable and isolated from the public archive', asy
   assert.doesNotMatch(`${page}\n${hook}`, /localStorage|sessionStorage|from '.\/adminData'|from "\.\/adminData"/)
   assert.doesNotMatch(`${publicPage}\n${archive}`, /useAdminEvents|\/api\/admin\/events|club_events/)
 })
+
+test('public Events archive has practical category, search and display controls', async () => {
+  const [archive, card, year, styles] = await Promise.all([
+    read('src/pages/events/EventArchive.jsx'),
+    read('src/pages/events/EventCard.jsx'),
+    read('src/pages/events/EventYearSection.jsx'),
+    read('src/pages/events/events.css'),
+  ])
+  assert.match(archive, /const \[category, setCategory\] = useState\('all'\)/)
+  assert.match(archive, /const \[view, setView\] = useState\('grid'\)/)
+  assert.match(archive, /Filter by category/)
+  assert.match(archive, /aria-label="Grid view"/)
+  assert.match(archive, /aria-label="List view"/)
+  assert.match(archive, /Clear filters/)
+  assert.match(year, /events-year-grid is-\$\{view\}/)
+  assert.match(card, /View event/)
+  assert.match(card, /Archive entry/)
+  assert.match(styles, /\.events-archive\.is-list-view/)
+  assert.match(styles, /@media \(max-width: 420px\)/)
+  assert.doesNotMatch(archive, /localStorage|sessionStorage/)
+})

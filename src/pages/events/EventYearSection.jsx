@@ -1,7 +1,7 @@
 import { layoutYear, padCount } from './archiveLayout'
 import EventCard from './EventCard'
 
-export default function EventYearSection({ year, events, isLatest }) {
+export default function EventYearSection({ year, events, isLatest, view = 'grid' }) {
   const titleId = `events-${year}-title`
   return (
     <section id={`events-${year}`} className="events-year" data-year={year} aria-labelledby={titleId}>
@@ -9,7 +9,7 @@ export default function EventYearSection({ year, events, isLatest }) {
         <h2 id={titleId} className="events-year-title">{year}</h2>
         <span className="events-year-count">{padCount(events.length)} {events.length === 1 ? 'event' : 'events'}</span>
       </header>
-      <div className="events-year-grid">
+      <div className={`events-year-grid is-${view}`}>
         {layoutYear(events).map((cell, index) => (
           <EventCard key={cell.event.id} cell={cell} index={index + 1} priority={isLatest && index === 0} />
         ))}
