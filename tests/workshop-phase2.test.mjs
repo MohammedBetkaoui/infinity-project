@@ -458,25 +458,62 @@ test('scanner page maps every server status and never converts not_open into Inv
   assert.match(scanner, /not_open: \{ title: 'Check-in not open'/)
   assert.match(scanner, /The workshop has not started yet\./)
   assert.match(scanner, /SCAN_STATUSES\.includes\(payload\.status\)/)
-  assert.match(scanner, /\? payload\.status : 'invalid'/)
+  assert.match(scanner, /response\.status >= 500 \? 'network_error' : 'invalid'/)
+  assert.match(scanner, /catch \{[\s\S]*status: 'network_error'/)
   assert.match(scanner, /finally \{[\s\S]*loadContext\(sessionToken\)\.catch/)
 })
 
 test('scanner disables QR check-in until ongoing and keeps live stats fresh', async () => {
-  const scanner = await read('src/pages/workshops/WorkshopScannerPage.jsx')
+  const [scanner, viewport, stats] = await Promise.all([
+    read('src/pages/workshops/WorkshopScannerPage.jsx'),
+    read('src/pages/workshops/scanner/ScannerViewport.jsx'),
+    read('src/pages/workshops/scanner/ScannerStats.jsx'),
+  ])
   assert.match(scanner, /checkInOpen = state\.context\?\.eventStatus === 'ongoing'/)
-  assert.match(scanner, /if \(!checkInOpen\) \{ setResult\(\{ status: 'not_open'/)
-  assert.match(scanner, /disabled=\{!checkInOpen\}/)
+  assert.match(scanner, /if \(!checkInOpen\) \{ showResult\(\{ status: 'not_open'/)
+  assert.match(viewport, /disabled=\{!checkInOpen \|\| isStarting\}/)
   assert.match(scanner, /workshop-scanner-banner/)
   assert.match(scanner, /Check-in not open/)
   assert.match(scanner, /Check-in opens when the workshop is started\./)
-  assert.match(scanner, /window\.setInterval\(\(\) => \{ loadContext\(sessionToken\)\.catch\(\(\) => \{\}\) \}, 5000\)/)
+  assert.match(scanner, /CONTEXT_REFRESH_MS = 5000/)
+  assert.match(scanner, /window\.setInterval\(\(\) => \{ loadContext\(sessionToken\)\.catch\(\(\) => \{\}\) \}, CONTEXT_REFRESH_MS\)/)
   assert.match(scanner, /window\.clearInterval\(timer\)/)
-  assert.match(scanner, /workshop-scanner-refresh/)
-  assert.match(scanner, /onClick=\{refreshStats\}/)
+  assert.match(stats, /onClick=\{onRefresh\}/)
+  assert.match(stats, /Live · Updated just now/)
   const store = { async scannerContext() { return { event_id: EVENT_ID, event_title: 't', organizer_name: 'o', starts_at: NOW.toISOString(), location: 'l', event_status: 'registration_closed', registered: '3', present: '1', session_expires_at: NOW.toISOString() } } }
   const gated = await createWorkshopsService({ store, now: () => NOW, origin: 'https://www.infinty-bba.com' }).scannerContext(TOKEN_A)
   assert.equal(gated.context.eventStatus, 'registration_closed')
+})
+
+test('scanner rapid mode keeps camera fallbacks, explicit cooldowns and progressive controls', async () => {
+  const [scanner, viewport, controls, manual, recent, styles] = await Promise.all([
+    read('src/pages/workshops/WorkshopScannerPage.jsx'),
+    read('src/pages/workshops/scanner/ScannerViewport.jsx'),
+    read('src/pages/workshops/scanner/ScannerControls.jsx'),
+    read('src/pages/workshops/scanner/ManualCheckIn.jsx'),
+    read('src/pages/workshops/scanner/RecentScans.jsx'),
+    read('src/pages/workshops/workshopScanner.css'),
+  ])
+  assert.match(scanner, /SAME_QR_COOLDOWN_MS = 3000/)
+  assert.match(scanner, /NEXT_SCAN_DELAY_MS = 1000/)
+  assert.match(scanner, /RESULT_OVERLAY_MS = 1200/)
+  assert.match(scanner, /DETECTION_INTERVAL_MS = 200/)
+  assert.match(scanner, /lastScan\.current\.value === value/)
+  assert.match(scanner, /new window\.BarcodeDetector\(\{ formats: \['qr_code'\] \}\)/)
+  assert.match(scanner, /BrowserQRCodeReader/)
+  assert.match(scanner, /getCapabilities\?\.\(\)/)
+  assert.match(scanner, /advanced: \[\{ torch: next \}\]/)
+  assert.match(scanner, /NotAllowedError:[\s\S]*permission_denied/)
+  assert.match(scanner, /NotReadableError:[\s\S]*Camera is busy/)
+  assert.match(scanner, /navigator\.vibrate/)
+  assert.match(viewport, /Start scanner/)
+  assert.match(viewport, /Align QR inside frame/)
+  assert.match(controls, /Sound on/)
+  assert.match(manual, /onSubmit\(normalized\)/)
+  assert.match(recent, /Recent scans/)
+  assert.match(styles, /@keyframes scanner-line/)
+  assert.match(styles, /prefers-reduced-motion: reduce/)
+  assert.match(styles, /env\(safe-area-inset-bottom\)/)
 })
 
 test('scanner context SQL reports the lifecycle status without weakening the ongoing check-in gate', async () => {
