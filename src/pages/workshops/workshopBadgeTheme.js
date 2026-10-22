@@ -3,6 +3,8 @@
 // the official reference artwork), then rasterised at exactly 2x —
 // 2108x2986 — for the downloadable PNG, and reproduced proportionally on the
 // web badge with container-query units (1cqw = 10.54 design px).
+// This module is the single source of truth: the canvas render, the web badge
+// and the layout planner (workshopPassLayout.js) all read it verbatim.
 export const WORKSHOP_BADGE = {
   width: 1054,
   height: 1493,
@@ -21,7 +23,7 @@ export const WORKSHOP_BADGE = {
     inkSoft: 'rgba(0, 42, 30, 0.78)',
     inkFaint: 'rgba(0, 42, 30, 0.16)',
     gold: '#D8C58A',
-    goldSoft: 'rgba(216, 197, 138, 0.85)',
+    goldFrame: 'rgba(216, 197, 138, 0.7)',
     goldHairline: 'rgba(216, 197, 138, 0.55)',
     scanInk: '#2E6B55',
   },
@@ -30,30 +32,37 @@ export const WORKSHOP_BADGE = {
   header: {
     emblemTop: 58, emblemWidth: 190,
     clubBaseline: 246, clubSize: 46, clubSpacing: 13,
-    passBaseline: 292, passSize: 19, passSpacing: 10,
+    passBaseline: 292, passSize: 19, passSpacing: 10, passSideLineLength: 132, passSideLineGap: 18,
     universityBaseline: 334, universitySize: 13.5, universitySpacing: 4,
   },
   title: {
-    labelBaseline: 434, firstBaseline: 524,
-    startSize: 84, secondTierSize: 64, minSize: 38, lineFactor: 1.1,
+    labelBaseline: 434, firstBaseline: 518,
+    tiers: [84, 64, 52], minSize: 38, lineFactor: 1.1,
     labelSize: 16, labelSpacing: 7, sideLineLength: 132, sideLineGap: 18,
+    maxWidth: 800,
   },
   meta: {
-    columnSpread: 200, labelSize: 15, labelSpacing: 6.5, valueSize: 27, valueGap: 46,
-    locationMaxWidth: 300, chipDiameter: 42, chipGap: 12,
+    metaGap: 58, metaGapFloor: 44,
+    valueGap: 42, valueGapFloor: 36,
+    columnSpread: 200, labelSize: 15, labelSpacing: 6.5,
+    valueSize: 27, valueLineFactor: 1.24, locationMaxWidth: 300,
+    chipDiameter: 42, chipGap: 12, valueSpacing: 0.4,
   },
   qr: {
-    cardWidth: 372, cardRadius: 26, minCardHeight: 280, maxCardHeight: 384,
-    topInset: 28, gapToScan: 34, scanSize: 13, scanSpacing: 5, topGap: 46,
+    cardWidth: 448, codeSize: 350, cardRadius: 28,
+    minCardHeight: 390, maxCardHeight: 410,
+    topInset: 26, gapToScan: 20, scanSize: 14, scanSpacing: 5, scanHeight: 14,
+    topGap: 32, topGapFloor: 24,
   },
   name: {
-    lastBaseline: 1162, startSize: 62, minSize: 34, lineFactor: 1.16,
-    labelGap: 34, cardGap: 24, metaGap: 64, maxWidth: 780,
+    lastBaseline: 1162, startSize: 62, minSize: 34, singleLineFloor: 56,
+    lineFactor: 1.16, maxWidth: 780, capFactor: 0.73, nameSpacing: 1,
+    participantTopGap: 28, labelGap: 28,
     labelSize: 16, labelSpacing: 7, sideLineLength: 190, sideLineGap: 18,
   },
   footer: {
-    emblemTop: 1288, emblemWidth: 124,
-    sloganBaseline: 1438, sloganSize: 25, sloganSpacing: 11,
+    emblemTop: 1284, emblemWidth: 124,
+    sloganBaseline: 1432, sloganSize: 25, sloganSpacing: 11,
     sideLineLength: 130, sideLineGap: 22,
   },
 }

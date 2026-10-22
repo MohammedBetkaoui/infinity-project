@@ -336,7 +336,11 @@ test('badge export has a safe PNG filename and complete high-resolution canvas c
   assert.match(theme, /'#8FD9B8'/)
   assert.match(theme, /'#D8C58A'/)
   assert.match(theme, /panel: \{ x: 55, y: 368, width: 944, height: 852, radius: 44 \}/)
-  assert.match(theme, /cardWidth: 372, cardRadius: 26, minCardHeight: 280, maxCardHeight: 384/)
+  assert.match(theme, /cardWidth: 448, codeSize: 350, cardRadius: 28,[\r\n\s]*minCardHeight: 390, maxCardHeight: 410/)
+  assert.match(theme, /participantTopGap: 28, labelGap: 28/)
+  assert.match(theme, /metaGap: 58, metaGapFloor: 44/)
+  assert.match(theme, /valueGap: 42, valueGapFloor: 36/)
+  assert.match(theme, /topGap: 32, topGapFloor: 24/)
 })
 
 test('the workshop badge is authored on the official 1054:1493 grid and exported at 2x', async () => {
@@ -347,6 +351,39 @@ test('the workshop badge is authored on the official 1054:1493 grid and exported
   assert.equal(WORKSHOP_BADGE.canvasHeight, WORKSHOP_BADGE.height * WORKSHOP_BADGE.scale)
   assert.equal(WORKSHOP_BADGE.canvasWidth, 2108)
   assert.equal(WORKSHOP_BADGE.canvasHeight, 2986)
+})
+
+test('pass layout keeps the participant clear of its label and stabilises the scannable QR', async () => {
+  const { planWorkshopPass } = await import('../src/pages/workshops/workshopPassLayout.js')
+  const { WORKSHOP_BADGE: BADGE } = await import('../src/pages/workshops/workshopBadgeTheme.js')
+  const measure = (text, weight, size, spacing = 0) => String(text).length * 0.62 * size + (String(text).length - 1) * spacing
+  const names = ['Ali Benali', 'Mohammed Betkaoui', 'Slimane Benabdallah', 'Abdelkader Bouabdellah', 'Mohammed Amine Ben Abderrahmane']
+  const titles = ['Test', 'AI Workshop', 'Introduction to Artificial Intelligence', 'Modern Web Development & Artificial Intelligence']
+  for (const name of names) {
+    for (const title of titles) {
+      const plan = planWorkshopPass(measure, { title, name, location: 'FMI · Room 03' })
+      assert.ok(plan.name.capTop - plan.name.labelBaseline >= 20, `${name || title}: name overlaps PARTICIPANT label`)
+      assert.ok(plan.qr.cardBottom <= plan.name.labelCapTop - 24, `${name || title}: QR card collides with PARTICIPANT label`)
+      assert.ok(plan.name.lines.length <= 2, `${name}: name exceeds two lines`)
+      assert.ok(plan.title.lines.length <= 3, `${title}: title exceeds three lines`)
+      assert.ok(plan.qr.code >= 230, `${title}: QR code too small`)
+      assert.ok(plan.qr.code <= BADGE.qr.codeSize, `${title}: QR code above its design target`)
+      assert.ok(plan.meta.labelBaseline - plan.title.lastBaseline >= BADGE.meta.metaGapFloor, `${title}: meta gap too tight`)
+      assert.ok(plan.meta.valueBaseline - plan.meta.labelBaseline >= BADGE.meta.valueGapFloor, `${title}: value gap too tight`)
+    }
+  }
+  for (const name of ['Ali Benali', 'Mohammed Betkaoui', 'Slimane Benabdallah']) {
+    for (const title of ['Test', 'AI Workshop']) {
+      const plan = planWorkshopPass(measure, { title, name, location: 'FMI · Room 03' })
+      assert.equal(plan.name.lines.length, 1, `${name}: did not get the single-line preference`)
+      assert.equal(plan.qr.cardHeight, BADGE.qr.maxCardHeight, `${name || title}: card height not at nominal`)
+      assert.equal(plan.qr.code, BADGE.qr.codeSize, `${name || title}: QR size not stable`)
+      assert.ok(plan.qr.cardTop >= 620 && plan.qr.cardBottom <= 1070, `${name || title}: QR card outside the target band`)
+    }
+  }
+  const long = planWorkshopPass(measure, { title: 'Introduction to Artificial Intelligence', name: 'Ali Benali', location: 'FMI · Room 03' })
+  assert.equal(long.title.lines.length, 2)
+  assert.ok(long.qr.code >= 300, 'long title should still leave a large QR code')
 })
 
 
@@ -502,6 +539,29 @@ test('workshop badge identity is Infinity green for web and PNG without the viol
   assert.match(badgeCanvas, /new Path2D\(INFINITY_CLUB_PATH\)/)
   assert.match(badgeCanvas, /'MOHAMED EL BACHIR EL IBRAHIMI UNIVERSITY'/)
   assert.doesNotMatch(badgeCanvas, /#7657ff|#5b35f2|#8c55ff|#8d70ff|#9d85ff|#a78bfa|#8b5cf6|#7c3aed/i)
+})
+
+test('the web badge and the PNG share one layout planner and keep the QR payload untouched', async () => {
+  const [badge, component, styles] = await Promise.all([
+    read('src/pages/workshops/workshopBadge.js'),
+    read('src/pages/workshops/WorkshopPass.jsx'),
+    read('src/pages/workshops/workshopBadge.css'),
+  ])
+  assert.match(badge, /import \{ planWorkshopPass \} from '\.\/workshopPassLayout\.js'/)
+  assert.match(component, /import \{ planWorkshopPass \} from '\.\/workshopPassLayout\.js'/)
+  assert.doesNotMatch(component, /wrapLines|fitText|ResizeObserver/)
+  assert.match(badge, /planWorkshopPass\(measureOn\(context\)/)
+  assert.match(component, /planWorkshopPass\(measure, \{ title: eventTitle, name: participantName, location: eventLocation \}\)/)
+  assert.match(component, /value=\{pass\.qrPayload\}/)
+  assert.match(component, /size=\{420\}/)
+  assert.match(component, /level="M"/)
+  assert.match(component, /marginSize=\{2\}/)
+  assert.match(badge, /svgImage\(qrSvgElement, 720\)/)
+  assert.match(styles, /width: 42\.51cqw/)
+  assert.match(styles, /border-radius: 2\.66cqw/)
+  assert.match(styles, /box-shadow: 0 18px 42px rgba\(0, 42, 30, 0\.16\), 0 4px 12px rgba\(0, 42, 30, 0\.08\), inset 0 0 0 1px rgba\(0, 42, 30, 0\.07\)/)
+  assert.match(styles, /font-size: 1\.33cqw/)
+  assert.match(styles, /margin-top: 2\.66cqw/)
 })
 
 

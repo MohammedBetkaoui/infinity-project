@@ -11,9 +11,10 @@
   --pass-name-line: 6.82cqw;
   --pass-loc-size: 2.56cqw;
   --pass-loc-line: 3.17cqw;
-  --pass-meta-gap: 2.28cqw;
-  --pass-qr-code: 29.22cqw;
-  --pass-card-h: 36.43cqw;
+  --pass-meta-gap: 5.5cqw;
+  --pass-qr-gap: 3.04cqw;
+  --pass-qr-code: 33.21cqw;
+  --pass-card-h: 38.9cqw;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -110,7 +111,7 @@
   left: 75.7%;
   width: 22.8cqw;
   transform: none;
-  color: rgba(143, 217, 184, 0.05);
+  color: rgba(143, 217, 184, 0.04);
 }
 
 .workshop-pass__watermark svg {
@@ -159,7 +160,7 @@
 .workshop-pass__type::before,
 .workshop-pass__type::after {
   content: '';
-  width: 11.2cqw;
+  width: 12.52cqw;
   height: 0.19cqw;
   border-radius: 999px;
   background: rgba(143, 217, 184, 0.5);
@@ -194,7 +195,7 @@
   content: '';
   position: absolute;
   inset: 0.95cqw;
-  border: 0.19cqw solid rgba(216, 197, 138, 0.85);
+  border: 0.19cqw solid rgba(216, 197, 138, 0.7);
   border-radius: 3.42cqw;
   pointer-events: none;
 }
@@ -279,7 +280,7 @@
 
 .workshop-pass__fact-text {
   display: grid;
-  justify-items: start;
+  justify-items: center;
   min-width: 0;
 }
 
@@ -299,6 +300,7 @@
   line-height: calc(var(--pass-loc-line) / var(--pass-loc-size));
   font-weight: 700;
   letter-spacing: 0.04cqw;
+  text-align: center;
   color: #002A1E;
   overflow-wrap: break-word;
 }
@@ -318,13 +320,13 @@
 .workshop-pass__qr {
   display: grid;
   justify-items: center;
-  width: 35.29cqw;
+  width: 42.51cqw;
   height: var(--pass-card-h);
-  margin-top: 2.85cqw;
-  padding-top: 2.66cqw;
-  border-radius: 2.47cqw;
+  margin-top: var(--pass-qr-gap);
+  padding-top: 2.47cqw;
+  border-radius: 2.66cqw;
   background: #fff;
-  box-shadow: 0 14px 32px rgba(0, 42, 30, 0.15), inset 0 0 0 1px rgba(0, 42, 30, 0.06);
+  box-shadow: 0 18px 42px rgba(0, 42, 30, 0.16), 0 4px 12px rgba(0, 42, 30, 0.08), inset 0 0 0 1px rgba(0, 42, 30, 0.07);
 }
 
 .workshop-pass__qr-code {
@@ -338,8 +340,8 @@
 }
 
 .workshop-pass__scan {
-  margin-top: 2.1cqw;
-  font-size: 1.23cqw;
+  margin-top: 1.52cqw;
+  font-size: 1.33cqw;
   font-weight: 700;
   letter-spacing: 0.47cqw;
   text-indent: 0.47cqw;
@@ -351,11 +353,11 @@
   display: grid;
   justify-items: center;
   width: 100%;
-  margin-top: 2.28cqw;
+  margin-top: 2.66cqw;
 }
 
 .workshop-pass__participant h2 {
-  margin: 1.14cqw 0 0;
+  margin: 2.28cqw 0 0;
   font-size: var(--pass-name-size);
   line-height: calc(var(--pass-name-line) / var(--pass-name-size));
   font-weight: 800;
@@ -377,7 +379,7 @@
   display: block;
   width: 11.76cqw;
   height: auto;
-  margin-bottom: 4.2cqw;
+  margin-bottom: 2.3cqw;
   color: #8FD9B8;
 }
 
@@ -457,14 +459,16 @@
 @supports not (width: 1cqw) {
   .workshop-pass {
     border-radius: 30px;
-    --pass-title-size: 45px;
-    --pass-title-line: 49px;
-    --pass-name-size: 33px;
-    --pass-name-line: 38px;
-    --pass-loc-size: 14px;
+    --pass-title-size: 42px;
+    --pass-title-line: 46px;
+    --pass-name-size: 31px;
+    --pass-name-line: 36px;
+    --pass-loc-size: 13.5px;
     --pass-loc-line: 17px;
-    --pass-qr-code: 163px;
-    --pass-card-h: 203px;
+    --pass-meta-gap: 29px;
+    --pass-qr-gap: 16px;
+    --pass-qr-code: 175px;
+    --pass-card-h: 205px;
   }
 
   .workshop-pass__club { font-size: 23px; letter-spacing: 7px; text-indent: 7px; }
@@ -480,10 +484,11 @@
   .workshop-pass__chip { width: 21px; height: 21px; }
   .workshop-pass__chip svg { width: 10px; height: 10px; }
   .workshop-pass__separator { width: 1px; }
-  .workshop-pass__qr { width: 186px; border-radius: 13px; padding-top: 14px; }
-  .workshop-pass__scan { font-size: 6.5px; letter-spacing: 2.5px; }
-  .workshop-pass__participant h2 { letter-spacing: 0.5px; }
-  .workshop-pass__footer-mark svg { width: 62px; margin-bottom: 22px; }
+  .workshop-pass__qr { width: 224px; border-radius: 14px; padding-top: 13px; }
+  .workshop-pass__scan { font-size: 7px; letter-spacing: 2.5px; margin-top: 8px; }
+  .workshop-pass__participant { margin-top: 14px; }
+  .workshop-pass__participant h2 { letter-spacing: 0.5px; margin-top: 12px; }
+  .workshop-pass__footer-mark svg { width: 62px; margin-bottom: 12px; }
   .workshop-pass__slogan { font-size: 12.5px; letter-spacing: 5.5px; }
   .workshop-pass__slogan::before, .workshop-pass__slogan::after { width: 65px; height: 1px; }
   .workshop-pass__ribbon { height: 75px; }
