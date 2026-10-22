@@ -10,7 +10,7 @@ import {
   buildWorkshopQrPayload, deriveStableWorkshopToken, generateWorkshopToken, hashWorkshopToken,
   prepareStableWorkshopCredential, tokenFromWorkshopQrPayload,
 } from '../api/_lib/workshop-tokens.js'
-import { workshopBadgeFileName } from '../src/pages/workshops/workshopBadge.js'
+import { eventSchedule, workshopBadgeFileName } from '../src/pages/workshops/workshopBadge.js'
 import {
   normalizeParticipantName, validateScannerContextBody, validateWorkshopCheckInBody, validateWorkshopRegistrationBody,
 } from '../api/_lib/workshop-validation.js'
@@ -283,9 +283,10 @@ test('migration enforces cross-event integrity, row locks, lifecycle and explici
 })
 
 test('historical invitations, private routes and scanner sessionStorage are wired without localStorage', async () => {
-  const [app, eventsUi, hooks, register, scanner, vercel] = await Promise.all([
+  const [app, eventsUi, hooks, register, badgePass, scanner, vercel] = await Promise.all([
     read('src/App.jsx'), read('src/admin/EventsPages.jsx'), read('src/admin/useAdminEvents.js'),
-    read('src/pages/workshops/WorkshopRegistrationPage.jsx'), read('src/pages/workshops/WorkshopScannerPage.jsx'), read('vercel.json'),
+    read('src/pages/workshops/WorkshopRegistrationPage.jsx'), read('src/pages/workshops/WorkshopPass.jsx'),
+    read('src/pages/workshops/WorkshopScannerPage.jsx'), read('vercel.json'),
   ])
   assert.match(app, /path="\/workshops\/register"/)
   assert.match(app, /path="\/workshops\/scan"/)
@@ -296,9 +297,10 @@ test('historical invitations, private routes and scanner sessionStorage are wire
   assert.match(eventsUi, /Export invitations CSV/)
   assert.match(eventsUi, /Copy link/)
   assert.match(eventsUi, /Regenerate link/)
-  assert.match(register, /Download badge/)
+  assert.match(badgePass, /Download badge/)
+  assert.match(register, /sessionStorage/)
+  assert.doesNotMatch(register + badgePass + scanner, /localStorage/)
   assert.match(scanner, /sessionStorage/)
-  assert.doesNotMatch(register + scanner, /localStorage/)
   assert.match(scanner, /BarcodeDetector/)
   assert.match(scanner, /@zxing\/browser/)
   assert.match(vercel, /workshop-scanner-check-in/)
@@ -308,10 +310,23 @@ test('badge export has a safe PNG filename and complete high-resolution canvas c
   assert.equal(workshopBadgeFileName('Mohammed Bétkaoui'), 'Infinity-Workshop-Mohammed-Betkaoui.png')
   assert.equal(workshopBadgeFileName('../../=danger'), 'Infinity-Workshop-danger.png')
   const badge = await read('src/pages/workshops/workshopBadge.js')
-  assert.match(badge, /canvas\.width = 1800/)
-  assert.match(badge, /WORKSHOP PASS/)
-  assert.match(badge, /No Limits For Infiniters/)
+  assert.match(badge, /canvas\.width = 1200/)
+  assert.match(badge, /canvas\.height = 1700/)
+  assert.match(badge, /OFFICIAL WORKSHOP PASS/)
+  assert.match(badge, /NO LIMITS FOR INFINITERS/)
+  assert.match(badge, /SCAN AT CHECK-IN/)
   assert.match(badge, /drawImage\(qrImage/)
+  assert.match(badge, /new Path2D\(INFINITY_CLUB_PATH\)/)
+  assert.match(badge, /'#002A1E'/)
+  assert.match(badge, /'#094A36'/)
+  assert.match(badge, /'#F6F3EA'/)
+  assert.match(badge, /'Africa\/Algiers'/)
+})
+
+test('badge schedule renders Algiers time compactly for the pass', () => {
+  assert.equal(eventSchedule('2026-10-22T13:00:00.000Z'), '22 OCT 2026 · 14:00')
+  assert.equal(eventSchedule('2026-10-22T21:30:00.000Z'), '22 OCT 2026 · 22:30')
+  assert.equal(eventSchedule('not-a-date'), '')
 })
 
 test('internal Resend and workshop email-delivery code is removed', async () => {
@@ -413,6 +428,46 @@ test('scanner context SQL reports the lifecycle status without weakening the ong
   assert.match(base, /status = 'ongoing'\)\s*\n\s*then raise exception 'check_in_not_open'/)
   assert.match(base, /i\.invitation_status = 'registered'/)
   assert.match(base, /a\.attendance_status = 'present'/)
+})
+
+test('the true Infinity emblem geometry is shared verbatim between UI and canvas', async () => {
+  const [geometry, mark, badge] = await Promise.all([
+    read('src/components/infinity-club-geometry.js'),
+    read('src/components/InfinityClubMark.jsx'),
+    read('src/pages/workshops/workshopBadge.js'),
+  ])
+  assert.equal(geometry.match(/INFINITY_CLUB_PATH = '([^']+)'/)[1].slice(0, 30), 'M1073.12.57H698.9L0,649.94l668')
+  assert.match(mark, /import \{ INFINITY_CLUB_PATH, INFINITY_CLUB_VIEWBOX \} from '\.\/infinity-club-geometry\.js'/)
+  assert.match(badge, /import \{ INFINITY_CLUB_PATH, INFINITY_CLUB_VIEWBOX, INFINITY_CLUB_ASPECT \} from '\.\.\/\.\.\/components\/infinity-club-geometry\.js'/)
+})
+
+test('workshop badge identity is Infinity green for web and PNG without the violet palette', async () => {
+  const [passComponent, page, badgeStyles, badgeCanvas] = await Promise.all([
+    read('src/pages/workshops/WorkshopPass.jsx'),
+    read('src/pages/workshops/WorkshopRegistrationPage.jsx'),
+    read('src/pages/workshops/workshopBadge.css'),
+    read('src/pages/workshops/workshopBadge.js'),
+  ])
+  assert.match(page, /import WorkshopPass from '\.\/WorkshopPass\.jsx'/)
+  assert.match(passComponent, /InfinityClubMark/)
+  assert.match(passComponent, /value=\{pass\.qrPayload\}/)
+  assert.match(passComponent, /workshop-pass__header/)
+  assert.match(passComponent, /workshop-pass__panel/)
+  assert.match(passComponent, /workshop-pass__event/)
+  assert.match(passComponent, /workshop-pass__qr/)
+  assert.match(passComponent, /workshop-pass__participant/)
+  assert.match(passComponent, /workshop-pass__footer/)
+  assert.match(passComponent, /workshop-pass__watermark/)
+  assert.match(passComponent, /Scan at check-in/)
+  assert.doesNotMatch(passComponent, /<span>∞<\/span>/)
+  assert.match(badgeStyles, /min\(100%, 520px\)/)
+  assert.match(badgeStyles, /#002A1E/)
+  assert.match(badgeStyles, /#094A36/)
+  assert.match(badgeStyles, /#F6F3EA/)
+  assert.match(badgeStyles, /min-height: 50px/)
+  assert.doesNotMatch(badgeStyles, /#7657ff|#5b35f2|#8c55ff|#8d70ff|#9d85ff/i)
+  assert.match(badgeCanvas, /new Path2D\(INFINITY_CLUB_PATH\)/)
+  assert.match(badgeCanvas, /'MOHAMED EL BACHIR EL IBRAHIMI UNIVERSITY'/)
 })
 
 

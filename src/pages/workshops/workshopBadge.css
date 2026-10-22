@@ -1,22 +1,290 @@
+.workshop-pass {
+  --badge-ink: #002A1E;
+  --badge-green: #094A36;
+  --badge-cream: #F6F3EA;
+  --badge-mint: #8FD9B8;
+  --badge-mint-deep: #0E6A4C;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  width: min(100%, 520px);
+  margin: 22px auto 0;
+  border-radius: 26px;
+  background: #002A1E;
+  color: var(--badge-cream);
+  box-shadow: 0 30px 80px rgba(0, 42, 30, 0.5);
+  font-family: Inter, Arial, sans-serif;
+  text-align: center;
+}
+
+.workshop-pass__artwork {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 64% at 88% 0%, rgba(143, 217, 184, 0.16), transparent 58%),
+    radial-gradient(130% 64% at 8% 100%, rgba(143, 217, 184, 0.10), transparent 58%),
+    linear-gradient(156deg, #002A1E 6%, #094A36 60%, #04301F 108%);
+}
+
+.workshop-pass__ribbon {
+  position: absolute;
+  left: -16%;
+  width: 132%;
+  height: 150px;
+  border-radius: 999px;
+  transform: rotate(-21deg);
+  background: linear-gradient(90deg, transparent 4%, rgba(143, 217, 184, 0.15) 36%, rgba(246, 243, 234, 0.09) 64%, transparent 96%);
+  pointer-events: none;
+}
+
+.workshop-pass__ribbon--one {
+  top: 34px;
+}
+
+.workshop-pass__ribbon--two {
+  left: -24%;
+  width: 148%;
+  bottom: 58px;
+  transform: rotate(-19deg);
+  opacity: .85;
+}
+
+.workshop-pass__watermark {
+  position: absolute;
+  left: -52px;
+  bottom: -46px;
+  width: 340px;
+  height: auto;
+  color: rgba(246, 243, 234, 0.05);
+}
+
+.workshop-pass__header {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  padding: 32px 30px 22px;
+}
+
+.workshop-pass__emblem {
+  width: clamp(58px, 16vw, 76px);
+  height: auto;
+  color: var(--badge-cream);
+}
+
+.workshop-pass__club {
+  margin-top: 4px;
+  font-size: clamp(17px, 4.2vw, 21px);
+  font-weight: 800;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+}
+
+.workshop-pass__type {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .34em;
+  text-transform: uppercase;
+  color: var(--badge-mint);
+}
+
+.workshop-pass__university {
+  max-width: 420px;
+  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(143, 217, 184, 0.32);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: rgba(246, 243, 234, 0.64);
+}
+
+.workshop-pass__panel {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 16px;
+  margin: 4px 20px 20px;
+  padding: 22px 20px 26px;
+  border-radius: 18px;
+  background: var(--badge-cream);
+  color: var(--badge-ink);
+  box-shadow: 0 18px 44px rgba(1, 16, 11, 0.35);
+}
+
+.workshop-pass__event {
+  display: grid;
+  gap: 8px;
+}
+
+.workshop-pass__kicker {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .32em;
+  text-transform: uppercase;
+  color: var(--badge-mint-deep);
+}
+
+.workshop-pass__event h1 {
+  margin: 0;
+  font-size: clamp(20px, 5vw, 29px);
+  line-height: 1.14;
+  font-weight: 800;
+  color: var(--badge-ink);
+  overflow-wrap: break-word;
+}
+
+.workshop-pass__fact {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 7px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(0, 42, 30, 0.78);
+}
+
+.workshop-pass__fact svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  margin-top: 1.5px;
+  color: var(--badge-mint-deep);
+}
+
+.workshop-pass__fact span {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.workshop-pass__qr {
+  display: grid;
+  justify-items: center;
+  gap: 9px;
+  width: min(100%, 296px);
+  justify-self: center;
+  padding: 18px 16px 14px;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 14px 32px rgba(0, 42, 30, 0.16), inset 0 0 0 1px rgba(0, 42, 30, 0.06);
+}
+
+.workshop-pass__qr-code {
+  width: min(100%, 256px);
+}
+
+.workshop-pass__qr-code svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.workshop-pass__scan {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .3em;
+  text-transform: uppercase;
+  color: #2E6B55;
+}
+
+.workshop-pass__participant {
+  display: grid;
+  gap: 5px;
+  padding-top: 2px;
+}
+
+.workshop-pass__participant h2 {
+  margin: 0;
+  font-size: clamp(22px, 5.6vw, 32px);
+  line-height: 1.1;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--badge-ink);
+  overflow-wrap: break-word;
+}
+
+.workshop-pass__role {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .34em;
+  text-transform: uppercase;
+  color: var(--badge-mint-deep);
+}
+
+.workshop-pass__footer {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  padding: 18px 26px 24px;
+  color: var(--badge-cream);
+}
+
+.workshop-pass__footer svg {
+  width: 30px;
+  height: auto;
+  color: var(--badge-mint);
+}
+
+.workshop-pass__slogan {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: .32em;
+  text-transform: uppercase;
+  color: rgba(246, 243, 234, 0.94);
+}
+
 .workshop-pass-download {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 9px;
+  gap: 10px;
+  min-height: 50px;
   width: min(100%, 320px);
-  margin: 18px auto 0;
-  border: 1px solid #ffffff2e;
-  border-radius: 13px;
-  background: #7657ff;
-  color: #fff;
-  padding: 14px 20px;
+  margin: 20px auto 0;
+  padding: 14px 22px;
+  border: 0;
+  border-radius: 15px;
+  background: #F6F3EA;
+  color: #002A1E;
   font: 800 15px Inter, Arial, sans-serif;
+  letter-spacing: .02em;
   cursor: pointer;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
+  transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
+}
+
+.workshop-pass-download:hover {
+  transform: translateY(-1px);
+  background: #fff;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.4);
+}
+
+.workshop-pass-download:active {
+  transform: translateY(0);
+}
+
+.workshop-pass-download:focus-visible {
+  outline: 2px solid #8FD9B8;
+  outline-offset: 3px;
 }
 
 .workshop-pass-download:disabled {
-  opacity: .6;
-  cursor: wait;
+  opacity: .65;
+  cursor: progress;
+  transform: none;
+}
+
+.workshop-pass-download svg {
+  flex: 0 0 auto;
 }
 
 .workshop-pass-download-error {
@@ -24,4 +292,19 @@
   color: #ffb1be;
   text-align: center;
   font-size: 13px;
+}
+
+@media (max-width: 400px) {
+  .workshop-pass__header {
+    padding: 26px 18px 18px;
+  }
+
+  .workshop-pass__panel {
+    margin: 2px 14px 14px;
+    padding: 20px 14px 22px;
+  }
+
+  .workshop-pass__university {
+    max-width: 100%;
+  }
 }

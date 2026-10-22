@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
-import { CalendarDays, CheckCircle2, Download, MapPin, UserRound } from 'lucide-react'
-import { QRCodeSVG } from 'qrcode.react'
-import { downloadWorkshopBadgePng } from './workshopBadge.js'
+import { useEffect, useState } from 'react'
+import { CheckCircle2, CalendarDays, MapPin, UserRound } from 'lucide-react'
+import InfinityClubMark from '../../components/InfinityClubMark.jsx'
+import WorkshopPass from './WorkshopPass.jsx'
 import './workshop.css'
 import './workshopBadge.css'
 
@@ -12,29 +12,6 @@ const api = async (path, body) => {
   return { response, payload }
 }
 const schedule = (value) => new Intl.DateTimeFormat('en-GB', { dateStyle: 'full', timeStyle: 'short', timeZone: 'Africa/Algiers' }).format(new Date(value))
-
-function WorkshopPass({ pass }) {
-  const qrRef = useRef(null)
-  const [downloading, setDownloading] = useState(false)
-  const [downloadError, setDownloadError] = useState('')
-  const download = async () => {
-    if (downloading) return
-    setDownloading(true)
-    setDownloadError('')
-    try { await downloadWorkshopBadgePng(pass, qrRef.current?.querySelector('svg')) }
-    catch { setDownloadError('The badge could not be downloaded. Please try again.') }
-    finally { setDownloading(false) }
-  }
-  return <><article className="workshop-pass" aria-label="Infinity Club digital workshop pass">
-    <div className="workshop-pass__brand"><span>∞</span><div><b>Infinity Club</b><small>WORKSHOP PASS</small></div></div>
-    <div className="workshop-pass__body">
-      <div><p className="workshop-kicker">Admit one participant</p><h1>{pass.event.title}</h1><h2>{pass.participantName}</h2><p className="workshop-role">Participant</p></div>
-      <div className="workshop-pass__qr" ref={qrRef}><QRCodeSVG value={pass.qrPayload} size={220} level="M" marginSize={2}/><small>Present this code at check-in</small></div>
-    </div>
-    <dl className="workshop-pass__facts"><div><dt>Date</dt><dd>{schedule(pass.event.startsAt)}</dd></div><div><dt>Location</dt><dd>{pass.event.location}</dd></div></dl>
-    <footer>No Limits For Infiniters</footer>
-  </article><button className="workshop-pass-download" type="button" disabled={downloading} onClick={download}><Download size={18}/>{downloading ? 'Preparing badge…' : 'Download badge'}</button>{downloadError && <p className="workshop-pass-download-error" role="alert">{downloadError}</p>}</>
-}
 
 export default function WorkshopRegistrationPage() {
   const [state, setState] = useState({ loading: true, error: '', invitation: null, event: null, pass: null })
@@ -86,7 +63,7 @@ export default function WorkshopRegistrationPage() {
         : state.error ? <div className="workshop-private-state is-error"><span>∞</span><h1>Invitation unavailable</h1><p>{state.error}</p><small>Please contact Infinity Club if you believe this is a mistake.</small></div>
         : state.pass ? <><div className="workshop-success"><CheckCircle2/><p>Your registration is confirmed. Keep this personal pass ready on your phone.</p></div><WorkshopPass pass={state.pass}/></>
         : <section className="workshop-registration-card">
-          <header><span className="workshop-mark">∞</span><p className="workshop-kicker">Infinity Club · Private invitation</p><h1>{state.event.title}</h1></header>
+          <header><InfinityClubMark className="workshop-mark"/><p className="workshop-kicker">Infinity Club · Private invitation</p><h1>{state.event.title}</h1></header>
           <div className="workshop-event-facts"><p><CalendarDays/>{schedule(state.event.startsAt)}</p><p><MapPin/>{state.event.location}</p><p><UserRound/>{state.event.speaker}</p></div>
           <form onSubmit={submit}><div className="workshop-name-grid"><label><span>First name *</span><input autoComplete="given-name" maxLength={80} required value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })}/></label><label><span>Last name *</span><input autoComplete="family-name" maxLength={80} required value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })}/></label></div><button disabled={submitting}>{submitting ? 'Creating your pass…' : 'Confirm registration'}</button></form>
           <p className="workshop-privacy">Your workshop and membership are fixed by this private invitation. No member or event identifier is exposed.</p>
@@ -94,4 +71,3 @@ export default function WorkshopRegistrationPage() {
     </div>
   </main>
 }
-

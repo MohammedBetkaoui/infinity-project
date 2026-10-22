@@ -6,11 +6,14 @@ const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8')
 
 test('the home loader draws the club emblem of public/infinity-favicon.svg', async () => {
   const favicon = await read('public/infinity-favicon.svg')
+  const geometry = await read('src/components/infinity-club-geometry.js')
   const mark = await read('src/components/InfinityClubMark.jsx')
   const loader = await read('src/components/HomeLoader.jsx')
 
-  assert.equal(mark.match(/INFINITY_CLUB_PATH = '([^']+)'/)[1], favicon.match(/ d="([^"]+)"/)[1])
-  assert.equal(mark.match(/INFINITY_CLUB_VIEWBOX = '([^']+)'/)[1], favicon.match(/viewBox="([^"]+)"/)[1])
+  assert.equal(geometry.match(/INFINITY_CLUB_PATH = '([^']+)'/)[1], favicon.match(/ d="([^"]+)"/)[1])
+  assert.equal(geometry.match(/INFINITY_CLUB_VIEWBOX = '([^']+)'/)[1], favicon.match(/viewBox="([^"]+)"/)[1])
+  assert.match(mark, /infinity-club-geometry\.js/)
+  assert.match(mark, /export \{ INFINITY_CLUB_PATH, INFINITY_CLUB_VIEWBOX \}/)
   assert.match(loader, /d=\{INFINITY_CLUB_PATH\}/)
 })
 
