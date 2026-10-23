@@ -2546,6 +2546,19 @@
 .adm-app.is-aivex-ar .adm-sidebar.is-collapsed nav a.is-active::before { right: -12px; left: auto; }
 .adm-app.is-aivex-ar .adm-drawer { right: auto; left: 0; border-right: 1px solid var(--adm-line); border-left: 0; }
 
+/* In dark mode the global inverse roles intentionally describe light
+   content blocks. The navigation rail itself is dark, so it needs the
+   regular light text and accent roles locally to preserve contrast. */
+.adm-admin-root[data-theme="dark"] .adm-sidebar {
+  --adm-inverse-fg-rgb: var(--adm-ink-rgb);
+  --adm-inverse-fg: rgb(var(--adm-ink-rgb));
+  --adm-inverse-muted: rgb(var(--adm-secondary-rgb));
+  --adm-inverse-accent-rgb: var(--adm-accent-rgb);
+  --adm-inverse-accent: rgb(var(--adm-accent-rgb));
+  --adm-inverse-on: var(--adm-deep);
+  background: var(--adm-surface);
+}
+
 @media (max-width: 767px) {
   .adm-sidebar { top: 0; bottom: 0; left: 0; width: min(312px, calc(100vw - 36px)); padding: 18px 12px 12px; border-radius: 0 10px 10px 0; }
   .adm-sidebar .adm-brand { padding-bottom: 15px; }
