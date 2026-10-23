@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Infinity administration — soft UI
+   Infinity administration — institutional workspace
    Two layers of custom properties:
    · Palette — named colours as RGB triplets, so every tint stays on-token
      (rgb(var(--adm-accent-rgb) / .1)). Accent blocks re-tint the ramp.
@@ -26,7 +26,7 @@
   --adm-paper-rgb: 250 249 245;
   --adm-surface-rgb: 255 255 255;
   --adm-white-rgb: 255 255 255;
-  --adm-canvas: #eef2ef;
+  --adm-canvas: #f3f5f3;
   --adm-chart-2: #2f7a5c;
   --adm-chart-3: #5f9b82;
 
@@ -68,16 +68,16 @@
   --adm-viewer-edge: #afa99e;
 
   /* Shape, depth and type */
-  --adm-radius-card: 20px;
-  --adm-radius-control: 12px;
+  --adm-radius-card: 12px;
+  --adm-radius-control: 8px;
   --adm-radius-pill: 999px;
-  --adm-radius-panel: 24px;
+  --adm-radius-panel: 14px;
   --adm-font-sans: Manrope, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --adm-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
   --adm-font-brand: Rajdhani, Manrope, sans-serif;
   --adm-ease: cubic-bezier(.22, .8, .24, 1);
-  --adm-sidebar: 260px;
-  --adm-topbar: 72px;
+  --adm-sidebar: 248px;
+  --adm-topbar: 68px;
 }
 
 :root, .adm-admin-root, .adm-login, .adm-auth-loading {
@@ -158,10 +158,10 @@
   /* Depth */
   --adm-shadow-rgb: var(--adm-ink-rgb);
   --adm-scrim: rgb(var(--adm-shadow-rgb) / .38);
-  --adm-shadow: 0 14px 36px rgb(var(--adm-shadow-rgb) / .08);
-  --adm-shadow-card: 0 1px 2px rgb(var(--adm-shadow-rgb) / .04), 0 12px 32px -16px rgb(var(--adm-shadow-rgb) / .16);
-  --adm-shadow-pop: 0 0 0 1px var(--adm-hairline), 0 2px 6px rgb(var(--adm-shadow-rgb) / .06), 0 32px 80px -24px rgb(var(--adm-shadow-rgb) / .42);
-  --adm-shadow-lift: 0 0 0 1px var(--adm-hairline), 0 2px 4px rgb(var(--adm-shadow-rgb) / .06), 0 28px 56px -18px rgb(var(--adm-shadow-rgb) / .36);
+  --adm-shadow: 0 8px 22px rgb(var(--adm-shadow-rgb) / .06);
+  --adm-shadow-card: 0 1px 2px rgb(var(--adm-shadow-rgb) / .04);
+  --adm-shadow-pop: 0 14px 36px rgb(var(--adm-shadow-rgb) / .18);
+  --adm-shadow-lift: 0 8px 20px rgb(var(--adm-shadow-rgb) / .1);
 }
 
 .adm-app, .adm-app *, .adm-app *::before, .adm-app *::after { box-sizing: border-box; }
@@ -2300,3 +2300,262 @@
   .adm-notification.is-pulsing::after { animation: none; }
 }
 .adm-reduced-motion .adm-notification.is-pulsing::after { animation: none; }
+
+/* Institutional dashboard system -----------------------------------------
+   The shared shell deliberately avoids a "floating product" look: the
+   navigation becomes a stable service rail, while content remains quiet,
+   legible and suitable for operational work. */
+.adm-app { background: var(--adm-canvas); }
+
+.adm-sidebar {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  padding: 22px 14px 14px;
+  color: var(--adm-inverse-fg);
+  background: var(--adm-deep);
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.adm-sidebar .adm-brand { padding: 0 6px 18px; border-bottom-color: rgb(var(--adm-inverse-fg-rgb) / .15); }
+.adm-sidebar .adm-brand__mark {
+  width: 38px;
+  height: 38px;
+  flex-basis: 38px;
+  color: var(--adm-inverse-fg);
+  background: transparent;
+  border-color: rgb(var(--adm-inverse-fg-rgb) / .26);
+  border-radius: 8px;
+  box-shadow: none;
+}
+.adm-sidebar .adm-brand__mark svg { width: 24px; }
+.adm-sidebar .adm-brand__copy strong { color: var(--adm-inverse-fg); font-size: 18px; }
+.adm-sidebar .adm-brand__copy span,
+.adm-sidebar .adm-nav-group__label,
+.adm-sidebar nav a,
+.adm-sidebar .adm-signout,
+.adm-sidebar .adm-collapse { color: var(--adm-inverse-muted); }
+.adm-sidebar__campaign {
+  margin: 14px 0 10px;
+  padding: 10px 12px;
+  background: rgb(var(--adm-inverse-fg-rgb) / .055);
+  border-color: rgb(var(--adm-inverse-fg-rgb) / .14);
+  border-radius: 8px;
+}
+.adm-sidebar__campaign span,
+.adm-sidebar__campaign small { color: var(--adm-inverse-muted); }
+.adm-sidebar__campaign b { color: var(--adm-inverse-fg); }
+.adm-sidebar__campaign i { box-shadow: 0 0 0 3px rgb(var(--adm-success-rgb) / .14); }
+.adm-sidebar nav { gap: 3px; }
+.adm-nav-group + .adm-nav-group { margin-top: 14px; }
+.adm-sidebar .adm-nav-group__label { min-height: 26px; padding-inline: 10px; font-size: 9px; letter-spacing: .14em; }
+.adm-sidebar nav a {
+  min-height: 44px;
+  gap: 8px;
+  padding-inline: 8px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+.adm-sidebar nav a:hover {
+  color: var(--adm-inverse-fg);
+  background: rgb(var(--adm-inverse-fg-rgb) / .07);
+  border-color: transparent;
+  transform: none;
+}
+.adm-sidebar nav a.is-active {
+  color: var(--adm-inverse-fg);
+  background: rgb(var(--adm-inverse-accent-rgb) / .2);
+  border-color: rgb(var(--adm-inverse-accent-rgb) / .18);
+}
+.adm-nav-icon {
+  width: 30px;
+  height: 30px;
+  color: var(--adm-inverse-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+}
+.adm-sidebar nav a.is-active .adm-nav-icon {
+  color: var(--adm-inverse-fg);
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+.adm-sidebar nav a.is-aivex.is-active .adm-nav-icon { color: var(--adm-inverse-fg); background: transparent; border-color: transparent; }
+.adm-sidebar nav a.is-active::before {
+  left: -14px;
+  width: 3px;
+  height: 22px;
+  background: var(--adm-inverse-accent);
+  border-radius: 0;
+}
+.adm-sidebar nav a.is-aivex.is-active::before { background: var(--adm-amber); }
+.adm-sidebar nav em {
+  min-width: 21px;
+  height: 19px;
+  padding-inline: 5px;
+  color: var(--adm-inverse-on);
+  background: var(--adm-inverse-accent);
+  border-radius: 5px;
+  font-size: 10px;
+}
+.adm-sidebar nav a.is-aivex em { color: var(--adm-on-amber); }
+.adm-sidebar__foot { padding-top: 14px; border-top-color: rgb(var(--adm-inverse-fg-rgb) / .14); }
+.adm-admin-profile {
+  min-height: 56px;
+  color: var(--adm-inverse-fg);
+  background: rgb(var(--adm-inverse-fg-rgb) / .055);
+  border-color: rgb(var(--adm-inverse-fg-rgb) / .14) !important;
+  border-radius: 8px;
+}
+.adm-admin-profile:hover { background: rgb(var(--adm-inverse-fg-rgb) / .1); border-color: rgb(var(--adm-inverse-fg-rgb) / .24) !important; }
+.adm-admin-profile small,
+.adm-admin-profile em,
+.adm-admin-profile > svg { color: var(--adm-inverse-muted); }
+.adm-signout, .adm-collapse { min-height: 40px; padding-inline: 10px; border-radius: 6px; }
+.adm-signout:hover, .adm-collapse:hover { color: var(--adm-inverse-fg); background: rgb(var(--adm-inverse-fg-rgb) / .07); }
+.adm-signout:hover { color: #ffd4cc; }
+.adm-sidebar.is-collapsed { padding-inline: 12px; }
+.adm-sidebar.is-collapsed .adm-nav-group + .adm-nav-group { border-top-color: rgb(var(--adm-inverse-fg-rgb) / .14); }
+.adm-sidebar.is-collapsed nav a.is-active { background: rgb(var(--adm-inverse-accent-rgb) / .2); }
+.adm-sidebar.is-collapsed nav a.is-active::before { left: -12px; }
+.adm-sidebar.is-collapsed nav em { box-shadow: 0 0 0 2px var(--adm-deep); }
+
+.adm-workspace {
+  min-height: 100vh;
+  margin: 0 0 0 var(--adm-sidebar);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.adm-app.is-sidebar-collapsed .adm-workspace { margin-left: 76px; }
+.adm-app.adm-aivex-standalone .adm-workspace { margin: 0; }
+.adm-topbar {
+  min-height: var(--adm-topbar);
+  padding: 10px 32px;
+  background: var(--adm-surface-raised);
+  border-bottom: 1px solid var(--adm-line);
+  border-radius: 0;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.adm-topbar.is-stuck { border-color: var(--adm-line-strong); border-radius: 0; box-shadow: 0 2px 8px rgb(var(--adm-shadow-rgb) / .06); }
+.adm-topbar__right { gap: 4px; padding: 3px; background: transparent; border-color: transparent; border-radius: 8px; }
+.adm-main { padding: 26px 32px 40px; }
+.adm-page { width: min(100%, 1600px); }
+.adm-global-footer { margin: 0 32px; padding: 18px 0 22px; }
+
+.adm-aivex-accessbar {
+  padding: 12px 32px;
+  background: var(--adm-surface-raised);
+  border-bottom: 1px solid var(--adm-line);
+  border-radius: 0;
+  backdrop-filter: none;
+}
+.adm-aivex-accessbar.is-stuck { border-radius: 0; box-shadow: 0 2px 8px rgb(var(--adm-shadow-rgb) / .06); }
+.adm-aivex-accessbar__mark { width: 38px; height: 38px; flex-basis: 38px; background: var(--adm-deep); border-radius: 8px; box-shadow: none; }
+.adm-aivex-accessbar__mark svg { width: 24px; }
+
+.adm-page-header {
+  align-items: flex-start;
+  margin-bottom: 22px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--adm-line);
+}
+.adm-page-header h1 { letter-spacing: -.025em; }
+.adm-page-header__eyebrow { letter-spacing: .12em; }
+.adm-page-actions { align-self: center; }
+.adm-button {
+  min-height: 40px;
+  padding-inline: 14px;
+  border-radius: 7px;
+  box-shadow: none;
+  letter-spacing: .005em;
+}
+.adm-button--primary { box-shadow: none; }
+.adm-button--primary:hover { box-shadow: 0 3px 8px rgb(var(--adm-accent-rgb) / .18); }
+.adm-icon-button { border-radius: 7px; }
+.adm-status { border-radius: 5px; }
+.adm-chips,
+.adm-view-toggle { border-radius: 8px; }
+.adm-chips button,
+.adm-filter-chips button,
+.adm-view-toggle button,
+.adm-save-note,
+.adm-bulk,
+.adm-bulk button { border-radius: 6px; }
+.adm-search,
+.adm-filter-select select,
+.adm-form-field :is(input, select, textarea),
+.adm-detail-section textarea { border-radius: 7px; }
+
+.adm-panel,
+.adm-work-panel,
+.adm-people-summary article,
+.adm-kpi,
+.adm-person-card,
+.adm-case-card,
+.adm-case-overview,
+.adm-attendance-toolbar,
+.adm-attendance-team,
+.adm-aivex-metrics article {
+  border-radius: var(--adm-radius-card);
+  box-shadow: none;
+}
+.adm-panel,
+.adm-work-panel,
+.adm-people-summary article,
+.adm-kpi,
+.adm-person-card,
+.adm-case-card,
+.adm-case-overview,
+.adm-attendance-toolbar,
+.adm-attendance-team,
+.adm-aivex-metrics article { border-color: var(--adm-line); }
+.adm-people-summary article,
+.adm-kpi,
+.adm-aivex-metrics article { border-top: 3px solid var(--adm-accent-fg); }
+.adm-kpi.is-hero { border-top-color: var(--adm-inverse-accent); box-shadow: none; }
+.adm-panel__head,
+.adm-work-panel__head { padding-bottom: 14px; border-bottom: 1px solid var(--adm-line); }
+
+.adm-table-wrap { border: 1px solid var(--adm-line); border-radius: 8px; }
+.adm-table th { height: 42px; background: var(--adm-surface-soft); border-bottom-color: var(--adm-line-strong); font-size: 10px; letter-spacing: .075em; }
+.adm-table td { height: 64px; border-bottom-color: var(--adm-line); }
+.adm-table tbody tr:hover,
+.adm-table tbody tr.is-selected { background: rgb(var(--adm-accent-rgb) / .04); }
+.adm-table-wrap.is-card-view { border: 0; border-radius: 0; }
+.adm-table-wrap.is-card-view .adm-table tr { border: 1px solid var(--adm-line); border-radius: 8px; box-shadow: none; }
+.adm-table-wrap.is-card-view .adm-row-action button { border-radius: 6px; }
+.adm-row-action button,
+.adm-pagination > div > button:not(.adm-icon-button) { border-radius: 6px; }
+
+.adm-drawer { top: 0; right: 0; bottom: 0; border: 0; border-left: 1px solid var(--adm-line); border-radius: 0; }
+.adm-modal { border-radius: 12px; box-shadow: var(--adm-shadow-pop); }
+.adm-drawer-scrim, .adm-modal-backdrop { backdrop-filter: blur(3px); }
+.adm-notification-row__icon,
+.adm-notification-row__archive { border-radius: 7px; }
+.adm-notification-row.is-unread { box-shadow: inset 3px 0 var(--adm-accent-fg); }
+
+.adm-app.is-aivex-ar .adm-sidebar { right: 0; left: auto; }
+.adm-app.is-aivex-ar .adm-workspace { margin-right: var(--adm-sidebar); margin-left: 0; }
+.adm-app.is-aivex-ar.is-sidebar-collapsed .adm-workspace { margin-right: 76px; margin-left: 0; }
+.adm-app.is-aivex-ar .adm-sidebar nav a.is-active::before { right: -14px; left: auto; }
+.adm-app.is-aivex-ar .adm-sidebar.is-collapsed nav a.is-active::before { right: -12px; left: auto; }
+.adm-app.is-aivex-ar .adm-drawer { right: auto; left: 0; border-right: 1px solid var(--adm-line); border-left: 0; }
+
+@media (max-width: 767px) {
+  .adm-sidebar { top: 0; bottom: 0; left: 0; width: min(312px, calc(100vw - 36px)); padding: 18px 12px 12px; border-radius: 0 10px 10px 0; }
+  .adm-sidebar .adm-brand { padding-bottom: 15px; }
+  .adm-workspace,
+  .adm-app.is-sidebar-collapsed .adm-workspace,
+  .adm-app.is-aivex-ar .adm-workspace,
+  .adm-app.is-aivex-ar.is-sidebar-collapsed .adm-workspace { margin: 0; }
+  .adm-topbar, .adm-aivex-accessbar { min-height: 62px; padding-inline: 14px; }
+  .adm-main { padding: 20px 14px 32px; }
+  .adm-global-footer { margin-inline: 14px; }
+  .adm-page-header { margin-bottom: 18px; padding-bottom: 13px; }
+  .adm-app.is-aivex-ar .adm-sidebar { right: 0; left: auto; border-radius: 10px 0 0 10px; }
+}

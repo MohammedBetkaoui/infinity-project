@@ -242,3 +242,38 @@
 @media (prefers-reduced-motion: reduce) {
   .adm-case-card, .adm-case-queues button { transition: none; }
 }
+
+/* Keep the AIVEX operational views aligned with the dashboard's restrained
+   institutional system rather than treating them as a separate product. */
+.adm-aivex-workspaces {
+  padding: 4px;
+  border-color: var(--adm-line);
+  border-radius: 8px;
+  box-shadow: none;
+}
+.adm-aivex-workspaces button { min-height: 52px; border-radius: 6px; }
+.adm-aivex-workspaces button.is-active {
+  color: var(--adm-inverse-fg);
+  background: var(--adm-deep);
+  box-shadow: none;
+}
+.adm-aivex-workspaces button.is-active small { color: var(--adm-inverse-muted); }
+.adm-aivex-metrics__icon { border-radius: 7px; }
+.adm-app .adm-case-queues button {
+  border-color: var(--adm-line);
+  border-top: 3px solid var(--adm-accent-fg);
+  border-radius: 8px;
+  box-shadow: none;
+}
+.adm-app .adm-case-queues button.is-active {
+  color: var(--adm-inverse-muted);
+  background: var(--adm-deep);
+  border-color: var(--adm-deep);
+  border-top-color: var(--adm-inverse-accent);
+}
+.adm-case-card:hover { box-shadow: none; transform: none; }
+.adm-case-card__next,
+.adm-case-remaining,
+.adm-app .adm-case-card > footer button { border-radius: 6px; }
+.adm-app .adm-case-card > footer button svg { border-radius: 5px; }
+.adm-case-checks__number { border-radius: 6px; }
