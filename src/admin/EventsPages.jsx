@@ -1,5 +1,8 @@
 import { useDeferredValue, useMemo, useState } from 'react'
-import { ArrowLeft, Copy, Download, Plus, RefreshCw, TriangleAlert } from 'lucide-react'
+import {
+  ArrowLeft, CalendarDays, CheckCircle2, Copy, Download, MapPin,
+  Plus, RefreshCw, TriangleAlert, UserRound, UsersRound,
+} from 'lucide-react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useAdmin } from './AdminStore'
 import { RecordTable, RecordToolbar, SummaryStrip, Facts, History } from './AdminRecords'
@@ -26,12 +29,39 @@ const SCHEDULE_FIELDS = [
   { name: 'description', label: 'Description', type: 'textarea', placeholder: 'What members will learn and do...' },
 ]
 
+const initialsFor = (name = '') => name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'EV'
+
 const EventCell = ({ record }) => (
   <div className="adm-event-cell">
-    <b>{record.title}</b>
-    <small>{record.location}</small>
+    <span className={`adm-event-cell__mark is-${record.statusKey}`}><CalendarDays size={17}/></span>
+    <span className="adm-event-cell__copy">
+      <b>{record.title}</b>
+      <small><MapPin size={12}/>{record.location}</small>
+    </span>
   </div>
 )
+
+const EventScheduleCell = ({ record }) => (
+  <div className="adm-event-schedule-cell">
+    <b>{formatEventSchedule(record.startsAt, record.endsAt)}</b>
+    <span>{record.typeLabel}</span>
+  </div>
+)
+
+const EventLeadCell = ({ record }) => (
+  <div className="adm-event-lead-cell">
+    <Avatar initials={initialsFor(record.speaker)} small/>
+    <span>{record.speaker || 'Not assigned'}</span>
+  </div>
+)
+
+const EventParticipationCell = ({ record }) => {
+  const rate = record.attendanceCount ? record.attendanceRate : 0
+  return <div className="adm-event-participation">
+    <div><b>{record.presentCount}</b><span>present</span><small>{record.registeredCount} registered · {record.invitedCount} invited</small></div>
+    <span className="adm-event-participation__track" role="progressbar" aria-label={`Attendance: ${rate}%`} aria-valuemin="0" aria-valuemax="100" aria-valuenow={rate}><i style={{ width: `${rate}%` }}/></span>
+  </div>
+}
 
 function EventsSkeleton() {
   return <div className="adm-skeleton-group" role="status" aria-label="Loading events">
@@ -148,17 +178,11 @@ export default function EventsListPage() {
     { key: 'type', label: 'Event type', options: EVENT_TYPE_FILTERS.map(({ value }) => value).filter(Boolean) },
     { key: 'status', label: 'Event status', options: EVENT_STATUS_FILTERS.map(({ value }) => value).filter(Boolean) },
   ], [])
-  const quickDefinitions = useMemo(() => [
-    { key: 'type', label: 'Event type', shortLabel: 'Type', allLabel: 'All types', options: EVENT_TYPE_FILTERS.map(({ value }) => value).filter(Boolean) },
-  ], [])
   const columns = useMemo(() => [
     { key: 'title', label: 'Event', render: (record) => <EventCell record={record}/> },
-    { key: 'type', label: 'Type', render: (record) => record.typeLabel },
-    { key: 'starts', label: 'Date', render: (record) => formatEventSchedule(record.startsAt, record.endsAt) },
-    { key: 'speaker', label: 'Facilitator / Lead' },
-    { key: 'location', label: 'Location' },
-    { key: 'invited', label: 'Invited', render: (record) => record.invitedCount ? <span className="adm-project-count">{record.invitedCount}</span> : '—' },
-    { key: 'present', label: 'Present', secondary: true, render: (record) => record.attendanceCount ? <span className="adm-project-count">{record.presentCount}</span> : '—' },
+    { key: 'starts', label: 'Schedule', render: (record) => <EventScheduleCell record={record}/> },
+    { key: 'speaker', label: 'Facilitator / Lead', render: (record) => <EventLeadCell record={record}/> },
+    { key: 'present', label: 'Participation', render: (record) => <EventParticipationCell record={record}/> },
     { key: 'status', label: 'Status', render: (record) => <StatusBadge>{record.status}</StatusBadge> },
   ], [])
   const openEvent = (record) => navigate(`/admin/events/${encodeURIComponent(record.id)}`)
@@ -174,6 +198,10 @@ export default function EventsListPage() {
       </>}/>
     <SummaryStrip items={summary.map(({ key, label, value }) => ({ value, label, ...(key === 'total' ? { meta: 'Live events core' } : {}) }))}/>
     <div className="adm-work-panel">
+      <div className="adm-events-panel-head">
+        <div><span>Event workspace</span><h2>Calendar & operations</h2></div>
+        <p className={loading ? 'is-loading' : ''}><i/>{loading ? 'Updating events…' : `${pagination.total} event${pagination.total === 1 ? '' : 's'} in view`}</p>
+      </div>
       <RecordToolbar
         search={search}
         onSearch={(value) => { setSearch(value); setPage(1) }}
@@ -181,12 +209,13 @@ export default function EventsListPage() {
         filters={filters}
         onFilters={(value) => { setFilters(value); setPage(1) }}
         definitions={filterDefinitions}
-        quickDefinitions={quickDefinitions}
         resultCount={pagination.total}
         filterLabel="All filters"
         getOptionLabel={(value) => value === 'upcoming' ? 'Upcoming' : value === 'other' ? 'Other (remaining types)' : EVENT_TYPE_LABELS[value] || value}/>
-      <div className="adm-chip-row"><ChipGroup label="Filter events by type" options={EVENT_TYPE_FILTERS} value={filters.type || ''} onChange={(value) => { setFilters({ ...filters, type: value }); setPage(1) }}/></div>
-      <div className="adm-chip-row"><ChipGroup label="Filter events by status" options={EVENT_STATUS_FILTERS} value={filters.status || ''} onChange={(value) => { setFilters({ ...filters, status: value }); setPage(1) }}/></div>
+      <div className="adm-events-filter-rail">
+        <div><span>Type</span><ChipGroup label="Filter events by type" options={EVENT_TYPE_FILTERS} value={filters.type || ''} onChange={(value) => { setFilters({ ...filters, type: value }); setPage(1) }}/></div>
+        <div><span>Status</span><ChipGroup label="Filter events by status" options={EVENT_STATUS_FILTERS} value={filters.status || ''} onChange={(value) => { setFilters({ ...filters, status: value }); setPage(1) }}/></div>
+      </div>
       {error ? <div className="adm-state-error" role="alert"><TriangleAlert size={24}/><h3>Events could not be loaded</h3><p>{error}</p><Button onClick={refresh} variant="secondary">Try again</Button></div>
         : loading && !events.length ? <EventsSkeleton/>
         : <RecordTable
@@ -212,6 +241,21 @@ export default function EventsListPage() {
 
 const TABS = Object.freeze(['Overview', 'Invitations', 'Organizers', 'Attendance'])
 
+function EventCommandBar({ event }) {
+  const attendanceRate = event.attendanceCount ? event.attendanceRate : 0
+  return <section className="adm-event-command" aria-label="Event at a glance">
+    <div className="adm-event-command__facts">
+      <article><span><CalendarDays size={17}/></span><div><small>Schedule</small><b>{formatEventSchedule(event.startsAt, event.endsAt)}</b></div></article>
+      <article><span><MapPin size={17}/></span><div><small>Location</small><b>{event.location}</b></div></article>
+      <article><span><UserRound size={17}/></span><div><small>Facilitator / Lead</small><b>{event.speaker}</b></div></article>
+    </div>
+    <div className="adm-event-command__attendance">
+      <div><span><UsersRound size={17}/></span><p><small>Live participation</small><b>{event.presentCount} present <em>of {event.registeredCount} registered</em></b></p><strong>{attendanceRate}%</strong></div>
+      <span className="adm-event-command__track" role="progressbar" aria-label={`Attendance: ${attendanceRate}%`} aria-valuemin="0" aria-valuemax="100" aria-valuenow={attendanceRate}><i style={{ width: `${attendanceRate}%` }}/></span>
+    </div>
+  </section>
+}
+
 function OverviewTab({ event, history }) {
   const statistics = event.statistics
   return <>
@@ -221,17 +265,19 @@ function OverviewTab({ event, history }) {
       { value: statistics.presentCount, label: 'Present' },
       { value: statistics.absentCount, label: 'Absent' },
     ]}/>
-    <section className="adm-detail-section"><h4>Workshop information</h4><Facts items={[
-      ['Reference', event.ref], ['Schedule', formatEventSchedule(event.startsAt, event.endsAt)],
-      ['Location', event.location], ['Facilitator / Lead', event.speaker],
-      ['Visibility', event.visibility === 'internal' ? 'Internal' : 'Public'], ['Status', event.status],
-      ['Description', event.description], ['Created', eventCheckedAt(event.createdAt)], ['Last update', eventCheckedAt(event.updatedAt)],
-    ]}/></section>
-    <section className="adm-detail-section"><h4>Operations summary</h4><div className="adm-event-operations">
-      <p><b>Organizers</b> {event.organizerCount} assigned, {statistics.scannerEnabledOrganizers} prepared for scanner access.</p>
-      <p><b>Attendance</b> {ATTENDANCE_STATE_LABELS[event.attendanceState] || 'Not started'} · {statistics.attendanceRate}% attendance rate.</p>
-      {statistics.attendanceState === 'completed' && <StatusBadge tone="success">Attendance recorded</StatusBadge>}
-    </div></section>
+    <div className="adm-event-overview-grid">
+      <section className="adm-detail-section adm-event-information"><h4>Workshop information</h4><Facts items={[
+        ['Reference', event.ref], ['Schedule', formatEventSchedule(event.startsAt, event.endsAt)],
+        ['Location', event.location], ['Facilitator / Lead', event.speaker],
+        ['Visibility', event.visibility === 'internal' ? 'Internal' : 'Public'], ['Status', event.status],
+        ['Description', event.description], ['Created', eventCheckedAt(event.createdAt)], ['Last update', eventCheckedAt(event.updatedAt)],
+      ]}/></section>
+      <section className="adm-detail-section adm-event-operations-section"><h4>Operations summary</h4><div className="adm-event-operations">
+        <p><span><UserRound size={16}/></span><b>Organizers</b><small>{event.organizerCount} assigned · {statistics.scannerEnabledOrganizers} scanner-ready</small></p>
+        <p><span><CheckCircle2 size={16}/></span><b>Attendance</b><small>{ATTENDANCE_STATE_LABELS[event.attendanceState] || 'Not started'} · {statistics.attendanceRate}% rate</small></p>
+        {statistics.attendanceState === 'completed' && <StatusBadge tone="success">Attendance recorded</StatusBadge>}
+      </div></section>
+    </div>
     <section className="adm-detail-section"><h4>History</h4>{history.length
       ? <History items={history}/>
       : <p className="adm-muted">No administrative history yet.</p>}</section>
@@ -581,7 +627,7 @@ export function EventDetailPage() {
     <PageHeader
       eyebrow={`${event.typeLabel} · ${event.ref}`}
       title={event.title}
-      description={[formatEventSchedule(event.startsAt, event.endsAt), event.location, event.speaker].filter(Boolean).join(' · ')}
+      description={event.description || 'Coordinate invitations, organizers and attendance from one operational workspace.'}
       meta={<StatusBadge>{event.status}</StatusBadge>}
       actions={<>
         <Button variant="secondary" onClick={refresh} icon={<RefreshCw size={16}/>}>Refresh</Button>
@@ -589,6 +635,7 @@ export function EventDetailPage() {
         {!['completed', 'cancelled', 'archived'].includes(event.statusKey) && <Button variant="secondary" disabled={transitioning} onClick={() => move('cancelled')}>Cancel workshop</Button>}
         <Button onClick={() => setEditing(true)}>Edit workshop</Button>
       </>}/>
+    <EventCommandBar event={event}/>
     <Tabs items={TABS} value={tab} onChange={setTab} label="Event sections" counts={{ Invitations: event.invitedCount, Organizers: event.organizerCount, Attendance: event.attendanceCount }}/>
     <div className="adm-event-detail-body">
       {tab === 'Overview' && <OverviewTab event={event} history={event.history}/>}

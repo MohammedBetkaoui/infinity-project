@@ -221,3 +221,19 @@ test('public Events archive has practical category, search and display controls'
   assert.match(styles, /@media \(max-width: 420px\)/)
   assert.doesNotMatch(archive, /localStorage|sessionStorage/)
 })
+
+test('dashboard Events workspace presents a structured operational view', async () => {
+  const [page, styles] = await Promise.all([
+    read('src/admin/EventsPages.jsx'),
+    read('src/admin/admin.css'),
+  ])
+  assert.match(page, /Calendar & operations/)
+  assert.match(page, /adm-events-filter-rail/)
+  assert.match(page, /adm-event-participation__track/)
+  assert.match(page, /EventCommandBar/)
+  assert.match(page, /Event at a glance/)
+  assert.match(page, /adm-event-overview-grid/)
+  assert.match(styles, /\.adm-event-command/)
+  assert.match(styles, /\.adm-events-filter-rail/)
+  assert.match(styles, /@container events \(max-width: 720px\)/)
+})
