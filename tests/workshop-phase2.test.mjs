@@ -4,6 +4,7 @@ import { Readable } from 'node:stream'
 import { readFile } from 'node:fs/promises'
 import { createAdminEventsHandler } from '../api/admin-auth.js'
 import { buildWorkshopInvitationsCsv, createAdminEventsService } from '../api/_lib/admin-events.js'
+import { createAdminEventsStore } from '../api/_lib/admin-events-store.js'
 import { createWorkshopHandler } from '../api/_lib/workshop-handlers.js'
 import { createWorkshopsService } from '../api/_lib/workshops.js'
 import {
@@ -27,6 +28,60 @@ const EVENT_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
 const ORGANIZER_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
 const NOW = new Date('2026-10-28T07:00:00.000Z')
 const LINK_ENV = { WORKSHOP_INVITATION_LINK_SECRET: 'correct-horse-battery-staple-workshop-secret-2026' }
+const EXPORT_ADMIN = { id: '11111111-1111-4111-8111-111111111111', role: 'super_admin' }
+
+const exportWorkshop = (changes = {}) => ({
+  id: EVENT_ID, title: 'ML, safely', starts_at: NOW.toISOString(), ends_at: '2026-10-28T11:00:00.000Z',
+  event_type: 'workshop', status: 'registration_open', ...changes,
+})
+
+const stableInvitationCredential = (invitationId, credentialVersion = 1) => {
+  const credential = prepareStableWorkshopCredential({
+    purpose: 'invitation', invitationId, credentialVersion, env: LINK_ENV,
+  })
+  return {
+    token_hash: credential.tokenHash,
+    credential_version: credentialVersion,
+    credential_derivation_version: 1,
+  }
+}
+
+const invitationExportRow = (id, changes = {}) => ({
+  id, event_id: EVENT_ID, invitation_status: 'invited', invited_at: NOW.toISOString(), registered_at: null,
+  token_hash: null, token_expires_at: null, credential_version: null, credential_derivation_version: null, link_revoked_at: null,
+  participant_first_name: null, participant_last_name: null,
+  member: { full_name: 'Amel Benali', email: 'amel@example.com', phone: '+213555000000', primary_pole: 'AI Engineering', study_year: 'M1' },
+  ...changes,
+})
+
+function invitationExportHarness({ invitations, event = exportWorkshop() }) {
+  const state = new Map(invitations.map((row) => [row.id, { ...row }]))
+  const setCalls = []
+  const audits = []
+  const store = {
+    find: async () => event,
+    exportInvitationRows: async () => [...state.values()].filter((row) => ['invited', 'registered'].includes(row.invitation_status)).map((row) => ({ ...row })),
+    invitationCredential: async (_eventId, invitationId) => state.get(invitationId) || null,
+    async setInvitationLink(input) {
+      const previous = state.get(input.invitationId)
+      const next = {
+        ...previous, token_hash: input.tokenHash, token_expires_at: input.expiresAt.toISOString(),
+        credential_version: input.credentialVersion, credential_derivation_version: input.derivationVersion, link_revoked_at: null,
+      }
+      state.set(input.invitationId, next)
+      setCalls.push(input)
+      return {
+        invitation_id: input.invitationId, token_hash: input.tokenHash, expires_at: input.expiresAt.toISOString(),
+        credential_version: input.credentialVersion, derivation_version: input.derivationVersion, revoked_at: null,
+      }
+    },
+    async recordInvitationExport(input) { audits.push(input); return true },
+  }
+  return {
+    store, state, setCalls, audits,
+    service: createAdminEventsService({ store, now: () => NOW, origin: 'https://www.infinty-bba.com', env: LINK_ENV }),
+  }
+}
 
 const invitationRow = (changes = {}) => ({
   invitation_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', invitation_status: 'invited', member_name: 'Amel Benali',
@@ -208,6 +263,131 @@ test('stable workshop links repeat across CSV exports and regeneration invalidat
   assert.notEqual(regenerated.privateLink, firstLink)
   assert.equal(credential.credential_version, 2)
   assert.notEqual(credential.token_hash, hashWorkshopToken(firstLink.split('t=')[1]))
+})
+
+test('ensure reuses an active stable invitation link without changing its credential version', async () => {
+  const invitationId = '12121212-1212-4121-8121-121212121212'
+  const stable = stableInvitationCredential(invitationId)
+  const active = invitationExportRow(invitationId, {
+    ...stable, token_expires_at: new Date(NOW.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+  })
+  const { service, state, setCalls } = invitationExportHarness({ invitations: [active] })
+  const result = await service.invitationLink(EVENT_ID, invitationId, { action: 'ensure' }, EXPORT_ADMIN)
+  const expected = prepareStableWorkshopCredential({ purpose: 'invitation', invitationId, credentialVersion: 1, env: LINK_ENV })
+
+  assert.equal(result.ok, true)
+  assert.equal(result.privateLink, `https://www.infinty-bba.com/workshops/register?t=${expected.rawToken}`)
+  assert.equal(state.get(invitationId).credential_version, 1)
+  assert.deepEqual(setCalls, [])
+})
+
+test('CSV export regenerates an expired stable invitation link', async () => {
+  const invitationId = '23232323-2323-4232-8232-232323232323'
+  const stable = stableInvitationCredential(invitationId)
+  const expired = invitationExportRow(invitationId, {
+    ...stable, token_expires_at: new Date(NOW.getTime() - 1).toISOString(),
+  })
+  const { service, state, setCalls } = invitationExportHarness({ invitations: [expired] })
+  const result = await service.exportInvitations(EVENT_ID, EXPORT_ADMIN)
+  const regenerated = prepareStableWorkshopCredential({ purpose: 'invitation', invitationId, credentialVersion: 2, env: LINK_ENV })
+
+  assert.equal(result.ok, true)
+  assert.equal(state.get(invitationId).credential_version, 2)
+  assert.equal(setCalls[0].action, 'regenerate')
+  assert.match(result.csv, new RegExp(`https://www\\.infinty-bba\\.com/workshops/register\\?t=${regenerated.rawToken}`))
+})
+
+test('CSV export regenerates a revoked stable invitation link and clears its revocation', async () => {
+  const invitationId = '34343434-3434-4343-8343-343434343434'
+  const stable = stableInvitationCredential(invitationId)
+  const revoked = invitationExportRow(invitationId, {
+    ...stable,
+    token_expires_at: new Date(NOW.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+    link_revoked_at: new Date(NOW.getTime() - 1).toISOString(),
+  })
+  const { service, state, setCalls } = invitationExportHarness({ invitations: [revoked] })
+  const result = await service.exportInvitations(EVENT_ID, EXPORT_ADMIN)
+
+  assert.equal(result.ok, true)
+  assert.equal(state.get(invitationId).credential_version, 2)
+  assert.equal(state.get(invitationId).link_revoked_at, null)
+  assert.equal(setCalls[0].action, 'regenerate')
+})
+
+test('CSV export keeps active invitation links and repairs expired links in the same file', async () => {
+  const activeId = '45454545-4545-4454-8454-454545454545'
+  const expiredId = '56565656-5656-4565-8565-565656565656'
+  const activeCredential = stableInvitationCredential(activeId)
+  const expiredCredential = stableInvitationCredential(expiredId)
+  const active = invitationExportRow(activeId, {
+    ...activeCredential, token_expires_at: new Date(NOW.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+  })
+  const expired = invitationExportRow(expiredId, {
+    ...expiredCredential, token_expires_at: new Date(NOW.getTime() - 1).toISOString(),
+  })
+  const { service, state, setCalls } = invitationExportHarness({ invitations: [active, expired] })
+  const result = await service.exportInvitations(EVENT_ID, EXPORT_ADMIN)
+  const activeLink = prepareStableWorkshopCredential({ purpose: 'invitation', invitationId: activeId, credentialVersion: 1, env: LINK_ENV })
+  const repairedLink = prepareStableWorkshopCredential({ purpose: 'invitation', invitationId: expiredId, credentialVersion: 2, env: LINK_ENV })
+
+  assert.equal(result.ok, true)
+  assert.equal(state.get(activeId).credential_version, 1)
+  assert.equal(state.get(expiredId).credential_version, 2)
+  assert.deepEqual(setCalls.map((call) => call.invitationId), [expiredId])
+  assert.match(result.csv, new RegExp(`t=${activeLink.rawToken}`))
+  assert.match(result.csv, new RegExp(`t=${repairedLink.rawToken}`))
+})
+
+test('invitation export storage keeps cancelled and declined invitations out of CSV candidates', async () => {
+  let statusFilter = null
+  const query = {
+    select: () => query,
+    eq: () => query,
+    in: (column, values) => { statusFilter = { column, values }; return query },
+    order: () => query,
+    range: async () => ({ data: [], error: null }),
+  }
+  const store = createAdminEventsStore({ from: () => query })
+  assert.deepEqual(await store.exportInvitationRows(EVENT_ID), [])
+  assert.deepEqual(statusFilter, { column: 'invitation_status', values: ['invited', 'registered'] })
+})
+
+test('CSV export reports unavailable workshops and empty active invitation sets explicitly', async () => {
+  const nonWorkshop = invitationExportHarness({
+    invitations: [], event: exportWorkshop({ event_type: 'meeting' }),
+  })
+  const cancelled = invitationExportHarness({
+    invitations: [], event: exportWorkshop({ status: 'cancelled' }),
+  })
+  const empty = invitationExportHarness({ invitations: [] })
+
+  assert.deepEqual(await nonWorkshop.service.exportInvitations(EVENT_ID, EXPORT_ADMIN), {
+    ok: false, status: 409, message: 'Invitation links can only be exported for workshops.',
+  })
+  assert.deepEqual(await cancelled.service.exportInvitations(EVENT_ID, EXPORT_ADMIN), {
+    ok: false, status: 409, message: 'Invitation links cannot be exported for this workshop.',
+  })
+  assert.deepEqual(await empty.service.exportInvitations(EVENT_ID, EXPORT_ADMIN), {
+    ok: false, status: 409, message: 'No active invitations are available to export.',
+  })
+})
+
+test('a non-repairable inactive invitation reports its specific export error', async () => {
+  const invitationId = '67676767-6767-4676-8676-676767676767'
+  const candidate = invitationExportRow(invitationId)
+  const store = {
+    find: async () => exportWorkshop(),
+    exportInvitationRows: async () => [candidate],
+    invitationCredential: async () => candidate,
+    setInvitationLink: async () => {
+      throw Object.assign(new Error('invitation_not_active'), { databaseMessage: 'invitation_not_active', code: '22023' })
+    },
+  }
+  const service = createAdminEventsService({ store, now: () => NOW, origin: 'https://www.infinty-bba.com', env: LINK_ENV })
+
+  assert.deepEqual(await service.exportInvitations(EVENT_ID, EXPORT_ADMIN), {
+    ok: false, status: 409, message: 'One or more invitation links are no longer active.',
+  })
 })
 
 test('CSV formula protection applies to member fields while preserving the opaque HTTPS link', () => {

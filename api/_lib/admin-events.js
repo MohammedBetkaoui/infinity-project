@@ -236,6 +236,7 @@ function publicEventError(error) {
   if (message.includes('unknown_member')) return { status: 409, message: 'Some selected members are no longer available. Refresh the list and try again.' }
   if (message.includes('unknown_staff')) return { status: 409, message: 'Some selected organizers are no longer available. Refresh the list and try again.' }
   if (message.includes('registration_not_open')) return { status: 409, message: 'Open workshop registration before sending invitations.' }
+  if (message.includes('invitation_not_active')) return { status: 409, message: 'One or more invitation links are no longer active.' }
   if (message.includes('scanner_not_enabled')) return { status: 409, message: 'Enable scanner eligibility for this organizer first.' }
   if (message.includes('organizer_not_eligible')) return { status: 409, message: 'This organizer is no longer active staff.' }
   if (message.includes('invalid_event_transition')) return { status: 409, message: 'This workshop cannot move to that lifecycle state.' }
@@ -259,24 +260,33 @@ export function createAdminEventsService({
     const existing = await store.invitationCredential(eventId, invitationId)
     if (!existing) throw Object.assign(new Error('invitation_not_found'), { databaseMessage: 'invitation_not_found', code: 'P0002' })
     if (!origin) throw Object.assign(new Error('workshop_origin_missing'), { code: 'configuration_error', stage: 'workshop_origin' })
-    const isStable = existing.token_hash && existing.credential_derivation_version === WORKSHOP_CREDENTIAL_DERIVATION_VERSION
-    const credentialVersion = action === 'regenerate'
+    const current = now()
+    const isStable = Boolean(
+      existing.token_hash
+      && existing.credential_derivation_version === WORKSHOP_CREDENTIAL_DERIVATION_VERSION,
+    )
+    const existingExpiresAt = existing.token_expires_at ? new Date(existing.token_expires_at) : null
+    const isExpired = !existingExpiresAt || Number.isNaN(existingExpiresAt.getTime()) || existingExpiresAt <= current
+    const isRevoked = Boolean(existing.link_revoked_at)
+    const mustRegenerate = action === 'regenerate' || (action === 'ensure' && isStable && (isExpired || isRevoked))
+    const effectiveAction = mustRegenerate ? 'regenerate' : action
+    const credentialVersion = effectiveAction === 'regenerate'
       ? Number(existing.credential_version || 0) + 1
       : (isStable ? Number(existing.credential_version) : 1)
     const credential = prepareStableWorkshopCredential({
       purpose: 'invitation', invitationId, credentialVersion, env, secret: stableSecret(),
     })
     let persisted = existing
-    if (action === 'regenerate' || !isStable) {
+    if (effectiveAction === 'regenerate' || !isStable) {
       persisted = await store.setInvitationLink({
-        eventId, invitationId, adminUserId, action, tokenHash: credential.tokenHash,
+        eventId, invitationId, adminUserId, action: effectiveAction, tokenHash: credential.tokenHash,
         credentialVersion: credential.credentialVersion, derivationVersion: credential.derivationVersion,
-        expiresAt: linkExpiry(event, now()), now: now(),
+        expiresAt: linkExpiry(event, current), now: current,
       })
     }
     const persistedRevokedAt = persisted.revoked_at || persisted.link_revoked_at
     const persistedExpiresAt = persisted.expires_at || persisted.token_expires_at
-    if (persistedRevokedAt || new Date(persistedExpiresAt || 0) <= now()) {
+    if (persistedRevokedAt || new Date(persistedExpiresAt || 0) <= current) {
       throw Object.assign(new Error('invitation_not_active'), { databaseMessage: 'invitation_not_active', code: '22023' })
     }
     if (persisted.token_hash !== credential.tokenHash) {
@@ -459,7 +469,10 @@ export function createAdminEventsService({
         if (!origin) return { ok: false, status: 503, message: 'The public workshop origin is not configured.' }
         const event = await store.find(eventId)
         if (!event) return { ok: false, status: 404, message: 'Event not found.' }
+        if (event.event_type !== 'workshop') return { ok: false, status: 409, message: 'Invitation links can only be exported for workshops.' }
+        if (['cancelled', 'archived'].includes(event.status)) return { ok: false, status: 409, message: 'Invitation links cannot be exported for this workshop.' }
         const candidates = await store.exportInvitationRows(eventId)
+        if (!candidates.length) return { ok: false, status: 409, message: 'No active invitations are available to export.' }
         const rows = []
         for (const candidate of candidates) {
           const link = await revealInvitationLink({
