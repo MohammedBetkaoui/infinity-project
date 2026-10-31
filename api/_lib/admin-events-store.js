@@ -139,7 +139,7 @@ export function createAdminEventsStore(supabase) {
     },
     async invitationCredential(eventId, invitationId) {
       const { data, error } = await supabase.from('club_event_invitations')
-        .select('id, event_id, status, invite_token_hash, invite_expires_at, credential_version, credential_derivation_version, link_revoked_at')
+        .select('id, event_id, status, token_hash:invite_token_hash, expires_at:invite_expires_at, credential_version, credential_derivation_version, revoked_at:link_revoked_at')
         .eq('event_id', eventId).eq('id', invitationId).maybeSingle()
       if (error) fail('events_invitation_credential', error)
       return data

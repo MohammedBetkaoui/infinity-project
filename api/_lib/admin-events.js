@@ -248,12 +248,12 @@ export function createAdminEventsService({
     if (!origin) throw Object.assign(new Error('workshop_origin_missing'), { code: 'configuration_error', stage: 'workshop_origin' })
     const current = now()
     const isStable = Boolean(
-      existing.invite_token_hash
+      existing.token_hash
       && existing.credential_derivation_version === WORKSHOP_CREDENTIAL_DERIVATION_VERSION,
     )
-    const existingExpiresAt = existing.invite_expires_at ? new Date(existing.invite_expires_at) : null
+    const existingExpiresAt = existing.expires_at ? new Date(existing.expires_at) : null
     const isExpired = !existingExpiresAt || Number.isNaN(existingExpiresAt.getTime()) || existingExpiresAt <= current
-    const isRevoked = Boolean(existing.link_revoked_at)
+    const isRevoked = Boolean(existing.revoked_at)
     const mustRegenerate = action === 'regenerate' || (action === 'ensure' && isStable && (isExpired || isRevoked))
     const effectiveAction = mustRegenerate ? 'regenerate' : action
     const credentialVersion = effectiveAction === 'regenerate'

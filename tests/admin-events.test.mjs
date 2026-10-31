@@ -56,7 +56,7 @@ const attendanceRow = (changes = {}) => ({
 })
 
 class MemoryEventsStore {
-  constructor() { this.row = eventRow(); this.calls = []; this.access = null }
+  constructor() { this.row = eventRow(); this.calls = []; this.access = null; this.invitation = null }
   async list() { return { rows: [this.row], count: 1 } }
   async summaryCounts() { return { upcoming: 1, ongoing: 0, completed: 0, total: 1 } }
   async find(id) { return id === EVENT_ID ? this.row : null }
@@ -82,6 +82,7 @@ class MemoryEventsStore {
   async createEvent(input) { this.calls.push(['create', input]); return EVENT_ID }
   async updateEvent(input) { this.calls.push(['update', input]); return NOW.toISOString() }
   async inviteApplications(input) { this.calls.push(['invite', input]); return { requested: 2, added: 2 } }
+  async invitationCredential() { return this.invitation }
   async transitionEvent(input) { this.calls.push(['transition', input]); return NOW.toISOString() }
   async finalizeAttendance(input) { this.calls.push(['finalize', input]); return 2 }
 }
@@ -213,6 +214,26 @@ test('participant speciality prefers the registration value and never asks club 
   assert.equal(outsider[0].privateLinkReady, false)
 })
 
+test('copying an existing invitation link reuses the canonical credential without writing', async () => {
+  const store = new MemoryEventsStore()
+  const credential = prepareStableWorkshopCredential({
+    purpose: 'invitation', subjectId: INVITATION_ID, credentialVersion: 1, env: LINK_ENV,
+  })
+  store.invitation = {
+    id: INVITATION_ID, event_id: EVENT_ID, status: 'invited', token_hash: credential.tokenHash,
+    expires_at: new Date(NOW.getTime() + 24 * 60 * 60 * 1000).toISOString(), revoked_at: null,
+    credential_version: 1, credential_derivation_version: WORKSHOP_CREDENTIAL_DERIVATION_VERSION,
+  }
+  const service = createAdminEventsService({ store, now: () => NOW, origin: ORIGIN, env: LINK_ENV })
+
+  const result = await service.invitationLink(EVENT_ID, INVITATION_ID, { action: 'ensure' }, user)
+
+  assert.equal(result.ok, true)
+  assert.equal(result.privateLink, `${ORIGIN}/workshops/register?t=${credential.rawToken}`)
+  assert.equal(result.expiresAt, store.invitation.expires_at)
+  assert.deepEqual(store.calls, [])
+})
+
 test('attendance rate divides present by present, not-checked-in and explicit absences', async () => {
   const store = new MemoryEventsStore()
   store.row = eventRow({ invited_count: 4, registered_count: 8, present_count: 5, not_checked_in_count: 3, absent_count: 2, attendance_count: 8 })
@@ -292,6 +313,21 @@ test('super administrator can create a workshop, read participants, statistics a
   await handler(request('GET', `events/${EVENT_ID}/participants?q=&page=1&limit=50`), participants)
   assert.equal(participants.statusCode, 200)
   assert.equal(participants.body.data[0].name, 'Amel Benali')
+
+  const invitationCredential = prepareStableWorkshopCredential({
+    purpose: 'invitation', subjectId: INVITATION_ID, credentialVersion: 1, env: LINK_ENV,
+  })
+  store.invitation = {
+    id: INVITATION_ID, event_id: EVENT_ID, status: 'invited', token_hash: invitationCredential.tokenHash,
+    expires_at: new Date(NOW.getTime() + 24 * 60 * 60 * 1000).toISOString(), revoked_at: null,
+    credential_version: 1, credential_derivation_version: WORKSHOP_CREDENTIAL_DERIVATION_VERSION,
+  }
+  const copiedLink = response()
+  await handler(request('POST', `events/${EVENT_ID}/invitations/${INVITATION_ID}/link`, {
+    action: 'reveal', confirm: false,
+  }, { 'content-type': 'application/json' }), copiedLink)
+  assert.equal(copiedLink.statusCode, 200)
+  assert.equal(copiedLink.body.privateLink, `${ORIGIN}/workshops/register?t=${invitationCredential.rawToken}`)
 
   const scanner = response()
   await handler(request('GET', `events/${EVENT_ID}/scanner`), scanner)
@@ -439,6 +475,26 @@ test('the participants store reads member applications through embedded invitati
   const searched = createAdminEventsStore({ from: () => chain() })
   await searched.participants(EVENT_ID, { q: 'Amel Benali', page: 1, limit: 50 })
   assert.deepEqual(last.calls[3], ['or', 'full_name.ilike.%Amel Benali%,email.ilike.%Amel Benali%,department.ilike.%Amel Benali%'])
+})
+
+test('the invitation credential store aliases database columns to the service contract', async () => {
+  const calls = []
+  const query = {
+    select(...args) { calls.push(['select', ...args]); return this },
+    eq(...args) { calls.push(['eq', ...args]); return this },
+    async maybeSingle() { calls.push(['maybeSingle']); return { data: null, error: null } },
+  }
+  const store = createAdminEventsStore({ from: (table) => { calls.push(['from', table]); return query } })
+
+  await store.invitationCredential(EVENT_ID, INVITATION_ID)
+
+  assert.deepEqual(calls, [
+    ['from', 'club_event_invitations'],
+    ['select', 'id, event_id, status, token_hash:invite_token_hash, expires_at:invite_expires_at, credential_version, credential_derivation_version, revoked_at:link_revoked_at'],
+    ['eq', 'event_id', EVENT_ID],
+    ['eq', 'id', INVITATION_ID],
+    ['maybeSingle'],
+  ])
 })
 
 test('attendance filters translate the registration states exactly', async () => {
