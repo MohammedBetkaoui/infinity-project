@@ -119,7 +119,7 @@ function mapParticipant(row) {
     name: row.full_name,
     initials: initials(row.full_name),
     email: row.email || '',
-    universitySpeciality: registration?.university_speciality || row.speciality || '',
+    universitySpeciality: registration?.university_speciality || row.department || '',
     specialitySource,
     invitationStatus: invitationStatusKey
       ? (INVITATION_LABELS[invitationStatusKey] || invitationStatusKey)
@@ -177,7 +177,7 @@ export function buildWorkshopInvitationsCsv(rows) {
     const values = [
       row.workshopReference, row.workshopTitle, firstName, lastName,
       firstEmbed(row.application)?.full_name || '', firstEmbed(row.application)?.email || '',
-      firstEmbed(row.application)?.speciality || '',
+      firstEmbed(row.application)?.department || '',
       row.status, row.registered_at ? 'registered' : 'not_registered', row.privateRegistrationLink,
     ]
     lines.push(values.map((value) => csvCell(value)).join(','))

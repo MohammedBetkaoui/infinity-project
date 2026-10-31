@@ -39,7 +39,7 @@ const workshop = (changes = {}) => ({
 // plus the optional registration. Empty embeds are the LEFT-JOIN signature of
 // applications that were never invited.
 const participantEmbed = (changes = {}) => ({
-  id: APPLICATION_ID, full_name: 'Amel Benali', email: 'amel@example.com', speciality: 'Software Engineering',
+  id: APPLICATION_ID, full_name: 'Amel Benali', email: 'amel@example.com', department: 'Software Engineering',
   invitation: [{
     id: INVITATION_ID, status: 'invited', invited_at: NOW.toISOString(), registered_at: null, link_revoked_at: null,
     invite_token_hash: null, invite_expires_at: null, credential_version: null, credential_derivation_version: null,
@@ -51,7 +51,7 @@ const attendanceRow = (changes = {}) => ({
   id: '44444444-4444-4444-8444-444444444444', membership_application_id: APPLICATION_ID,
   university_speciality: 'Software Engineering', status: 'checked_in',
   registered_at: NOW.toISOString(), checked_in_at: NOW.toISOString(), absent_at: null,
-  updated_at: NOW.toISOString(), application: { full_name: 'Amel Benali', email: 'amel@example.com', speciality: 'Software Engineering' },
+  updated_at: NOW.toISOString(), application: { full_name: 'Amel Benali', email: 'amel@example.com', department: 'Software Engineering' },
   ...changes,
 })
 
@@ -233,7 +233,7 @@ test('attendance rate divides present by present, not-checked-in and explicit ab
   assert.equal(attendance.data[0].universitySpeciality, 'Software Engineering')
 
   store.attendance = async () => ({
-    rows: [{ ...attendanceRow({ status: 'registered', checked_in_at: null, application: { full_name: 'Nadir Haddad', email: 'nadir@example.com', speciality: 'Law' } }) }],
+    rows: [{ ...attendanceRow({ status: 'registered', checked_in_at: null, application: { full_name: 'Nadir Haddad', email: 'nadir@example.com', department: 'Law' } }) }],
     count: 1,
   })
   const pending = await service.attendance(EVENT_ID, { status: 'not_checked_in', page: 1, limit: 50 })
@@ -430,7 +430,7 @@ test('the participants store reads member applications through embedded invitati
   assert.equal(result.count, 4)
   assert.deepEqual(tables, ['membership_applications'])
   assert.deepEqual(last.calls.slice(0, 3), [
-    ['select', 'id, full_name, email, speciality, invitation:club_event_invitations(id, status, invited_at, registered_at, link_revoked_at, invite_token_hash, invite_expires_at, credential_version, credential_derivation_version), registration:club_event_registrations(university_speciality, status, registered_at, checked_in_at, absent_at)', { count: 'exact' }],
+    ['select', 'id, full_name, email, department, invitation:club_event_invitations(id, status, invited_at, registered_at, link_revoked_at, invite_token_hash, invite_expires_at, credential_version, credential_derivation_version), registration:club_event_registrations(university_speciality, status, registered_at, checked_in_at, absent_at)', { count: 'exact' }],
     ['eq', 'join_type', 'member'],
     ['eq', 'invitation.event_id', EVENT_ID],
   ])
@@ -438,7 +438,7 @@ test('the participants store reads member applications through embedded invitati
 
   const searched = createAdminEventsStore({ from: () => chain() })
   await searched.participants(EVENT_ID, { q: 'Amel Benali', page: 1, limit: 50 })
-  assert.deepEqual(last.calls[3], ['or', 'full_name.ilike.%Amel Benali%,email.ilike.%Amel Benali%,speciality.ilike.%Amel Benali%'])
+  assert.deepEqual(last.calls[3], ['or', 'full_name.ilike.%Amel Benali%,email.ilike.%Amel Benali%,department.ilike.%Amel Benali%'])
 })
 
 test('attendance filters translate the registration states exactly', async () => {

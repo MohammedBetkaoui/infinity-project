@@ -87,13 +87,13 @@ export function createAdminEventsStore(supabase) {
     async participants(eventId, options) {
       const from = (options.page - 1) * options.limit
       let query = supabase.from('membership_applications')
-        .select('id, full_name, email, speciality, invitation:club_event_invitations(id, status, invited_at, registered_at, link_revoked_at, invite_token_hash, invite_expires_at, credential_version, credential_derivation_version), registration:club_event_registrations(university_speciality, status, registered_at, checked_in_at, absent_at)', { count: 'exact' })
+        .select('id, full_name, email, department, invitation:club_event_invitations(id, status, invited_at, registered_at, link_revoked_at, invite_token_hash, invite_expires_at, credential_version, credential_derivation_version), registration:club_event_registrations(university_speciality, status, registered_at, checked_in_at, absent_at)', { count: 'exact' })
         .eq('join_type', 'member')
         .eq('invitation.event_id', eventId)
       const search = safeSearch(options.q)
       if (search) {
         const pattern = `%${search}%`
-        query = query.or(`full_name.ilike.${pattern},email.ilike.${pattern},speciality.ilike.${pattern}`)
+        query = query.or(`full_name.ilike.${pattern},email.ilike.${pattern},department.ilike.${pattern}`)
       }
       const { data, error, count } = await query
         .order('full_name', { ascending: true })
@@ -104,7 +104,7 @@ export function createAdminEventsStore(supabase) {
     async attendance(eventId, options) {
       const from = (options.page - 1) * options.limit
       let query = supabase.from('club_event_registrations')
-        .select('id, membership_application_id, university_speciality, status, registered_at, checked_in_at, absent_at, updated_at, application:membership_applications(full_name, email, speciality)', { count: 'exact' })
+        .select('id, membership_application_id, university_speciality, status, registered_at, checked_in_at, absent_at, updated_at, application:membership_applications(full_name, email, department)', { count: 'exact' })
         .eq('event_id', eventId)
       const filter = options.status && REGISTRATION_FILTERS[options.status]
       if (filter) query = filter(query)
@@ -149,7 +149,7 @@ export function createAdminEventsStore(supabase) {
       const pageSize = 500
       for (let from = 0; ; from += pageSize) {
         const { data, error } = await supabase.from('club_event_invitations')
-          .select('id, event_id, status, invited_at, registered_at, invite_token_hash, invite_expires_at, credential_version, credential_derivation_version, link_revoked_at, application:membership_applications(full_name, email, speciality)')
+          .select('id, event_id, status, invited_at, registered_at, invite_token_hash, invite_expires_at, credential_version, credential_derivation_version, link_revoked_at, application:membership_applications(full_name, email, department)')
           .eq('event_id', eventId)
           .in('status', ['invited', 'registered'])
           .order('invited_at', { ascending: true })
