@@ -60,6 +60,11 @@ export const WORKSHOP_BADGE = {
     participantTopGap: 28, labelGap: 28,
     labelSize: 16, labelSpacing: 7, sideLineLength: 190, sideLineGap: 18,
   },
+  // Single-line university speciality caption under the participant name;
+  // placed between the name baseline and the panel's inner gold frame.
+  speciality: {
+    baseline: 1204, size: 20, weight: 700, spacing: 3, maxWidth: 800,
+  },
   footer: {
     emblemTop: 1284, emblemWidth: 124,
     sloganBaseline: 1432, sloganSize: 25, sloganSpacing: 11,

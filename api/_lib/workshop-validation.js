@@ -1,10 +1,16 @@
 import { isPlausibleWorkshopToken, tokenFromWorkshopQrPayload } from './workshop-tokens.js'
 
-const NAME_RE = /^[\p{L}][\p{L}\p{M} '\u2019-]{0,79}$/u
+// Registration identity is resolved server-side from the invitation token:
+// the only field a participant supplies is their university speciality.
+const SPECIALITY_RE = /^[\p{L}\p{N} .,'’\-()+&/]{1,160}$/u
 
-export function normalizeParticipantName(value) {
+export function normalizeUniversitySpeciality(value) {
   if (typeof value !== 'string') return ''
-  return value.normalize('NFKC').trim().replace(/\s+/g, ' ')
+  return value.normalize('NFKC').replace(/\s+/g, ' ').trim()
+}
+
+export function isUniversitySpeciality(value) {
+  return typeof value === 'string' && value.length >= 2 && value.length <= 160 && SPECIALITY_RE.test(value)
 }
 
 export function validateInvitationTokenBody(body) {
@@ -14,10 +20,9 @@ export function validateInvitationTokenBody(body) {
 
 export function validateWorkshopRegistrationBody(body) {
   const token = body?.token
-  const firstName = normalizeParticipantName(body?.firstName)
-  const lastName = normalizeParticipantName(body?.lastName)
-  if (!isPlausibleWorkshopToken(token) || !NAME_RE.test(firstName) || !NAME_RE.test(lastName)) return { ok: false }
-  return { ok: true, value: { token, firstName, lastName } }
+  const universitySpeciality = normalizeUniversitySpeciality(body?.universitySpeciality)
+  if (!isPlausibleWorkshopToken(token) || !isUniversitySpeciality(universitySpeciality)) return { ok: false }
+  return { ok: true, value: { token, universitySpeciality } }
 }
 
 export function validateScannerSessionBody(body) {
@@ -36,4 +41,3 @@ export function validateWorkshopCheckInBody(body) {
     || !isPlausibleWorkshopToken(body.sessionToken) || !qrToken) return { ok: false }
   return { ok: true, value: { sessionToken: body.sessionToken, qrToken } }
 }
-

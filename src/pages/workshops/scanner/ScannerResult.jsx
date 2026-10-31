@@ -25,6 +25,8 @@ export default function ScannerResult({ result, config, formatTime }) {
         <small>Last scan</small>
         <h2>{config?.title || 'Unable to check in'}</h2>
         {result.participantName && <p>{result.participantName}</p>}
+        {result.participantName && result.universitySpeciality
+          && <small className="scanner-result__speciality">{result.universitySpeciality}</small>}
         <span>{config?.description}</span>
         {result.checkedInAt && <time dateTime={result.checkedInAt}>{formatTime(result.checkedInAt)}</time>}
         {result.message && result.message !== config?.description && <em>{result.message}</em>}

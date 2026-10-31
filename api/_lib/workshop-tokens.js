@@ -25,16 +25,18 @@ export function workshopInvitationLinkSecret(env = process.env) {
   return value
 }
 
-function stableWorkshopCredentialMaterial({ purpose, invitationId, credentialVersion, derivationVersion }) {
-  if (!['invitation', 'participant-pass'].includes(purpose)
-    || !UUID_RE.test(String(invitationId || ''))
+// Stable derivation subjects are always pre-existing rows: the invitation id
+// for participant passes and the event id for the shared event scanner link.
+function stableWorkshopCredentialMaterial({ purpose, subjectId, credentialVersion, derivationVersion }) {
+  if (!['invitation', 'participant-pass', 'event-scanner'].includes(purpose)
+    || !UUID_RE.test(String(subjectId || ''))
     || !Number.isSafeInteger(credentialVersion) || credentialVersion < 1
     || derivationVersion !== WORKSHOP_CREDENTIAL_DERIVATION_VERSION) {
     throw Object.assign(new Error('invalid_stable_workshop_credential'), {
       code: 'credential_error', stage: 'workshop_credential_derivation',
     })
   }
-  return `workshop-${purpose}:v${derivationVersion}:${String(invitationId).toLowerCase()}:${credentialVersion}`
+  return `workshop-${purpose}:v${derivationVersion}:${String(subjectId).toLowerCase()}:${credentialVersion}`
 }
 
 export function deriveStableWorkshopToken(credential, secret) {
@@ -50,13 +52,13 @@ export function deriveStableWorkshopToken(credential, secret) {
 
 export function prepareStableWorkshopCredential({
   purpose,
-  invitationId,
+  subjectId,
   credentialVersion = 1,
   derivationVersion = WORKSHOP_CREDENTIAL_DERIVATION_VERSION,
   env = process.env,
   secret = workshopInvitationLinkSecret(env),
 } = {}) {
-  const rawToken = deriveStableWorkshopToken({ purpose, invitationId, credentialVersion, derivationVersion }, secret)
+  const rawToken = deriveStableWorkshopToken({ purpose, subjectId, credentialVersion, derivationVersion }, secret)
   return {
     credentialVersion,
     derivationVersion,

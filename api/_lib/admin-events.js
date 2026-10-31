@@ -3,7 +3,7 @@ import { canManageEvents } from './admin-events-permissions.js'
 import { createAdminEventsStore } from './admin-events-store.js'
 import {
   WORKSHOP_CREDENTIAL_DERIVATION_VERSION, buildWorkshopRegistrationUrl, buildWorkshopScannerUrl,
-  generateWorkshopToken, hashWorkshopToken, prepareStableWorkshopCredential, workshopInvitationLinkSecret,
+  prepareStableWorkshopCredential, workshopInvitationLinkSecret,
 } from './workshop-tokens.js'
 
 const TYPE_LABELS = Object.freeze({
@@ -16,42 +16,32 @@ const STATUS_LABELS = Object.freeze({
   completed: 'Completed', cancelled: 'Cancelled', archived: 'Archived',
 })
 const INVITATION_LABELS = Object.freeze({ invited: 'Invited', registered: 'Registered', declined: 'Declined', cancelled: 'Cancelled' })
-const ATTENDANCE_LABELS = Object.freeze({ expected: 'Expected', present: 'Present', absent: 'Absent', excused: 'Excused' })
-const DEPARTMENT_LABELS = Object.freeze({ 'dev-tech': 'Dev / Tech', 'design-content': 'Design / Content Creation', 'management-logistics': 'Management / Logistics' })
+const REGISTRATION_LABELS = Object.freeze({ registered: 'Registered', checked_in: 'Checked in', cancelled: 'Cancelled' })
 const ACTION_TITLES = Object.freeze({
   event_created: 'Event created',
   event_updated: 'Event updated',
-  members_invited: 'Members invited to event',
-  organizer_added: 'Event organizer added',
-  organizer_removed: 'Event organizer removed',
-  scanner_access_prepared: 'Scanner access enabled for organizer',
-  scanner_access_revoked: 'Scanner access disabled for organizer',
+  workshop_applicants_invited: 'Member applicants invited to workshop',
   workshop_invitation_links_exported: 'Workshop invitation links exported',
   workshop_invitation_link_regenerated: 'Workshop invitation link regenerated',
   participant_registered: 'Participant registered',
-  scanner_access_generated: 'Private scanner access generated',
-  scanner_access_regenerated: 'Private scanner access regenerated',
+  scanner_access_generated: 'Workshop scanner link generated',
+  scanner_access_regenerated: 'Workshop scanner link regenerated',
+  scanner_access_revoked: 'Workshop scanner link revoked',
   participant_checked_in: 'Participant checked in',
   attendance_finalized: 'Attendance finalized',
   workshop_status_changed: 'Workshop status changed',
 })
 const initials = (name) => String(name || '').split(' ').filter(Boolean).map((part) => part[0]).slice(0, 2).join('').toUpperCase()
+const firstEmbed = (value) => Array.isArray(value) ? (value[0] || null) : (value || null)
 
-const attendanceState = (presentCount, absentCount, excusedCount, expectedCount) => {
-  if (presentCount + absentCount + excusedCount === 0) return 'not_started'
-  return expectedCount > 0 ? 'in_progress' : 'completed'
-}
-
-// Statistics are computed server-side from the directory read model: the UI
-// never aggregates counts itself.
+// Statistics come straight from the directory read model: the UI never
+// aggregates counts itself. Presence is authoritative once registered;
+// Not checked in only turns into absent after explicit finalization.
 function mapEvent(row) {
-  const expectedCount = Number(row.expected_count || 0)
   const presentCount = Number(row.present_count || 0)
+  const notCheckedInCount = Number(row.not_checked_in_count || 0)
   const absentCount = Number(row.absent_count || 0)
-  const excusedCount = Number(row.excused_count || 0)
-  // Attendance rate counts everyone whose attendance was expected and is not
-  // excused: present / (expected + present + absent).
-  const attendanceEligible = expectedCount + presentCount + absentCount
+  const attendanceEligible = presentCount + notCheckedInCount + absentCount
   return {
     id: row.id,
     ref: `EVT-${String(row.id).slice(0, 8).toUpperCase()}`,
@@ -68,15 +58,12 @@ function mapEvent(row) {
     statusKey: row.status,
     invitedCount: Number(row.invited_count || 0),
     registeredCount: Number(row.registered_count || 0),
-    expectedCount,
     presentCount,
+    notCheckedInCount,
     absentCount,
-    excusedCount,
     attendanceCount: Number(row.attendance_count || 0),
-    organizerCount: Number(row.organizer_count || 0),
-    scannerEnabledCount: Number(row.scanner_enabled_count || 0),
     attendanceRate: attendanceEligible > 0 ? Math.round((presentCount / attendanceEligible) * 100) : 0,
-    attendanceState: attendanceState(presentCount, absentCount, excusedCount, expectedCount),
+    attendanceState: attendanceEligible > 0 ? 'in_progress' : 'not_started',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -86,11 +73,9 @@ function eventStatistics(event) {
   return {
     totalInvited: event.invitedCount,
     totalRegistered: event.registeredCount,
-    totalOrganizers: event.organizerCount,
-    scannerEnabledOrganizers: event.scannerEnabledCount,
-    expectedAttendance: event.expectedCount,
-    presentCount: event.presentCount,
-    absentCount: event.absentCount,
+    totalPresent: event.presentCount,
+    totalNotCheckedIn: event.notCheckedInCount,
+    totalAbsent: event.absentCount,
     attendanceRate: event.attendanceRate,
     attendanceState: event.attendanceState,
   }
@@ -108,90 +93,65 @@ function mapHistory(entries) {
     .sort((a, b) => new Date(a.at) - new Date(b.at))
 }
 
-function mapInvitedMember(row) {
-  const raw = Array.isArray(row.invitation) ? (row.invitation[0] || null) : (row.invitation || null)
+function mapParticipant(row) {
+  const invitation = firstEmbed(row.invitation)
+  const registration = firstEmbed(row.registration)
+  const invitationStatusKey = invitation ? String(invitation.status) : null
+  const registrationStatusKey = registration ? String(registration.status) : null
+  let attendance = null
+  if (registration) {
+    if (registration.absent_at) attendance = 'absent'
+    else if (registration.status === 'checked_in') attendance = 'present'
+    else if (registration.status === 'registered') attendance = 'not_checked_in'
+  }
+  const linkReady = Boolean(
+    invitation
+    && invitation.invite_token_hash
+    && invitation.credential_derivation_version === WORKSHOP_CREDENTIAL_DERIVATION_VERSION
+    && !invitation.link_revoked_at
+    && invitation.status !== 'declined'
+    && invitation.status !== 'cancelled',
+  )
+  const specialitySource = registration?.university_speciality ? 'registration' : 'application'
   return {
     id: row.id,
+    invitationId: invitation?.id || null,
     name: row.full_name,
     initials: initials(row.full_name),
-    pole: row.primary_pole || 'Unassigned',
-    level: row.study_year === 'other' ? 'Other' : row.study_year,
-    invitation: raw
-      ? {
-          status: INVITATION_LABELS[raw.invitation_status] || raw.invitation_status,
-          statusKey: raw.invitation_status,
-          registeredAt: raw.registered_at || null,
-        }
+    email: row.email || '',
+    universitySpeciality: registration?.university_speciality || row.speciality || '',
+    specialitySource,
+    invitationStatus: invitationStatusKey
+      ? (INVITATION_LABELS[invitationStatusKey] || invitationStatusKey)
+      : 'Not invited',
+    invitationStatusKey,
+    invitationReady: Boolean(invitation),
+    privateLinkReady: linkReady,
+    invitedAt: invitation?.invited_at || null,
+    registeredAt: registration?.registered_at || invitation?.registered_at || null,
+    registrationStatus: registrationStatusKey
+      ? (REGISTRATION_LABELS[registrationStatusKey] || registrationStatusKey)
       : null,
-  }
-}
-
-function mapOrganizer(row) {
-  const staff = row.staff || {}
-  const member = staff.member || {}
-  const accesses = (Array.isArray(row.scanner_access) ? row.scanner_access : [row.scanner_access]).filter(Boolean)
-  const access = accesses.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0] || null
-  return {
-    id: row.id,
-    staffProfileId: row.staff_profile_id,
-    name: member.full_name || 'Unknown staff member',
-    initials: initials(member.full_name),
-    department: DEPARTMENT_LABELS[staff.current_department] || staff.current_department || 'Not assigned',
-    departmentKey: staff.current_department || null,
-    role: staff.internal_role || 'Unassigned',
-    staffStatus: staff.status || null,
-    scannerEnabled: Boolean(row.scanner_enabled),
-    scannerAccess: access ? {
-      id: access.id, status: access.status, startsAt: access.starts_at, expiresAt: access.expires_at,
-      lastUsedAt: access.last_used_at || null, revokedAt: access.revoked_at || null,
-    } : null,
-    assignedAt: row.assigned_at,
-  }
-}
-
-function mapEligibleStaff(row, assignedIds) {
-  return {
-    id: row.profile_id,
-    memberId: row.member_id,
-    name: row.full_name,
-    initials: initials(row.full_name),
-    department: DEPARTMENT_LABELS[row.structure] || row.structure || 'Not assigned',
-    departmentKey: row.structure || null,
-    role: row.internal_role || 'Unassigned',
-    status: row.status,
-    assigned: assignedIds.has(row.profile_id),
+    attendance,
+    checkedInAt: registration?.checked_in_at || null,
+    absentAt: registration?.absent_at || null,
   }
 }
 
 function mapAttendanceRow(row) {
-  const member = row.member || {}
+  const application = firstEmbed(row.application) || {}
   return {
     id: row.id,
-    memberId: row.member_id,
-    name: member.full_name || 'Unknown member',
-    initials: initials(member.full_name),
-    pole: member.primary_pole || 'Unassigned',
-    level: member.study_year === 'other' ? 'Other' : member.study_year,
-    status: ATTENDANCE_LABELS[row.attendance_status] || row.attendance_status,
-    statusKey: row.attendance_status,
+    applicationId: row.membership_application_id,
+    name: application.full_name || 'Unknown participant',
+    initials: initials(application.full_name),
+    email: application.email || '',
+    universitySpeciality: row.university_speciality || '',
+    registeredAt: row.registered_at || null,
     checkedInAt: row.checked_in_at || null,
-    checkedInBy: row.scanner?.organizer?.staff?.member?.full_name || null,
+    absentAt: row.absent_at || null,
+    checkedInBy: row.checked_in_at ? 'Workshop scanner' : null,
     updatedAt: row.updated_at,
-  }
-}
-
-function mapHistoricalInvitation(row) {
-  const member = row.member || {}
-  const registeredName = [row.participant_first_name, row.participant_last_name].filter(Boolean).join(' ')
-  return {
-    id: row.id, memberId: row.member_id, name: registeredName || member.full_name || 'Unknown member',
-    canonicalName: member.full_name || '', initials: initials(registeredName || member.full_name),
-    email: member.email || '', phone: member.phone || '', pole: member.primary_pole || 'Unassigned', level: member.study_year || '',
-    memberStatus: member.status || null, invitationStatus: row.invitation_status,
-    registrationStatus: row.registered_at ? 'Registered' : 'Not registered', invitedAt: row.invited_at,
-    openedAt: row.opened_at || null, registeredAt: row.registered_at || null,
-    privateLinkStatus: row.token_hash && row.credential_derivation_version === WORKSHOP_CREDENTIAL_DERIVATION_VERSION
-      && !row.link_revoked_at ? 'Ready' : 'Not generated',
   }
 }
 
@@ -202,25 +162,23 @@ const csvCell = (value, { protectFormula = true } = {}) => {
 }
 
 const splitExportName = (row) => {
-  if (row.participant_first_name || row.participant_last_name) {
-    return { firstName: row.participant_first_name || '', lastName: row.participant_last_name || '' }
-  }
-  const words = String(row.member?.full_name || '').trim().split(/\s+/).filter(Boolean)
+  const words = String(firstEmbed(row.application)?.full_name || '').trim().split(/\s+/).filter(Boolean)
   return { firstName: words[0] || '', lastName: words.slice(1).join(' ') }
 }
 
 export function buildWorkshopInvitationsCsv(rows) {
   const headers = [
-    'workshop_reference', 'workshop_title', 'first_name', 'last_name', 'full_name', 'email', 'phone',
-    'pole', 'study_year', 'invitation_status', 'registration_status', 'private_registration_link',
+    'workshop_reference', 'workshop_title', 'first_name', 'last_name', 'full_name', 'email',
+    'speciality', 'invitation_status', 'registration_status', 'private_registration_link',
   ]
   const lines = [headers.map((value) => csvCell(value)).join(',')]
   for (const row of rows) {
     const { firstName, lastName } = splitExportName(row)
     const values = [
-      row.workshopReference, row.workshopTitle, firstName, lastName, row.member?.full_name || '',
-      row.member?.email || '', row.member?.phone || '', row.member?.primary_pole || '', row.member?.study_year || '',
-      row.invitation_status, row.registered_at ? 'registered' : 'not_registered', row.privateRegistrationLink,
+      row.workshopReference, row.workshopTitle, firstName, lastName,
+      firstEmbed(row.application)?.full_name || '', firstEmbed(row.application)?.email || '',
+      firstEmbed(row.application)?.speciality || '',
+      row.status, row.registered_at ? 'registered' : 'not_registered', row.privateRegistrationLink,
     ]
     lines.push(values.map((value) => csvCell(value)).join(','))
   }
@@ -231,15 +189,17 @@ function publicEventError(error) {
   const message = error?.databaseMessage || ''
   if (error?.code === '42501' || message.includes('administrator_not_authorized')) return { status: 403, message: 'You do not have permission to perform this action.' }
   if (error?.code === 'P0002' || message.includes('event_not_found')) return { status: 404, message: 'This event no longer exists.' }
-  if (message.includes('organizer_not_found') || message.includes('invitation_not_found')) return { status: 404, message: 'This event relationship no longer exists.' }
+  if (message.includes('invitation_not_found')) return { status: 404, message: 'This invitation no longer exists.' }
+  // Credential conflicts must win over the generic optimistic-lock mapping:
+  // they describe a different recovery action.
+  if (message.includes('invitation_credential_conflict') || message.includes('invalid_invitation_credential')) return { status: 409, message: 'This invitation link changed concurrently. Reload the participants list before retrying.' }
+  if (message.includes('scanner_credential_conflict') || message.includes('invalid_scanner_credential')) return { status: 409, message: 'The scanner link changed concurrently. Reload the scanner panel before retrying.' }
   if (error?.code === '40001' || message.includes('event_conflict')) return { status: 409, message: 'This event was updated by another administrator. Refresh it before continuing.' }
-  if (message.includes('unknown_member')) return { status: 409, message: 'Some selected members are no longer available. Refresh the list and try again.' }
-  if (message.includes('unknown_staff')) return { status: 409, message: 'Some selected organizers are no longer available. Refresh the list and try again.' }
-  if (message.includes('registration_not_open')) return { status: 409, message: 'Open workshop registration before sending invitations.' }
+  if (message.includes('unknown_application')) return { status: 409, message: 'Some selected applications are no longer available. Refresh the list and try again.' }
+  if (message.includes('invalid_invitation_applicants')) return { status: 409, message: 'Some selected applications cannot be invited. Refresh the list and try again.' }
+  if (message.includes('invalid_invitation_scope')) return { status: 409, message: 'Choose one invitation scope or an explicit application selection.' }
+  if (message.includes('event_not_available')) return { status: 409, message: 'This event cannot accept invitations right now.' }
   if (message.includes('invitation_not_active')) return { status: 409, message: 'One or more invitation links are no longer active.' }
-  if (message.includes('scanner_not_enabled')) return { status: 409, message: 'Enable scanner eligibility for this organizer first.' }
-  if (message.includes('organizer_not_eligible')) return { status: 409, message: 'This organizer is no longer active staff.' }
-  if (message.includes('invalid_event_transition')) return { status: 409, message: 'This workshop cannot move to that lifecycle state.' }
   if (message.includes('attendance_not_finalizable')) return { status: 409, message: 'Attendance can only be finalized after the workshop is completed.' }
   if (error?.code === '23503') return { status: 409, message: 'Some selected people are no longer available. Refresh the list and try again.' }
   if (error?.code === '23505') return { status: 409, message: 'This change conflicts with an existing record.' }
@@ -248,7 +208,7 @@ function publicEventError(error) {
 }
 
 export function createAdminEventsService({
-  store, now = () => new Date(), origin, env = process.env, tokenGenerator = generateWorkshopToken,
+  store, now = () => new Date(), origin, env = process.env,
 } = {}) {
   if (!store) throw Object.assign(new Error('admin_events_store_required'), { stage: 'configuration', code: 'configuration_error' })
   const stableSecret = () => workshopInvitationLinkSecret(env)
@@ -256,16 +216,42 @@ export function createAdminEventsService({
     const eventEnd = new Date(event.ends_at || event.starts_at).getTime() + 24 * 60 * 60 * 1000
     return new Date(Math.max(current.getTime() + 60 * 60 * 1000, eventEnd))
   }
+  // The shared scanner link stays valid until the event ends plus a small
+  // grace window, capped above by at least one hour from now.
+  const scannerWindow = (event, current) => {
+    const eventEnd = new Date(event.ends_at || event.starts_at).getTime() + 12 * 60 * 60 * 1000
+    return new Date(Math.max(current.getTime() + 60 * 60 * 1000, eventEnd))
+  }
+  const isUsableScannerAccess = (access, current = now()) => Boolean(
+    access
+    && access.status === 'active'
+    && !access.revoked_at
+    && access.credential_derivation_version === WORKSHOP_CREDENTIAL_DERIVATION_VERSION
+    && new Date(access.expires_at).getTime() > current.getTime(),
+  )
+  const revealScannerLink = (access) => {
+    if (!origin) throw Object.assign(new Error('workshop_origin_missing'), { code: 'configuration_error', stage: 'workshop_origin' })
+    const credential = prepareStableWorkshopCredential({
+      purpose: 'event-scanner', subjectId: access.event_id,
+      credentialVersion: Number(access.credential_version),
+      derivationVersion: Number(access.credential_derivation_version || WORKSHOP_CREDENTIAL_DERIVATION_VERSION),
+      env, secret: stableSecret(),
+    })
+    if (credential.tokenHash !== access.token_hash) {
+      throw Object.assign(new Error('scanner_credential_conflict'), { databaseMessage: 'scanner_credential_conflict', code: '40001' })
+    }
+    return buildWorkshopScannerUrl(origin, credential.rawToken)
+  }
   const revealInvitationLink = async ({ event, eventId, invitationId, adminUserId, action = 'ensure' }) => {
     const existing = await store.invitationCredential(eventId, invitationId)
     if (!existing) throw Object.assign(new Error('invitation_not_found'), { databaseMessage: 'invitation_not_found', code: 'P0002' })
     if (!origin) throw Object.assign(new Error('workshop_origin_missing'), { code: 'configuration_error', stage: 'workshop_origin' })
     const current = now()
     const isStable = Boolean(
-      existing.token_hash
+      existing.invite_token_hash
       && existing.credential_derivation_version === WORKSHOP_CREDENTIAL_DERIVATION_VERSION,
     )
-    const existingExpiresAt = existing.token_expires_at ? new Date(existing.token_expires_at) : null
+    const existingExpiresAt = existing.invite_expires_at ? new Date(existing.invite_expires_at) : null
     const isExpired = !existingExpiresAt || Number.isNaN(existingExpiresAt.getTime()) || existingExpiresAt <= current
     const isRevoked = Boolean(existing.link_revoked_at)
     const mustRegenerate = action === 'regenerate' || (action === 'ensure' && isStable && (isExpired || isRevoked))
@@ -274,7 +260,7 @@ export function createAdminEventsService({
       ? Number(existing.credential_version || 0) + 1
       : (isStable ? Number(existing.credential_version) : 1)
     const credential = prepareStableWorkshopCredential({
-      purpose: 'invitation', invitationId, credentialVersion, env, secret: stableSecret(),
+      purpose: 'invitation', subjectId: invitationId, credentialVersion, env, secret: stableSecret(),
     })
     let persisted = existing
     if (effectiveAction === 'regenerate' || !isStable) {
@@ -284,8 +270,8 @@ export function createAdminEventsService({
         expiresAt: linkExpiry(event, current), now: current,
       })
     }
-    const persistedRevokedAt = persisted.revoked_at || persisted.link_revoked_at
-    const persistedExpiresAt = persisted.expires_at || persisted.token_expires_at
+    const persistedRevokedAt = persisted.revoked_at
+    const persistedExpiresAt = persisted.expires_at
     if (persistedRevokedAt || new Date(persistedExpiresAt || 0) <= current) {
       throw Object.assign(new Error('invitation_not_active'), { databaseMessage: 'invitation_not_active', code: '22023' })
     }
@@ -304,6 +290,23 @@ export function createAdminEventsService({
     const audit = await store.audit(eventId)
     const event = mapEvent(row)
     return { ...event, statistics: eventStatistics(event), history: mapHistory(audit) }
+  }
+  const scannerView = async (eventId) => {
+    const access = await store.scannerAccess(eventId)
+    const current = now()
+    const usable = isUsableScannerAccess(access, current)
+    return {
+      access: access ? {
+        id: access.id,
+        status: access.status,
+        startsAt: access.starts_at,
+        expiresAt: access.expires_at,
+        lastUsedAt: access.last_used_at || null,
+        revokedAt: access.revoked_at || null,
+        credentialVersion: access.credential_version,
+      } : null,
+      copyable: usable,
+    }
   }
   return {
     async list(options) {
@@ -351,98 +354,27 @@ export function createAdminEventsService({
         throw error
       }
     },
-    async members(eventId, options) {
+    async participants(eventId, options) {
       if (!await store.find(eventId)) return null
-      const [{ rows, count }, poles] = await Promise.all([
-        store.eligibleMembers(eventId, options),
-        store.memberPoles(),
-      ])
+      const { rows, count } = await store.participants(eventId, options)
       return {
-        data: rows.map((row) => mapInvitedMember(row)),
-        facets: { poles },
+        data: rows.map(mapParticipant),
         pagination: {
           page: options.page,
           limit: options.limit,
           total: count,
           pages: Math.max(1, Math.ceil(count / options.limit)),
         },
-      }
-    },
-    async invitations(eventId, options) {
-      if (!await store.find(eventId)) return null
-      const { rows, count } = await store.invitedParticipants(eventId, options)
-      return {
-        data: rows.map(mapHistoricalInvitation),
-        pagination: { page: options.page, limit: options.limit, total: count, pages: Math.max(1, Math.ceil(count / options.limit)) },
       }
     },
     async invite(eventId, input, user) {
-      if (!canManageEvents(user.role, 'invite_members')) return { ok: false, status: 403, message: 'You do not have permission to invite members.' }
+      if (!canManageEvents(user.role, 'invite_applicants')) return { ok: false, status: 403, message: 'You do not have permission to invite workshop applicants.' }
       try {
-        const result = await store.inviteMembers({ eventId, adminUserId: user.id, memberIds: input.memberIds, scope: input.scope, pole: input.pole, now: now() })
+        const result = await store.inviteApplications({
+          eventId, adminUserId: user.id, applicationIds: input.applicationIds ?? null,
+          scope: input.scope ?? null, now: now(),
+        })
         return { ok: true, invited: result }
-      } catch (error) {
-        const publicError = publicEventError(error)
-        if (publicError) return { ok: false, ...publicError }
-        throw error
-      }
-    },
-    async organizers(eventId) {
-      if (!await store.find(eventId)) return null
-      const rows = await store.organizers(eventId)
-      return { data: rows.map((row) => mapOrganizer(row)) }
-    },
-    async staff(eventId, options) {
-      if (!await store.find(eventId)) return null
-      const [{ rows, count }, organizers] = await Promise.all([
-        store.eligibleStaff(options),
-        store.organizers(eventId),
-      ])
-      const assignedIds = new Set(organizers.map((row) => row.staff_profile_id))
-      return {
-        data: rows.map((row) => mapEligibleStaff(row, assignedIds)),
-        pagination: {
-          page: options.page,
-          limit: options.limit,
-          total: count,
-          pages: Math.max(1, Math.ceil(count / options.limit)),
-        },
-      }
-    },
-    async assignOrganizers(eventId, input, user) {
-      if (!canManageEvents(user.role, 'assign_organizers')) return { ok: false, status: 403, message: 'You do not have permission to assign organizers.' }
-      try {
-        const result = await store.assignOrganizers({ eventId, adminUserId: user.id, staffProfileIds: input.staffProfileIds, now: now() })
-        const rows = await store.organizers(eventId)
-        return { ok: true, added: Number(result.added || 0), skipped: Number(result.requested || 0) - Number(result.added || 0), organizers: rows.map((row) => mapOrganizer(row)) }
-      } catch (error) {
-        const publicError = publicEventError(error)
-        if (publicError) return { ok: false, ...publicError }
-        throw error
-      }
-    },
-    async removeOrganizer(eventId, input, user) {
-      if (!canManageEvents(user.role, 'remove_organizer')) return { ok: false, status: 403, message: 'You do not have permission to remove organizers.' }
-      try {
-        await store.removeOrganizer({ eventId, staffProfileId: input.staffProfileId, adminUserId: user.id, now: now() })
-        const rows = await store.organizers(eventId)
-        return { ok: true, organizers: rows.map((row) => mapOrganizer(row)) }
-      } catch (error) {
-        const publicError = publicEventError(error)
-        if (publicError) return { ok: false, ...publicError }
-        throw error
-      }
-    },
-    async setScannerAccess(eventId, input, user) {
-      if (!canManageEvents(user.role, 'set_scanner_access')) return { ok: false, status: 403, message: 'You do not have permission to change scanner access.' }
-      try {
-        await store.setScannerAccess({ eventId, staffProfileId: input.staffProfileId, enabled: input.enabled, adminUserId: user.id, now: now() })
-        const rows = await store.organizers(eventId)
-        if (!input.enabled) {
-          const organizer = rows.find((row) => row.staff_profile_id === input.staffProfileId)
-          if (organizer) await store.revokeScannerAccess({ eventId, eventOrganizerId: organizer.id, adminUserId: user.id, now: now() })
-        }
-        return { ok: true, enabled: input.enabled, organizers: rows.map((row) => mapOrganizer(row)) }
       } catch (error) {
         const publicError = publicEventError(error)
         if (publicError) return { ok: false, ...publicError }
@@ -498,25 +430,59 @@ export function createAdminEventsService({
         throw error
       }
     },
-    async scannerCredential(eventId, input, user) {
-      if (!canManageEvents(user.role, 'set_scanner_access')) return { ok: false, status: 403, message: 'You do not have permission to manage scanner links.' }
+    async scanner(eventId) {
+      if (!await store.find(eventId)) return null
+      return scannerView(eventId)
+    },
+    async scannerAction(eventId, input, user) {
+      if (!canManageEvents(user.role, 'manage_scanner')) return { ok: false, status: 403, message: 'You do not have permission to manage the workshop scanner link.' }
+      const current = now()
       try {
+        const access = await store.scannerAccess(eventId)
         if (input.action === 'revoke') {
-          const revoked = await store.revokeScannerAccess({ eventId, eventOrganizerId: input.eventOrganizerId, adminUserId: user.id, now: now() })
-          return { ok: true, revoked }
+          const revoked = await store.revokeScannerAccess({ eventId, adminUserId: user.id, now: current })
+          return { ok: true, revoked, ...(await scannerView(eventId)) }
+        }
+        if (input.action === 'copy') {
+          if (!isUsableScannerAccess(access, current)) {
+            return { ok: false, status: 409, message: 'There is no active workshop scanner link to copy. Generate one first.' }
+          }
+          return { ok: true, copied: true, privateUrl: revealScannerLink(access), expiresAt: access.expires_at }
         }
         if (!origin) return { ok: false, status: 503, message: 'The public workshop origin is not configured.' }
         const event = await store.find(eventId)
         if (!event) return { ok: false, status: 404, message: 'Event not found.' }
-        const current = now()
-        const rawToken = tokenGenerator()
-        const eventEnd = new Date(event.ends_at || event.starts_at).getTime() + 12 * 60 * 60 * 1000
-        const expiresAt = new Date(Math.max(current.getTime() + 60 * 60 * 1000, eventEnd))
-        const access = await store.generateScannerAccess({
-          eventId, eventOrganizerId: input.eventOrganizerId, adminUserId: user.id,
-          tokenHash: hashWorkshopToken(rawToken), startsAt: current, expiresAt, now: current,
+        if (event.event_type !== 'workshop') return { ok: false, status: 409, message: 'Scanner links are only available for workshops.' }
+        if (['cancelled', 'archived'].includes(event.status)) return { ok: false, status: 409, message: 'Scanner links cannot be issued for this workshop.' }
+        // Generating keeps an already usable shared link untouched; only a
+        // missing, revoked or expired credential writes through the RPC.
+        if (input.action === 'generate' && isUsableScannerAccess(access, current)) {
+          return { ok: true, created: false, regenerated: false, privateUrl: revealScannerLink(access), expiresAt: access.expires_at, ...(await scannerView(eventId)) }
+        }
+        const effectiveAction = input.action === 'generate' && !access ? 'ensure' : 'regenerate'
+        const credentialVersion = access
+          ? Number(access.credential_version || 0) + 1
+          : 1
+        const credential = prepareStableWorkshopCredential({
+          purpose: 'event-scanner', subjectId: eventId, credentialVersion,
+          env, secret: stableSecret(),
         })
-        return { ok: true, access, privateUrl: buildWorkshopScannerUrl(origin, rawToken) }
+        const persisted = await store.persistScannerAccess({
+          eventId, adminUserId: user.id, action: effectiveAction, tokenHash: credential.tokenHash,
+          credentialVersion: credential.credentialVersion, startsAt: current,
+          expiresAt: scannerWindow(event, current), now: current,
+        })
+        if (persisted.token_hash !== credential.tokenHash) {
+          throw Object.assign(new Error('scanner_credential_conflict'), { databaseMessage: 'scanner_credential_conflict', code: '40001' })
+        }
+        return {
+          ok: true,
+          created: !access,
+          regenerated: Boolean(access),
+          privateUrl: buildWorkshopScannerUrl(origin, credential.rawToken),
+          expiresAt: persisted.expires_at,
+          ...(await scannerView(eventId)),
+        }
       } catch (error) {
         const publicError = publicEventError(error)
         if (publicError) return { ok: false, ...publicError }
@@ -546,28 +512,29 @@ export function createAdminEventsService({
       }
     },
     async attendance(eventId, options) {
-      const [{ rows, count }, eventRow, invitations] = await Promise.all([
+      const eventRow = await store.find(eventId)
+      if (!eventRow) return null
+      const [{ rows, count }, scanner] = await Promise.all([
         store.attendance(eventId, options),
-        store.find(eventId),
-        store.invitationStates(eventId),
+        store.scannerAccess(eventId),
       ])
-      const invitationByMember = new Map(invitations.map((item) => [item.member_id, item]))
-      const event = eventRow ? mapEvent(eventRow) : null
-      if (!event) return null
+      const event = mapEvent(eventRow)
       return {
-        data: rows.map((row) => ({
-          ...mapAttendanceRow(row),
-          registration: (invitationByMember.get(row.member_id)?.invitation_status) === 'registered' ? 'Registered' : '',
-        })),
-        summary: event
-          ? {
-              registered: event.registeredCount,
-              present: event.presentCount,
-              remaining: Math.max(0, event.registeredCount - event.presentCount),
-              absent: event.absentCount,
-              attendanceRate: event.attendanceRate,
-            }
-          : null,
+        data: rows.map(mapAttendanceRow),
+        summary: {
+          registered: event.registeredCount,
+          present: event.presentCount,
+          remaining: Math.max(0, event.registeredCount - event.presentCount),
+          notCheckedIn: event.notCheckedInCount,
+          absent: event.absentCount,
+          attendanceRate: event.attendanceRate,
+          finalized: event.absentCount > 0,
+        },
+        scanner: scanner ? {
+          status: scanner.status,
+          lastUsedAt: scanner.last_used_at || null,
+          revokedAt: scanner.revoked_at || null,
+        } : null,
         pagination: {
           page: options.page,
           limit: options.limit,

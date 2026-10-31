@@ -9,11 +9,11 @@ const SORTS = new Set([
   'type_asc', 'type_desc', 'location_asc', 'location_desc', 'status_asc', 'status_desc',
   'speaker_asc', 'speaker_desc', 'invited_asc', 'invited_desc', 'present_asc', 'present_desc',
 ])
-const MEMBER_SORTS = new Set(['name_asc', 'name_desc', 'pole_asc', 'pole_desc'])
-const STAFF_SORTS = new Set(['name_asc', 'name_desc', 'department_asc', 'department_desc'])
-const STAFF_DEPARTMENTS = new Set(['dev-tech', 'design-content', 'management-logistics'])
-const ATTENDANCE_STATUSES = new Set(['expected', 'present', 'absent', 'excused'])
-const INVITATION_SCOPES = new Set(['all_active', 'primary_pole'])
+// Attendance is read from club_event_registrations: present (checked in),
+// not checked in yet, explicitly absent after finalize, or cancelled.
+const ATTENDANCE_STATUSES = new Set(['present', 'not_checked_in', 'absent', 'cancelled'])
+const INVITATION_SCOPES = new Set(['all_member_applicants'])
+const SCANNER_ACTIONS = new Set(['generate', 'copy', 'regenerate', 'revoke'])
 const EVENT_TRANSITIONS = new Set(['planned', 'registration_open', 'registration_closed', 'ongoing', 'completed', 'cancelled', 'archived'])
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -61,22 +61,7 @@ export function parseEventListOptions(params) {
   return { ok: true, value: { ...raw, page, limit, sort } }
 }
 
-export function parseEventMemberOptions(params) {
-  const raw = Object.fromEntries(['q', 'pole', 'sort'].map((key) => [key, single(params, key)]))
-  if (Object.values(raw).some((value) => value === null)) return { ok: false }
-  const pageText = single(params, 'page') || '1'
-  const limitText = single(params, 'limit') || '25'
-  if (!/^\d+$/.test(pageText) || !/^\d+$/.test(limitText)) return { ok: false }
-  const page = Number(pageText)
-  const limit = Number(limitText)
-  const sort = raw.sort || 'name_asc'
-  if (page < 1 || page > 100000 || limit < 1 || limit > 50) return { ok: false }
-  if (raw.q.length > 100 || raw.pole.length > 120) return { ok: false }
-  if (!MEMBER_SORTS.has(sort)) return { ok: false }
-  return { ok: true, value: { ...raw, page, limit, sort } }
-}
-
-export function parseEventInvitationOptions(params) {
+export function parseEventParticipantOptions(params) {
   const q = single(params, 'q')
   const pageText = single(params, 'page') || '1'
   const limitText = single(params, 'limit') || '50'
@@ -85,21 +70,6 @@ export function parseEventInvitationOptions(params) {
   const limit = Number(limitText)
   if (page < 1 || page > 100000 || limit < 1 || limit > 100 || q.length > 100) return { ok: false }
   return { ok: true, value: { q, page, limit } }
-}
-
-export function parseEventStaffOptions(params) {
-  const raw = Object.fromEntries(['q', 'department', 'sort'].map((key) => [key, single(params, key)]))
-  if (Object.values(raw).some((value) => value === null)) return { ok: false }
-  const pageText = single(params, 'page') || '1'
-  const limitText = single(params, 'limit') || '25'
-  if (!/^\d+$/.test(pageText) || !/^\d+$/.test(limitText)) return { ok: false }
-  const page = Number(pageText)
-  const limit = Number(limitText)
-  const sort = raw.sort || 'name_asc'
-  if (page < 1 || page > 100000 || limit < 1 || limit > 50) return { ok: false }
-  if (raw.q.length > 100 || (raw.department && !STAFF_DEPARTMENTS.has(raw.department))) return { ok: false }
-  if (!STAFF_SORTS.has(sort)) return { ok: false }
-  return { ok: true, value: { ...raw, page, limit, sort } }
 }
 
 export function parseEventAttendanceOptions(params) {
@@ -184,43 +154,18 @@ export function validateEventUpdateBody(body) {
 
 export function validateEventInviteBody(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return { ok: false }
-  const hasIds = Array.isArray(body.memberIds)
+  const hasIds = Array.isArray(body.applicationIds)
   const hasScope = typeof body.scope === 'string' && body.scope.trim() !== ''
   if (hasIds && hasScope) return { ok: false }
   if (hasIds) {
-    if (body.memberIds.length < 1 || body.memberIds.length > 500) return { ok: false }
-    if (body.memberIds.some((id) => !isEventId(id))) return { ok: false }
-    const ids = [...new Set(body.memberIds)]
-    if (ids.length !== body.memberIds.length) return { ok: false }
-    return { ok: true, value: { memberIds: ids } }
+    if (body.applicationIds.length < 1 || body.applicationIds.length > 500) return { ok: false }
+    if (body.applicationIds.some((id) => !isEventId(id))) return { ok: false }
+    const ids = [...new Set(body.applicationIds)]
+    if (ids.length !== body.applicationIds.length) return { ok: false }
+    return { ok: true, value: { applicationIds: ids } }
   }
   if (!hasScope || !INVITATION_SCOPES.has(body.scope)) return { ok: false }
-  if (body.scope === 'primary_pole') {
-    if (!text(body.pole, 2, 120)) return { ok: false }
-    return { ok: true, value: { scope: body.scope, pole: body.pole.trim() } }
-  }
   return { ok: true, value: { scope: body.scope } }
-}
-
-export function validateEventOrganizersBody(body) {
-  if (!body || typeof body !== 'object' || Array.isArray(body)) return { ok: false }
-  if (!Array.isArray(body.staffProfileIds) || body.staffProfileIds.length < 1 || body.staffProfileIds.length > 50) return { ok: false }
-  if (body.staffProfileIds.some((id) => !isEventId(id))) return { ok: false }
-  const ids = [...new Set(body.staffProfileIds)]
-  if (ids.length !== body.staffProfileIds.length) return { ok: false }
-  return { ok: true, value: { staffProfileIds: ids } }
-}
-
-export function validateEventRemoveOrganizerBody(body) {
-  if (!body || typeof body !== 'object' || Array.isArray(body)) return { ok: false }
-  if (!isEventId(body.staffProfileId)) return { ok: false }
-  return { ok: true, value: { staffProfileId: body.staffProfileId } }
-}
-
-export function validateEventScannerBody(body) {
-  if (!body || typeof body !== 'object' || Array.isArray(body)) return { ok: false }
-  if (!isEventId(body.staffProfileId) || typeof body.enabled !== 'boolean') return { ok: false }
-  return { ok: true, value: { staffProfileId: body.staffProfileId, enabled: body.enabled } }
 }
 
 export function validateEventInvitationExportBody(body) {
@@ -235,10 +180,11 @@ export function validateEventInvitationLinkBody(body) {
   return { ok: false }
 }
 
-export function validateEventScannerCredentialBody(body) {
-  if (!body || typeof body !== 'object' || Array.isArray(body) || !isEventId(body.eventOrganizerId)) return { ok: false }
-  if (!['generate', 'regenerate', 'revoke'].includes(body.action)) return { ok: false }
-  return { ok: true, value: { eventOrganizerId: body.eventOrganizerId, action: body.action } }
+export function validateEventScannerActionBody(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return { ok: false }
+  if (!SCANNER_ACTIONS.has(body.action)) return { ok: false }
+  if ((body.action === 'regenerate' || body.action === 'revoke') && body.confirm !== true) return { ok: false }
+  return { ok: true, value: { action: body.action } }
 }
 
 export function validateEventTransitionBody(body) {

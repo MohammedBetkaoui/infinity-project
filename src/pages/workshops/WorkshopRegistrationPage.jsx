@@ -6,6 +6,7 @@ import './workshop.css'
 import './workshopBadge.css'
 
 const TOKEN_KEY = 'infinity-workshop-invitation-token'
+const SPECIALITY_KEY = 'infinity-workshop-speciality'
 const api = async (path, body) => {
   const response = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   const payload = await response.json().catch(() => ({}))
@@ -14,16 +15,17 @@ const api = async (path, body) => {
 const schedule = (value) => new Intl.DateTimeFormat('en-GB', { dateStyle: 'full', timeStyle: 'short', timeZone: 'Africa/Algiers' }).format(new Date(value))
 
 export default function WorkshopRegistrationPage() {
-  const [state, setState] = useState({ loading: true, error: '', invitation: null, event: null, pass: null })
-  const [form, setForm] = useState({ firstName: '', lastName: '' })
+  const [state, setState] = useState({ loading: true, error: '', invitation: null, registration: null, event: null, pass: null })
+  const [form, setForm] = useState({ universitySpeciality: '' })
   const [submitting, setSubmitting] = useState(false)
   const token = sessionStorage.getItem(TOKEN_KEY) || ''
 
-  const register = async (registrationToken, names) => {
+  const register = async (registrationToken, speciality) => {
     setSubmitting(true)
-    const { response, payload } = await api('/api/workshops/register', { token: registrationToken, ...names })
+    const { response, payload } = await api('/api/workshops/register', { token: registrationToken, universitySpeciality: speciality })
     setSubmitting(false)
     if (!response.ok) { setState((current) => ({ ...current, loading: false, error: payload.message || 'Registration is unavailable.' })); return }
+    sessionStorage.setItem(SPECIALITY_KEY, payload.pass.universitySpeciality || '')
     setState((current) => ({ ...current, loading: false, error: '', pass: payload.pass }))
   }
 
@@ -35,26 +37,30 @@ export default function WorkshopRegistrationPage() {
     const privateToken = queryToken || sessionStorage.getItem(TOKEN_KEY) || ''
     if (queryToken) window.history.replaceState({}, '', '/workshops/register')
     if (!privateToken) {
-      Promise.resolve().then(() => active && setState({ loading: false, error: 'This private workshop link is invalid or no longer active.', invitation: null, event: null, pass: null }))
+      Promise.resolve().then(() => active && setState({ loading: false, error: 'This private workshop link is invalid or no longer active.', invitation: null, registration: null, event: null, pass: null }))
       return undefined
     }
+    // The participant name is resolved by the server from the private
+    // invitation; the form only asks for the university speciality.
     api('/api/workshops/invitation', { token: privateToken }).then(({ response, payload }) => {
       if (!active) return
-      if (!response.ok) { sessionStorage.removeItem(TOKEN_KEY); setState({ loading: false, error: payload.message || 'This private workshop link is invalid or no longer active.', invitation: null, event: null, pass: null }); return }
-      const names = { firstName: payload.invitation.firstName || '', lastName: payload.invitation.lastName || '' }
-      setForm(names)
-      setState({ loading: false, error: '', invitation: payload.invitation, event: payload.event, pass: null })
-      if (payload.invitation.alreadyRegistered && names.firstName && names.lastName) register(privateToken, names)
-    }).catch(() => active && setState({ loading: false, error: 'Workshop registration is temporarily unavailable.', invitation: null, event: null, pass: null }))
+      if (!response.ok) { sessionStorage.removeItem(TOKEN_KEY); setState({ loading: false, error: payload.message || 'This private workshop link is invalid or no longer active.', invitation: null, registration: null, event: null, pass: null }); return }
+      const fullName = payload.invitation.fullName || ''
+      const prefilled = payload.registration?.universitySpeciality
+        || sessionStorage.getItem(SPECIALITY_KEY)
+        || ''
+      setForm((current) => ({ ...current, universitySpeciality: prefilled }))
+      setState({ loading: false, error: '', invitation: { ...payload.invitation, fullName }, registration: payload.registration, event: payload.event, pass: null })
+      if (payload.invitation.alreadyRegistered && prefilled) register(privateToken, prefilled)
+    }).catch(() => active && setState({ loading: false, error: 'Workshop registration is temporarily unavailable.', invitation: null, registration: null, event: null, pass: null }))
     return () => { active = false }
   }, [])
 
   const submit = (event) => {
     event.preventDefault()
-    const firstName = form.firstName.trim().replace(/\s+/g, ' ')
-    const lastName = form.lastName.trim().replace(/\s+/g, ' ')
-    if (!firstName || !lastName) return
-    register(token, { firstName, lastName })
+    const universitySpeciality = form.universitySpeciality.trim().replace(/\s+/g, ' ')
+    if (!universitySpeciality) return
+    register(token, universitySpeciality)
   }
 
   return <main className="workshop-private-page">
@@ -65,8 +71,22 @@ export default function WorkshopRegistrationPage() {
         : <section className="workshop-registration-card">
           <header><InfinityClubMark className="workshop-mark"/><p className="workshop-kicker">Infinity Club · Private invitation</p><h1>{state.event.title}</h1></header>
           <div className="workshop-event-facts"><p><CalendarDays/>{schedule(state.event.startsAt)}</p><p><MapPin/>{state.event.location}</p><p><UserRound/>{state.event.speaker}</p></div>
-          <form onSubmit={submit}><div className="workshop-name-grid"><label><span>First name *</span><input autoComplete="given-name" maxLength={80} required value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })}/></label><label><span>Last name *</span><input autoComplete="family-name" maxLength={80} required value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })}/></label></div><button disabled={submitting}>{submitting ? 'Creating your pass…' : 'Confirm registration'}</button></form>
-          <p className="workshop-privacy">Your workshop and membership are fixed by this private invitation. No member or event identifier is exposed.</p>
+          <p className="workshop-invitee">Registered to <strong>{state.invitation.fullName}</strong> — the identity tied to this private invitation.</p>
+          <form onSubmit={submit}>
+            <label><span>University speciality *</span>
+              <input
+                autoComplete="off"
+                maxLength={160}
+                minLength={2}
+                pattern="[\p{L}\p{N} .,'’\-()+&/]{2,160}"
+                required
+                value={form.universitySpeciality}
+                onChange={(e) => setForm({ ...form, universitySpeciality: e.target.value })}
+              />
+            </label>
+            <button disabled={submitting}>{submitting ? 'Creating your pass…' : 'Confirm registration'}</button>
+          </form>
+          <p className="workshop-privacy">Your name comes from the private invitation. Only your university speciality is stored for this workshop.</p>
         </section>}
     </div>
   </main>

@@ -7,16 +7,16 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useAdmin } from './AdminStore'
 import { RecordTable, RecordToolbar, SummaryStrip, Facts, History } from './AdminRecords'
 import {
-  Avatar, Button, ChipGroup, EmptyState, FilterSelect, Modal, PageHeader, Pagination, SearchField, StatusBadge, Tabs,
+  Avatar, Button, ChipGroup, EmptyState, Modal, PageHeader, Pagination, SearchField, StatusBadge, Tabs,
 } from './AdminUI'
 import {
-  ATTENDANCE_FILTERS, ATTENDANCE_STATE_LABELS, DEPARTMENT_FILTERS, EVENT_STATUS_FILTERS, EVENT_TYPE_FILTERS,
+  ATTENDANCE_FILTERS, ATTENDANCE_STATE_LABELS, EVENT_STATUS_FILTERS, EVENT_TYPE_FILTERS,
   EVENT_TYPE_LABELS, EVENT_TYPES, buildEventPayload, eventCheckedAt, eventFormFieldValues,
   formatEventSchedule, validateEventForm,
 } from './adminEventsModel'
 import {
   useAdminEvent, useAdminEventActions, useAdminEventAttendance,
-  useAdminEventInvitations, useAdminEventMembers, useAdminEventOrganizers, useAdminEventStaff, useAdminEvents,
+  useAdminEventParticipants, useAdminEventScanner, useAdminEvents,
 } from './useAdminEvents'
 
 const SCHEDULE_FIELDS = [
@@ -30,6 +30,10 @@ const SCHEDULE_FIELDS = [
 ]
 
 const initialsFor = (name = '') => name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'EV'
+
+const ATTENDANCE_LABELS = Object.freeze({
+  present: 'Present', not_checked_in: 'Not checked in', absent: 'Absent',
+})
 
 const EventCell = ({ record }) => (
   <div className="adm-event-cell">
@@ -239,7 +243,7 @@ export default function EventsListPage() {
   </div>
 }
 
-const TABS = Object.freeze(['Overview', 'Invitations', 'Organizers', 'Attendance'])
+const TABS = Object.freeze(['Overview', 'Participants', 'Attendance', 'Scanner'])
 
 function EventCommandBar({ event }) {
   const attendanceRate = event.attendanceCount ? event.attendanceRate : 0
@@ -260,10 +264,11 @@ function OverviewTab({ event, history }) {
   const statistics = event.statistics
   return <>
     <SummaryStrip items={[
-      { value: statistics.totalInvited, label: 'Members invited' },
+      { value: statistics.totalInvited, label: 'Member applicants invited' },
       { value: statistics.totalRegistered, label: 'Registered' },
-      { value: statistics.presentCount, label: 'Present' },
-      { value: statistics.absentCount, label: 'Absent' },
+      { value: statistics.totalPresent, label: 'Present' },
+      { value: statistics.totalNotCheckedIn, label: 'Not checked in' },
+      { value: statistics.totalAbsent, label: 'Absent' },
     ]}/>
     <div className="adm-event-overview-grid">
       <section className="adm-detail-section adm-event-information"><h4>Workshop information</h4><Facts items={[
@@ -273,9 +278,9 @@ function OverviewTab({ event, history }) {
         ['Description', event.description], ['Created', eventCheckedAt(event.createdAt)], ['Last update', eventCheckedAt(event.updatedAt)],
       ]}/></section>
       <section className="adm-detail-section adm-event-operations-section"><h4>Operations summary</h4><div className="adm-event-operations">
-        <p><span><UserRound size={16}/></span><b>Organizers</b><small>{event.organizerCount} assigned · {statistics.scannerEnabledOrganizers} scanner-ready</small></p>
+        <p><span><UsersRound size={16}/></span><b>Participants</b><small>{statistics.totalRegistered} registered · {statistics.totalPresent} present · {statistics.totalNotCheckedIn} not checked in</small></p>
         <p><span><CheckCircle2 size={16}/></span><b>Attendance</b><small>{ATTENDANCE_STATE_LABELS[event.attendanceState] || 'Not started'} · {statistics.attendanceRate}% rate</small></p>
-        {statistics.attendanceState === 'completed' && <StatusBadge tone="success">Attendance recorded</StatusBadge>}
+        {event.absentCount > 0 && <StatusBadge tone="warning">Attendance finalized with absences</StatusBadge>}
       </div></section>
     </div>
     <section className="adm-detail-section"><h4>History</h4>{history.length
@@ -284,17 +289,15 @@ function OverviewTab({ event, history }) {
   </>
 }
 
-function InvitationsTab({ event, onChanged }) {
+function ParticipantsTab({ event, onChanged }) {
   const { addToast } = useAdmin()
   const { invite, invitationLink, exportInvitations } = useAdminEventActions()
   const [search, setSearch] = useState('')
   const deferredSearch = useDeferredValue(search.trim())
-  const [pole, setPole] = useState('')
   const [selected, setSelected] = useState([])
   const [page, setPage] = useState(1)
   const [pending, setPending] = useState('')
-  const { members, facets, pagination, loading, error, refresh } = useAdminEventMembers({ eventId: event.id, page, limit: 25, search: deferredSearch, pole, sort: 'name_asc' })
-  const invitedList = useAdminEventInvitations({ eventId: event.id, page: 1, limit: 100 })
+  const { participants, pagination, loading, error, refresh } = useAdminEventParticipants({ eventId: event.id, page, limit: 25, search: deferredSearch })
   const invited = async (input, label) => {
     if (pending) return
     setPending(label)
@@ -302,26 +305,24 @@ function InvitationsTab({ event, onChanged }) {
       const result = await invite(event.id, input)
       if (!result.ok) return addToast('Invitations not sent', result.message)
       const added = Number(result.invited?.added || 0)
-      addToast('Members invited', `${added} new invitation record${added === 1 ? '' : 's'} created for this workshop.`)
+      addToast('Member applicants invited', `${added} new invitation record${added === 1 ? '' : 's'} created for this workshop.`)
       setSelected([])
       refresh()
-      invitedList.refresh()
       onChanged?.()
     } finally { setPending('') }
   }
-  const available = members.filter((member) => !member.invitation)
-  const toggleMember = (id) => setSelected(selected.includes(id) ? selected.filter((value) => value !== id) : [...selected, id])
+  const toggleParticipant = (id) => setSelected(selected.includes(id) ? selected.filter((value) => value !== id) : [...selected, id])
   const copyPrivateLink = async (record, regenerate = false) => {
     if (pending) return
     if (regenerate && !window.confirm(`Regenerate ${record.name}'s private registration link? The previous link will stop working immediately.`)) return
     const label = `${regenerate ? 'regenerate' : 'copy'}:${record.id}`
     setPending(label)
     try {
-      const result = await invitationLink(event.id, record.id, regenerate ? 'regenerate' : 'reveal', regenerate)
+      const result = await invitationLink(event.id, record.invitationId, regenerate ? 'regenerate' : 'reveal', regenerate)
       if (!result.ok) return addToast('Private link unavailable', result.message)
       await navigator.clipboard.writeText(result.privateLink)
       addToast(regenerate ? 'Private link regenerated' : 'Private link copied', regenerate ? 'The previous link is no longer valid.' : 'The personal registration link is ready to paste.')
-      invitedList.refresh()
+      refresh()
     } finally { setPending('') }
   }
   const exportCsv = async () => {
@@ -331,209 +332,123 @@ function InvitationsTab({ event, onChanged }) {
       const result = await exportInvitations(event.id)
       if (!result.ok) return addToast('Export unavailable', result.message)
       addToast('Invitation CSV exported', `${result.rowCount} private registration link${result.rowCount === 1 ? '' : 's'} prepared for n8n.`)
-      invitedList.refresh()
+      refresh()
     } finally { setPending('') }
   }
   return <>
-    <div className="adm-event-section-heading"><div><h4>Invite members</h4><p>Select current active members from the authoritative directory.</p></div></div>
+    <div className="adm-event-section-heading"><div><h4>Workshop participants</h4><p>Every member application of the club, with its invitation and registration state.</p></div></div>
     <div className="adm-event-quick-invite">
-      <h4>Quick invite</h4>
-      <p>Invite every current member of the club, or all active members of one primary pole. Repeated invitations never create duplicates.</p>
+      <h4>Invitations</h4>
+      <p>Invitations target member applications directly. Re-running never creates duplicates, and applications already invited keep their state.</p>
       <div className="adm-event-invite-actions">
-        <Button variant="secondary" onClick={() => invited({ scope: 'all_active' }, 'all')} disabled={Boolean(pending)}>{pending === 'all' ? 'Inviting…' : 'Invite all active members'}</Button>
-        {facets.poles.map(({ pole: name, count }) => (
-          <Button key={name} variant="secondary" onClick={() => invited({ scope: 'primary_pole', pole: name }, name)} disabled={Boolean(pending)}>
-            {pending === name ? 'Inviting…' : `Invite ${name} (${count})`}
-          </Button>
-        ))}
+        <Button variant="primary" onClick={() => invited({ scope: 'all_member_applicants' }, 'scope')} disabled={Boolean(pending)}>
+          {pending === 'scope' ? 'Generating…' : 'Generate invitations for all Member registrations'}
+        </Button>
       </div>
     </div>
     <div className="adm-toolbar">
-      <SearchField value={search} onChange={(value) => { setSearch(value); setPage(1) }} placeholder="Search members by name or pole..." label="Search members"/>
+      <SearchField value={search} onChange={(value) => { setSearch(value); setPage(1) }} placeholder="Search participants by name, email or speciality..." label="Search participants"/>
       <div className="adm-toolbar__filters">
-        <FilterSelect label="Member status" value="active" onChange={() => {}}>
-          <option value="active">Active members</option>
-        </FilterSelect>
-        <FilterSelect label="Filter members by primary pole" value={pole} onChange={(value) => { setPole(value); setPage(1) }}>
-          <option value="">All poles</option>
-          {facets.poles.map(({ pole: name }) => <option key={name} value={name}>{name}</option>)}
-        </FilterSelect>
-        <Button onClick={() => invited({ memberIds: selected }, 'selected')} disabled={Boolean(pending) || !selected.length}>{pending === 'selected' ? 'Inviting…' : `Invite selected (${selected.length})`}</Button>
+        <Button onClick={() => invited({ applicationIds: selected }, 'selected')} disabled={Boolean(pending) || !selected.length}>{pending === 'selected' ? 'Inviting…' : `Invite selected (${selected.length})`}</Button>
       </div>
     </div>
     {error ? <div className="adm-state-error" role="alert"><TriangleAlert size={22}/><p>{error}</p><Button variant="secondary" onClick={refresh}>Try again</Button></div>
       : loading ? <EventsSkeleton/>
-      : members.length ? <div className="adm-table-wrap">
+      : participants.length ? <div className="adm-table-wrap">
         <table className="adm-table adm-event-select-table">
-          <thead><tr><th className="is-checkbox"><span className="sr-only">Select member</span></th><th>Member</th><th>Pole</th><th>Level</th><th>Invitation</th></tr></thead>
-          <tbody>{members.map((member) => <tr key={member.id}>
+          <thead><tr><th className="is-checkbox"><span className="sr-only">Select participant</span></th><th>Name</th><th>Email</th><th>University speciality</th><th>Invitation</th><th>Registration</th><th>Attendance</th><th aria-label="Actions"/></tr></thead>
+          <tbody>{participants.map((record) => <tr key={record.id}>
             <td className="is-checkbox"><input
               type="checkbox"
-              disabled={Boolean(member.invitation)}
-              checked={selected.includes(member.id)}
-              onChange={() => toggleMember(member.id)}
-              aria-label={member.invitation ? `${member.name} already invited` : `Select ${member.name}`}/></td>
-            <td><div className="adm-person-cell"><Avatar initials={member.initials} small/><span><b>{member.name}</b></span></div></td>
-            <td>{member.pole}</td>
-            <td>{member.level}</td>
-            <td>{member.invitation ? <StatusBadge>{member.invitation.status}</StatusBadge> : <span className="adm-muted">Not invited yet</span>}</td>
+              disabled={record.invitationReady}
+              checked={selected.includes(record.id)}
+              onChange={() => toggleParticipant(record.id)}
+              aria-label={record.invitationReady ? `${record.name} already invited` : `Select ${record.name}`}/></td>
+            <td><div className="adm-person-cell"><Avatar initials={record.initials} small/><span><b>{record.name}</b></span></div></td>
+            <td>{record.email || '—'}</td>
+            <td>{record.universitySpeciality || <span className="adm-muted">—</span>}</td>
+            <td>{record.invitationReady ? <StatusBadge>{record.invitationStatus}</StatusBadge> : <span className="adm-muted">Not invited</span>}</td>
+            <td>{record.registrationStatus ? <StatusBadge tone={record.registrationStatus === 'Registered' ? 'success' : 'neutral'}>{record.registrationStatus}</StatusBadge> : <span className="adm-muted">—</span>}</td>
+            <td>{record.attendance
+              ? <StatusBadge tone={record.attendance === 'present' ? 'success' : record.attendance === 'absent' ? 'danger' : 'neutral'}>{ATTENDANCE_LABELS[record.attendance]}</StatusBadge>
+              : <span className="adm-muted">—</span>}</td>
+            <td className="adm-row-action">{record.invitationReady && <>
+              <button disabled={Boolean(pending) || !record.privateLinkReady} onClick={() => copyPrivateLink(record)}>{pending === `copy:${record.id}` ? 'Copying…' : 'Copy link'}</button>
+              <button disabled={Boolean(pending) || !record.privateLinkReady} onClick={() => copyPrivateLink(record, true)}>{pending === `regenerate:${record.id}` ? 'Regenerating…' : 'Regenerate link'}</button>
+            </>}</td>
           </tr>)}</tbody>
         </table>
-        {!available.length && <EmptyState title="All listed members are invited already" copy="Use the quick invite buttons to invite further poles or all active members."/>}
+        {!selected.length && <EmptyState title="No participants are selected" copy="Tick the box next to uninvited member applications to invite them individually."/>}
       </div>
-      : <EmptyState title="No members match" copy="Adjust the search or clear the pole filter."/>}
+      : <EmptyState title="No participants match" copy="Adjust the search; participants come from member applications of the club."/>}
     <Pagination current={pagination.page} count={pagination.total} pageSize={pagination.limit} onChange={setPage}/>
     <section className="adm-detail-section">
-      <div className="adm-event-section-heading"><div><h4>Invited participants</h4><p>Historical invitations remain visible if a member later becomes inactive or archived.</p></div>
-        <Button variant="secondary" icon={<Download size={15}/>} disabled={Boolean(pending) || !invitedList.records.length} onClick={exportCsv}>
+      <div className="adm-event-section-heading"><div><h4>Private registration links</h4><p>Links are hashed in storage and delivered manually; export prepares one row per active invitation.</p></div>
+        <Button variant="secondary" icon={<Download size={15}/>} disabled={Boolean(pending)} onClick={exportCsv}>
           {pending === 'export' ? 'Exporting…' : 'Export invitations CSV'}
         </Button>
       </div>
-      {invitedList.error ? <div className="adm-state-error" role="alert"><TriangleAlert size={22}/><p>{invitedList.error}</p><Button variant="secondary" onClick={invitedList.refresh}>Try again</Button></div>
-        : invitedList.loading ? <EventsSkeleton/>
-        : invitedList.records.length ? <div className="adm-table-wrap"><table className="adm-table"><thead><tr><th>Member</th><th>Email</th><th>Pole</th><th>Invitation</th><th>Registration</th><th>Private link</th><th aria-label="Actions"/></tr></thead>
-          <tbody>{invitedList.records.map((record) => <tr key={record.id}>
-            <td><div className="adm-person-cell"><Avatar initials={record.initials} small/><span><b>{record.name}</b><small>{record.memberStatus && record.memberStatus !== 'active' ? record.memberStatus : eventCheckedAt(record.invitedAt)}</small></span></div></td>
-            <td>{record.email || '—'}</td><td>{record.pole}</td><td><StatusBadge>{record.invitationStatus}</StatusBadge></td>
-            <td><StatusBadge tone={record.registeredAt ? 'success' : 'neutral'}>{record.registrationStatus}</StatusBadge>{record.registeredAt && <small className="adm-table-date">{eventCheckedAt(record.registeredAt)}</small>}</td>
-            <td><StatusBadge tone={record.privateLinkStatus === 'Ready' ? 'success' : 'neutral'}>{record.privateLinkStatus}</StatusBadge></td>
-            <td className="adm-row-action"><button disabled={Boolean(pending)} onClick={() => copyPrivateLink(record)}>{pending === `copy:${record.id}` ? 'Copying…' : 'Copy link'}</button><button disabled={Boolean(pending)} onClick={() => copyPrivateLink(record, true)}>{pending === `regenerate:${record.id}` ? 'Regenerating…' : 'Regenerate link'}</button></td>
-          </tr>)}</tbody></table></div>
-        : <EmptyState title="No invited participants yet" copy="Invite active members above. Their historical records will appear here."/>}
+      <p className="adm-muted">Copy or regenerate a personal link directly from the participant table above. Exported CSV rows contain the same private links plus names and emails for delivery.</p>
     </section>
   </>
 }
 
-function OrganizersTab({ event, onChanged }) {
+function ScannerTab({ event, onChanged }) {
   const { addToast } = useAdmin()
-  const { assignOrganizers, removeOrganizer, setScannerAccess, scannerCredential } = useAdminEventActions()
-  const { organizers, loading, error, refresh } = useAdminEventOrganizers(event.id, true)
-  const [adding, setAdding] = useState(false)
-  const [staffSearch, setStaffSearch] = useState('')
-  const deferredStaffSearch = useDeferredValue(staffSearch.trim())
-  const [staffDepartment, setStaffDepartment] = useState('')
-  const [selectedStaff, setSelectedStaff] = useState([])
+  const { scannerAccess } = useAdminEventActions()
+  const { scanner, copyable, loading, error, refresh } = useAdminEventScanner(event.id, true)
   const [pending, setPending] = useState('')
-  const [privateLinks, setPrivateLinks] = useState({})
-  const { records: eligibleStaff, loading: staffLoading, error: staffError } = useAdminEventStaff({ eventId: event.id, search: deferredStaffSearch, department: staffDepartment, active: adding })
-  const assign = async () => {
-    if (pending || !selectedStaff.length) return
-    setPending('add')
-    try {
-      const result = await assignOrganizers(event.id, selectedStaff)
-      if (!result.ok) return addToast('Organizers not assigned', result.message)
-      addToast('Organizers assigned', `${result.added} added${result.skipped ? `, ${result.skipped} skipped (not active)` : ''}.`)
-      setSelectedStaff([])
-      setAdding(false)
-      setStaffSearch(''); setStaffDepartment('')
-      refresh()
-      onChanged?.()
-    } finally { setPending('') }
-  }
-  const remove = async (organizer) => {
+  const [privateUrl, setPrivateUrl] = useState('')
+  const act = async (action, { confirm = false, message = '' } = {}) => {
     if (pending) return
-    setPending(`remove:${organizer.staffProfileId}`)
+    if (message && !window.confirm(message)) return
+    setPending(action)
     try {
-      const result = await removeOrganizer(event.id, organizer.staffProfileId)
-      if (!result.ok) return addToast('Organizer not removed', result.message)
-      addToast('Organizer removed', `${organizer.name} is no longer an organizer of this event.`)
-      refresh()
-      onChanged?.()
-    } finally { setPending('') }
-  }
-  const scanner = async (organizer, enabled) => {
-    if (pending) return
-    setPending(`scanner:${organizer.staffProfileId}`)
-    try {
-      const result = await setScannerAccess(event.id, organizer.staffProfileId, enabled)
-      if (!result.ok) return addToast('Scanner access not updated', result.message)
-      addToast(enabled ? 'Scanner access prepared' : 'Scanner access disabled', enabled ? `${organizer.name} can be issued a private scanner link in the check-in phase.` : 'No scanner link will be issued for this organizer.')
-      refresh()
-      onChanged?.()
-    } finally { setPending('') }
-  }
-  const credential = async (organizer, action) => {
-    if (pending) return
-    setPending(`credential:${organizer.id}`)
-    try {
-      const result = await scannerCredential(event.id, organizer.id, action)
-      if (!result.ok) return addToast('Scanner link not updated', result.message)
-      if (action === 'revoke') {
-        setPrivateLinks((current) => { const next = { ...current }; delete next[organizer.id]; return next })
-        addToast('Scanner link revoked', `${organizer.name}'s private scanner access is no longer valid.`)
-      } else {
-        setPrivateLinks((current) => ({ ...current, [organizer.id]: result.privateUrl }))
-        try { await navigator.clipboard.writeText(result.privateUrl); addToast('Private scanner link copied', 'Share it only with the selected organizer.') }
-        catch { addToast('Private scanner link generated', 'Use Copy private link below to copy it securely.') }
+      const result = await scannerAccess(event.id, action, confirm)
+      if (!result.ok) return addToast('Workshop scanner not updated', result.message)
+      if (result.privateUrl) {
+        setPrivateUrl(result.privateUrl)
+        try { await navigator.clipboard.writeText(result.privateUrl); addToast('Workshop scanner link ready', 'The shared link was copied to the clipboard.') }
+        catch { addToast('Workshop scanner link ready', 'Copy the shared link below and open it on the door device.') }
+      } else if (action === 'revoke') {
+        setPrivateUrl('')
+        addToast(result.revoked ? 'Workshop scanner link revoked' : 'Already revoked', result.revoked ? 'The shared link and any live scanner session stopped working.' : 'There was no active scanner link to revoke.')
       }
-      refresh(); onChanged?.()
+      refresh()
+      onChanged?.()
     } finally { setPending('') }
   }
-  const copyPrivateLink = async (organizer) => {
-    try { await navigator.clipboard.writeText(privateLinks[organizer.id]); addToast('Private scanner link copied', 'The link is ready to share.') }
+  const copyRevealed = async () => {
+    try { await navigator.clipboard.writeText(privateUrl); addToast('Workshop scanner link copied', 'The link is ready to share.') }
     catch { addToast('Copy unavailable', 'Select and copy the generated link manually.') }
   }
   return <>
-    <div className="adm-toolbar">
-      <p className="adm-toolbar-note">Organizers are active staff members responsible for running this workshop.</p>
-      <Button onClick={() => setAdding(true)} icon={<Plus size={16}/>}>Add organizers</Button>
-    </div>
+    <div className="adm-event-section-heading"><div><h4>Workshop scanner</h4><p>One shared check-in link for the whole workshop. It grants no administrator access.</p></div></div>
     {error ? <div className="adm-state-error" role="alert"><TriangleAlert size={22}/><p>{error}</p><Button variant="secondary" onClick={refresh}>Try again</Button></div>
       : loading ? <EventsSkeleton/>
-      : organizers.length ? <div className="adm-table-wrap">
-        <table className="adm-table">
-          <thead><tr><th>Organizer</th><th>Department</th><th>Internal role</th><th>Scanner access</th><th aria-label="Actions"/></tr></thead>
-          <tbody>{organizers.map((organizer) => <tr key={organizer.id}>
-            <td><div className="adm-person-cell"><Avatar initials={organizer.initials} small/><span><b>{organizer.name}</b></span></div></td>
-            <td>{organizer.department}</td>
-            <td>{organizer.role}</td>
-            <td><div className="adm-event-scanner-state">
-              <StatusBadge tone={organizer.scannerAccess?.status === 'active' ? 'success' : 'neutral'}>{organizer.scannerAccess?.status === 'active' ? 'Active private link' : organizer.scannerEnabled ? 'Enabled · not generated' : 'Disabled'}</StatusBadge>
-              {organizer.scannerAccess?.expiresAt && <small>Expires {eventCheckedAt(organizer.scannerAccess.expiresAt)}</small>}
-              {privateLinks[organizer.id] && <div className="adm-private-link"><input readOnly value={privateLinks[organizer.id]} aria-label={`Private scanner link for ${organizer.name}`}/><button onClick={() => copyPrivateLink(organizer)}><Copy size={14}/> Copy private link</button></div>}
-            </div></td>
-            <td className="adm-row-action">
-              <div className="adm-event-organizer-actions">
-                <button disabled={Boolean(pending)} onClick={() => scanner(organizer, !organizer.scannerEnabled)}>{pending === `scanner:${organizer.staffProfileId}` ? 'Saving…' : organizer.scannerEnabled ? 'Disable scanner access' : 'Enable scanner access'}</button>
-                {organizer.scannerEnabled && <button disabled={Boolean(pending)} onClick={() => credential(organizer, organizer.scannerAccess?.status === 'active' ? 'regenerate' : 'generate')}>{pending === `credential:${organizer.id}` ? 'Generating…' : organizer.scannerAccess?.status === 'active' ? 'Regenerate private link' : 'Generate access'}</button>}
-                {organizer.scannerAccess?.status === 'active' && <button disabled={Boolean(pending)} onClick={() => credential(organizer, 'revoke')}>Revoke link</button>}
-                <button className="is-danger" disabled={Boolean(pending)} onClick={() => remove(organizer)}>{pending === `remove:${organizer.staffProfileId}` ? 'Removing…' : 'Remove'}</button>
-              </div>
-            </td>
-          </tr>)}</tbody>
-        </table>
-      </div>
-      : <EmptyState title="No organizers assigned yet" copy="Assign active staff members to prepare the workshop operations."/>}
-    {adding && <Modal open onClose={() => { setAdding(false); setSelectedStaff([]); setStaffSearch(''); setStaffDepartment('') }} wide eyebrow={`Workshop · ${event.ref}`} title="Add organizers" closeLabel="Close"
-      footer={<>
-        <Button variant="secondary" onClick={() => { setAdding(false); setSelectedStaff([]) }}>Cancel</Button>
-        <Button onClick={assign} disabled={Boolean(pending) || !selectedStaff.length}>{pending === 'add' ? 'Adding…' : `Add ${selectedStaff.length || ''} organizer${selectedStaff.length === 1 ? '' : 's'}`}</Button>
-      </>}>
-      <div className="adm-event-staff-picker">
-        <SearchField value={staffSearch} onChange={setStaffSearch} placeholder="Search staff by name or role..." label="Search staff"/>
-        <ChipGroup label="Filter staff by department" options={DEPARTMENT_FILTERS} value={staffDepartment} onChange={setStaffDepartment}/>
-        {staffError ? <div className="adm-state-error" role="alert"><TriangleAlert size={22}/><p>{staffError}</p></div> : staffLoading ? <EventsSkeleton/> : <>
-          <div className="adm-table-wrap">
-            <table className="adm-table adm-event-select-table">
-              <thead><tr><th className="is-checkbox"><span className="sr-only">Select staff</span></th><th>Staff member</th><th>Department</th><th>Internal role</th></tr></thead>
-              <tbody>{eligibleStaff.map((record) => <tr key={record.id}>
-                <td className="is-checkbox"><input
-                  type="checkbox"
-                  disabled={record.assigned}
-                  checked={selectedStaff.includes(record.id)}
-                  onChange={() => setSelectedStaff(selectedStaff.includes(record.id) ? selectedStaff.filter((value) => value !== record.id) : [...selectedStaff, record.id])}
-                  aria-label={`Select ${record.name}`}/></td>
-                <td><div className="adm-person-cell"><Avatar initials={record.initials} small/><span><b>{record.name}</b></span></div></td>
-                <td>{record.department}</td>
-                <td>{record.role}</td>
-              </tr>)}</tbody>
-            </table>
-            {!eligibleStaff.length && <EmptyState title="No active staff found" copy="Adjust the search or the department filter."/>}
-          </div>
-          <p className="adm-toolbar-note">{organizers.length ? `${organizers.length} organizer${organizers.length === 1 ? '' : 's'} already assigned. Members who are not active staff are skipped automatically.` : 'Only active staff members are assigned. Others are skipped automatically.'}</p>
-        </>}
-      </div>
-    </Modal>}
+      : <div className="adm-table-wrap">
+        <div className="adm-event-scanner-state">
+          <StatusBadge tone={copyable ? 'success' : 'neutral'}>
+            {copyable ? 'Active shared link' : scanner?.id ? scanner.status === 'revoked' || scanner.revokedAt ? 'Revoked' : 'Expired' : 'Not generated'}
+          </StatusBadge>
+          {scanner?.expiresAt && <small>{copyable ? `Valid until ${eventCheckedAt(scanner.expiresAt)}` : `Ended ${eventCheckedAt(scanner.expiresAt)}`}</small>}
+          {scanner?.lastUsedAt && <small>Last used {eventCheckedAt(scanner.lastUsedAt)}</small>}
+        </div>
+        {privateUrl && <div className="adm-private-link"><input readOnly value={privateUrl} aria-label="Shared workshop scanner link"/><button onClick={copyRevealed}><Copy size={14}/> Copy shared link</button></div>}
+        <p className="adm-muted">Regenerating stops the previous link and all live scanner sessions immediately. Revoke the link whenever the door device is unpaired.</p>
+        <div className="adm-event-invite-actions">
+          <Button onClick={() => act('generate')} disabled={Boolean(pending)}>
+            {pending === 'generate' ? 'Generating…' : copyable ? 'Reveal shared link' : 'Generate shared scanner link'}
+          </Button>
+          <Button variant="secondary" onClick={() => act('copy')} disabled={Boolean(pending) || !copyable}>{pending === 'copy' ? 'Copying…' : 'Copy shared link'}</Button>
+          <Button variant="secondary" disabled={Boolean(pending) || !scanner?.id} onClick={() => act('regenerate', { confirm: true, message: 'Regenerate the shared workshop scanner link? The previous link and all live scanner sessions stop working immediately.' })}>
+            {pending === 'regenerate' ? 'Regenerating…' : 'Regenerate link'}
+          </Button>
+          <Button variant="secondary" disabled={Boolean(pending) || !copyable} onClick={() => act('revoke', { confirm: true, message: 'Revoke the shared workshop scanner link? Check-in stops until a new link is generated.' })}>
+            {pending === 'revoke' ? 'Revoking…' : 'Revoke link'}
+          </Button>
+        </div>
+      </div>}
   </>
 }
 
@@ -545,10 +460,9 @@ function AttendanceTab({ event }) {
   const [finalizing, setFinalizing] = useState(false)
   const { records, summary, pagination, loading, error, refresh } = useAdminEventAttendance({ eventId: event.id, page, limit: 50, status })
   const columns = useMemo(() => [
-    { key: 'name', label: 'Member', render: (row) => <div className="adm-person-cell"><Avatar initials={row.initials} small/><span><b>{row.name}</b></span></div> },
-    { key: 'pole', label: 'Pole' },
-    { key: 'registration', label: 'Registration', render: (row) => row.registration ? <StatusBadge tone="success">{row.registration}</StatusBadge> : '—' },
-    { key: 'status', label: 'Attendance', render: (row) => <StatusBadge>{row.status}</StatusBadge> },
+    { key: 'name', label: 'Participant', render: (row) => <div className="adm-person-cell"><Avatar initials={row.initials} small/><span><b>{row.name}</b><small>{row.email || ''}</small></span></div> },
+    { key: 'universitySpeciality', label: 'University speciality' },
+    { key: 'attendance', label: 'Attendance', render: (row) => <StatusBadge tone={row.absentAt ? 'danger' : row.checkedInAt ? 'success' : 'neutral'}>{row.absentAt ? 'Absent' : row.checkedInAt ? 'Present' : 'Not checked in'}</StatusBadge> },
     { key: 'checkedInAt', label: 'Check-in', render: (row) => eventCheckedAt(row.checkedInAt) },
     { key: 'checkedInBy', label: 'Scanner', render: (row) => row.checkedInBy || '—' },
   ], [])
@@ -556,17 +470,17 @@ function AttendanceTab({ event }) {
     {summary && <SummaryStrip items={[
       { value: summary.registered, label: 'Registered' },
       { value: summary.present, label: 'Present' },
-      { value: summary.remaining, label: 'Remaining' },
+      { value: summary.notCheckedIn, label: 'Not checked in' },
       { value: summary.absent, label: 'Absent' },
       { value: `${summary.attendanceRate}%`, label: 'Attendance rate', meta: `${summary.present} present` },
     ]}/>}
     <div className="adm-chip-row"><ChipGroup label="Filter attendance" options={ATTENDANCE_FILTERS} value={status} onChange={(value) => { setStatus(value); setPage(1) }}/></div>
     <div className="adm-toolbar">
-      <p className="adm-toolbar-note">Expected participants remain pending until scanned. They are never marked absent automatically.</p>
+      <p className="adm-toolbar-note">Registrations stay pending until scanned. Participants are never marked absent automatically.</p>
       <div className="adm-toolbar__filters">
         <Button variant="secondary" onClick={refresh} icon={<RefreshCw size={15}/>}>Refresh</Button>
         {event.statusKey === 'completed' && <Button variant="secondary" disabled={finalizing} onClick={async () => {
-          if (!window.confirm('Finalize every remaining expected participant as absent? This action is explicit and auditable.')) return
+          if (!window.confirm('Finalize every remaining registration as absent? This action is explicit and auditable.')) return
           setFinalizing(true)
           const result = await finalizeAttendance(event.id)
           setFinalizing(false)
@@ -585,8 +499,8 @@ function AttendanceTab({ event }) {
         pagination={pagination}
         onPageChange={setPage}
         emptyTitle="No attendance rows"
-        labels={{ empty: 'No attendance rows', record: 'member' }}/>
-      : <EmptyState title="No attendance recorded yet" copy="Every invited member gets an expected attendance row; it fills in during the check-in phase."/>}
+        labels={{ empty: 'No attendance rows', record: 'participant' }}/>
+      : <EmptyState title="No attendance recorded yet" copy="Participants appear here once they register through their private invitation link."/>}
   </>
 }
 
@@ -627,7 +541,7 @@ export function EventDetailPage() {
     <PageHeader
       eyebrow={`${event.typeLabel} · ${event.ref}`}
       title={event.title}
-      description={event.description || 'Coordinate invitations, organizers and attendance from one operational workspace.'}
+      description={event.description || 'Coordinate invitations, participants and attendance from one operational workspace.'}
       meta={<StatusBadge>{event.status}</StatusBadge>}
       actions={<>
         <Button variant="secondary" onClick={refresh} icon={<RefreshCw size={16}/>}>Refresh</Button>
@@ -636,12 +550,12 @@ export function EventDetailPage() {
         <Button onClick={() => setEditing(true)}>Edit workshop</Button>
       </>}/>
     <EventCommandBar event={event}/>
-    <Tabs items={TABS} value={tab} onChange={setTab} label="Event sections" counts={{ Invitations: event.invitedCount, Organizers: event.organizerCount, Attendance: event.attendanceCount }}/>
+    <Tabs items={TABS} value={tab} onChange={setTab} label="Event sections" counts={{ Participants: event.invitedCount, Attendance: event.attendanceCount }}/>
     <div className="adm-event-detail-body">
       {tab === 'Overview' && <OverviewTab event={event} history={event.history}/>}
-      {tab === 'Invitations' && <InvitationsTab event={event} onChanged={refresh}/>}
-      {tab === 'Organizers' && <OrganizersTab event={event} onChanged={refresh}/>}
+      {tab === 'Participants' && <ParticipantsTab event={event} onChanged={refresh}/>}
       {tab === 'Attendance' && <AttendanceTab event={event}/>}
+      {tab === 'Scanner' && <ScannerTab event={event} onChanged={refresh}/>}
     </div>
     {editing && <EditEventModal event={event} open onClose={() => setEditing(false)} onSaved={refresh}/>} 
   </div>

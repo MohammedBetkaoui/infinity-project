@@ -1,7 +1,7 @@
 import { ShieldCheck } from 'lucide-react'
 import InfinityClubMark from '../../../components/InfinityClubMark.jsx'
 
-export default function ScannerHeader({ eventTitle, location, organizerName }) {
+export default function ScannerHeader({ eventTitle, location }) {
   return (
     <header className="scanner-header">
       <div className="scanner-header__event">
@@ -16,7 +16,7 @@ export default function ScannerHeader({ eventTitle, location, organizerName }) {
         <ShieldCheck aria-hidden="true" />
         <span>
           <small>Authorized scanner</small>
-          <b>{organizerName}</b>
+          <b>Workshop scanner</b>
         </span>
       </div>
     </header>

@@ -367,6 +367,21 @@
   overflow-wrap: break-word;
 }
 
+.workshop-pass__speciality {
+  max-width: 75.9cqw;
+  margin: 0.48cqw 0 0;
+  overflow: hidden;
+  font-size: 1.9cqw;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: 0.285cqw;
+  text-indent: 0.285cqw;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  color: rgba(0, 42, 30, 0.78);
+}
+
 .workshop-pass__footer {
   position: relative;
   z-index: 1;
@@ -488,6 +503,7 @@
   .workshop-pass__scan { font-size: 7px; letter-spacing: 2.5px; margin-top: 8px; }
   .workshop-pass__participant { margin-top: 14px; }
   .workshop-pass__participant h2 { letter-spacing: 0.5px; margin-top: 12px; }
+  .workshop-pass__speciality { max-width: 380px; margin-top: 3px; font-size: 10px; letter-spacing: 1.5px; text-indent: 1.5px; }
   .workshop-pass__footer-mark svg { width: 62px; margin-bottom: 12px; }
   .workshop-pass__slogan { font-size: 12.5px; letter-spacing: 5.5px; }
   .workshop-pass__slogan::before, .workshop-pass__slogan::after { width: 65px; height: 1px; }

@@ -1,8 +1,8 @@
 import { INFINITY_CLUB_PATH, INFINITY_CLUB_VIEWBOX, INFINITY_CLUB_ASPECT } from '../../components/infinity-club-geometry.js'
 import { WORKSHOP_BADGE } from './workshopBadgeTheme.js'
-import { planWorkshopPass } from './workshopPassLayout.js'
+import { planWorkshopPass, planWorkshopSpeciality } from './workshopPassLayout.js'
 
-const { colors: C, panel: PANEL, header: HEADER, footer: FOOTER, title: TITLE, meta: META, qr: QR, name: NAME } = WORKSHOP_BADGE
+const { colors: C, panel: PANEL, header: HEADER, footer: FOOTER, title: TITLE, meta: META, qr: QR, name: NAME, speciality: SPECIALITY } = WORKSHOP_BADGE
 const BADGE_WIDTH = WORKSHOP_BADGE.width
 const BADGE_HEIGHT = WORKSHOP_BADGE.height
 const FONT_FAMILY = 'Inter, Arial, sans-serif'
@@ -332,6 +332,11 @@ const paintPanel = (context, pass, plan, qrImage) => {
   plan.name.lines.forEach((line, index) => {
     track(context, line, { weight: 800, size: plan.name.size, spacing: NAME.nameSpacing, color: C.deep }, cx, plan.name.firstBaseline + index * plan.name.line)
   })
+
+  const speciality = planWorkshopSpeciality(measureOn(context), pass.universitySpeciality)
+  if (speciality) {
+    track(context, speciality, { weight: SPECIALITY.weight, size: SPECIALITY.size, spacing: SPECIALITY.spacing, color: C.inkSoft }, cx, SPECIALITY.baseline)
+  }
 }
 
 const paintHeader = (context) => {

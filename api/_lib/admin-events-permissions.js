@@ -1,10 +1,8 @@
 export const ADMIN_EVENT_ACTIONS = Object.freeze([
   'create_event',
   'update_event',
-  'invite_members',
-  'assign_organizers',
-  'remove_organizer',
-  'set_scanner_access',
+  'invite_applicants',
+  'manage_scanner',
 ])
 
 export function canAccessEvents(role) {

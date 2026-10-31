@@ -130,6 +130,7 @@
 .scanner-result__copy small { grid-column: 1 / -1; color: currentColor; font-size: 9px; font-weight: 800; letter-spacing: 0.12em; opacity: 0.7; text-transform: uppercase; }
 .scanner-result__copy h2 { grid-column: 1 / -1; margin: 0; font-size: 17px; line-height: 1.1; text-transform: uppercase; }
 .scanner-result__copy p { overflow: hidden; margin: 2px 0 0; color: var(--scanner-cream); font-size: 15px; font-weight: 800; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.scanner-result__copy small.scanner-result__speciality { margin-top: -1px; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; opacity: 0.9; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
 .scanner-result__copy > span { color: var(--scanner-muted); font-size: 11px; }
 .scanner-result__copy time { justify-self: end; font-size: 12px; font-variant-numeric: tabular-nums; font-weight: 800; }
 .scanner-result__copy em { grid-column: 1 / -1; color: var(--scanner-muted); font-size: 10px; font-style: normal; }

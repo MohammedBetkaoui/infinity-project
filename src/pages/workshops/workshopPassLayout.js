@@ -63,6 +63,20 @@ const fitName = (measure, words) => {
   return fitText(measure, words, { ...options, maxLines: 2 })
 }
 
+// Single-line university speciality caption under the participant name.
+// Deliberately outside planWorkshopPass so the name/QR chain keeps byte-for-
+// byte identical numbers; the canvas and the web badge share this truncation.
+export function planWorkshopSpeciality(measure, value) {
+  const text = passWords(value).join(' ').toUpperCase()
+  if (!text) return ''
+  const { weight, size, spacing, maxWidth } = BADGE.speciality
+  const width = (candidate) => measure(candidate, weight, size, spacing)
+  if (width(text) <= maxWidth) return text
+  let suffix = text
+  while (suffix.length > 1 && width(`${suffix}…`) > maxWidth) suffix = suffix.slice(0, -1)
+  return `${suffix}…`
+}
+
 export function planWorkshopPass(measure, input = {}) {
   const titleWords = passWords(input.title).map((word) => word.toUpperCase())
   const nameWords = passWords(input.name || 'Participant').map((word) => word.toUpperCase())

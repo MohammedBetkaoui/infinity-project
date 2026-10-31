@@ -11,16 +11,13 @@ const mappedError = (error, scanner = false) => {
   const message = String(error?.databaseMessage || '')
   if (message.includes('registration_not_open')) return { ok: false, status: 'closed', message: 'Workshop registration is not open.' }
   if (message.includes('check_in_not_open')) return { ok: false, status: 'not_open', message: 'Workshop check-in is not open.' }
-  if (message.includes('scanner_not_available') || message.includes('scanner_not_enabled')
-    || message.includes('organizer_not_eligible') || message.includes('invalid_scanner')) return scannerError()
-  if (message.includes('invalid_invitation')) return genericPrivateError()
+  if (message.includes('scanner_not_available')
+    || message.includes('invalid_scanner')) return scannerError()
+  if (message.includes('invalid_invitation') || message.includes('invalid_registration')
+    || message.includes('participant_credential_conflict')) return genericPrivateError()
   return scanner ? null : null
 }
 
-const splitName = (value) => {
-  const words = String(value || '').trim().split(/\s+/).filter(Boolean)
-  return { firstName: words[0] || '', lastName: words.slice(1).join(' ') || '' }
-}
 const eventView = (row) => ({
   id: row.event_id, title: row.event_title, startsAt: row.starts_at, endsAt: row.ends_at || null,
   location: row.location, speaker: row.speaker_name || '',
@@ -32,24 +29,34 @@ export function createWorkshopsService({ store, now = () => new Date(), origin, 
     async invitation(rawToken) {
       const row = await store.openInvitation({ tokenHash: hashWorkshopToken(rawToken), now: now() })
       if (!row) return genericPrivateError()
-      const suggested = splitName(row.member_name)
       return {
         ok: true,
         invitation: {
           status: row.invitation_status,
-          alreadyRegistered: row.invitation_status === 'registered',
-          firstName: row.registered_first_name || suggested.firstName,
-          lastName: row.registered_last_name || suggested.lastName,
+          alreadyRegistered: Boolean(row.registration_status),
+          fullName: row.full_name,
         },
+        registration: row.registration_status
+          ? { status: row.registration_status, universitySpeciality: row.university_speciality || '' }
+          : null,
         event: eventView(row),
       }
     },
     async register(input) {
       const invitationTokenHash = hashWorkshopToken(input.token)
-      const invitation = await store.openInvitation({ tokenHash: invitationTokenHash, now: now() })
+      let invitation
+      try {
+        invitation = await store.openInvitation({ tokenHash: invitationTokenHash, now: now() })
+      } catch (error) {
+        const mapped = mappedError(error)
+        if (mapped) return mapped
+        throw error
+      }
       if (!invitation) return genericPrivateError()
+      // The opaque QR badge is derived from the registration's current stable
+      // credential version, so a revisit re-derives the identical credential.
       const qrCredential = prepareStableWorkshopCredential({
-        purpose: 'participant-pass', invitationId: invitation.invitation_id,
+        purpose: 'participant-pass', subjectId: invitation.invitation_id,
         credentialVersion: Number(invitation.qr_credential_version || 1),
         derivationVersion: Number(invitation.qr_derivation_version || WORKSHOP_CREDENTIAL_DERIVATION_VERSION),
         env, secret: workshopInvitationLinkSecret(env),
@@ -59,7 +66,7 @@ export function createWorkshopsService({ store, now = () => new Date(), origin, 
       const qrExpiresAt = new Date(Math.max(current.getTime() + 60 * 60 * 1000, eventEnd + 24 * 60 * 60 * 1000))
       try {
         const row = await store.register({
-          invitationTokenHash, firstName: input.firstName, lastName: input.lastName,
+          invitationTokenHash, universitySpeciality: input.universitySpeciality,
           qrTokenHash: qrCredential.tokenHash, qrCredentialVersion: qrCredential.credentialVersion,
           qrDerivationVersion: qrCredential.derivationVersion, qrExpiresAt, now: current,
         })
@@ -68,7 +75,7 @@ export function createWorkshopsService({ store, now = () => new Date(), origin, 
         return {
           ok: true, alreadyRegistered: Boolean(row.already_registered),
           pass: {
-            participantName: `${row.first_name} ${row.last_name}`,
+            participantName: row.full_name, universitySpeciality: row.university_speciality,
             event: eventView(row), qrPayload, qrExpiresAt: row.qr_expires_at,
           },
         }
@@ -98,7 +105,7 @@ export function createWorkshopsService({ store, now = () => new Date(), origin, 
       const registered = Number(row.registered || 0)
       const present = Number(row.present || 0)
       return {
-        eventId: row.event_id, eventTitle: row.event_title, organizerName: row.organizer_name,
+        eventId: row.event_id, eventTitle: row.event_title,
         startsAt: row.starts_at, location: row.location, eventStatus: row.event_status || null,
         registered, present, remaining: Math.max(0, registered - present), sessionExpiresAt: row.session_expires_at,
       }
@@ -119,7 +126,8 @@ export function createWorkshopsService({ store, now = () => new Date(), origin, 
           sessionTokenHash: hashWorkshopToken(sessionToken), qrTokenHash: hashWorkshopToken(qrToken), now: now(),
         })
         return { ok: true, result: {
-          status: result.status, participantName: result.participant_name || null, checkedInAt: result.checked_in_at || null,
+          status: result.status, participantName: result.participant_name || null,
+          universitySpeciality: result.university_speciality || null, checkedInAt: result.checked_in_at || null,
         } }
       } catch (error) {
         const mapped = mappedError(error, true)
@@ -133,4 +141,3 @@ export function createWorkshopsService({ store, now = () => new Date(), origin, 
 export function createServerWorkshopsService(options = {}) {
   return createWorkshopsService({ store: createWorkshopsStore(createServerSupabaseClient()), ...options })
 }
-

@@ -2,92 +2,53 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { Readable } from 'node:stream'
 import { readFile } from 'node:fs/promises'
-import { createAdminEventsHandler } from '../api/admin-auth.js'
-import { buildWorkshopInvitationsCsv, createAdminEventsService } from '../api/_lib/admin-events.js'
-import { createAdminEventsStore } from '../api/_lib/admin-events-store.js'
 import { createWorkshopHandler } from '../api/_lib/workshop-handlers.js'
 import { createWorkshopsService } from '../api/_lib/workshops.js'
-import {
-  buildWorkshopQrPayload, deriveStableWorkshopToken, generateWorkshopToken, hashWorkshopToken,
-  prepareStableWorkshopCredential, tokenFromWorkshopQrPayload,
-} from '../api/_lib/workshop-tokens.js'
-import { eventSchedule, workshopBadgeFileName } from '../src/pages/workshops/workshopBadge.js'
-import {
-  normalizeParticipantName, validateScannerContextBody, validateWorkshopCheckInBody, validateWorkshopRegistrationBody,
-} from '../api/_lib/workshop-validation.js'
+import { createWorkshopsStore } from '../api/_lib/workshops-store.js'
 import {
   validateEventAttendanceFinalizeBody, validateEventInvitationExportBody, validateEventInvitationLinkBody,
-  validateEventScannerCredentialBody, validateEventTransitionBody,
+  validateEventScannerActionBody, validateEventTransitionBody,
 } from '../api/_lib/admin-events-validation.js'
+import {
+  buildWorkshopQrPayload, buildWorkshopRegistrationUrl, buildWorkshopScannerUrl, deriveStableWorkshopToken,
+  generateWorkshopToken, hashWorkshopToken, prepareStableWorkshopCredential, tokenFromWorkshopQrPayload,
+} from '../api/_lib/workshop-tokens.js'
+import {
+  isUniversitySpeciality, normalizeUniversitySpeciality, validateScannerContextBody,
+  validateWorkshopCheckInBody, validateWorkshopRegistrationBody,
+} from '../api/_lib/workshop-validation.js'
+import { eventSchedule, workshopBadgeFileName } from '../src/pages/workshops/workshopBadge.js'
+import { planWorkshopSpeciality } from '../src/pages/workshops/workshopPassLayout.js'
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8')
 const TOKEN_A = 'A'.repeat(43)
 const TOKEN_B = 'B'.repeat(43)
 const TOKEN_C = 'C'.repeat(43)
 const EVENT_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
-const ORGANIZER_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+const INVITATION_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const NOW = new Date('2026-10-28T07:00:00.000Z')
 const LINK_ENV = { WORKSHOP_INVITATION_LINK_SECRET: 'correct-horse-battery-staple-workshop-secret-2026' }
-const EXPORT_ADMIN = { id: '11111111-1111-4111-8111-111111111111', role: 'super_admin' }
-
-const exportWorkshop = (changes = {}) => ({
-  id: EVENT_ID, title: 'ML, safely', starts_at: NOW.toISOString(), ends_at: '2026-10-28T11:00:00.000Z',
-  event_type: 'workshop', status: 'registration_open', ...changes,
-})
+const ORIGIN = 'https://www.infinty-bba.com'
 
 const stableInvitationCredential = (invitationId, credentialVersion = 1) => {
   const credential = prepareStableWorkshopCredential({
-    purpose: 'invitation', invitationId, credentialVersion, env: LINK_ENV,
+    purpose: 'invitation', subjectId: invitationId, credentialVersion, env: LINK_ENV,
   })
   return {
-    token_hash: credential.tokenHash,
+    invite_token_hash: credential.tokenHash,
     credential_version: credentialVersion,
     credential_derivation_version: 1,
   }
 }
 
-const invitationExportRow = (id, changes = {}) => ({
-  id, event_id: EVENT_ID, invitation_status: 'invited', invited_at: NOW.toISOString(), registered_at: null,
-  token_hash: null, token_expires_at: null, credential_version: null, credential_derivation_version: null, link_revoked_at: null,
-  participant_first_name: null, participant_last_name: null,
-  member: { full_name: 'Amel Benali', email: 'amel@example.com', phone: '+213555000000', primary_pole: 'AI Engineering', study_year: 'M1' },
-  ...changes,
-})
-
-function invitationExportHarness({ invitations, event = exportWorkshop() }) {
-  const state = new Map(invitations.map((row) => [row.id, { ...row }]))
-  const setCalls = []
-  const audits = []
-  const store = {
-    find: async () => event,
-    exportInvitationRows: async () => [...state.values()].filter((row) => ['invited', 'registered'].includes(row.invitation_status)).map((row) => ({ ...row })),
-    invitationCredential: async (_eventId, invitationId) => state.get(invitationId) || null,
-    async setInvitationLink(input) {
-      const previous = state.get(input.invitationId)
-      const next = {
-        ...previous, token_hash: input.tokenHash, token_expires_at: input.expiresAt.toISOString(),
-        credential_version: input.credentialVersion, credential_derivation_version: input.derivationVersion, link_revoked_at: null,
-      }
-      state.set(input.invitationId, next)
-      setCalls.push(input)
-      return {
-        invitation_id: input.invitationId, token_hash: input.tokenHash, expires_at: input.expiresAt.toISOString(),
-        credential_version: input.credentialVersion, derivation_version: input.derivationVersion, revoked_at: null,
-      }
-    },
-    async recordInvitationExport(input) { audits.push(input); return true },
-  }
-  return {
-    store, state, setCalls, audits,
-    service: createAdminEventsService({ store, now: () => NOW, origin: 'https://www.infinty-bba.com', env: LINK_ENV }),
-  }
-}
-
+// What public_open_event_invitation returns: the application identity plus the
+// registration (when it exists) that anchors the stable QR credential.
 const invitationRow = (changes = {}) => ({
-  invitation_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', invitation_status: 'invited', member_name: 'Amel Benali',
+  invitation_id: INVITATION_ID, invitation_status: 'invited', full_name: 'Amel Benali',
   event_id: EVENT_ID, event_title: 'Introduction to Machine Learning', starts_at: '2026-10-28T08:00:00.000Z',
   ends_at: '2026-10-28T11:00:00.000Z', location: 'FMI · Room 03', speaker_name: 'Dr Ahmed',
-  registered_first_name: null, registered_last_name: null, ...changes,
+  registration_status: null, university_speciality: null, qr_credential_version: null, qr_derivation_version: null,
+  ...changes,
 })
 
 test('workshop credentials use 256-bit random tokens and SHA-256 hashes', () => {
@@ -97,102 +58,227 @@ test('workshop credentials use 256-bit random tokens and SHA-256 hashes', () => 
   assert.equal(hashWorkshopToken(raw).length, 64)
   assert.notEqual(hashWorkshopToken(TOKEN_A), TOKEN_A)
   const stable = prepareStableWorkshopCredential({
-    purpose: 'invitation', invitationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    credentialVersion: 1, env: LINK_ENV,
+    purpose: 'invitation', subjectId: INVITATION_ID, credentialVersion: 1, env: LINK_ENV,
   })
   assert.equal(stable.rawToken.length, 43)
   assert.equal(stable.tokenHash, hashWorkshopToken(stable.rawToken))
   assert.equal(stable.rawToken, deriveStableWorkshopToken({
-    purpose: 'invitation', invitationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    credentialVersion: 1, derivationVersion: 1,
+    purpose: 'invitation', subjectId: INVITATION_ID, credentialVersion: 1, derivationVersion: 1,
   }, LINK_ENV.WORKSHOP_INVITATION_LINK_SECRET))
   assert.notEqual(stable.rawToken, prepareStableWorkshopCredential({
-    purpose: 'invitation', invitationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    credentialVersion: 2, env: LINK_ENV,
+    purpose: 'invitation', subjectId: INVITATION_ID, credentialVersion: 2, env: LINK_ENV,
   }).rawToken)
+  // The derivation subject is the stable row id: invitations, participant
+  // passes and the shared event scanner all derive from pre-existing rows.
+  assert.notEqual(stable.rawToken, prepareStableWorkshopCredential({
+    purpose: 'participant-pass', subjectId: INVITATION_ID, credentialVersion: 1, env: LINK_ENV,
+  }).rawToken)
+  assert.notEqual(stable.rawToken, prepareStableWorkshopCredential({
+    purpose: 'event-scanner', subjectId: EVENT_ID, credentialVersion: 1, env: LINK_ENV,
+  }).rawToken)
+  assert.throws(() => prepareStableWorkshopCredential({ purpose: 'invitation', env: LINK_ENV }))
 })
 
-test('participant QR payload is opaque, contains no PII and parses only the check-in route', () => {
-  const payload = buildWorkshopQrPayload('https://www.infinty-bba.com', TOKEN_A)
-  assert.equal(payload, `https://www.infinty-bba.com/workshops/check-in/${TOKEN_A}`)
+test('QR payload is opaque, contains no PII and parses only the check-in route', () => {
+  const payload = buildWorkshopQrPayload(ORIGIN, TOKEN_A)
+  assert.equal(payload, `${ORIGIN}/workshops/check-in/${TOKEN_A}`)
   for (const pii of ['Amel', 'Benali', '@', EVENT_ID]) assert.equal(payload.includes(pii), false)
   assert.equal(tokenFromWorkshopQrPayload(payload), TOKEN_A)
-  assert.equal(tokenFromWorkshopQrPayload('https://evil.test/workshops/register?t=' + TOKEN_A), '')
+  assert.equal(tokenFromWorkshopQrPayload(`${ORIGIN}/workshops/register?t=${TOKEN_A}`), '')
+  // Private links stay on their own opaque routes.
+  assert.equal(buildWorkshopRegistrationUrl(ORIGIN, TOKEN_A), `${ORIGIN}/workshops/register?t=${TOKEN_A}`)
+  assert.equal(buildWorkshopScannerUrl(ORIGIN, TOKEN_B), `${ORIGIN}/workshops/scan?t=${TOKEN_B}`)
 })
 
-test('registration validation normalizes names and refuses malformed tokens or names', () => {
-  assert.equal(normalizeParticipantName('  Amel   Benali '), 'Amel Benali')
-  assert.deepEqual(validateWorkshopRegistrationBody({ token: TOKEN_A, firstName: ' Amel ', lastName: ' Benali ' }), {
-    ok: true, value: { token: TOKEN_A, firstName: 'Amel', lastName: 'Benali' },
+test('registration validation asks only for the university speciality', () => {
+  assert.equal(normalizeUniversitySpeciality('  Software   Engineering '), 'Software Engineering')
+  assert.equal(normalizeUniversitySpeciality('Télécoms\u00A0&\u00A0Réseaux'), 'Télécoms & Réseaux')
+  assert.equal(isUniversitySpeciality('Software Engineering'), true)
+  assert.equal(isUniversitySpeciality('Info (SIQ) 2ème cycle, LMD - S/T & Web'), true)
+  for (const invalid of ['', 'x', 'a'.repeat(161), 'Software <script>', 'Bio 😊', null, 42]) {
+    assert.equal(isUniversitySpeciality(invalid), false, String(invalid))
+  }
+  assert.deepEqual(validateWorkshopRegistrationBody({ token: TOKEN_A, universitySpeciality: ' Software   Engineering ' }), {
+    ok: true, value: { token: TOKEN_A, universitySpeciality: 'Software Engineering' },
   })
-  assert.equal(validateWorkshopRegistrationBody({ token: 'short', firstName: 'Amel', lastName: 'Benali' }).ok, false)
-  assert.equal(validateWorkshopRegistrationBody({ token: TOKEN_A, firstName: '123', lastName: 'Benali' }).ok, false)
+  assert.equal(validateWorkshopRegistrationBody({ token: 'short', universitySpeciality: 'Software Engineering' }).ok, false)
+  assert.equal(validateWorkshopRegistrationBody({ token: TOKEN_A, universitySpeciality: 'x' }).ok, false)
+  assert.equal(validateWorkshopRegistrationBody({ token: TOKEN_A }).ok, false)
 })
 
 test('invalid, expired or cancelled invitations fail through one generic response', async () => {
   for (const reason of ['invalid', 'expired', 'cancelled']) {
-    const service = createWorkshopsService({ store: { openInvitation: async () => null }, now: () => NOW, origin: 'https://www.infinty-bba.com' })
+    const service = createWorkshopsService({ store: { openInvitation: async () => null }, now: () => NOW, origin: ORIGIN })
     const result = await service.invitation(TOKEN_A)
     assert.equal(result.ok, false, reason)
     assert.equal(result.message, 'This private workshop link is invalid or no longer active.')
   }
 })
 
-test('duplicate registration returns the existing registration and the same opaque QR pass', async () => {
+test('the invitation view serves the server-resolved identity and any stored registration', async () => {
+  const service = createWorkshopsService({
+    store: { openInvitation: async () => invitationRow({ registration_status: 'registered', university_speciality: 'Software Engineering', qr_credential_version: 1, qr_derivation_version: 1 }) },
+    now: () => NOW, origin: ORIGIN,
+  })
+  const result = await service.invitation(TOKEN_A)
+  assert.equal(result.ok, true)
+  assert.equal(result.invitation.status, 'invited')
+  assert.equal(result.invitation.alreadyRegistered, true)
+  assert.equal(result.invitation.fullName, 'Amel Benali')
+  assert.deepEqual(result.registration, { status: 'registered', universitySpeciality: 'Software Engineering' })
+  assert.equal(result.event.title, 'Introduction to Machine Learning')
+  const fresh = createWorkshopsService({ store: { openInvitation: async () => invitationRow() }, now: () => NOW, origin: ORIGIN })
+  const notRegistered = await fresh.invitation(TOKEN_B)
+  assert.equal(notRegistered.invitation.alreadyRegistered, false)
+  assert.equal(notRegistered.registration, null)
+})
+
+test('registration stores only the speciality, keeps identity server-resolved and repeats the opaque QR', async () => {
   let registered = false
-  const seenHashes = []
+  const calls = []
   const store = {
-    async openInvitation() { return invitationRow({ qr_credential_version: registered ? 1 : null, qr_derivation_version: registered ? 1 : null }) },
+    async openInvitation() {
+      return invitationRow(registered
+        ? { registration_status: 'registered', university_speciality: 'Software Engineering', qr_credential_version: 1, qr_derivation_version: 1 }
+        : {})
+    },
     async register(input) {
-      seenHashes.push(input.qrTokenHash)
-      const already = registered
+      calls.push(input)
       registered = true
-      return { ...invitationRow(), first_name: input.firstName, last_name: input.lastName, already_registered: already, qr_credential_version: 1, qr_derivation_version: 1, qr_expires_at: input.qrExpiresAt.toISOString() }
+      return {
+        ...invitationRow({ registration_status: 'registered', university_speciality: input.universitySpeciality }),
+        already_registered: calls.length > 1, qr_expires_at: input.qrExpiresAt.toISOString(),
+      }
     },
   }
-  const service = createWorkshopsService({ store, now: () => NOW, origin: 'https://www.infinty-bba.com', env: LINK_ENV })
-  const first = await service.register({ token: TOKEN_C, firstName: 'Amel', lastName: 'Benali' })
-  const second = await service.register({ token: TOKEN_C, firstName: 'Amel', lastName: 'Benali' })
+  const service = createWorkshopsService({ store, now: () => NOW, origin: ORIGIN, env: LINK_ENV })
+  const first = await service.register({ token: TOKEN_C, universitySpeciality: 'Software Engineering' })
+  const second = await service.register({ token: TOKEN_C, universitySpeciality: 'Software Engineering' })
+
   assert.equal(first.alreadyRegistered, false)
   assert.equal(second.alreadyRegistered, true)
+  // Identity never travels through the request: it is fully server-resolved.
+  assert.equal(first.pass.participantName, 'Amel Benali')
+  assert.equal(first.pass.universitySpeciality, 'Software Engineering')
+  assert.equal(first.pass.event.title, 'Introduction to Machine Learning')
   assert.equal(first.pass.qrPayload, second.pass.qrPayload)
-  assert.equal(new Set(seenHashes).size, 1)
+  assert.equal(new Set(calls.map((call) => call.universitySpeciality)).has(undefined), false)
+  assert.deepEqual(calls.map((call) => call.universitySpeciality), ['Software Engineering', 'Software Engineering'])
+  // The badge derives from the invitation behind the token, so a revisit
+  // re-derives byte-identical credentials from v1.
+  assert.equal(calls[0].qrExpiresAt.toISOString(), '2026-10-29T11:00:00.000Z')
+  assert.equal(first.pass.qrPayload, `${ORIGIN}/workshops/check-in/${prepareStableWorkshopCredential({
+    purpose: 'participant-pass', subjectId: INVITATION_ID, credentialVersion: 1, env: LINK_ENV,
+  }).rawToken}`)
+})
+
+test('the workshop store goes through the hashed-token RPCs with the speciality argument', async () => {
+  const calls = []
+  const supabase = {
+    async rpc(name, args) {
+      calls.push({ name, args })
+      if (name === 'public_open_event_invitation') return { data: [invitationRow()], error: null }
+      if (name === 'public_register_event_participant') return { data: [{ already_registered: false }], error: null }
+      return { data: null, error: null }
+    },
+  }
+  const store = createWorkshopsStore(supabase)
+  const opened = await store.openInvitation({ tokenHash: hashWorkshopToken(TOKEN_A), now: NOW })
+  assert.equal(opened.invitation_id, INVITATION_ID)
+  assert.deepEqual(calls[0], { name: 'public_open_event_invitation', args: { p_token_hash: hashWorkshopToken(TOKEN_A), p_now: NOW.toISOString() } })
+  await store.register({
+    invitationTokenHash: hashWorkshopToken(TOKEN_A), universitySpeciality: 'Software Engineering',
+    qrTokenHash: hashWorkshopToken(TOKEN_B), qrCredentialVersion: 1, qrDerivationVersion: 1,
+    qrExpiresAt: NOW, now: NOW,
+  })
+  assert.equal(calls[1].name, 'public_register_event_participant')
+  assert.deepEqual(Object.keys(calls[1].args), [
+    'p_invitation_token_hash', 'p_university_speciality', 'p_qr_token_hash', 'p_qr_credential_version',
+    'p_qr_derivation_version', 'p_qr_expires_at', 'p_now',
+  ])
+  assert.equal(calls[1].args.p_university_speciality, 'Software Engineering')
+  await assert.rejects(() => createWorkshopsStore({
+    rpc: async () => ({ data: null, error: new Error('registration_not_open') }),
+  }).register({ qrExpiresAt: NOW, now: NOW }), /workshop_registration/)
+})
+
+test('conflicting concurrent registrations and closed workshops fail through public errors', async () => {
+  const conflict = createWorkshopsService({
+    store: {
+      async openInvitation() { return invitationRow({ registration_status: 'registered', qr_credential_version: 1, qr_derivation_version: 1 }) },
+      async register() { throw Object.assign(new Error('failed'), { databaseMessage: 'participant_credential_conflict' }) },
+    },
+    now: () => NOW, origin: ORIGIN, env: LINK_ENV,
+  })
+  const blocked = createWorkshopsService({
+    store: {
+      async openInvitation() { return invitationRow() },
+      async register() { throw Object.assign(new Error('failed'), { databaseMessage: 'registration_not_open' }) },
+    },
+    now: () => NOW, origin: ORIGIN, env: LINK_ENV,
+  })
+  const revoked = createWorkshopsService({
+    store: {
+      async openInvitation() { throw Object.assign(new Error('failed'), { databaseMessage: 'invalid_invitation' }) },
+      async register() { throw new Error('unreachable') },
+    },
+    now: () => NOW, origin: ORIGIN, env: LINK_ENV,
+  })
+  for (const [service, expected] of [
+    [conflict, { ok: false, status: 'invalid', message: 'This private workshop link is invalid or no longer active.' }],
+    [blocked, { ok: false, status: 'closed', message: 'Workshop registration is not open.' }],
+    [revoked, { ok: false, status: 'invalid', message: 'This private workshop link is invalid or no longer active.' }],
+  ]) {
+    assert.deepEqual(await service.register({ token: TOKEN_C, universitySpeciality: 'Software Engineering' }), expected)
+  }
 })
 
 test('scanner permission, revoked/expired access and session validation fail closed', async () => {
-  for (const databaseMessage of ['scanner_not_enabled', 'invalid_scanner_access', 'scanner_not_available']) {
+  for (const databaseMessage of ['scanner_not_available', 'invalid_scanner_access', 'invalid_scanner_session']) {
     const store = { exchangeScanner: async () => { throw Object.assign(new Error('denied'), { databaseMessage }) } }
-    const service = createWorkshopsService({ store, now: () => NOW, origin: 'https://www.infinty-bba.com', tokenGenerator: () => TOKEN_B })
+    const service = createWorkshopsService({ store, now: () => NOW, origin: ORIGIN, tokenGenerator: () => TOKEN_B })
     const result = await service.exchangeScanner(TOKEN_A)
     assert.equal(result.ok, false)
     assert.equal(result.status, 'invalid')
+    assert.equal(result.message, 'This scanner access is invalid or no longer active.')
   }
   assert.equal(validateScannerContextBody({ sessionToken: TOKEN_A }).ok, true)
   assert.equal(validateScannerContextBody({ sessionToken: 'admin-cookie' }).ok, false)
 })
 
-test('valid and simultaneous duplicate check-ins produce one first check-in', async () => {
+test('valid and simultaneous duplicate check-ins produce one first check-in and one generic invalid', async () => {
   let attendance = 'expected'
   let gate = Promise.resolve()
   const store = {
     checkIn(input) {
       const operation = gate.then(async () => {
-        if (input.qrTokenHash === hashWorkshopToken(TOKEN_C)) return { status: 'wrong_workshop' }
-        if (attendance === 'present') return { status: 'already_checked_in', participant_name: 'Amel Benali', checked_in_at: NOW.toISOString() }
+        if (input.qrTokenHash === hashWorkshopToken(TOKEN_C)) return { status: 'invalid' }
+        if (attendance === 'present') {
+          return { status: 'already_checked_in', participant_name: 'Amel Benali', university_speciality: 'Software Engineering', checked_in_at: NOW.toISOString() }
+        }
         attendance = 'present'
-        return { status: 'checked_in', participant_name: 'Amel Benali', checked_in_at: NOW.toISOString() }
+        return { status: 'checked_in', participant_name: 'Amel Benali', university_speciality: 'Software Engineering', checked_in_at: NOW.toISOString() }
       })
       gate = operation.then(() => undefined)
       return operation
     },
   }
-  const service = createWorkshopsService({ store, now: () => NOW, origin: 'https://www.infinty-bba.com' })
+  const service = createWorkshopsService({ store, now: () => NOW, origin: ORIGIN })
   const results = await Promise.all([
     service.checkIn({ sessionToken: TOKEN_A, qrToken: TOKEN_B }),
     service.checkIn({ sessionToken: TOKEN_A, qrToken: TOKEN_B }),
   ])
   assert.deepEqual(results.map((item) => item.result.status).sort(), ['already_checked_in', 'checked_in'])
-  assert.equal((await service.checkIn({ sessionToken: TOKEN_A, qrToken: TOKEN_C })).result.status, 'wrong_workshop')
+  assert.deepEqual(results.map((item) => item.result.participantName), ['Amel Benali', 'Amel Benali'])
+  assert.deepEqual(results.map((item) => item.result.universitySpeciality), ['Software Engineering', 'Software Engineering'])
+  // Removed statuses collapsed into the single generic invalid result that
+  // carries no participant information at all.
+  const invalid = await service.checkIn({ sessionToken: TOKEN_A, qrToken: TOKEN_C })
+  assert.equal(invalid.ok, true)
+  assert.equal(invalid.result.status, 'invalid')
+  assert.equal(invalid.result.participantName, null)
+  assert.equal(invalid.result.universitySpeciality, null)
+  assert.equal(invalid.result.checkedInAt, null)
 })
 
 test('public workshop handler is same-origin, rate-limited and independent from admin auth', async () => {
@@ -207,224 +293,37 @@ test('public workshop handler is same-origin, rate-limited and independent from 
   let adminCalled = false
   const handler = createWorkshopHandler('invitation', {
     enabled: () => true, trustedOrigin: () => true, rateLimit: async () => ({ allowed: true }),
-    createService: () => ({ invitation: async () => ({ ok: true, invitation: { status: 'invited' }, event: invitationRow() }) }),
+    createService: () => ({ invitation: async () => ({ ok: true, invitation: { status: 'invited', alreadyRegistered: false, fullName: 'Amel Benali' }, registration: null, event: invitationRow() }) }),
     requireAdminSession: () => { adminCalled = true },
   })
   const res = response()
   await handler(request({ token: TOKEN_A }), res)
   assert.equal(res.statusCode, 200)
+  assert.equal(res.body.invitation.fullName, 'Amel Benali')
   assert.equal(adminCalled, false)
 })
 
-test('stable workshop links repeat across CSV exports and regeneration invalidates the old credential', async () => {
-  const invitationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
-  const event = { id: EVENT_ID, title: 'ML, safely', starts_at: NOW.toISOString(), ends_at: '2026-10-28T11:00:00.000Z', event_type: 'workshop', status: 'registration_open' }
-  const candidate = {
-    id: invitationId, event_id: EVENT_ID, invitation_status: 'invited', invited_at: NOW.toISOString(), registered_at: null,
-    token_hash: null, token_expires_at: null, credential_version: null, credential_derivation_version: null, link_revoked_at: null,
-    participant_first_name: null, participant_last_name: null,
-    member: { full_name: '=Amel, "Benali"', email: 'amel@example.com', phone: '+213555000000', primary_pole: 'AI\nEngineering', study_year: 'M1' },
+test('public handlers reject wrong methods and malformed speciality-only bodies', async () => {
+  const req = () => {
+    const request = Readable.from([Buffer.from(JSON.stringify({ token: TOKEN_A, universitySpeciality: 'Software <b>Engineering</b>' }))])
+    request.method = 'POST'; request.url = '/api/join?__join_action=workshop-register'
+    request.headers = { 'content-type': 'application/json', origin: 'https://club.test', host: 'club.test' }
+    request.socket = { remoteAddress: '127.0.0.88' }
+    return request
   }
-  let credential = { ...candidate }
-  const audits = []
-  const store = {
-    find: async () => event,
-    exportInvitationRows: async () => [{ ...candidate, ...credential }],
-    invitationCredential: async () => credential,
-    async setInvitationLink(input) {
-      credential = {
-        ...credential, token_hash: input.tokenHash, token_expires_at: input.expiresAt.toISOString(),
-        credential_version: input.credentialVersion, credential_derivation_version: input.derivationVersion, link_revoked_at: null,
-      }
-      return {
-        invitation_id: invitationId, token_hash: input.tokenHash, expires_at: input.expiresAt.toISOString(),
-        credential_version: input.credentialVersion, derivation_version: input.derivationVersion, revoked_at: null,
-      }
-    },
-    async recordInvitationExport(input) { audits.push({ rowCount: input.rowCount }); return true },
-  }
-  const service = createAdminEventsService({ store, now: () => NOW, origin: 'https://www.infinty-bba.com', env: LINK_ENV })
-  const admin = { id: '11111111-1111-4111-8111-111111111111', role: 'super_admin' }
-  assert.equal((await service.exportInvitations(EVENT_ID, { ...admin, role: 'reviewer' })).status, 403)
-  const first = await service.exportInvitations(EVENT_ID, admin)
-  const second = await service.exportInvitations(EVENT_ID, admin)
-  const firstLink = first.csv.match(/https:\/\/www\.infinty-bba\.com\/workshops\/register\?t=[A-Za-z0-9_-]{43}/)?.[0]
-  const secondLink = second.csv.match(/https:\/\/www\.infinty-bba\.com\/workshops\/register\?t=[A-Za-z0-9_-]{43}/)?.[0]
-  assert.equal(firstLink, secondLink)
-  assert.match(first.csv, /^\uFEFF"workshop_reference","workshop_title"/)
-  assert.match(first.csv, /"amel@example\.com"/)
-  assert.match(first.csv, /"'=Amel, ""Benali"""/)
-  assert.match(first.csv, /"AI\nEngineering"/)
-  assert.deepEqual(audits, [{ rowCount: 1 }, { rowCount: 1 }])
-  assert.equal(JSON.stringify(audits).includes(firstLink), false)
-
-  const regenerated = await service.invitationLink(EVENT_ID, invitationId, { action: 'regenerate' }, admin)
-  assert.equal(regenerated.ok, true)
-  assert.notEqual(regenerated.privateLink, firstLink)
-  assert.equal(credential.credential_version, 2)
-  assert.notEqual(credential.token_hash, hashWorkshopToken(firstLink.split('t=')[1]))
-})
-
-test('ensure reuses an active stable invitation link without changing its credential version', async () => {
-  const invitationId = '12121212-1212-4121-8121-121212121212'
-  const stable = stableInvitationCredential(invitationId)
-  const active = invitationExportRow(invitationId, {
-    ...stable, token_expires_at: new Date(NOW.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+  const response = () => ({ statusCode: 0, headers: {}, body: null, setHeader(k, v) { this.headers[k.toLowerCase()] = v }, end(v) { this.body = JSON.parse(v) } })
+  const handler = createWorkshopHandler('register', {
+    enabled: () => true, trustedOrigin: () => true, rateLimit: async () => ({ allowed: true }),
+    createService: () => { throw new Error('service_must_not_run') },
   })
-  const { service, state, setCalls } = invitationExportHarness({ invitations: [active] })
-  const result = await service.invitationLink(EVENT_ID, invitationId, { action: 'ensure' }, EXPORT_ADMIN)
-  const expected = prepareStableWorkshopCredential({ purpose: 'invitation', invitationId, credentialVersion: 1, env: LINK_ENV })
-
-  assert.equal(result.ok, true)
-  assert.equal(result.privateLink, `https://www.infinty-bba.com/workshops/register?t=${expected.rawToken}`)
-  assert.equal(state.get(invitationId).credential_version, 1)
-  assert.deepEqual(setCalls, [])
-})
-
-test('CSV export regenerates an expired stable invitation link', async () => {
-  const invitationId = '23232323-2323-4232-8232-232323232323'
-  const stable = stableInvitationCredential(invitationId)
-  const expired = invitationExportRow(invitationId, {
-    ...stable, token_expires_at: new Date(NOW.getTime() - 1).toISOString(),
-  })
-  const { service, state, setCalls } = invitationExportHarness({ invitations: [expired] })
-  const result = await service.exportInvitations(EVENT_ID, EXPORT_ADMIN)
-  const regenerated = prepareStableWorkshopCredential({ purpose: 'invitation', invitationId, credentialVersion: 2, env: LINK_ENV })
-
-  assert.equal(result.ok, true)
-  assert.equal(state.get(invitationId).credential_version, 2)
-  assert.equal(setCalls[0].action, 'regenerate')
-  assert.match(result.csv, new RegExp(`https://www\\.infinty-bba\\.com/workshops/register\\?t=${regenerated.rawToken}`))
-})
-
-test('CSV export regenerates a revoked stable invitation link and clears its revocation', async () => {
-  const invitationId = '34343434-3434-4343-8343-343434343434'
-  const stable = stableInvitationCredential(invitationId)
-  const revoked = invitationExportRow(invitationId, {
-    ...stable,
-    token_expires_at: new Date(NOW.getTime() + 24 * 60 * 60 * 1000).toISOString(),
-    link_revoked_at: new Date(NOW.getTime() - 1).toISOString(),
-  })
-  const { service, state, setCalls } = invitationExportHarness({ invitations: [revoked] })
-  const result = await service.exportInvitations(EVENT_ID, EXPORT_ADMIN)
-
-  assert.equal(result.ok, true)
-  assert.equal(state.get(invitationId).credential_version, 2)
-  assert.equal(state.get(invitationId).link_revoked_at, null)
-  assert.equal(setCalls[0].action, 'regenerate')
-})
-
-test('CSV export keeps active invitation links and repairs expired links in the same file', async () => {
-  const activeId = '45454545-4545-4454-8454-454545454545'
-  const expiredId = '56565656-5656-4565-8565-565656565656'
-  const activeCredential = stableInvitationCredential(activeId)
-  const expiredCredential = stableInvitationCredential(expiredId)
-  const active = invitationExportRow(activeId, {
-    ...activeCredential, token_expires_at: new Date(NOW.getTime() + 24 * 60 * 60 * 1000).toISOString(),
-  })
-  const expired = invitationExportRow(expiredId, {
-    ...expiredCredential, token_expires_at: new Date(NOW.getTime() - 1).toISOString(),
-  })
-  const { service, state, setCalls } = invitationExportHarness({ invitations: [active, expired] })
-  const result = await service.exportInvitations(EVENT_ID, EXPORT_ADMIN)
-  const activeLink = prepareStableWorkshopCredential({ purpose: 'invitation', invitationId: activeId, credentialVersion: 1, env: LINK_ENV })
-  const repairedLink = prepareStableWorkshopCredential({ purpose: 'invitation', invitationId: expiredId, credentialVersion: 2, env: LINK_ENV })
-
-  assert.equal(result.ok, true)
-  assert.equal(state.get(activeId).credential_version, 1)
-  assert.equal(state.get(expiredId).credential_version, 2)
-  assert.deepEqual(setCalls.map((call) => call.invitationId), [expiredId])
-  assert.match(result.csv, new RegExp(`t=${activeLink.rawToken}`))
-  assert.match(result.csv, new RegExp(`t=${repairedLink.rawToken}`))
-})
-
-test('invitation export storage keeps cancelled and declined invitations out of CSV candidates', async () => {
-  let statusFilter = null
-  const query = {
-    select: () => query,
-    eq: () => query,
-    in: (column, values) => { statusFilter = { column, values }; return query },
-    order: () => query,
-    range: async () => ({ data: [], error: null }),
-  }
-  const store = createAdminEventsStore({ from: () => query })
-  assert.deepEqual(await store.exportInvitationRows(EVENT_ID), [])
-  assert.deepEqual(statusFilter, { column: 'invitation_status', values: ['invited', 'registered'] })
-})
-
-test('CSV export reports unavailable workshops and empty active invitation sets explicitly', async () => {
-  const nonWorkshop = invitationExportHarness({
-    invitations: [], event: exportWorkshop({ event_type: 'meeting' }),
-  })
-  const cancelled = invitationExportHarness({
-    invitations: [], event: exportWorkshop({ status: 'cancelled' }),
-  })
-  const empty = invitationExportHarness({ invitations: [] })
-
-  assert.deepEqual(await nonWorkshop.service.exportInvitations(EVENT_ID, EXPORT_ADMIN), {
-    ok: false, status: 409, message: 'Invitation links can only be exported for workshops.',
-  })
-  assert.deepEqual(await cancelled.service.exportInvitations(EVENT_ID, EXPORT_ADMIN), {
-    ok: false, status: 409, message: 'Invitation links cannot be exported for this workshop.',
-  })
-  assert.deepEqual(await empty.service.exportInvitations(EVENT_ID, EXPORT_ADMIN), {
-    ok: false, status: 409, message: 'No active invitations are available to export.',
-  })
-})
-
-test('a non-repairable inactive invitation reports its specific export error', async () => {
-  const invitationId = '67676767-6767-4676-8676-676767676767'
-  const candidate = invitationExportRow(invitationId)
-  const store = {
-    find: async () => exportWorkshop(),
-    exportInvitationRows: async () => [candidate],
-    invitationCredential: async () => candidate,
-    setInvitationLink: async () => {
-      throw Object.assign(new Error('invitation_not_active'), { databaseMessage: 'invitation_not_active', code: '22023' })
-    },
-  }
-  const service = createAdminEventsService({ store, now: () => NOW, origin: 'https://www.infinty-bba.com', env: LINK_ENV })
-
-  assert.deepEqual(await service.exportInvitations(EVENT_ID, EXPORT_ADMIN), {
-    ok: false, status: 409, message: 'One or more invitation links are no longer active.',
-  })
-})
-
-test('CSV formula protection applies to member fields while preserving the opaque HTTPS link', () => {
-  const csv = buildWorkshopInvitationsCsv([{
-    workshopReference: 'EVT-1234', workshopTitle: '+SUM(1,2)', invitation_status: 'invited', registered_at: null,
-    privateRegistrationLink: `https://www.infinty-bba.com/workshops/register?t=${TOKEN_A}`,
-    member: { full_name: '@member', email: '-unsafe@example.com', phone: '=1+1', primary_pole: 'Web', study_year: 'L1' },
-  }])
-  assert.match(csv, /"'\+SUM\(1,2\)"/)
-  assert.match(csv, /"'@member"/)
-  assert.match(csv, /"'-unsafe@example\.com"/)
-  assert.match(csv, /"'=1\+1"/)
-  assert.match(csv, new RegExp(`"https://www\\.infinty-bba\\.com/workshops/register\\?t=${TOKEN_A}"`))
-})
-
-test('workshop invitation CSV endpoint rejects unauthenticated and non-full admins', async () => {
-  const makeRequest = () => {
-    const req = Readable.from([Buffer.from(JSON.stringify({ confirm: true }))])
-    req.method = 'POST'
-    req.url = `/api/admin-auth?__admin_path=events/${EVENT_ID}/invitations/export`
-    req.headers = { 'content-type': 'application/json', origin: 'https://club.test', host: 'club.test' }
-    return req
-  }
-  const makeResponse = () => ({
-    statusCode: 0, headers: {}, body: null,
-    setHeader(name, value) { this.headers[name.toLowerCase()] = value },
-    end(value) { this.body = value ? JSON.parse(value) : null },
-  })
-  const common = { enabled: () => true, trustedOrigin: () => true, env: {}, createService: () => { throw new Error('service_must_not_run') } }
-  const unauthenticated = createAdminEventsHandler({ ...common, requireSession: async () => null })
-  const unauthenticatedResponse = makeResponse()
-  await unauthenticated(makeRequest(), unauthenticatedResponse)
-  assert.equal(unauthenticatedResponse.statusCode, 401)
-  const reviewer = createAdminEventsHandler({ ...common, requireSession: async () => ({ user: { id: 'r', role: 'reviewer' } }) })
-  const reviewerResponse = makeResponse()
-  await reviewer(makeRequest(), reviewerResponse)
-  assert.equal(reviewerResponse.statusCode, 403)
+  const res = response()
+  await handler(req(), res)
+  assert.equal(res.statusCode, 400)
+  assert.equal(res.body.success, false)
+  const get = req(); get.method = 'GET'
+  const rejection = response()
+  await handler(get, rejection)
+  assert.equal(rejection.statusCode, 405)
 })
 
 test('admin phase-2 actions validate UUIDs, confirmations and lifecycle input', () => {
@@ -432,8 +331,12 @@ test('admin phase-2 actions validate UUIDs, confirmations and lifecycle input', 
   assert.equal(validateEventInvitationExportBody({ confirm: false }).ok, false)
   assert.deepEqual(validateEventInvitationLinkBody({ action: 'reveal' }), { ok: true, value: { action: 'ensure' } })
   assert.equal(validateEventInvitationLinkBody({ action: 'regenerate', confirm: false }).ok, false)
-  assert.equal(validateEventScannerCredentialBody({ eventOrganizerId: ORGANIZER_ID, action: 'generate' }).ok, true)
-  assert.equal(validateEventScannerCredentialBody({ eventOrganizerId: EVENT_ID, action: 'grant_admin' }).ok, false)
+  assert.equal(validateEventScannerActionBody({ action: 'generate' }).ok, true)
+  assert.equal(validateEventScannerActionBody({ action: 'copy' }).ok, true)
+  assert.equal(validateEventScannerActionBody({ action: 'regenerate', confirm: true }).ok, true)
+  assert.equal(validateEventScannerActionBody({ action: 'regenerate' }).ok, false)
+  assert.equal(validateEventScannerActionBody({ action: 'revoke', confirm: true }).ok, true)
+  assert.equal(validateEventScannerActionBody({ action: 'grant_admin' }).ok, false)
   assert.equal(validateEventTransitionBody({ nextStatus: 'ongoing', expectedUpdatedAt: NOW.toISOString() }).ok, true)
   assert.equal(validateEventTransitionBody({ nextStatus: 'whatever', expectedUpdatedAt: NOW.toISOString() }).ok, false)
   assert.equal(validateEventAttendanceFinalizeBody({ confirm: true }).ok, true)
@@ -441,46 +344,116 @@ test('admin phase-2 actions validate UUIDs, confirmations and lifecycle input', 
   assert.equal(validateWorkshopCheckInBody({ sessionToken: TOKEN_A, qrPayload: buildWorkshopQrPayload('https://club.test', TOKEN_B) }).ok, true)
 })
 
-test('migration enforces cross-event integrity, row locks, lifecycle and explicit absence finalization', async () => {
-  const sql = (await read('supabase/migrations/20261023120000_workshop_registration_and_checkin.sql')).toLowerCase()
-  const correctionSql = (await read('supabase/migrations/20261024120000_stable_workshop_invitation_links.sql')).toLowerCase()
-  const phaseOneSql = (await read('supabase/migrations/20261022120000_admin_club_events.sql')).toLowerCase()
+test('migration enforces per-application invitations, speciality-only registrations and one shared scanner link', async () => {
+  const sql = (await read('supabase/migrations/20261031120000_workshop_application_invitations.sql')).toLowerCase()
+  const match = (value) => assert.match(sql, new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  // Eligibility is exactly join_type = 'member' for every review status.
+  match("where id = any(p_application_ids) and join_type = 'member'")
+  match("where join_type = 'member';")
   for (const expected of [
-    'club_event_participant_credentials', 'club_event_scanner_sessions', "token_hash ~ '^[a-f0-9]{64}$'",
-    'for update', 'wrong_workshop', 'already_checked_in', 'admin_transition_club_event',
-    'admin_finalize_club_event_attendance', "attendance_status = 'absent'", 'scanner_enabled = true',
-    'participant_checked_in', 'scanner_access_generated',
-  ]) assert.match(sql, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
-  assert.match(sql, /foreign key \(scanner_access_id, event_id\)/)
-  assert.match(phaseOneSql, /foreign key \(event_organizer_id, event_id\)/)
-  for (const expected of [
-    'credential_version', 'link_revoked_at', 'admin_set_event_invitation_link',
-    'workshop_invitation_links_exported', 'participant_credential_conflict', 'for update',
-  ]) assert.match(correctionSql, new RegExp(expected))
-  assert.match(correctionSql, /drop function if exists public\.admin_prepare_event_invitation_delivery/)
-  assert.match(correctionSql, /jsonb_build_object\('row_count', p_row_count\)/)
-  assert.doesNotMatch(correctionSql, /raw_token|private_registration_link/)
+    'add column if not exists membership_application_id uuid',
+    'rename column token_hash to invite_token_hash',
+    'rename column token_expires_at to invite_expires_at',
+    'drop constraint if exists club_event_invitation_registered_at_check',
+    'drop column if exists member_id',
+    'unique (event_id, membership_application_id)',
+    "check (status in ('invited','registered','declined','cancelled'))",
+    'create unique index if not exists club_event_invitation_invite_token_hash_unique',
+    'create table public.club_event_registrations',
+    'university_speciality text not null',
+    'char_length(university_speciality) between 2 and 160',
+    "check (status in ('registered','checked_in','cancelled'))",
+    'qr_token_hash text not null unique',
+    'unique (event_id, membership_application_id)',
+    'foreign key (checked_in_by_scanner_access_id, event_id)',
+    'references public.club_event_scanner_access (id, event_id) on delete set null',
+    'constraint club_event_scanner_event_unique unique (event_id)',
+    'constraint club_event_scanner_id_event_unique unique (id, event_id)',
+    "token_hash ~ '^[a-f0-9]{64}$'",
+    'admin_set_event_scanner_access(uuid,uuid,text,text,integer,timestamptz,timestamptz,timestamptz)',
+    'admin_revoke_club_event_scanner_access(uuid,uuid,timestamptz)',
+    "p_action not in ('ensure','regenerate')",
+    "'scanner_credential_conflict' using errcode = '40001'",
+    "raise exception 'check_in_not_open'",
+    "jsonb_build_object('status', 'invalid')",
+    'checked_in_by_scanner_access_id = access_row.id',
+    'p_university_speciality text',
+    "'participant_credential_conflict' using errcode = '40001'",
+    "'registration_not_open'",
+    'from public.club_event_scanner_sessions',
+    'interval \'12 hours\'',
+    'attendance_not_finalizable',
+    'for update',
+    'participant_registered',
+    'scanner_access_generated',
+    'grant select, insert, update, delete on table public.club_event_invitations to service_role',
+    'grant select, insert, update, delete on table public.club_event_registrations,',
+    'public.club_event_scanner_access, public.club_event_scanner_sessions to service_role',
+    'never written back to the membership application',
+  ]) match(expected)
+  // The legacy organizer / attendance / credential stack is fully replaced.
+  for (const forbidden of [
+    'create table public.club_event_organizers',
+    'scanner_enabled',
+    'wrong_workshop',
+    'raw_token',
+    'create or replace function public.admin_assign_club_event_organizers',
+    'create table public.club_event_attendance',
+  ]) assert.doesNotMatch(sql, new RegExp(forbidden.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  assert.match(sql, /drop table if exists public\.club_event_organizers/)
+  assert.match(sql, /drop function if exists public\.admin_assign_club_event_organizers/)
+  assert.match(sql, /drop column if exists participant_first_name/)
+  assert.match(sql, /update public\.club_event_registrations set absent_at = changed_at[\s\S]+status = 'registered' and checked_in_at is null and absent_at is null/)
+})
+
+test('scanner context SQL keeps the lifecycle gate and the shared-link session rules', async () => {
+  const sql = (await read('supabase/migrations/20261031120000_workshop_application_invitations.sql')).toLowerCase()
+  assert.match(sql, /create or replace function public\.public_event_scanner_context/)
+  assert.match(sql, /create or replace function public\.public_exchange_event_scanner_token/)
+  assert.equal((sql.match(/'event_status', event(_row)?\.status/g) || []).length, 2)
+  assert.equal((sql.match(/select count\(\*\) from public\.club_event_registrations r where r\.event_id = event\.id and r\.status/g) || []).length >= 2, true)
+  assert.match(sql, /session\.status = 'active' and session\.revoked_at is null/)
+  assert.match(sql, /access\.status = 'active' and access\.revoked_at is null and access\.expires_at > changed_at/)
+  assert.match(sql, /event\.status in \('registration_open','registration_closed','ongoing'\)/)
+  assert.match(sql, /access_row\.expires_at <= changed_at/)
+  assert.match(sql, /p_session_expires_at > changed_at \+ interval '12 hours'/)
+  assert.match(sql, /create or replace function public\.public_check_in_event_participant/)
+  assert.match(sql, /status = 'ongoing'\)\s*\n\s*then raise exception 'check_in_not_open'/)
+  assert.match(sql, /qr_token_hash = p_qr_token_hash/)
+  assert.match(sql, /if not found or registration_row\.event_id <> session_row\.event_id or registration_row\.status = 'cancelled'/)
 })
 
 test('historical invitations, private routes and scanner sessionStorage are wired without localStorage', async () => {
-  const [app, eventsUi, hooks, register, badgePass, scanner, vercel] = await Promise.all([
+  const [app, eventsUi, hooks, register, badgePass, scanner, header, result, vercel] = await Promise.all([
     read('src/App.jsx'), read('src/admin/EventsPages.jsx'), read('src/admin/useAdminEvents.js'),
     read('src/pages/workshops/WorkshopRegistrationPage.jsx'), read('src/pages/workshops/WorkshopPass.jsx'),
-    read('src/pages/workshops/WorkshopScannerPage.jsx'), read('vercel.json'),
+    read('src/pages/workshops/WorkshopScannerPage.jsx'), read('src/pages/workshops/scanner/ScannerHeader.jsx'),
+    read('src/pages/workshops/scanner/ScannerResult.jsx'), read('vercel.json'),
   ])
   assert.match(app, /path="\/workshops\/register"/)
   assert.match(app, /path="\/workshops\/scan"/)
-  assert.match(eventsUi, /Invited participants/)
-  assert.match(eventsUi, /Generate access/)
-  assert.match(eventsUi, /Finalize remaining as absent/)
-  assert.match(hooks, /\/invitations\/export/)
-  assert.match(eventsUi, /Export invitations CSV/)
+  assert.match(eventsUi, /'Overview', 'Participants', 'Attendance', 'Scanner'/)
+  assert.match(eventsUi, /Generate invitations for all Member registrations/)
+  assert.match(eventsUi, /Invite selected/)
   assert.match(eventsUi, /Copy link/)
   assert.match(eventsUi, /Regenerate link/)
+  assert.match(eventsUi, /Export invitations CSV/)
+  assert.match(eventsUi, /Finalize remaining as absent/)
+  assert.match(eventsUi, /Workshop scanner/)
+  assert.doesNotMatch(eventsUi, /organizer/i)
+  assert.match(hooks, /useAdminEventParticipants/)
+  assert.match(hooks, /useAdminEventScanner/)
+  assert.match(hooks, /\/participants/)
+  assert.match(hooks, /\/scanner/)
+  assert.match(register, /universitySpeciality/)
+  assert.match(register, /Registered to <strong>\{state\.invitation\.fullName\}<\/strong>/)
   assert.match(badgePass, /Download badge/)
-  assert.match(register, /sessionStorage/)
-  assert.doesNotMatch(register + badgePass + scanner, /localStorage/)
+  assert.match(badgePass, /planWorkshopPass\(measure, \{ title: eventTitle, name: participantName, location: eventLocation \}\)/)
+  assert.match(header, /Workshop scanner/)
+  assert.doesNotMatch(header, /organizerName/)
+  assert.match(result, /universitySpeciality/)
   assert.match(scanner, /sessionStorage/)
+  assert.doesNotMatch(register + badgePass + scanner, /localStorage/)
   assert.match(scanner, /BarcodeDetector/)
   assert.match(scanner, /@zxing\/browser/)
   assert.match(vercel, /workshop-scanner-check-in/)
@@ -504,9 +477,8 @@ test('badge export has a safe PNG filename and complete high-resolution canvas c
   assert.match(badge, /SCAN AT CHECK-IN/)
   assert.match(badge, /drawImage\(qrImage/)
   assert.match(badge, /new Path2D\(INFINITY_CLUB_PATH\)/)
-  assert.match(badge, /'Africa\/Algiers'/)
-  assert.equal((theme.match(/width: 1054/)?.length ?? 0) >= 1, true)
-  assert.equal((theme.match(/height: 1493/)?.length ?? 0) >= 1, true)
+  assert.match(badge, /planWorkshopSpeciality\(measureOn\(context\), pass\.universitySpeciality\)/)
+  assert.match(badge, /SPECIALITY\.baseline/)
   assert.match(theme, /canvasWidth: 2108/)
   assert.match(theme, /canvasHeight: 2986/)
   assert.match(theme, /scale: 2/)
@@ -516,14 +488,13 @@ test('badge export has a safe PNG filename and complete high-resolution canvas c
   assert.match(theme, /'#8FD9B8'/)
   assert.match(theme, /'#D8C58A'/)
   assert.match(theme, /panel: \{ x: 55, y: 368, width: 944, height: 852, radius: 44 \}/)
-  assert.match(theme, /cardWidth: 448, codeSize: 350, cardRadius: 28,[\r\n\s]*minCardHeight: 390, maxCardHeight: 410/)
   assert.match(theme, /participantTopGap: 28, labelGap: 28/)
   assert.match(theme, /metaGap: 58, metaGapFloor: 44/)
   assert.match(theme, /valueGap: 42, valueGapFloor: 36/)
   assert.match(theme, /topGap: 32, topGapFloor: 24/)
 })
 
-test('the workshop badge is authored on the official 1054:1493 grid and exported at 2x', async () => {
+test('the workshop badge is authored on the official 1054:1493 grid with the speciality caption inside the panel', async () => {
   const { WORKSHOP_BADGE } = await import('../src/pages/workshops/workshopBadgeTheme.js')
   assert.equal(WORKSHOP_BADGE.width, 1054)
   assert.equal(WORKSHOP_BADGE.height, 1493)
@@ -531,6 +502,11 @@ test('the workshop badge is authored on the official 1054:1493 grid and exported
   assert.equal(WORKSHOP_BADGE.canvasHeight, WORKSHOP_BADGE.height * WORKSHOP_BADGE.scale)
   assert.equal(WORKSHOP_BADGE.canvasWidth, 2108)
   assert.equal(WORKSHOP_BADGE.canvasHeight, 2986)
+  assert.equal(WORKSHOP_BADGE.name.lastBaseline, 1162)
+  assert.equal(WORKSHOP_BADGE.speciality.baseline, 1204)
+  assert.equal(WORKSHOP_BADGE.panel.y + WORKSHOP_BADGE.panel.height, 1220)
+  assert.ok(WORKSHOP_BADGE.speciality.baseline > WORKSHOP_BADGE.name.lastBaseline, 'speciality sits under the name')
+  assert.ok(WORKSHOP_BADGE.speciality.baseline <= WORKSHOP_BADGE.panel.y + WORKSHOP_BADGE.panel.height, 'speciality stays inside the panel')
 })
 
 test('pass layout keeps the participant clear of its label and stabilises the scannable QR', async () => {
@@ -566,6 +542,16 @@ test('pass layout keeps the participant clear of its label and stabilises the sc
   assert.ok(long.qr.code >= 300, 'long title should still leave a large QR code')
 })
 
+test('the speciality caption is a single uppercased line truncated to the panel width', async () => {
+  const measure = (text, weight, size, spacing = 0) => String(text).length * 0.62 * size + (String(text).length - 1) * spacing
+  assert.equal(planWorkshopSpeciality(measure, 'Genie Logiciel  Et  Big   Data'), 'GENIE LOGICIEL ET BIG DATA')
+  assert.equal(planWorkshopSpeciality(measure, ''), '')
+  assert.equal(planWorkshopSpeciality(measure, null), '')
+  const long = planWorkshopSpeciality(measure, 'Ingénierie Logicielle Et Systèmes Intelligents Pour Les Réseaux De Télécommunications Modernes')
+  assert.ok(long.endsWith('…'))
+  assert.ok(measure(long, 700, 20, 3) <= 800, 'truncated caption must stay inside the panel width')
+  assert.notEqual(long, planWorkshopSpeciality(measure, long.replace('…', '')))
+})
 
 test('badge schedule renders Algiers time compactly for the pass', () => {
   assert.equal(eventSchedule('2026-10-22T13:00:00.000Z'), '22 OCT 2026 • 14:00')
@@ -581,35 +567,39 @@ test('internal Resend and workshop email-delivery code is removed', async () => 
   await assert.rejects(read('api/_lib/admin-events-email.js'))
 })
 
-test('scanner context exposes the lifecycle status and keeps registered/present/remaining current', async () => {
-  const contextRow = { event_id: EVENT_ID, event_title: 'Introduction to Machine Learning', organizer_name: 'Dr Ahmed', starts_at: NOW.toISOString(), location: 'FMI · Room 03', event_status: 'ongoing', registered: '12', present: '5', session_expires_at: NOW.toISOString() }
+test('scanner context exposes lifecycle stats without organizing identity into the response', async () => {
+  const contextRow = {
+    event_id: EVENT_ID, event_title: 'Introduction to Machine Learning', starts_at: NOW.toISOString(),
+    location: 'FMI · Room 03', event_status: 'ongoing', registered: '12', present: '5', session_expires_at: NOW.toISOString(),
+  }
   const store = {
     async scannerContext() { return contextRow },
     async exchangeScanner() { return { ...contextRow, event_status: 'registration_closed' } },
   }
-  const service = createWorkshopsService({ store, now: () => NOW, origin: 'https://www.infinty-bba.com' })
+  const service = createWorkshopsService({ store, now: () => NOW, origin: ORIGIN })
   const context = await service.scannerContext(TOKEN_A)
   assert.equal(context.ok, true)
   assert.equal(context.context.eventStatus, 'ongoing')
   assert.equal(context.context.registered, 12)
   assert.equal(context.context.present, 5)
   assert.equal(context.context.remaining, 7)
+  assert.equal('organizerName' in context.context, false)
   const granted = await service.exchangeScanner(TOKEN_B)
   assert.equal(granted.context.eventStatus, 'registration_closed')
   const exhausted = { ...contextRow, registered: '4', present: '9' }
-  const other = createWorkshopsService({ store: { async scannerContext() { return exhausted } }, now: () => NOW, origin: 'https://www.infinty-bba.com' })
+  const other = createWorkshopsService({ store: { async scannerContext() { return exhausted } }, now: () => NOW, origin: ORIGIN })
   assert.equal((await other.scannerContext(TOKEN_A)).context.remaining, 0)
 })
 
 test('check_in_not_open keeps the server status instead of reporting Invalid QR', async () => {
   const store = { async checkIn() { throw Object.assign(new Error('main: RPC failed'), { databaseMessage: 'check_in_not_open' }) } }
-  const service = createWorkshopsService({ store, now: () => NOW, origin: 'https://www.infinty-bba.com' })
+  const service = createWorkshopsService({ store, now: () => NOW, origin: ORIGIN })
   const result = await service.checkIn({ sessionToken: TOKEN_A, qrToken: TOKEN_B })
   assert.equal(result.ok, false)
   assert.equal(result.status, 'not_open')
   assert.equal(result.message, 'Workshop check-in is not open.')
-  const through = { async checkIn() { return { status: 'expired' } } }
-  assert.equal((await createWorkshopsService({ store: through, now: () => NOW, origin: 'https://www.infinty-bba.com' }).checkIn({ sessionToken: TOKEN_A, qrToken: TOKEN_B })).result.status, 'expired')
+  const through = { async checkIn() { return { status: 'invalid' } } }
+  assert.equal((await createWorkshopsService({ store: through, now: () => NOW, origin: ORIGIN }).checkIn({ sessionToken: TOKEN_A, qrToken: TOKEN_B })).result.status, 'invalid')
 
   const response = () => ({ statusCode: 0, headers: {}, body: null, setHeader(k, v) { this.headers[k.toLowerCase()] = v }, end(v) { this.body = JSON.parse(v) } })
   const request = (body) => {
@@ -630,11 +620,14 @@ test('check_in_not_open keeps the server status instead of reporting Invalid QR'
   assert.notEqual(res.body.status, 'invalid')
 })
 
-test('scanner page maps every server status and never converts not_open into Invalid QR', async () => {
+test('scanner page maps every server status and merges every rejection into Invalid badge', async () => {
   const scanner = await read('src/pages/workshops/WorkshopScannerPage.jsx')
-  for (const status of ['checked_in', 'already_checked_in', 'invalid', 'expired', 'wrong_workshop', 'not_open']) {
+  for (const status of ['checked_in', 'already_checked_in', 'invalid', 'not_open']) {
     assert.match(scanner, new RegExp(`\\b${status}:`))
   }
+  assert.doesNotMatch(scanner, /wrong_workshop/)
+  assert.match(scanner, /invalid: \{ title: 'Invalid badge'/)
+  assert.doesNotMatch(scanner, /'Pass expired'|'Pass for another workshop'/)
   assert.match(scanner, /not_open: \{ title: 'Check-in not open'/)
   assert.match(scanner, /The workshop has not started yet\./)
   assert.match(scanner, /SCAN_STATUSES\.includes\(payload\.status\)/)
@@ -660,8 +653,8 @@ test('scanner disables QR check-in until ongoing and keeps live stats fresh', as
   assert.match(scanner, /window\.clearInterval\(timer\)/)
   assert.match(stats, /onClick=\{onRefresh\}/)
   assert.match(stats, /Live · Updated just now/)
-  const store = { async scannerContext() { return { event_id: EVENT_ID, event_title: 't', organizer_name: 'o', starts_at: NOW.toISOString(), location: 'l', event_status: 'registration_closed', registered: '3', present: '1', session_expires_at: NOW.toISOString() } } }
-  const gated = await createWorkshopsService({ store, now: () => NOW, origin: 'https://www.infinty-bba.com' }).scannerContext(TOKEN_A)
+  const store = { async scannerContext() { return { event_id: EVENT_ID, event_title: 't', starts_at: NOW.toISOString(), location: 'l', event_status: 'registration_closed', registered: '3', present: '1', session_expires_at: NOW.toISOString() } } }
+  const gated = await createWorkshopsService({ store, now: () => NOW, origin: ORIGIN }).scannerContext(TOKEN_A)
   assert.equal(gated.context.eventStatus, 'registration_closed')
 })
 
@@ -696,21 +689,6 @@ test('scanner rapid mode keeps camera fallbacks, explicit cooldowns and progress
   assert.match(styles, /env\(safe-area-inset-bottom\)/)
 })
 
-test('scanner context SQL reports the lifecycle status without weakening the ongoing check-in gate', async () => {
-  const sql = await read('supabase/migrations/20261025120000_workshop_scanner_context_status.sql')
-  const base = (await read('supabase/migrations/20261023120000_workshop_registration_and_checkin.sql')).toLowerCase()
-  assert.match(sql, /create or replace function public\.public_event_scanner_context/)
-  assert.match(sql, /create or replace function public\.public_exchange_event_scanner_token/)
-  assert.equal((sql.match(/'event_status', event(_row)?\.status/g) || []).length, 2)
-  assert.doesNotMatch(sql, /create (or replace )?function public\.public_check_in_event_participant/)
-  assert.doesNotMatch(sql, /drop function if exists public\.public_check_in_event_participant/)
-  assert.match(sql, /invitation_status = 'registered'/)
-  assert.match(sql, /attendance_status = 'present'/)
-  assert.match(base, /status = 'ongoing'\)\s*\n\s*then raise exception 'check_in_not_open'/)
-  assert.match(base, /i\.invitation_status = 'registered'/)
-  assert.match(base, /a\.attendance_status = 'present'/)
-})
-
 test('the true Infinity emblem geometry is shared verbatim between UI and canvas', async () => {
   const [geometry, mark, badge] = await Promise.all([
     read('src/components/infinity-club-geometry.js'),
@@ -737,19 +715,19 @@ test('workshop badge identity is Infinity green for web and PNG without the viol
   assert.match(passComponent, /workshop-pass__event/)
   assert.match(passComponent, /workshop-pass__qr/)
   assert.match(passComponent, /workshop-pass__participant/)
+  assert.match(passComponent, /workshop-pass__speciality/)
   assert.match(passComponent, /workshop-pass__footer/)
   assert.match(passComponent, /workshop-pass__watermark/)
   assert.match(passComponent, /Scan at check-in/)
   assert.match(passComponent, /pass\.participantName/)
+  assert.match(passComponent, /pass\.universitySpeciality/)
   assert.match(passComponent, /text-transform: uppercase|workshop-pass__line/)
   assert.doesNotMatch(passComponent, /<span>∞<\/span>/)
   assert.match(badgeStyles, /min\(100%, 527px\)/)
   assert.match(badgeStyles, /aspect-ratio: 1054 \/ 1493/)
   assert.match(badgeStyles, /container-type: inline-size/)
-  assert.match(badgeStyles, /1cqw/)
-  assert.match(badgeStyles, /#002A1E/)
-  assert.match(badgeStyles, /#094A36/)
-  assert.match(badgeStyles, /#F6F3EA/)
+  assert.match(badgeStyles, /\.workshop-pass__speciality \{/)
+  assert.match(badgeStyles, /text-overflow: ellipsis/)
   assert.match(badgeStyles, /min-height: 50px/)
   assert.doesNotMatch(badgeStyles, /#7657ff|#5b35f2|#8c55ff|#8d70ff|#9d85ff/i)
   assert.doesNotMatch(badgeStyles, /url\(/)
@@ -764,11 +742,12 @@ test('the web badge and the PNG share one layout planner and keep the QR payload
     read('src/pages/workshops/WorkshopPass.jsx'),
     read('src/pages/workshops/workshopBadge.css'),
   ])
-  assert.match(badge, /import \{ planWorkshopPass \} from '\.\/workshopPassLayout\.js'/)
-  assert.match(component, /import \{ planWorkshopPass \} from '\.\/workshopPassLayout\.js'/)
+  assert.match(badge, /import \{ planWorkshopPass, planWorkshopSpeciality \} from '\.\/workshopPassLayout\.js'/)
+  assert.match(component, /import \{ planWorkshopPass, planWorkshopSpeciality \} from '\.\/workshopPassLayout\.js'/)
   assert.doesNotMatch(component, /wrapLines|fitText|ResizeObserver/)
   assert.match(badge, /planWorkshopPass\(measureOn\(context\)/)
   assert.match(component, /planWorkshopPass\(measure, \{ title: eventTitle, name: participantName, location: eventLocation \}\)/)
+  assert.match(component, /planWorkshopSpeciality\(measure, speciality\)/)
   assert.match(component, /value=\{pass\.qrPayload\}/)
   assert.match(component, /size=\{420\}/)
   assert.match(component, /level="M"/)
@@ -779,6 +758,5 @@ test('the web badge and the PNG share one layout planner and keep the QR payload
   assert.match(styles, /box-shadow: 0 18px 42px rgba\(0, 42, 30, 0\.16\), 0 4px 12px rgba\(0, 42, 30, 0\.08\), inset 0 0 0 1px rgba\(0, 42, 30, 0\.07\)/)
   assert.match(styles, /font-size: 1\.33cqw/)
   assert.match(styles, /margin-top: 2\.66cqw/)
+  assert.match(styles, /font-size: 1\.9cqw/)
 })
-
-

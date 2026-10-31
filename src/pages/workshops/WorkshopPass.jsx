@@ -4,7 +4,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import InfinityClubMark from '../../components/InfinityClubMark.jsx'
 import { downloadWorkshopBadgePng, eventSchedule } from './workshopBadge.js'
 import { WORKSHOP_BADGE } from './workshopBadgeTheme.js'
-import { planWorkshopPass } from './workshopPassLayout.js'
+import { planWorkshopPass, planWorkshopSpeciality } from './workshopPassLayout.js'
 
 const BADGE = WORKSHOP_BADGE
 const cqw = (design) => `${(design / 10.54).toFixed(3)}cqw`
@@ -17,6 +17,7 @@ function usePassLayout(pass) {
   const eventTitle = pass.event?.title
   const eventLocation = pass.event?.location
   const participantName = pass.participantName
+  const speciality = pass.universitySpeciality
   useEffect(() => {
     if (typeof document === 'undefined') return undefined
     const context = document.createElement('canvas').getContext('2d')
@@ -31,12 +32,15 @@ function usePassLayout(pass) {
     let cancelled = false
     const compute = () => {
       if (cancelled) return
-      setPlan(planWorkshopPass(measure, { title: eventTitle, name: participantName, location: eventLocation }))
+      setPlan({
+        ...planWorkshopPass(measure, { title: eventTitle, name: participantName, location: eventLocation }),
+        specialityLine: planWorkshopSpeciality(measure, speciality),
+      })
     }
     compute()
     document.fonts?.ready?.then(compute)
     return () => { cancelled = true }
-  }, [eventTitle, eventLocation, participantName])
+  }, [eventTitle, eventLocation, participantName, speciality])
   return plan
 }
 
@@ -111,6 +115,8 @@ export default function WorkshopPass({ pass }) {
               ? plan.name.lines.map((line, index) => <span key={index} className="workshop-pass__line">{line}</span>)
               : pass.participantName}
             </h2>
+            {pass.universitySpeciality
+              && <small className="workshop-pass__speciality">{plan?.specialityLine || pass.universitySpeciality}</small>}
           </section>
         </section>
         <footer className="workshop-pass__footer">

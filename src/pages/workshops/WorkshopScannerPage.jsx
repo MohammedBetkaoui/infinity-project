@@ -18,14 +18,15 @@ const RESULT_OVERLAY_MS = 1200
 const CONTEXT_REFRESH_MS = 5000
 const DETECTION_INTERVAL_MS = 200
 const RECENT_SCAN_LIMIT = 6
-const SCAN_STATUSES = ['checked_in', 'already_checked_in', 'invalid', 'expired', 'wrong_workshop', 'not_open']
+const SCAN_STATUSES = ['checked_in', 'already_checked_in', 'invalid', 'not_open']
 
+// The server collapses invalid / cross-event / expired / revoked passes into
+// the single generic 'invalid' status, deliberately carrying no participant
+// information. Two status families read as one: 'Not this badge'.
 const RESULT_COPY = {
   checked_in: { title: 'Check-in successful', description: 'Participant admitted', tone: 'success' },
   already_checked_in: { title: 'Already checked in', description: 'This participant was previously admitted', tone: 'warning' },
-  invalid: { title: 'Invalid pass', description: 'This is not a valid Infinity Club workshop pass', tone: 'error' },
-  expired: { title: 'Pass expired', description: 'This workshop pass is no longer active', tone: 'error' },
-  wrong_workshop: { title: 'Pass for another workshop', description: 'This pass belongs to a different workshop', tone: 'error' },
+  invalid: { title: 'Invalid badge', description: 'This is not a valid Infinity Club workshop badge', tone: 'error' },
   not_open: { title: 'Check-in not open', description: NOT_OPEN_NOTE, tone: 'warning' },
   network_error: { title: 'Connection problem', description: 'Could not verify this pass. Please try again', tone: 'error' },
 }
@@ -398,7 +399,7 @@ export default function WorkshopScannerPage() {
   return (
     <main className="workshop-scanner-page">
       <div className="workshop-scanner-shell">
-        <ScannerHeader eventTitle={context.eventTitle} location={context.location} organizerName={context.organizerName} />
+        <ScannerHeader eventTitle={context.eventTitle} location={context.location} />
         <ScannerStats context={context} refreshing={refreshing} onRefresh={refreshStats} />
         {!online && <section className="scanner-connectivity" role="alert"><WifiOff /><span><b>Offline</b> — QR verification unavailable</span></section>}
         {!checkInOpen && <section className="workshop-scanner-banner" role="status"><TriangleAlert /><div><h2>Check-in not open</h2><p>Check-in opens when the workshop is started. Current status: {context.eventStatus?.replaceAll('_', ' ') || 'scheduled'}.</p></div></section>}

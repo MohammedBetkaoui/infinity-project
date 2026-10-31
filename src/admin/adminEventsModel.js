@@ -43,26 +43,18 @@ export const EVENT_STATUS_FILTERS = Object.freeze([
 ])
 export const EVENT_STATUS_KEYS = STATUS_KEYS
 
-export const INVITATION_STATUS_KEYS = Object.freeze({ Invited: 'invited', Registered: 'registered', Declined: 'declined', Cancelled: 'cancelled' })
-export const ATTENDANCE_STATUS_KEYS = Object.freeze({ Expected: 'expected', Present: 'present', Absent: 'absent', Excused: 'excused' })
+// Attendance is read straight from registrations: participation states the
+// server keeps (present / not checked in / absent after finalize / cancelled).
 export const ATTENDANCE_FILTERS = Object.freeze([
   { value: '', label: 'All' },
   { value: 'present', label: 'Present' },
+  { value: 'not_checked_in', label: 'Not checked in' },
   { value: 'absent', label: 'Absent' },
-  { value: 'expected', label: 'Expected' },
+  { value: 'cancelled', label: 'Cancelled' },
 ])
 export const ATTENDANCE_STATE_LABELS = Object.freeze({
   not_started: 'Not started', in_progress: 'In progress', completed: 'Completed',
 })
-export const DEPARTMENT_KEYS = Object.freeze({
-  'Dev / Tech': 'dev-tech', 'Design / Content Creation': 'design-content', 'Management / Logistics': 'management-logistics',
-})
-export const DEPARTMENT_FILTERS = Object.freeze([
-  { value: '', label: 'All departments' },
-  { value: 'dev-tech', label: 'Dev / Tech' },
-  { value: 'design-content', label: 'Design / Content Creation' },
-  { value: 'management-logistics', label: 'Management / Logistics' },
-])
 
 const ALGIERS = 'Africa/Algiers'
 // Algiers keeps UTC+01 all year, so a local wall-clock pick maps to UTC with a

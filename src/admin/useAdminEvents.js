@@ -10,21 +10,14 @@ export function eventsQueryString({ page, limit, search, filters, sort }) {
   return params.toString()
 }
 
-function membersQueryString({ page, limit, search, pole, sort }) {
-  const params = new URLSearchParams({ page: String(page), limit: String(limit), q: search || '', sort })
-  if (pole) params.set('pole', pole)
+function participantsQueryString({ page, limit, search }) {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit), q: search || '' })
   return params.toString()
 }
 
 function attendanceQueryString({ page, limit, status }) {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) })
   if (status) params.set('status', status)
-  return params.toString()
-}
-
-function staffQueryString({ page, limit, search, department, sort }) {
-  const params = new URLSearchParams({ page: String(page), limit: String(limit), q: search || '', sort })
-  if (department) params.set('department', department)
   return params.toString()
 }
 
@@ -66,18 +59,20 @@ export function useAdminEvent(eventId) {
   return { ...state, refresh: useCallback(() => setRefreshKey((value) => value + 1), []) }
 }
 
-export function useAdminEventMembers({ eventId, page, limit = 25, search, pole, sort, active = true }) {
+// Workshop participants are member applications, not club members: the list
+// combines the application identity with its invitation and registration.
+export function useAdminEventParticipants({ eventId, page, limit = 50, search, active = true }) {
   const { request } = useAdminAuth()
-  const [state, setState] = useState({ members: [], facets: { poles: [] }, pagination: { page: 1, limit, total: 0, pages: 1 }, loading: true, error: '', resolvedKey: '' })
+  const [state, setState] = useState({ participants: [], pagination: { page: 1, limit, total: 0, pages: 1 }, loading: true, error: '', resolvedKey: '' })
   const [refreshKey, setRefreshKey] = useState(0)
-  const query = useMemo(() => membersQueryString({ page, limit, search, pole, sort }), [limit, page, pole, search, sort])
-  const requestKey = `event-members::${eventId}::${query}::${refreshKey}`
+  const query = useMemo(() => participantsQueryString({ page, limit, search }), [limit, page, search])
+  const requestKey = `event-participants::${eventId}::${query}::${refreshKey}`
   useEffect(() => {
     if (!eventId || !active) return undefined
     const controller = new AbortController()
-    request(`/api/admin/events/${encodeURIComponent(eventId)}/members?${query}`, { signal: controller.signal }).then(({ response, body }) => {
-      if (!response.ok) throw new Error(body.message || 'Unable to load the member list.')
-      setState({ members: body.data || [], facets: body.facets || { poles: [] }, pagination: body.pagination || { page: 1, limit, total: 0, pages: 1 }, loading: false, error: '', resolvedKey: requestKey })
+    request(`/api/admin/events/${encodeURIComponent(eventId)}/participants?${query}`, { signal: controller.signal }).then(({ response, body }) => {
+      if (!response.ok) throw new Error(body.message || 'Unable to load the participant list.')
+      setState({ participants: body.data || [], pagination: body.pagination || { page: 1, limit, total: 0, pages: 1 }, loading: false, error: '', resolvedKey: requestKey })
     }).catch((error) => {
       if (error.name !== 'AbortError') setState((current) => ({ ...current, loading: false, error: error.message, resolvedKey: requestKey }))
     })
@@ -86,59 +81,24 @@ export function useAdminEventMembers({ eventId, page, limit = 25, search, pole, 
   return { ...state, loading: state.loading || state.resolvedKey !== requestKey, refresh: useCallback(() => setRefreshKey((value) => value + 1), []) }
 }
 
-export function useAdminEventInvitations({ eventId, page = 1, limit = 50, active = true }) {
+// State of the ONE shared workshop scanner link; the raw link itself is only
+// revealed by explicit generate/copy actions.
+export function useAdminEventScanner(eventId, active = true) {
   const { request } = useAdminAuth()
-  const [state, setState] = useState({ records: [], pagination: { page, limit, total: 0 }, loading: active, error: '' })
-  const [nonce, setNonce] = useState(0)
-  useEffect(() => {
-    if (!active || !eventId) return
-    const controller = new AbortController()
-    request(`/api/admin/events/${encodeURIComponent(eventId)}/invitations?page=${page}&limit=${limit}`, { signal: controller.signal })
-      .then(({ response, body }) => {
-        if (!response.ok) throw new Error(body.message || 'Unable to load invited participants.')
-        setState({ records: body.data || [], pagination: body.pagination, loading: false, error: '' })
-      })
-      .catch((error) => { if (error.name !== 'AbortError') setState((current) => ({ ...current, loading: false, error: error.message })) })
-    return () => controller.abort()
-  }, [active, eventId, limit, nonce, page, request])
-  return { ...state, refresh: () => setNonce((value) => value + 1) }
-}
-
-export function useAdminEventOrganizers(eventId, active = true) {
-  const { request } = useAdminAuth()
-  const [state, setState] = useState({ organizers: [], loading: true, error: '' })
+  const [state, setState] = useState({ scanner: null, copyable: false, loading: true, error: '', resolvedKey: '' })
   const [refreshKey, setRefreshKey] = useState(0)
+  const requestKey = `event-scanner::${eventId}::${refreshKey}`
   useEffect(() => {
     if (!eventId || !active) return undefined
     const controller = new AbortController()
-    request(`/api/admin/events/${encodeURIComponent(eventId)}/organizers`, { signal: controller.signal }).then(({ response, body }) => {
-      if (!response.ok) throw new Error(body.message || 'Unable to load the organizers.')
-      setState({ organizers: body.data || [], loading: false, error: '' })
-    }).catch((error) => {
-      if (error.name !== 'AbortError') setState((current) => ({ ...current, loading: false, error: error.message }))
-    })
-    return () => controller.abort()
-  }, [active, eventId, refreshKey, request])
-  return { ...state, refresh: useCallback(() => setRefreshKey((value) => value + 1), []) }
-}
-
-export function useAdminEventStaff({ eventId, page = 1, limit = 50, search, department, sort = 'name_asc', active = true }) {
-  const { request } = useAdminAuth()
-  const [state, setState] = useState({ records: [], pagination: { page: 1, limit, total: 0, pages: 1 }, loading: true, error: '', resolvedKey: '' })
-  const [refreshKey, setRefreshKey] = useState(0)
-  const query = useMemo(() => staffQueryString({ page, limit, search, department, sort }), [department, limit, page, search, sort])
-  const requestKey = `event-staff::${eventId}::${query}::${refreshKey}`
-  useEffect(() => {
-    if (!eventId || !active) return undefined
-    const controller = new AbortController()
-    request(`/api/admin/events/${encodeURIComponent(eventId)}/staff?${query}`, { signal: controller.signal }).then(({ response, body }) => {
-      if (!response.ok) throw new Error(body.message || 'Unable to load eligible staff.')
-      setState({ records: body.data || [], pagination: body.pagination || { page: 1, limit, total: 0, pages: 1 }, loading: false, error: '', resolvedKey: requestKey })
+    request(`/api/admin/events/${encodeURIComponent(eventId)}/scanner`, { signal: controller.signal }).then(({ response, body }) => {
+      if (!response.ok) throw new Error(body.message || 'Unable to load the scanner link.')
+      setState({ scanner: body.access || null, copyable: Boolean(body.copyable), loading: false, error: '', resolvedKey: requestKey })
     }).catch((error) => {
       if (error.name !== 'AbortError') setState((current) => ({ ...current, loading: false, error: error.message, resolvedKey: requestKey }))
     })
     return () => controller.abort()
-  }, [active, eventId, limit, query, request, requestKey])
+  }, [active, eventId, request, requestKey])
   return { ...state, loading: state.loading || state.resolvedKey !== requestKey, refresh: useCallback(() => setRefreshKey((value) => value + 1), []) }
 }
 
@@ -189,18 +149,6 @@ export function useAdminEventActions() {
     if (!guard(`${eventId}:invite`)) return { ok: false, message: 'Another event action is still being saved.' }
     return post(`/api/admin/events/${encodeURIComponent(eventId)}/invitations`, input)
   }, [post])
-  const assignOrganizers = useCallback(async (eventId, staffProfileIds) => {
-    if (!guard(`${eventId}:organizers`)) return { ok: false, message: 'Another event action is still being saved.' }
-    return post(`/api/admin/events/${encodeURIComponent(eventId)}/organizers`, { staffProfileIds })
-  }, [post])
-  const removeOrganizer = useCallback(async (eventId, staffProfileId) => {
-    if (!guard(`${eventId}:remove-organizer`)) return { ok: false, message: 'Another event action is still being saved.' }
-    return post(`/api/admin/events/${encodeURIComponent(eventId)}/organizers/remove`, { staffProfileId })
-  }, [post])
-  const setScannerAccess = useCallback(async (eventId, staffProfileId, enabled) => {
-    if (!guard(`${eventId}:scanner`)) return { ok: false, message: 'Another event action is still being saved.' }
-    return post(`/api/admin/events/${encodeURIComponent(eventId)}/scanner-access`, { staffProfileId, enabled })
-  }, [post])
   const invitationLink = useCallback(async (eventId, invitationId, action, confirm = false) => {
     if (!guard(`${eventId}:invitation-link`)) return { ok: false, message: 'Another event action is still being saved.' }
     return post(`/api/admin/events/${encodeURIComponent(eventId)}/invitations/${encodeURIComponent(invitationId)}/link`, { action, confirm })
@@ -231,9 +179,9 @@ export function useAdminEventActions() {
       return { ok: false, message: 'Unable to reach the administration service.' }
     } finally { release() }
   }, [requestRaw])
-  const scannerCredential = useCallback(async (eventId, eventOrganizerId, action) => {
-    if (!guard(`${eventId}:scanner-credential`)) return { ok: false, message: 'Another event action is still being saved.' }
-    return post(`/api/admin/events/${encodeURIComponent(eventId)}/scanner-credentials`, { eventOrganizerId, action })
+  const scannerAccess = useCallback(async (eventId, action, confirm = false) => {
+    if (!guard(`${eventId}:scanner-action`)) return { ok: false, message: 'Another scanner action is still running.' }
+    return post(`/api/admin/events/${encodeURIComponent(eventId)}/scanner`, { action, confirm })
   }, [post])
   const transition = useCallback(async (eventId, nextStatus, expectedUpdatedAt) => {
     if (!guard(`${eventId}:lifecycle`)) return { ok: false, message: 'Another event action is still being saved.' }
@@ -243,5 +191,5 @@ export function useAdminEventActions() {
     if (!guard(`${eventId}:attendance-finalize`)) return { ok: false, message: 'Another event action is still being saved.' }
     return post(`/api/admin/events/${encodeURIComponent(eventId)}/attendance/finalize`, { confirm: true })
   }, [post])
-  return { create, update, invite, assignOrganizers, removeOrganizer, setScannerAccess, invitationLink, exportInvitations, scannerCredential, transition, finalizeAttendance }
+  return { create, update, invite, invitationLink, exportInvitations, scannerAccess, transition, finalizeAttendance }
 }

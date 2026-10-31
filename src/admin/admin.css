@@ -2313,7 +2313,7 @@
   left: 0;
   padding: 22px 14px 14px;
   color: var(--adm-inverse-fg);
-  background: var(--adm-deep);
+  background: var(--adm-sidebar-bg, var(--adm-deep));
   border: 0;
   border-radius: 0;
   box-shadow: none;
@@ -2550,13 +2550,13 @@
    content blocks. The navigation rail itself is dark, so it needs the
    regular light text and accent roles locally to preserve contrast. */
 .adm-admin-root[data-theme="dark"] .adm-sidebar {
+  --adm-sidebar-bg: var(--adm-surface);
   --adm-inverse-fg-rgb: var(--adm-ink-rgb);
   --adm-inverse-fg: rgb(var(--adm-ink-rgb));
   --adm-inverse-muted: rgb(var(--adm-secondary-rgb));
   --adm-inverse-accent-rgb: var(--adm-accent-rgb);
   --adm-inverse-accent: rgb(var(--adm-accent-rgb));
   --adm-inverse-on: var(--adm-deep);
-  background: var(--adm-surface);
 }
 
 @media (max-width: 767px) {
