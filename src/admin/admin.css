@@ -2016,6 +2016,19 @@
 .adm-event-quick-invite h4 { margin: 0; font-size: 15px; }
 .adm-event-quick-invite > p, .adm-toolbar-note { margin: 0; color: var(--adm-muted); font-size: 12px; line-height: 1.55; }
 .adm-event-invite-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.adm-event-links__stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 0; }
+.adm-event-links__stats > div { display: grid; gap: 2px; padding: 12px 14px; background: var(--adm-surface-soft); border: 1px solid var(--adm-line); border-radius: var(--adm-radius-control); }
+.adm-event-links__stats dt { color: var(--adm-muted); font-size: 11px; font-weight: 700; }
+.adm-event-links__stats dd { margin: 0; color: var(--adm-ink); font-size: 22px; font-weight: 800; line-height: 1.2; }
+.adm-event-links__stats small { color: var(--adm-muted); font-size: 11px; }
+.adm-event-links__stats > .is-attention { background: rgb(var(--adm-amber-rgb) / .1); border-color: rgb(var(--adm-amber-rgb) / .4); }
+.adm-event-links__stats > .is-attention dd { color: var(--adm-amber-ink); }
+.adm-event-links__alert { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 14px; color: var(--adm-amber-ink); background: rgb(var(--adm-amber-rgb) / .1); border: 1px solid rgb(var(--adm-amber-rgb) / .4); border-radius: var(--adm-radius-control); }
+.adm-event-links__alert > div { display: grid; gap: 2px; min-width: 0; }
+.adm-event-links__alert b { color: var(--adm-ink); font-size: 13px; }
+.adm-event-links__alert small { color: var(--adm-secondary); font-size: 12px; }
+.adm-event-quick-invite > .adm-event-links__ok { display: flex; align-items: center; gap: 8px; color: var(--adm-success-ink); font-size: 13px; font-weight: 600; }
+.adm-event-link-state { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .adm-event-select-table input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--adm-accent-fg); }
 .adm-event-organizer-actions { display: flex; justify-content: flex-end; gap: 6px; }
 .adm-row-action .adm-event-organizer-actions button { display: inline-flex; width: auto; min-width: max-content; height: 36px; padding: 0 11px; color: var(--adm-accent-fg); background: var(--adm-surface-soft); border-radius: var(--adm-radius-pill); font-size: 11px; font-weight: 700; }
@@ -2053,6 +2066,9 @@
   .adm-event-command__attendance { padding: 16px; }
   .adm-event-overview-grid > .adm-detail-section { padding: 16px; }
   .adm-events-table .adm-table th:nth-child(4), .adm-events-table .adm-table td:nth-child(4) { display: none; }
+  .adm-event-links__stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .adm-event-links__alert { grid-template-columns: auto minmax(0, 1fr); }
+  .adm-event-links__alert .adm-button { grid-column: 1 / -1; }
   .adm-event-invite-actions { display: grid; grid-template-columns: 1fr; }
   .adm-event-invite-actions .adm-button { width: 100%; }
   .adm-row-action .adm-event-organizer-actions { display: grid; }

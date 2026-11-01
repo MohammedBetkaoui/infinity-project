@@ -8,7 +8,7 @@ import { createAdminEventsService } from '../api/_lib/admin-events.js'
 import { createAdminEventsStore } from '../api/_lib/admin-events-store.js'
 import {
   parseEventAttendanceOptions, parseEventListOptions, parseEventParticipantOptions,
-  validateEventCreateBody, validateEventInviteBody, validateEventScannerActionBody, validateEventUpdateBody,
+  validateEventCreateBody, validateEventInvitationExportBody, validateEventInviteBody, validateEventScannerActionBody, validateEventUpdateBody,
 } from '../api/_lib/admin-events-validation.js'
 import { prepareStableWorkshopCredential, WORKSHOP_CREDENTIAL_DERIVATION_VERSION } from '../api/_lib/workshop-tokens.js'
 import {
@@ -38,16 +38,17 @@ const workshop = (changes = {}) => ({
   eventType: 'workshop', title: 'Introduction to Machine Learning', startsAt: '2026-10-28T08:00:00.000Z',
   endsAt: '2026-10-28T11:00:00.000Z', speakerName: 'Dr Ahmed', location: 'FMI · Room 03', status: 'planned', ...changes,
 })
-// membership_applications embeds read by the admin store: invitation arrays
-// plus the optional registration. Empty embeds are the LEFT-JOIN signature of
-// applications that were never invited.
+// One row of admin_event_applicant_links, which the admin store reads: an
+// application with the link/registration state it has for this event.
+// invitation_id null is the signature of an application with no link yet.
 const participantEmbed = (changes = {}) => ({
-  id: APPLICATION_ID, full_name: 'Amel Benali', email: 'amel@example.com', department: 'Software Engineering',
-  invitation: [{
-    id: INVITATION_ID, status: 'invited', invited_at: NOW.toISOString(), registered_at: null, link_revoked_at: null,
-    invite_token_hash: null, invite_expires_at: null, credential_version: null, credential_derivation_version: null,
-  }],
-  registration: null,
+  event_id: EVENT_ID, application_id: APPLICATION_ID, join_type: 'member', full_name: 'Amel Benali',
+  email: 'amel@example.com', department: 'Software Engineering', staff_department: null,
+  invitation_id: INVITATION_ID, invitation_status: 'invited', invited_at: NOW.toISOString(),
+  invitation_registered_at: null, link_revoked_at: null, invite_token_hash: null, invite_expires_at: null,
+  credential_version: null, credential_derivation_version: null, link_exported_at: null,
+  registration_status: null, university_speciality: null, registration_registered_at: null,
+  checked_in_at: null, absent_at: null,
   ...changes,
 })
 const attendanceRow = (changes = {}) => ({
@@ -59,12 +60,19 @@ const attendanceRow = (changes = {}) => ({
 })
 
 class MemoryEventsStore {
-  constructor() { this.row = eventRow(); this.calls = []; this.access = null; this.invitation = null }
+  constructor() {
+    this.row = eventRow(); this.calls = []; this.access = null; this.invitation = null
+    this.counts = { eligibleMembers: 0, eligibleStaff: 0, linkedMembers: 0, linkedStaff: 0, unexportedMembers: 0, unexportedStaff: 0 }
+    this.exportRows = []
+  }
   async list() { return { rows: [this.row], count: 1 } }
   async summaryCounts() { return { upcoming: 1, ongoing: 0, completed: 0, total: 1 } }
   async find(id) { return id === EVENT_ID ? this.row : null }
   async audit() { return [] }
-  async participants() { return { rows: [participantEmbed()], count: 1 } }
+  async participants(eventId, options) { this.calls.push(['participants', options]); return { rows: [participantEmbed()], count: 1 } }
+  async invitationCounts() { return this.counts }
+  async exportInvitationRows(eventId, options) { this.calls.push(['export-rows', options]); return this.exportRows }
+  async recordInvitationExport(input) { this.calls.push(['export-record', input]); return input.invitationIds.length }
   async attendance() { return { rows: [attendanceRow()], count: 1 } }
   async scannerAccess() { return this.access }
   async persistScannerAccess(input) {
@@ -84,7 +92,7 @@ class MemoryEventsStore {
   }
   async createEvent(input) { this.calls.push(['create', input]); return EVENT_ID }
   async updateEvent(input) { this.calls.push(['update', input]); return NOW.toISOString() }
-  async inviteApplications(input) { this.calls.push(['invite', input]); return { requested: 2, added: 2 } }
+  async inviteApplications(input) { this.calls.push(['invite', input]); return { requested: 3, added: 3, added_members: 2, added_staff: 1 } }
   async invitationCredential() { return this.invitation }
   async transitionEvent(input) { this.calls.push(['transition', input]); return NOW.toISOString() }
   async finalizeAttendance(input) { this.calls.push(['finalize', input]); return 2 }
@@ -266,17 +274,19 @@ test('event service uses the authenticated actor and the application-based parti
   assert.equal(participants.pagination.total, 1)
   assert.deepEqual(participants.data[0], {
     id: APPLICATION_ID, invitationId: INVITATION_ID, name: 'Amel Benali', initials: 'AB',
-    email: 'amel@example.com', universitySpeciality: 'Software Engineering', specialitySource: 'application',
+    email: 'amel@example.com', type: 'member', typeLabel: 'Member',
+    universitySpeciality: 'Software Engineering', specialitySource: 'application',
     invitationStatus: 'Invited', invitationStatusKey: 'invited', invitationReady: true, privateLinkReady: false,
+    linkExportedAt: null, linkIsNew: true,
     invitedAt: NOW.toISOString(), registeredAt: null, registrationStatus: null, attendance: null,
     checkedInAt: null, absentAt: null,
   })
 
-  const invited = await service.invite(EVENT_ID, { scope: 'all_member_applicants' }, user)
+  const invited = await service.invite(EVENT_ID, { scope: 'all_applicants' }, user)
   assert.equal(invited.ok, true)
-  assert.deepEqual(invited.invited, { requested: 2, added: 2 })
-  assert.equal(store.calls[1][1].scope, 'all_member_applicants')
-  assert.equal(store.calls[1][1].applicationIds, null)
+  assert.deepEqual(invited.invited, { requested: 3, added: 3, addedMembers: 2, addedStaff: 1 })
+  assert.equal(store.calls.find(([name]) => name === 'invite')[1].scope, 'all_applicants')
+  assert.equal(store.calls.find(([name]) => name === 'invite')[1].applicationIds, null)
 })
 
 test('participant speciality prefers the registration value and never asks club members', async () => {
@@ -285,8 +295,9 @@ test('participant speciality prefers the registration value and never asks club 
   const service = createAdminEventsService({ store, now: () => NOW, origin: ORIGIN, env: LINK_ENV })
 
   const embedded = participantEmbed({
-    invitation: [{ ...participantEmbed().invitation[0], invite_token_hash: 'a'.repeat(64), credential_derivation_version: WORKSHOP_CREDENTIAL_DERIVATION_VERSION }],
-    registration: { university_speciality: 'AI & Big Data', status: 'checked_in', registered_at: NOW.toISOString(), checked_in_at: NOW.toISOString(), absent_at: null },
+    invite_token_hash: 'a'.repeat(64), credential_derivation_version: WORKSHOP_CREDENTIAL_DERIVATION_VERSION,
+    registration_status: 'checked_in', university_speciality: 'AI & Big Data',
+    registration_registered_at: NOW.toISOString(), checked_in_at: NOW.toISOString(),
   })
   store.participants = async () => ({ rows: [{ ...embedded }], count: 1 })
   const rows = (await service.participants(EVENT_ID, { q: '', page: 1, limit: 50 })).data
@@ -297,29 +308,35 @@ test('participant speciality prefers the registration value and never asks club 
   assert.equal(rows[0].privateLinkReady, true)
 
   const absent = participantEmbed({
-    registration: { university_speciality: 'AI & Big Data', status: 'registered', registered_at: NOW.toISOString(), checked_in_at: null, absent_at: NOW.toISOString() },
+    registration_status: 'registered', university_speciality: 'AI & Big Data',
+    registration_registered_at: NOW.toISOString(), absent_at: NOW.toISOString(),
   })
   store.participants = async () => ({ rows: [{ ...absent }], count: 1 })
   const absentRows = (await service.participants(EVENT_ID, { q: '', page: 1, limit: 50 })).data
   assert.equal(absentRows[0].attendance, 'absent')
   assert.equal(absentRows[0].absentAt, NOW.toISOString())
 
-  const pending = participantEmbed({
-    registration: { university_speciality: null, status: 'registered', registered_at: NOW.toISOString(), checked_in_at: null, absent_at: null },
-  })
+  const pending = participantEmbed({ registration_status: 'registered', registration_registered_at: NOW.toISOString() })
   store.participants = async () => ({ rows: [{ ...pending }], count: 1 })
   const pendingRows = (await service.participants(EVENT_ID, { q: '', page: 1, limit: 50 })).data
   assert.equal(pendingRows[0].attendance, 'not_checked_in')
   // The application speciality remains the display fallback.
   assert.equal(pendingRows[0].universitySpeciality, 'Software Engineering')
 
-  const uninvited = { ...participantEmbed({ invitation: [], registration: null }) }
+  const uninvited = participantEmbed({ invitation_id: null, invitation_status: null, invited_at: null })
   store.participants = async () => ({ rows: [uninvited], count: 1 })
   const outsider = (await service.participants(EVENT_ID, { q: '', page: 1, limit: 50 })).data
   assert.equal(outsider[0].invitationStatus, 'Not invited')
   assert.equal(outsider[0].invitationId, null)
   assert.equal(outsider[0].invitationReady, false)
   assert.equal(outsider[0].privateLinkReady, false)
+  assert.equal(outsider[0].linkIsNew, false)
+
+  // Staff applications are participants too.
+  store.participants = async () => ({ rows: [participantEmbed({ join_type: 'staff', staff_department: 'dev-tech' })], count: 1 })
+  const staff = (await service.participants(EVENT_ID, { q: '', page: 1, limit: 50 })).data
+  assert.equal(staff[0].type, 'staff')
+  assert.equal(staff[0].typeLabel, 'Staff')
 })
 
 test('copying an existing invitation link reuses the canonical credential without writing', async () => {
@@ -554,7 +571,7 @@ test('scanner generation for a revoked or expired shared link rotates in place a
   assert.equal((await meetingService.scannerAction(EVENT_ID, { action: 'generate' }, { ...user, role: 'administrator' })).status, 403)
 })
 
-test('the participants store reads member applications through embedded invitations and registrations', async () => {
+test('the participants store reads every member and staff application through the per-event link view', async () => {
   const tables = []
   let last = null
   const chain = () => {
@@ -563,6 +580,9 @@ test('the participants store reads member applications through embedded invitati
       select(...args) { this.calls.push(['select', ...args]); return this },
       eq(...args) { this.calls.push(['eq', ...args]); return this },
       or(...args) { this.calls.push(['or', ...args]); return this },
+      is(...args) { this.calls.push(['is', ...args]); return this },
+      not(...args) { this.calls.push(['not', ...args]); return this },
+      in(...args) { this.calls.push(['in', ...args]); return this },
       order(...args) { this.calls.push(['order', ...args]); return this },
       range() { return Promise.resolve({ data: [], error: null, count: 4 }) },
     }
@@ -572,17 +592,188 @@ test('the participants store reads member applications through embedded invitati
   const store = createAdminEventsStore({ from: (table) => { tables.push(table); return chain() } })
   const result = await store.participants(EVENT_ID, { q: '', page: 1, limit: 50 })
   assert.equal(result.count, 4)
-  assert.deepEqual(tables, ['membership_applications'])
-  assert.deepEqual(last.calls.slice(0, 3), [
-    ['select', 'id, full_name, email, department, invitation:club_event_invitations(id, status, invited_at, registered_at, link_revoked_at, invite_token_hash, invite_expires_at, credential_version, credential_derivation_version), registration:club_event_registrations(university_speciality, status, registered_at, checked_in_at, absent_at)', { count: 'exact' }],
-    ['eq', 'join_type', 'member'],
-    ['eq', 'invitation.event_id', EVENT_ID],
-  ])
-  assert.deepEqual(last.calls[3], ['order', 'full_name', { ascending: true }])
+  assert.deepEqual(tables, ['admin_event_applicant_links'])
+  assert.equal(last.calls[0][0], 'select')
+  assert.match(last.calls[0][1], /application_id, join_type, full_name/)
+  assert.deepEqual(last.calls[0][2], { count: 'exact' })
+  assert.deepEqual(last.calls[1], ['eq', 'event_id', EVENT_ID])
+  // No join_type restriction: members and staff are both listed.
+  assert.equal(last.calls.some(([name, column]) => name === 'eq' && column === 'join_type'), false)
+  assert.deepEqual(last.calls[2], ['order', 'full_name', { ascending: true }])
 
   const searched = createAdminEventsStore({ from: () => chain() })
   await searched.participants(EVENT_ID, { q: 'Amel Benali', page: 1, limit: 50 })
-  assert.deepEqual(last.calls[3], ['or', 'full_name.ilike.%Amel Benali%,email.ilike.%Amel Benali%,department.ilike.%Amel Benali%'])
+  assert.deepEqual(last.calls[2], ['or', 'full_name.ilike.%Amel Benali%,email.ilike.%Amel Benali%,department.ilike.%Amel Benali%'])
+
+  const filters = [
+    [{ type: 'staff' }, ['eq', 'join_type', 'staff']],
+    [{ link: 'missing' }, ['is', 'invitation_id', null]],
+    [{ link: 'ready' }, ['not', 'invitation_id', 'is', null]],
+    [{ link: 'new' }, ['is', 'link_exported_at', null]],
+  ]
+  for (const [options, expected] of filters) {
+    const filtered = createAdminEventsStore({ from: () => chain() })
+    await filtered.participants(EVENT_ID, { q: '', page: 1, limit: 50, ...options })
+    assert.deepEqual(last.calls.find((call) => call[0] === expected[0] && call[1] === expected[1]), expected, JSON.stringify(options))
+  }
+})
+
+test('the invitation counts split eligible, linked and never-exported applications by type', async () => {
+  const seen = []
+  const makeQuery = () => {
+    const filters = []
+    const query = {
+      select() { return this },
+      eq(column, value) { filters.push(`${column}=${value}`); return this },
+      not(column, operator, value) { filters.push(`${column} not ${operator} ${value}`); return this },
+      is(column, value) { filters.push(`${column} is ${value}`); return this },
+      in(column, values) { filters.push(`${column} in ${values.join('|')}`); return this },
+      then(resolve) {
+        seen.push(filters.join(' & '))
+        const staff = filters.includes('join_type=staff')
+        const base = staff ? 3 : 10
+        const linked = filters.some((filter) => filter.startsWith('invitation_id not'))
+        const unexported = filters.some((filter) => filter.startsWith('link_exported_at'))
+        resolve({ error: null, count: unexported ? base - 2 : linked ? base - 1 : base })
+      },
+    }
+    return query
+  }
+  const store = createAdminEventsStore({ from: (table) => { assert.equal(table, 'admin_event_applicant_links'); return makeQuery() } })
+  const counts = await store.invitationCounts(EVENT_ID)
+  assert.deepEqual(counts, {
+    eligibleMembers: 10, eligibleStaff: 3, linkedMembers: 9, linkedStaff: 2, unexportedMembers: 8, unexportedStaff: 1,
+  })
+  assert.equal(seen.every((filters) => filters.startsWith(`event_id=${EVENT_ID}`)), true)
+})
+
+test('private links: first batch for everyone, then only the applications that joined later', async () => {
+  const store = new MemoryEventsStore()
+  const service = createAdminEventsService({ store, now: () => NOW, origin: ORIGIN, env: LINK_ENV })
+
+  // Nothing generated yet: every member and staff application is waiting.
+  store.counts = { eligibleMembers: 40, eligibleStaff: 12, linkedMembers: 0, linkedStaff: 0, unexportedMembers: 0, unexportedStaff: 0 }
+  let overview = await service.invitationOverview(EVENT_ID)
+  assert.deepEqual(overview.eligible, { members: 40, staff: 12, total: 52 })
+  assert.deepEqual(overview.linked, { members: 0, staff: 0, total: 0 })
+  assert.deepEqual(overview.missing, { members: 40, staff: 12, total: 52 })
+
+  // After the first batch and its export, nothing is missing and nothing is new.
+  store.counts = { eligibleMembers: 40, eligibleStaff: 12, linkedMembers: 40, linkedStaff: 12, unexportedMembers: 0, unexportedStaff: 0 }
+  overview = await service.invitationOverview(EVENT_ID)
+  assert.deepEqual(overview.missing, { members: 0, staff: 0, total: 0 })
+  assert.deepEqual(overview.unexported, { members: 0, staff: 0, total: 0 })
+
+  // Three members and one staff then join the site: only they are missing.
+  store.counts = { eligibleMembers: 43, eligibleStaff: 13, linkedMembers: 40, linkedStaff: 12, unexportedMembers: 0, unexportedStaff: 0 }
+  overview = await service.invitationOverview(EVENT_ID)
+  assert.deepEqual(overview.missing, { members: 3, staff: 1, total: 4 })
+
+  // Generating for them reports how many members and staff got a link.
+  const generated = await service.invite(EVENT_ID, { scope: 'all_applicants' }, user)
+  assert.deepEqual(generated.invited, { requested: 3, added: 3, addedMembers: 2, addedStaff: 1 })
+
+  // Unknown events have no overview.
+  assert.equal(await service.invitationOverview('99999999-9999-4999-8999-999999999999'), null)
+})
+
+test('exporting the new links writes only what was never exported and records it', async () => {
+  const store = new MemoryEventsStore()
+  const credentialFor = (id) => prepareStableWorkshopCredential({ purpose: 'invitation', subjectId: id, credentialVersion: 1, env: LINK_ENV })
+  const NEW_INVITATION = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
+  store.invitationCredential = async (eventId, invitationId) => ({
+    id: invitationId, event_id: eventId, status: 'invited', token_hash: credentialFor(invitationId).tokenHash,
+    expires_at: new Date(NOW.getTime() + 24 * 60 * 60 * 1000).toISOString(), revoked_at: null,
+    credential_version: 1, credential_derivation_version: WORKSHOP_CREDENTIAL_DERIVATION_VERSION,
+  })
+  store.exportRows = [
+    participantEmbed({ invitation_id: NEW_INVITATION, application_id: 'aaaaaaaa-0000-4000-8000-000000000001', join_type: 'staff', full_name: 'Nadir Haddad', email: 'nadir@example.com', department: 'Law' }),
+  ]
+  const service = createAdminEventsService({ store, now: () => NOW, origin: ORIGIN, env: LINK_ENV })
+
+  const result = await service.exportInvitations(EVENT_ID, user, { scope: 'new' })
+  assert.equal(result.ok, true)
+  assert.equal(result.rowCount, 1)
+  assert.match(result.fileName, /^infinity-workshop-new-invitations-eeeeeeee-/)
+  assert.deepEqual(store.calls.find(([name]) => name === 'export-rows')[1], { onlyNew: true })
+  const recorded = store.calls.find(([name]) => name === 'export-record')[1]
+  assert.deepEqual(recorded.invitationIds, [NEW_INVITATION])
+  assert.equal(recorded.scope, 'new')
+  const [header, line] = result.csv.replace('\uFEFF', '').trim().split('\r\n')
+  assert.match(header, /"participant_type"/)
+  assert.match(line, /"Nadir","Haddad","Nadir Haddad","nadir@example.com","Law","staff","invited","not_registered","https:\/\/www\.infinty-bba\.com\/workshops\/register\?t=/)
+
+  // Default scope exports everything; nothing to export is a clean conflict.
+  await service.exportInvitations(EVENT_ID, user)
+  assert.deepEqual(store.calls.filter(([name]) => name === 'export-rows').at(-1)[1], { onlyNew: false })
+  store.exportRows = []
+  const nothing = await service.exportInvitations(EVENT_ID, user, { scope: 'new' })
+  assert.equal(nothing.ok, false)
+  assert.equal(nothing.status, 409)
+  assert.equal(nothing.message, 'There are no new private links to export.')
+  assert.equal(await service.exportInvitations(EVENT_ID, { ...user, role: 'administrator' }, { scope: 'new' }).then((r) => r.status), 403)
+})
+
+test('participant, invite and export requests validate the member/staff and new-only options', () => {
+  assert.deepEqual(parseEventParticipantOptions(new URLSearchParams('type=staff&link=missing')).value, { q: '', type: 'staff', link: 'missing', page: 1, limit: 50 })
+  assert.equal(parseEventParticipantOptions(new URLSearchParams('type=guest')).ok, false)
+  assert.equal(parseEventParticipantOptions(new URLSearchParams('link=everything')).ok, false)
+  assert.equal(parseEventParticipantOptions(new URLSearchParams('type=member&type=staff')).ok, false)
+  // The pre-staff scope name is accepted and normalised.
+  assert.deepEqual(validateEventInviteBody({ scope: 'all_member_applicants' }).value, { scope: 'all_applicants' })
+  assert.deepEqual(validateEventInviteBody({ scope: 'all_applicants' }).value, { scope: 'all_applicants' })
+  assert.deepEqual(validateEventInvitationExportBody({ confirm: true }).value, { confirm: true, scope: 'all' })
+  assert.deepEqual(validateEventInvitationExportBody({ confirm: true, scope: 'new' }).value, { confirm: true, scope: 'new' })
+  assert.equal(validateEventInvitationExportBody({ confirm: true, scope: 'staff' }).ok, false)
+  assert.equal(validateEventInvitationExportBody({ scope: 'new' }).ok, false)
+})
+
+test('the invitation overview is a read-only GET on the invitations route', async () => {
+  const store = new MemoryEventsStore()
+  store.counts = { eligibleMembers: 5, eligibleStaff: 2, linkedMembers: 5, linkedStaff: 1, unexportedMembers: 1, unexportedStaff: 0 }
+  const handler = createAdminEventsHandler({
+    enabled: () => true, requireSession: async () => ({ user }), trustedOrigin: () => true,
+    createService: () => createAdminEventsService({ store, now: () => NOW, origin: ORIGIN, env: LINK_ENV }),
+  })
+  const res = response()
+  await handler(request('GET', `events/${EVENT_ID}/invitations`), res)
+  assert.equal(res.statusCode, 200)
+  assert.deepEqual(res.body.overview.missing, { members: 0, staff: 1, total: 1 })
+  assert.deepEqual(res.body.overview.unexported, { members: 1, staff: 0, total: 1 })
+  const missing = response()
+  await handler(request('GET', 'events/99999999-9999-4999-8999-999999999999/invitations'), missing)
+  assert.equal(missing.statusCode, 404)
+})
+
+test('the links and registration migration covers staff, export tracking and always-open registration', async () => {
+  const sql = (await read('supabase/migrations/20261102120000_event_links_members_staff_always_open.sql')).toLowerCase()
+  assert.match(sql, /add column if not exists link_exported_at timestamptz/)
+  assert.match(sql, /update public\.club_event_invitations invitation\s+set link_exported_at = exported\.last_exported_at[\s\S]+?where invitation\.event_id/)
+  assert.match(sql, /create view public\.admin_event_applicant_links[\s\S]+where application\.join_type in \('member', 'staff'\)/)
+  assert.match(sql, /revoke all on table public\.admin_event_applicant_links from anon, authenticated/)
+  assert.match(sql, /grant select on table public\.admin_event_applicant_links to service_role/)
+  // Invitations: members and staff, never a join_type = 'member' restriction.
+  const invite = sql.slice(sql.indexOf('create function public.admin_invite_club_event_applicants'), sql.indexOf('create or replace function public.admin_record_event_invitation_export'))
+  assert.match(invite, /coalesce\(p_scope, ''\) <> 'all_applicants'/)
+  assert.doesNotMatch(invite.replace(/target\.join_type = '(member|staff)'/g, ''), /join_type = 'member'/)
+  assert.match(invite, /on conflict \(event_id, membership_application_id\) do nothing/)
+  // Export recording keeps the first export date and audits it.
+  assert.match(sql, /set link_exported_at = coalesce\(link_exported_at, changed_at\)\s+where event_id = p_event_id and id = any\(p_invitation_ids\)/)
+  assert.match(sql, /'workshop_invitation_links_exported'/)
+  // Registration depends on neither registration_open nor any lifecycle step.
+  const open = sql.slice(sql.indexOf('function public.public_open_event_invitation'), sql.indexOf('function public.public_register_event_participant'))
+  assert.match(open, /event\.status not in \('cancelled','archived'\)/)
+  assert.doesNotMatch(open, /registration_open/)
+  const register = sql.slice(sql.indexOf('function public.public_register_event_participant'), sql.indexOf('admin_transition_club_event'))
+  assert.match(register, /event_row\.status in \('cancelled','archived'\)\s+then raise exception 'registration_not_open'/)
+  assert.doesNotMatch(register, /<> 'registration_open'/)
+  // Planned (or either legacy registration state) may start directly.
+  assert.match(sql, /event_row\.status = 'planned' and p_next_status in \('registration_open','ongoing','cancelled'\)/)
+  // Check-in is untouched here: it still belongs to the scanner migration.
+  assert.doesNotMatch(sql, /check_in_not_open|public_check_in_event_participant/)
+  for (const statement of sql.split(/;\s*\n/).filter((part) => /^\s*(update|delete)\b/.test(part.replace(/--.*\n/g, '')))) {
+    assert.match(statement, /\bwhere\b/, statement.slice(0, 80))
+  }
 })
 
 test('the invitation credential store aliases database columns to the service contract', async () => {
@@ -685,7 +876,10 @@ test('Events UI is routed, searchable and isolated from the public archive', asy
   assert.match(ui, /events: CalendarDays/)
   assert.match(page, /'Overview', 'Participants', 'Attendance', 'Scanner'/)
   assert.doesNotMatch(page, /'Invitations'|'Organizers'/)
-  assert.match(page, /Generate invitations for all Member registrations/)
+  assert.match(page, /Generate private links for all/)
+  assert.match(page, /Generate links for the new applications/)
+  assert.match(page, /Export new links \(CSV\)/)
+  assert.match(page, /Export all links \(CSV\)/)
   assert.match(page, /University speciality/)
   assert.match(page, /Workshop scanner/)
   assert.match(page, /No attendance recorded yet/)
@@ -694,9 +888,10 @@ test('Events UI is routed, searchable and isolated from the public archive', asy
   assert.match(hook, /\/participants\?/)
   assert.match(hook, /\/scanner`/)
   assert.match(hook, /scannerAccess = useCallback/)
-  assert.match(store, /from\('membership_applications'\)/)
+  assert.match(store, /from\('admin_event_applicant_links'\)/)
   assert.match(store, /from\('club_event_registrations'\)/)
-  assert.match(store, /'join_type', 'member'/)
+  assert.match(store, /admin_event_applicant_links/)
+  assert.doesNotMatch(store, /eq\('join_type', 'member'\)/)
   assert.doesNotMatch(store, /from\('club_members'\)|admin_people_directory/)
   assert.doesNotMatch(`${page}\n${hook}`, /localStorage|sessionStorage|from '.\/adminData'|from "\.\/adminData"/)
   assert.doesNotMatch(`${publicPage}\n${archive}`, /useAdminEvents|\/api\/admin\/events|club_events/)

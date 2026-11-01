@@ -655,6 +655,11 @@ export function createAdminEventsHandler({
         const result = await service.participants(eventId, parsed.value, session.user)
         return result ? sendAdminJson(res, 200, { success: true, ...result }) : sendAdminJson(res, 404, { success: false, message: 'Event not found.' })
       }
+      if (invitationsMatch && req.method === 'GET') {
+        if (!isEventId(eventId)) return sendAdminJson(res, 404, { success: false, message: 'Event not found.' })
+        const overview = await service.invitationOverview(eventId, session.user)
+        return overview ? sendAdminJson(res, 200, { success: true, overview }) : sendAdminJson(res, 404, { success: false, message: 'Event not found.' })
+      }
       if (invitationsMatch && req.method === 'POST') {
         if (!isEventId(eventId)) return sendAdminJson(res, 404, { success: false, message: 'Event not found.' })
         if (!isJsonContentType(req)) return sendAdminJson(res, 415, { success: false, message: 'Unsupported request.' })
@@ -669,7 +674,7 @@ export function createAdminEventsHandler({
         if (!isJsonContentType(req)) return sendAdminJson(res, 415, { success: false, message: 'Unsupported request.' })
         const parsed = validateEventInvitationExportBody(await readJsonBody(req, MAX_EVENTS_BODY_BYTES))
         if (!parsed.ok) return sendAdminJson(res, 400, { success: false, message: 'Explicit export confirmation is required.' })
-        const result = await service.exportInvitations(eventId, session.user)
+        const result = await service.exportInvitations(eventId, session.user, { scope: parsed.value.scope })
         if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: result.message })
         return sendAdminCsv(res, result)
       }
@@ -733,9 +738,9 @@ export function createAdminEventsHandler({
           ? 'GET, PATCH'
           : participantsMatch || attendanceMatch || statisticsMatch
             ? 'GET'
-            : scannerMatch
+            : scannerMatch || invitationsMatch
               ? 'GET, POST'
-              : invitationsMatch || invitationExportMatch || invitationLinkMatch || lifecycleMatch || attendanceFinalizeMatch
+              : invitationExportMatch || invitationLinkMatch || lifecycleMatch || attendanceFinalizeMatch
                 ? 'POST'
                 : 'GET')
       return sendAdminJson(res, detailPath ? 405 : 404, { success: false, message: detailPath ? 'Method not allowed.' : 'Not found.' })

@@ -17,6 +17,7 @@ const STATUS_LABELS = Object.freeze({
 })
 const INVITATION_LABELS = Object.freeze({ invited: 'Invited', registered: 'Registered', declined: 'Declined', cancelled: 'Cancelled' })
 const REGISTRATION_LABELS = Object.freeze({ registered: 'Registered', checked_in: 'Checked in', cancelled: 'Cancelled' })
+const PARTICIPANT_TYPE_LABELS = Object.freeze({ member: 'Member', staff: 'Staff' })
 const ACTION_TITLES = Object.freeze({
   event_created: 'Event created',
   event_updated: 'Event updated',
@@ -98,48 +99,54 @@ function mapHistory(entries) {
     .sort((a, b) => new Date(a.at) - new Date(b.at))
 }
 
+// One row of admin_event_applicant_links: an application with the link and
+// registration state it has for this event (invitation_id null = no link yet).
 function mapParticipant(row) {
-  const invitation = firstEmbed(row.invitation)
-  const registration = firstEmbed(row.registration)
-  const invitationStatusKey = invitation ? String(invitation.status) : null
-  const registrationStatusKey = registration ? String(registration.status) : null
+  const invitationStatusKey = row.invitation_id ? String(row.invitation_status) : null
+  const registrationStatusKey = row.registration_status ? String(row.registration_status) : null
   let attendance = null
-  if (registration) {
-    if (registration.absent_at) attendance = 'absent'
-    else if (registration.status === 'checked_in') attendance = 'present'
-    else if (registration.status === 'registered') attendance = 'not_checked_in'
+  if (registrationStatusKey) {
+    if (row.absent_at) attendance = 'absent'
+    else if (registrationStatusKey === 'checked_in') attendance = 'present'
+    else if (registrationStatusKey === 'registered') attendance = 'not_checked_in'
   }
   const linkReady = Boolean(
-    invitation
-    && invitation.invite_token_hash
-    && invitation.credential_derivation_version === WORKSHOP_CREDENTIAL_DERIVATION_VERSION
-    && !invitation.link_revoked_at
-    && invitation.status !== 'declined'
-    && invitation.status !== 'cancelled',
+    row.invitation_id
+    && row.invite_token_hash
+    && row.credential_derivation_version === WORKSHOP_CREDENTIAL_DERIVATION_VERSION
+    && !row.link_revoked_at
+    && row.invitation_status !== 'declined'
+    && row.invitation_status !== 'cancelled',
   )
-  const specialitySource = registration?.university_speciality ? 'registration' : 'application'
+  const exportable = Boolean(row.invitation_id && ['invited', 'registered'].includes(row.invitation_status))
+  const specialitySource = row.university_speciality ? 'registration' : 'application'
   return {
-    id: row.id,
-    invitationId: invitation?.id || null,
+    id: row.application_id,
+    invitationId: row.invitation_id || null,
     name: row.full_name,
     initials: initials(row.full_name),
     email: row.email || '',
-    universitySpeciality: registration?.university_speciality || row.department || '',
+    type: row.join_type,
+    typeLabel: PARTICIPANT_TYPE_LABELS[row.join_type] || row.join_type,
+    universitySpeciality: row.university_speciality || row.department || '',
     specialitySource,
     invitationStatus: invitationStatusKey
       ? (INVITATION_LABELS[invitationStatusKey] || invitationStatusKey)
       : 'Not invited',
     invitationStatusKey,
-    invitationReady: Boolean(invitation),
+    invitationReady: Boolean(row.invitation_id),
     privateLinkReady: linkReady,
-    invitedAt: invitation?.invited_at || null,
-    registeredAt: registration?.registered_at || invitation?.registered_at || null,
+    linkExportedAt: row.link_exported_at || null,
+    // A link that exists but was never written to a CSV is a "new" one.
+    linkIsNew: exportable && !row.link_exported_at,
+    invitedAt: row.invited_at || null,
+    registeredAt: row.registration_registered_at || row.invitation_registered_at || null,
     registrationStatus: registrationStatusKey
       ? (REGISTRATION_LABELS[registrationStatusKey] || registrationStatusKey)
       : null,
     attendance,
-    checkedInAt: registration?.checked_in_at || null,
-    absentAt: registration?.absent_at || null,
+    checkedInAt: row.checked_in_at || null,
+    absentAt: row.absent_at || null,
   }
 }
 
@@ -167,23 +174,23 @@ const csvCell = (value, { protectFormula = true } = {}) => {
 }
 
 const splitExportName = (row) => {
-  const words = String(firstEmbed(row.application)?.full_name || '').trim().split(/\s+/).filter(Boolean)
+  const words = String(row.full_name || '').trim().split(/\s+/).filter(Boolean)
   return { firstName: words[0] || '', lastName: words.slice(1).join(' ') }
 }
 
 export function buildWorkshopInvitationsCsv(rows) {
   const headers = [
     'workshop_reference', 'workshop_title', 'first_name', 'last_name', 'full_name', 'email',
-    'speciality', 'invitation_status', 'registration_status', 'private_registration_link',
+    'speciality', 'participant_type', 'invitation_status', 'registration_status', 'private_registration_link',
   ]
   const lines = [headers.map((value) => csvCell(value)).join(',')]
   for (const row of rows) {
     const { firstName, lastName } = splitExportName(row)
     const values = [
       row.workshopReference, row.workshopTitle, firstName, lastName,
-      firstEmbed(row.application)?.full_name || '', firstEmbed(row.application)?.email || '',
-      firstEmbed(row.application)?.department || '',
-      row.status, row.registered_at ? 'registered' : 'not_registered', row.privateRegistrationLink,
+      row.full_name || '', row.email || '', row.department || '',
+      row.join_type, row.invitation_status,
+      row.registration_status || row.invitation_registered_at ? 'registered' : 'not_registered', row.privateRegistrationLink,
     ]
     lines.push(values.map((value) => csvCell(value)).join(','))
   }
@@ -289,6 +296,21 @@ export function createAdminEventsService({
       expiresAt: persistedExpiresAt,
     }
   }
+  // Counts for the "private links" panel. missing = applications that joined
+  // (or were never linked) and still have no private link for this event.
+  const invitationOverview = async (eventId) => {
+    const counts = await store.invitationCounts(eventId)
+    const section = (members, staff) => ({ members, staff, total: members + staff })
+    return {
+      eligible: section(counts.eligibleMembers, counts.eligibleStaff),
+      linked: section(counts.linkedMembers, counts.linkedStaff),
+      missing: section(
+        Math.max(0, counts.eligibleMembers - counts.linkedMembers),
+        Math.max(0, counts.eligibleStaff - counts.linkedStaff),
+      ),
+      unexported: section(counts.unexportedMembers, counts.unexportedStaff),
+    }
+  }
   const detail = async (eventId) => {
     const row = await store.find(eventId)
     if (!row) return null
@@ -372,6 +394,10 @@ export function createAdminEventsService({
         },
       }
     },
+    async invitationOverview(eventId) {
+      if (!await store.find(eventId)) return null
+      return invitationOverview(eventId)
+    },
     async invite(eventId, input, user) {
       if (!canManageEvents(user.role, 'invite_applicants')) return { ok: false, status: 403, message: 'You do not have permission to invite workshop applicants.' }
       try {
@@ -379,7 +405,15 @@ export function createAdminEventsService({
           eventId, adminUserId: user.id, applicationIds: input.applicationIds ?? null,
           scope: input.scope ?? null, now: now(),
         })
-        return { ok: true, invited: result }
+        return {
+          ok: true,
+          invited: {
+            requested: Number(result?.requested || 0),
+            added: Number(result?.added || 0),
+            addedMembers: Number(result?.added_members || 0),
+            addedStaff: Number(result?.added_staff || 0),
+          },
+        }
       } catch (error) {
         const publicError = publicEventError(error)
         if (publicError) return { ok: false, ...publicError }
@@ -399,7 +433,7 @@ export function createAdminEventsService({
         throw error
       }
     },
-    async exportInvitations(eventId, user) {
+    async exportInvitations(eventId, user, { scope = 'all' } = {}) {
       if (user?.role !== 'super_admin') return { ok: false, status: 403, message: 'You do not have permission to export private workshop links.' }
       try {
         stableSecret()
@@ -408,12 +442,18 @@ export function createAdminEventsService({
         if (!event) return { ok: false, status: 404, message: 'Event not found.' }
         if (event.event_type !== 'workshop') return { ok: false, status: 409, message: 'Invitation links can only be exported for workshops.' }
         if (['cancelled', 'archived'].includes(event.status)) return { ok: false, status: 409, message: 'Invitation links cannot be exported for this workshop.' }
-        const candidates = await store.exportInvitationRows(eventId)
-        if (!candidates.length) return { ok: false, status: 409, message: 'No active invitations are available to export.' }
+        const onlyNew = scope === 'new'
+        const candidates = await store.exportInvitationRows(eventId, { onlyNew })
+        if (!candidates.length) {
+          return {
+            ok: false, status: 409,
+            message: onlyNew ? 'There are no new private links to export.' : 'No active invitations are available to export.',
+          }
+        }
         const rows = []
         for (const candidate of candidates) {
           const link = await revealInvitationLink({
-            event, eventId, invitationId: candidate.id, adminUserId: user.id, action: 'ensure',
+            event, eventId, invitationId: candidate.invitation_id, adminUserId: user.id, action: 'ensure',
           })
           rows.push({
             ...candidate,
@@ -422,11 +462,13 @@ export function createAdminEventsService({
             privateRegistrationLink: link.privateLink,
           })
         }
-        await store.recordInvitationExport({ eventId, adminUserId: user.id, rowCount: rows.length, now: now() })
+        await store.recordInvitationExport({
+          eventId, adminUserId: user.id, invitationIds: rows.map((row) => row.invitation_id), scope: onlyNew ? 'new' : 'all', now: now(),
+        })
         return {
           ok: true,
           csv: buildWorkshopInvitationsCsv(rows),
-          fileName: `infinity-workshop-invitations-${String(eventId).slice(0, 8)}-${now().toISOString().slice(0, 10)}.csv`,
+          fileName: `infinity-workshop-${onlyNew ? 'new-invitations' : 'invitations'}-${String(eventId).slice(0, 8)}-${now().toISOString().slice(0, 10)}.csv`,
           rowCount: rows.length,
         }
       } catch (error) {

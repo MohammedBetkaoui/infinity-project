@@ -12,7 +12,13 @@ const SORTS = new Set([
 // Attendance is read from club_event_registrations: present (checked in),
 // not checked in yet, explicitly absent after finalize, or cancelled.
 const ATTENDANCE_STATUSES = new Set(['present', 'not_checked_in', 'absent', 'cancelled'])
-const INVITATION_SCOPES = new Set(['all_member_applicants'])
+// Links are generated for every member AND staff application. The old
+// all_member_applicants name is still accepted and means the same thing.
+const INVITATION_SCOPES = new Set(['all_applicants', 'all_member_applicants'])
+const PARTICIPANT_TYPES = new Set(['member', 'staff'])
+// missing = no link yet, ready = has a link, new = link never exported
+const PARTICIPANT_LINK_FILTERS = new Set(['missing', 'ready', 'new'])
+const EXPORT_SCOPES = new Set(['all', 'new'])
 const SCANNER_ACTIONS = new Set(['generate', 'copy', 'regenerate', 'revoke'])
 const EVENT_TRANSITIONS = new Set(['planned', 'registration_open', 'registration_closed', 'ongoing', 'completed', 'cancelled', 'archived'])
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -71,13 +77,17 @@ export function parseEventListOptions(params) {
 
 export function parseEventParticipantOptions(params) {
   const q = single(params, 'q')
+  const type = single(params, 'type')
+  const link = single(params, 'link')
   const pageText = single(params, 'page') || '1'
   const limitText = single(params, 'limit') || '50'
-  if (q === null || !/^\d+$/.test(pageText) || !/^\d+$/.test(limitText)) return { ok: false }
+  if (q === null || type === null || link === null || !/^\d+$/.test(pageText) || !/^\d+$/.test(limitText)) return { ok: false }
   const page = Number(pageText)
   const limit = Number(limitText)
   if (page < 1 || page > 100000 || limit < 1 || limit > 100 || q.length > 100) return { ok: false }
-  return { ok: true, value: { q, page, limit } }
+  if (type && !PARTICIPANT_TYPES.has(type)) return { ok: false }
+  if (link && !PARTICIPANT_LINK_FILTERS.has(link)) return { ok: false }
+  return { ok: true, value: { q, type, link, page, limit } }
 }
 
 export function parseEventAttendanceOptions(params) {
@@ -169,12 +179,14 @@ export function validateEventInviteBody(body) {
     return { ok: true, value: { applicationIds: ids } }
   }
   if (!hasScope || !INVITATION_SCOPES.has(body.scope)) return { ok: false }
-  return { ok: true, value: { scope: body.scope } }
+  return { ok: true, value: { scope: 'all_applicants' } }
 }
 
 export function validateEventInvitationExportBody(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body) || body.confirm !== true) return { ok: false }
-  return { ok: true, value: { confirm: true } }
+  const scope = body.scope === undefined ? 'all' : body.scope
+  if (!EXPORT_SCOPES.has(scope)) return { ok: false }
+  return { ok: true, value: { confirm: true, scope } }
 }
 
 export function validateEventInvitationLinkBody(body) {

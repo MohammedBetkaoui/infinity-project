@@ -9,6 +9,14 @@ const SORT_COLUMNS = Object.freeze({
   location: 'location', status: 'status', speaker: 'speaker_name',
   invited: 'invited_count', present: 'present_count',
 })
+const EXPORTABLE_STATUSES = ['invited', 'registered']
+const APPLICANT_COLUMNS = [
+  'application_id', 'join_type', 'full_name', 'email', 'department', 'staff_department',
+  'invitation_id', 'invitation_status', 'invited_at', 'invitation_registered_at', 'link_revoked_at',
+  'invite_token_hash', 'invite_expires_at', 'credential_version', 'credential_derivation_version',
+  'link_exported_at', 'registration_status', 'university_speciality', 'registration_registered_at',
+  'checked_in_at', 'absent_at',
+].join(', ')
 const fail = (stage, error) => { throw Object.assign(new Error(stage), { stage, code: error?.code || 'database_error', databaseMessage: error?.message }) }
 const safeSearch = (value) => String(value || '').normalize('NFKC').replace(/[^\p{L}\p{N}\s@.+_-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 100)
 
@@ -31,6 +39,22 @@ function applyFilters(query, options, { includeStatus = true } = {}) {
   } else if (includeStatus && options.status) {
     next = next.eq('status', options.status)
   }
+  return next
+}
+
+// Participant list filters: free text, member/staff, and the private-link
+// state (missing = generated for nobody yet, new = never exported).
+function applyApplicantFilters(query, options) {
+  let next = query
+  const search = safeSearch(options.q)
+  if (search) {
+    const pattern = `%${search}%`
+    next = next.or(`full_name.ilike.${pattern},email.ilike.${pattern},department.ilike.${pattern}`)
+  }
+  if (options.type) next = next.eq('join_type', options.type)
+  if (options.link === 'missing') next = next.is('invitation_id', null)
+  else if (options.link === 'ready') next = next.not('invitation_id', 'is', null)
+  else if (options.link === 'new') next = next.in('invitation_status', EXPORTABLE_STATUSES).is('link_exported_at', null)
   return next
 }
 
@@ -84,22 +108,38 @@ export function createAdminEventsStore(supabase) {
       if (error) fail('events_audit', error)
       return data || []
     },
+    // Every member and staff application, with the private-link state it has
+    // for THIS event (invitation_id is null until a link is generated).
     async participants(eventId, options) {
       const from = (options.page - 1) * options.limit
-      let query = supabase.from('membership_applications')
-        .select('id, full_name, email, department, invitation:club_event_invitations(id, status, invited_at, registered_at, link_revoked_at, invite_token_hash, invite_expires_at, credential_version, credential_derivation_version), registration:club_event_registrations(university_speciality, status, registered_at, checked_in_at, absent_at)', { count: 'exact' })
-        .eq('join_type', 'member')
-        .eq('invitation.event_id', eventId)
-      const search = safeSearch(options.q)
-      if (search) {
-        const pattern = `%${search}%`
-        query = query.or(`full_name.ilike.${pattern},email.ilike.${pattern},department.ilike.${pattern}`)
-      }
+      let query = supabase.from('admin_event_applicant_links')
+        .select(APPLICANT_COLUMNS, { count: 'exact' })
+        .eq('event_id', eventId)
+      query = applyApplicantFilters(query, options)
       const { data, error, count } = await query
         .order('full_name', { ascending: true })
         .range(from, from + options.limit - 1)
       if (error) fail('events_participants', error)
       return { rows: data || [], count: Number(count || 0) }
+    },
+    // Counts behind the "private links" panel: who is eligible, who already
+    // has a link, and which links were never written to a CSV.
+    async invitationCounts(eventId) {
+      const count = async (apply) => {
+        const { error, count: total } = await apply(
+          supabase.from('admin_event_applicant_links').select('application_id', { count: 'exact', head: true }).eq('event_id', eventId),
+        )
+        if (error) fail('events_invitation_counts', error)
+        return Number(total || 0)
+      }
+      const ofType = (type) => (query) => query.eq('join_type', type)
+      const linked = (type) => (query) => query.eq('join_type', type).not('invitation_id', 'is', null)
+      const unexported = (type) => (query) => query.eq('join_type', type).in('invitation_status', EXPORTABLE_STATUSES).is('link_exported_at', null)
+      const [eligibleMembers, eligibleStaff, linkedMembers, linkedStaff, unexportedMembers, unexportedStaff] = await Promise.all([
+        count(ofType('member')), count(ofType('staff')), count(linked('member')), count(linked('staff')),
+        count(unexported('member')), count(unexported('staff')),
+      ])
+      return { eligibleMembers, eligibleStaff, linkedMembers, linkedStaff, unexportedMembers, unexportedStaff }
     },
     async attendance(eventId, options) {
       const from = (options.page - 1) * options.limit
@@ -144,15 +184,19 @@ export function createAdminEventsStore(supabase) {
       if (error) fail('events_invitation_credential', error)
       return data
     },
-    async exportInvitationRows(eventId) {
+    // Active links for the CSV; onlyNew keeps the ones never exported before.
+    async exportInvitationRows(eventId, { onlyNew = false } = {}) {
       const rows = []
       const pageSize = 500
       for (let from = 0; ; from += pageSize) {
-        const { data, error } = await supabase.from('club_event_invitations')
-          .select('id, event_id, status, invited_at, registered_at, invite_token_hash, invite_expires_at, credential_version, credential_derivation_version, link_revoked_at, application:membership_applications(full_name, email, department)')
+        let query = supabase.from('admin_event_applicant_links')
+          .select(APPLICANT_COLUMNS)
           .eq('event_id', eventId)
-          .in('status', ['invited', 'registered'])
+          .in('invitation_status', EXPORTABLE_STATUSES)
+        if (onlyNew) query = query.is('link_exported_at', null)
+        const { data, error } = await query
           .order('invited_at', { ascending: true })
+          .order('application_id', { ascending: true })
           .range(from, from + pageSize - 1)
         if (error) fail('events_invitation_export_rows', error)
         rows.push(...(data || []))
@@ -169,12 +213,14 @@ export function createAdminEventsStore(supabase) {
       if (error) fail('events_set_invitation_link', error)
       return Array.isArray(data) ? data[0] : data
     },
-    async recordInvitationExport({ eventId, adminUserId, rowCount, now }) {
-      const { data, error } = await supabase.rpc('admin_record_workshop_invitation_export', {
-        p_event_id: eventId, p_admin_user_id: adminUserId, p_row_count: rowCount, p_now: now.toISOString(),
+    // Marks the exported links (first export date is kept) and audits the export.
+    async recordInvitationExport({ eventId, adminUserId, invitationIds, scope, now }) {
+      const { data, error } = await supabase.rpc('admin_record_event_invitation_export', {
+        p_event_id: eventId, p_admin_user_id: adminUserId, p_invitation_ids: invitationIds,
+        p_scope: scope, p_now: now.toISOString(),
       })
       if (error) fail('events_record_invitation_export', error)
-      return Boolean(Array.isArray(data) ? data[0] : data)
+      return Number(Array.isArray(data) ? data[0] : data)
     },
     async scannerAccess(eventId) {
       const { data, error } = await supabase.from('club_event_scanner_access')

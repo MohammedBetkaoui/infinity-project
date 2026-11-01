@@ -17,7 +17,7 @@ import {
 } from './adminEventsModel'
 import {
   useAdminEvent, useAdminEventActions, useAdminEventAttendance,
-  useAdminEventParticipants, useAdminEventScanner, useAdminEvents,
+  useAdminEventInvitationOverview, useAdminEventParticipants, useAdminEventScanner, useAdminEvents,
 } from './useAdminEvents'
 
 const initialsFor = (name = '') => name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'EV'
@@ -339,26 +339,86 @@ function OverviewTab({ event, history }) {
   </>
 }
 
+const PARTICIPANT_TYPE_FILTERS = Object.freeze([
+  { value: '', label: 'All' }, { value: 'member', label: 'Members' }, { value: 'staff', label: 'Staff' },
+])
+const PARTICIPANT_LINK_FILTERS = Object.freeze([
+  { value: '', label: 'All' }, { value: 'missing', label: 'No link yet' },
+  { value: 'new', label: 'Not exported' }, { value: 'ready', label: 'Link ready' },
+])
+
+const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`
+const typeBreakdown = ({ members, staff }) => `${plural(members, 'member')} · ${staff} staff`
+
+// Where the private links stand for this event: first batch for everyone
+// already on the site, then only the applications that joined afterwards.
+function PrivateLinksPanel({ overview, loading, error, pending, onGenerate, onExport, onRetry }) {
+  const { eligible, linked, missing, unexported } = overview
+  const busy = Boolean(pending) || loading
+  return <section className="adm-event-quick-invite adm-event-links" aria-label="Private registration links">
+    <h4>Private registration links</h4>
+    {error ? <div className="adm-state-error" role="alert"><TriangleAlert size={20}/><p>{error}</p><Button variant="secondary" onClick={onRetry}>Try again</Button></div> : <>
+      <dl className="adm-event-links__stats">
+        <div><dt>Applications</dt><dd>{eligible.total}</dd><small>{typeBreakdown(eligible)}</small></div>
+        <div><dt>With a private link</dt><dd>{linked.total}</dd><small>{typeBreakdown(linked)}</small></div>
+        <div className={missing.total > 0 ? 'is-attention' : ''}><dt>Waiting for a link</dt><dd>{missing.total}</dd><small>{typeBreakdown(missing)}</small></div>
+        <div><dt>Not exported yet</dt><dd>{unexported.total}</dd><small>{typeBreakdown(unexported)}</small></div>
+      </dl>
+      {linked.total === 0
+        ? <>
+          <p>No private link has been generated for this event yet. Generate them once for every member and staff application already on the site, then export them as a CSV.</p>
+          <div className="adm-event-invite-actions">
+            <Button onClick={() => onGenerate('first')} disabled={busy || eligible.total === 0}>
+              {pending === 'first' ? 'Generating…' : `Generate private links for all ${plural(eligible.total, 'application')}`}
+            </Button>
+          </div>
+        </>
+        : missing.total > 0
+          ? <div className="adm-event-links__alert" role="status">
+            <TriangleAlert size={18}/>
+            <div><b>{plural(missing.total, 'new application')} without a private link</b><small>{typeBreakdown(missing)} joined after the links were generated.</small></div>
+            <Button onClick={() => onGenerate('new')} disabled={busy}>{pending === 'new' ? 'Generating…' : 'Generate links for the new applications'}</Button>
+          </div>
+          : <p className="adm-event-links__ok"><CheckCircle2 size={16}/>Every member and staff application has a private link.</p>}
+      {linked.total > 0 && <div className="adm-event-invite-actions">
+        <Button variant={unexported.total > 0 ? 'primary' : 'secondary'} icon={<Download size={15}/>} disabled={busy || unexported.total === 0} onClick={() => onExport('new')}>
+          {pending === 'export:new' ? 'Exporting…' : `Export new links (CSV)${unexported.total > 0 ? ` · ${unexported.total}` : ''}`}
+        </Button>
+        <Button variant="secondary" icon={<Download size={15}/>} disabled={busy} onClick={() => onExport('all')}>
+          {pending === 'export:all' ? 'Exporting…' : 'Export all links (CSV)'}
+        </Button>
+      </div>}
+      <p className="adm-muted">New links are the ones never written to a CSV. Each export remembers what it contained, so the next one can contain only what was added since. Links are hashed in storage and delivered manually.</p>
+    </>}
+  </section>
+}
+
 function ParticipantsTab({ event, onChanged }) {
   const { addToast } = useAdmin()
   const { invite, invitationLink, exportInvitations } = useAdminEventActions()
   const [search, setSearch] = useState('')
   const deferredSearch = useDeferredValue(search.trim())
+  const [typeFilter, setTypeFilter] = useState('')
+  const [linkFilter, setLinkFilter] = useState('')
   const [selected, setSelected] = useState([])
   const [page, setPage] = useState(1)
   const [pending, setPending] = useState('')
-  const { participants, pagination, loading, error, refresh } = useAdminEventParticipants({ eventId: event.id, page, limit: 25, search: deferredSearch })
-  const invited = async (input, label) => {
+  const { participants, pagination, loading, error, refresh } = useAdminEventParticipants({ eventId: event.id, page, limit: 25, search: deferredSearch, type: typeFilter, link: linkFilter })
+  const overviewState = useAdminEventInvitationOverview(event.id)
+  const refreshAll = () => { refresh(); overviewState.refresh(); onChanged?.() }
+  const generated = async (input, label) => {
     if (pending) return
     setPending(label)
     try {
       const result = await invite(event.id, input)
-      if (!result.ok) return addToast('Invitations not sent', result.message)
-      const added = Number(result.invited?.added || 0)
-      addToast('Member applicants invited', `${added} new invitation record${added === 1 ? '' : 's'} created for this workshop.`)
+      if (!result.ok) return addToast('Private links not generated', result.message)
+      const { added, addedMembers, addedStaff } = result.invited || {}
+      addToast(
+        added ? 'Private links generated' : 'No new applications',
+        added ? `${plural(added, 'private link')} created (${plural(addedMembers, 'member')}, ${addedStaff} staff).` : 'Every application already had a private link.',
+      )
       setSelected([])
-      refresh()
-      onChanged?.()
+      refreshAll()
     } finally { setPending('') }
   }
   const toggleParticipant = (id) => setSelected(selected.includes(id) ? selected.filter((value) => value !== id) : [...selected, id])
@@ -375,71 +435,67 @@ function ParticipantsTab({ event, onChanged }) {
       refresh()
     } finally { setPending('') }
   }
-  const exportCsv = async () => {
+  const exportCsv = async (scope) => {
     if (pending) return
-    setPending('export')
+    setPending(`export:${scope}`)
     try {
-      const result = await exportInvitations(event.id)
+      const result = await exportInvitations(event.id, scope)
       if (!result.ok) return addToast('Export unavailable', result.message)
-      addToast('Invitation CSV exported', `${result.rowCount} private registration link${result.rowCount === 1 ? '' : 's'} prepared for n8n.`)
-      refresh()
+      addToast(
+        scope === 'new' ? 'New links exported' : 'Invitation CSV exported',
+        `${plural(result.rowCount, 'private registration link')} prepared for n8n.`,
+      )
+      refreshAll()
     } finally { setPending('') }
   }
+  const changeFilter = (setter) => (value) => { setter(value); setSelected([]); setPage(1) }
   return <>
-    <div className="adm-event-section-heading"><div><h4>Workshop participants</h4><p>Every member application of the club, with its invitation and registration state.</p></div></div>
-    <div className="adm-event-quick-invite">
-      <h4>Invitations</h4>
-      <p>Invitations target member applications directly. Re-running never creates duplicates, and applications already invited keep their state.</p>
-      <div className="adm-event-invite-actions">
-        <Button variant="primary" onClick={() => invited({ scope: 'all_member_applicants' }, 'scope')} disabled={Boolean(pending)}>
-          {pending === 'scope' ? 'Generating…' : 'Generate invitations for all Member registrations'}
-        </Button>
-      </div>
-    </div>
+    <div className="adm-event-section-heading"><div><h4>Workshop participants</h4><p>Every member and staff application of the club, with its private link, registration and attendance.</p></div></div>
+    <PrivateLinksPanel
+      overview={overviewState.overview} loading={overviewState.loading} error={overviewState.error} pending={pending}
+      onGenerate={(label) => generated({ scope: 'all_applicants' }, label)} onExport={exportCsv} onRetry={overviewState.refresh}/>
     <div className="adm-toolbar">
       <SearchField value={search} onChange={(value) => { setSearch(value); setPage(1) }} placeholder="Search participants by name, email or speciality..." label="Search participants"/>
       <div className="adm-toolbar__filters">
-        <Button onClick={() => invited({ applicationIds: selected }, 'selected')} disabled={Boolean(pending) || !selected.length}>{pending === 'selected' ? 'Inviting…' : `Invite selected (${selected.length})`}</Button>
+        <Button onClick={() => generated({ applicationIds: selected }, 'selected')} disabled={Boolean(pending) || !selected.length}>{pending === 'selected' ? 'Generating…' : `Generate for selected (${selected.length})`}</Button>
       </div>
+    </div>
+    <div className="adm-events-filter-rail">
+      <div><span>Type</span><ChipGroup label="Filter participants by type" options={PARTICIPANT_TYPE_FILTERS} value={typeFilter} onChange={changeFilter(setTypeFilter)}/></div>
+      <div><span>Private link</span><ChipGroup label="Filter participants by private link" options={PARTICIPANT_LINK_FILTERS} value={linkFilter} onChange={changeFilter(setLinkFilter)}/></div>
     </div>
     {error ? <div className="adm-state-error" role="alert"><TriangleAlert size={22}/><p>{error}</p><Button variant="secondary" onClick={refresh}>Try again</Button></div>
       : loading ? <EventsSkeleton/>
       : participants.length ? <div className="adm-table-wrap">
         <table className="adm-table adm-event-select-table">
-          <thead><tr><th className="is-checkbox"><span className="sr-only">Select participant</span></th><th>Name</th><th>Email</th><th>University speciality</th><th>Invitation</th><th>Registration</th><th>Attendance</th><th aria-label="Actions"/></tr></thead>
+          <thead><tr><th className="is-checkbox"><span className="sr-only">Select participant</span></th><th>Name</th><th>Email</th><th>Type</th><th>University speciality</th><th>Private link</th><th>Registration</th><th>Attendance</th><th aria-label="Actions"/></tr></thead>
           <tbody>{participants.map((record) => <tr key={record.id}>
             <td className="is-checkbox"><input
               type="checkbox"
               disabled={record.invitationReady}
               checked={selected.includes(record.id)}
               onChange={() => toggleParticipant(record.id)}
-              aria-label={record.invitationReady ? `${record.name} already invited` : `Select ${record.name}`}/></td>
+              aria-label={record.invitationReady ? `${record.name} already has a private link` : `Select ${record.name}`}/></td>
             <td><div className="adm-person-cell"><Avatar initials={record.initials} small/><span><b>{record.name}</b></span></div></td>
             <td>{record.email || '—'}</td>
+            <td><StatusBadge tone={record.type === 'staff' ? 'info' : 'neutral'}>{record.typeLabel}</StatusBadge></td>
             <td>{record.universitySpeciality || <span className="adm-muted">—</span>}</td>
-            <td>{record.invitationReady ? <StatusBadge>{record.invitationStatus}</StatusBadge> : <span className="adm-muted">Not invited</span>}</td>
+            <td>{record.invitationReady
+              ? <span className="adm-event-link-state"><StatusBadge>{record.invitationStatus}</StatusBadge>{record.linkIsNew && <StatusBadge tone="warning">New</StatusBadge>}</span>
+              : <StatusBadge tone="warning">No link yet</StatusBadge>}</td>
             <td>{record.registrationStatus ? <StatusBadge tone={record.registrationStatus === 'Registered' ? 'success' : 'neutral'}>{record.registrationStatus}</StatusBadge> : <span className="adm-muted">—</span>}</td>
             <td>{record.attendance
               ? <StatusBadge tone={record.attendance === 'present' ? 'success' : record.attendance === 'absent' ? 'danger' : 'neutral'}>{ATTENDANCE_LABELS[record.attendance]}</StatusBadge>
               : <span className="adm-muted">—</span>}</td>
             <td className="adm-row-action">{record.invitationReady && <>
-              <button disabled={Boolean(pending) || !record.privateLinkReady} onClick={() => copyPrivateLink(record)}>{pending === `copy:${record.id}` ? 'Copying…' : 'Copy link'}</button>
+              <button disabled={Boolean(pending) || !['invited', 'registered'].includes(record.invitationStatusKey)} onClick={() => copyPrivateLink(record)}>{pending === `copy:${record.id}` ? 'Copying…' : 'Copy link'}</button>
               <button disabled={Boolean(pending) || !record.privateLinkReady} onClick={() => copyPrivateLink(record, true)}>{pending === `regenerate:${record.id}` ? 'Regenerating…' : 'Regenerate link'}</button>
             </>}</td>
           </tr>)}</tbody>
         </table>
-        {!selected.length && <EmptyState title="No participants are selected" copy="Tick the box next to uninvited member applications to invite them individually."/>}
       </div>
-      : <EmptyState title="No participants match" copy="Adjust the search; participants come from member applications of the club."/>}
+      : <EmptyState title="No participants match" copy="Adjust the search or the filters; participants come from the member and staff applications of the club."/>}
     <Pagination current={pagination.page} count={pagination.total} pageSize={pagination.limit} onChange={setPage}/>
-    <section className="adm-detail-section">
-      <div className="adm-event-section-heading"><div><h4>Private registration links</h4><p>Links are hashed in storage and delivered manually; export prepares one row per active invitation.</p></div>
-        <Button variant="secondary" icon={<Download size={15}/>} disabled={Boolean(pending)} onClick={exportCsv}>
-          {pending === 'export' ? 'Exporting…' : 'Export invitations CSV'}
-        </Button>
-      </div>
-      <p className="adm-muted">Copy or regenerate a personal link directly from the participant table above. Exported CSV rows contain the same private links plus names and emails for delivery.</p>
-    </section>
   </>
 }
 
@@ -574,8 +630,9 @@ export function EventDetailPage() {
       </div>
     </div>
   }
-  const nextStatus = ({ draft: 'planned', planned: 'registration_open', registration_open: 'registration_closed', registration_closed: 'ongoing', ongoing: 'completed', completed: 'archived', cancelled: 'archived' })[event.statusKey]
-  const nextLabel = ({ planned: 'Plan workshop', registration_open: 'Open registration', registration_closed: 'Close registration', ongoing: 'Start workshop', completed: 'Complete workshop', archived: 'Archive workshop' })[nextStatus]
+  // Registration is open at every stage, so the workshop goes straight from planned to ongoing.
+  const nextStatus = ({ draft: 'planned', planned: 'ongoing', registration_open: 'ongoing', registration_closed: 'ongoing', ongoing: 'completed', completed: 'archived', cancelled: 'archived' })[event.statusKey]
+  const nextLabel = ({ planned: 'Plan workshop', ongoing: 'Start workshop', completed: 'Complete workshop', archived: 'Archive workshop' })[nextStatus]
   const move = async (statusKey) => {
     if (transitioning) return
     if (['completed', 'cancelled'].includes(statusKey) && !window.confirm(`Move this workshop to ${statusKey}?`)) return
