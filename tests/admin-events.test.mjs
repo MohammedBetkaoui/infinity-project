@@ -1053,3 +1053,20 @@ test('copying the shared scanner link works from the columns the real store sele
   // The hash never reaches the browser.
   assert.equal(JSON.stringify(await service.scanner(EVENT_ID)).includes(credential.tokenHash), false)
 })
+
+test('the scanner session opens before the workshop starts but check-in still needs ongoing', async () => {
+  const sql = (await read('supabase/migrations/20261104120000_scanner_session_before_start.sql')).toLowerCase()
+  const exchange = sql.slice(sql.indexOf('function public.public_exchange_event_scanner_token'), sql.indexOf('function public.public_event_scanner_context'))
+  const context = sql.slice(sql.indexOf('function public.public_event_scanner_context'), sql.indexOf('revoke all on function'))
+  // A planned (or draft) workshop must be reachable; finished ones must not.
+  assert.match(exchange, /event_row\.status in \('completed','cancelled','archived'\)\s+then raise exception 'scanner_not_available'/)
+  assert.match(context, /event\.status not in \('completed','cancelled','archived'\)/)
+  assert.doesNotMatch(`${exchange}${context}`, /registration_open|registration_closed/)
+  // The link itself is still checked: hash, status, revocation and window.
+  assert.match(exchange, /access_row\.status <> 'active' or access_row\.revoked_at is not null/)
+  assert.match(exchange, /access_row\.starts_at > changed_at or access_row\.expires_at <= changed_at/)
+  // Admitting a badge is untouched here and stays gated by the scanner migration.
+  assert.doesNotMatch(sql.replace(/--.*\n/g, ''), /public_check_in_event_participant/)
+  const scannerPage = await read('src/pages/workshops/WorkshopScannerPage.jsx')
+  assert.match(scannerPage, /const checkInOpen = state\.context\?\.eventStatus === 'ongoing'/)
+})
