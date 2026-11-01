@@ -11,9 +11,9 @@ import {
 } from './AdminUI'
 import {
   ATTENDANCE_FILTERS, ATTENDANCE_STATE_LABELS, EVENT_STATUS_FILTERS, EVENT_TYPE_FILTERS,
-  EVENT_TYPE_LABELS, EVENT_TYPES, MAX_EVENT_SPEAKERS, buildEventPayload, eventCheckedAt, eventDayCount,
-  eventFormFieldValues, formatEventDateSpan, formatEventDayCount, formatEventSchedule, formatEventSpeakers,
-  isMultiDayEvent, validateEventForm,
+  EVENT_TYPE_LABELS, EVENT_TYPES, MAX_EVENT_DAYS, MAX_EVENT_SPEAKERS, buildEventPayload, eventCheckedAt,
+  eventFormFieldValues, eventScheduleDays, formatEventDateSpan, formatEventDayCount, formatEventSchedule,
+  formatEventSpeakers, formatScheduleDay, validateEventForm,
 } from './adminEventsModel'
 import {
   useAdminEvent, useAdminEventActions, useAdminEventAttendance,
@@ -39,10 +39,11 @@ const EventCell = ({ record }) => (
 // One-day events show their time window; longer events show the day span
 // (the exact start and end stay in the tooltip and on the detail page).
 const EventScheduleCell = ({ record }) => {
-  const multiDay = isMultiDayEvent(record.startsAt, record.endsAt)
-  return <div className="adm-event-schedule-cell" title={formatEventSchedule(record.startsAt, record.endsAt)}>
+  const days = eventScheduleDays(record)
+  const multiDay = days.length > 1
+  return <div className="adm-event-schedule-cell" title={multiDay ? days.map(formatScheduleDay).join('\n') : undefined}>
     <b>{multiDay ? formatEventDateSpan(record.startsAt, record.endsAt) : formatEventSchedule(record.startsAt, record.endsAt)}</b>
-    <span>{multiDay ? `${formatEventDayCount(eventDayCount(record.startsAt, record.endsAt))} · ` : ''}{record.typeLabel}</span>
+    <span>{multiDay ? `${formatEventDayCount(days.length)} · ` : ''}{record.typeLabel}</span>
   </div>
 }
 
@@ -68,58 +69,68 @@ function EventsSkeleton() {
   </div>
 }
 
-const FORM_INITIAL = Object.freeze({ title: '', startDate: '', startTime: '', endDate: '', endTime: '', location: '', speakers: Object.freeze(['']) })
+const EMPTY_DAY = Object.freeze({ date: '', startTime: '', endTime: '' })
+const FORM_INITIAL = Object.freeze({ title: '', days: Object.freeze([EMPTY_DAY]), location: '', speakers: Object.freeze(['']) })
 
-// Plain-language reminder of how long the event runs, shown under the dates.
-function eventDurationNote({ startDate, endDate }) {
-  if (!startDate) return 'Pick the first day. The end date follows it until you change it.'
-  const lastDay = endDate || startDate
-  if (lastDay < startDate) return ''
-  const days = Math.round((Date.parse(`${lastDay}T00:00:00Z`) - Date.parse(`${startDate}T00:00:00Z`)) / 86_400_000) + 1
-  return days === 1 ? 'One-day event.' : `${days}-day event, from the first day's start time to the last day's end time.`
+// The day after a YYYY-MM-DD date, or '' when it cannot be worked out.
+function nextDate(date) {
+  const time = Date.parse(`${date}T00:00:00Z`)
+  return Number.isFinite(time) ? new Date(time + 86_400_000).toISOString().slice(0, 10) : ''
+}
+
+// Plain-language reminder of how long the event runs, shown under the days.
+function eventDurationNote(days) {
+  const filled = days.filter((day) => day.date).length
+  if (!filled) return 'Pick the date and the start and end time of the first day. Add another day if the event runs longer.'
+  return days.length === 1 ? 'One-day event.' : `${days.length}-day event. Each day has its own start and end time.`
 }
 
 // Shared step-2 form for creating and editing a workshop.
 function EventScheduleForm({ values, onChange, errors }) {
   const set = (name) => (event) => onChange({ ...values, [name]: event.target.value })
-  // The end date tracks the start date until the user moves it on purpose, and
-  // is never left before the start.
-  const setStartDate = (event) => {
-    const startDate = event.target.value
-    const follows = !values.endDate || values.endDate === values.startDate || (startDate && values.endDate < startDate)
-    onChange({ ...values, startDate, endDate: follows ? startDate : values.endDate })
+  const setDay = (index, field, value) => onChange({ ...values, days: values.days.map((day, position) => position === index ? { ...day, [field]: value } : day) })
+  // A new day continues the previous one: the next date and the same hours.
+  const addDay = () => {
+    const previous = values.days.at(-1) || EMPTY_DAY
+    onChange({ ...values, days: [...values.days, { date: nextDate(previous.date), startTime: previous.startTime, endTime: previous.endTime }] })
   }
+  const removeDay = (index) => onChange({ ...values, days: values.days.filter((_, position) => position !== index) })
   const setSpeaker = (index, name) => onChange({ ...values, speakers: values.speakers.map((current, position) => position === index ? name : current) })
   const addSpeaker = () => onChange({ ...values, speakers: [...values.speakers, ''] })
   const removeSpeaker = (index) => onChange({ ...values, speakers: values.speakers.filter((_, position) => position !== index) })
-  const durationNote = eventDurationNote(values)
+  const multiDay = values.days.length > 1
+  const dayErrors = errors.days || {}
   return <div className="adm-event-form">
     <label className="adm-form-field is-wide">
       <span>Title<em>Required</em></span>
       <input name="title" type="text" placeholder="e.g. Introduction to React Hooks" value={values.title} onChange={set('title')}/>
       {errors.title && <small role="alert" className="adm-form-error">{errors.title}</small>}
     </label>
-    <label className="adm-form-field">
-      <span>Start date<em>Required</em></span>
-      <input name="startDate" type="date" value={values.startDate} onChange={setStartDate}/>
-      {errors.startDate && <small role="alert" className="adm-form-error">{errors.startDate}</small>}
-    </label>
-    <label className="adm-form-field">
-      <span>Start time<em>Required</em></span>
-      <input name="startTime" type="time" value={values.startTime} onChange={set('startTime')}/>
-      {errors.startTime && <small role="alert" className="adm-form-error">{errors.startTime}</small>}
-    </label>
-    <label className="adm-form-field">
-      <span>End date<em>Required</em></span>
-      <input name="endDate" type="date" min={values.startDate || undefined} value={values.endDate} onChange={set('endDate')}/>
-      {errors.endDate && <small role="alert" className="adm-form-error">{errors.endDate}</small>}
-    </label>
-    <label className="adm-form-field">
-      <span>End time{values.endDate && values.endDate > values.startDate ? <em>Required</em> : <small>Optional</small>}</span>
-      <input name="endTime" type="time" value={values.endTime} onChange={set('endTime')}/>
-      {errors.endTime && <small role="alert" className="adm-form-error">{errors.endTime}</small>}
-    </label>
-    {durationNote && <p className="adm-event-duration is-wide" aria-live="polite"><CalendarDays size={14}/>{durationNote}</p>}
+    <div className="adm-form-field adm-event-days is-wide" role="group" aria-label="Event days">
+      <span>{multiDay ? 'Days' : 'Day'}<em>Required</em></span>
+      {values.days.map((day, index) => <div className="adm-event-day-row" key={index}>
+        {multiDay && <b className="adm-event-day-row__label">Day {index + 1}</b>}
+        <label className="adm-event-day-cell">
+          <small>Date</small>
+          <input name={`day-${index}-date`} type="date" aria-label={`Day ${index + 1} date`} value={day.date} onChange={(event) => setDay(index, 'date', event.target.value)}/>
+          {dayErrors[index]?.date && <small role="alert" className="adm-form-error">{dayErrors[index].date}</small>}
+        </label>
+        <label className="adm-event-day-cell">
+          <small>Start time</small>
+          <input name={`day-${index}-start`} type="time" aria-label={`Day ${index + 1} start time`} value={day.startTime} onChange={(event) => setDay(index, 'startTime', event.target.value)}/>
+          {dayErrors[index]?.startTime && <small role="alert" className="adm-form-error">{dayErrors[index].startTime}</small>}
+        </label>
+        <label className="adm-event-day-cell">
+          <small>End time{multiDay ? '' : ' (optional)'}</small>
+          <input name={`day-${index}-end`} type="time" aria-label={`Day ${index + 1} end time`} value={day.endTime} onChange={(event) => setDay(index, 'endTime', event.target.value)}/>
+          {dayErrors[index]?.endTime && <small role="alert" className="adm-form-error">{dayErrors[index].endTime}</small>}
+        </label>
+        {multiDay && <button type="button" className="adm-event-speaker-remove" aria-label={`Remove day ${index + 1}`} onClick={() => removeDay(index)}><X size={15}/></button>}
+      </div>)}
+      {errors.schedule && <small role="alert" className="adm-form-error">{errors.schedule}</small>}
+      <p className="adm-event-duration" aria-live="polite"><CalendarDays size={14}/>{eventDurationNote(values.days)}</p>
+      <Button type="button" variant="secondary" className="adm-event-speaker-add" disabled={values.days.length >= MAX_EVENT_DAYS} onClick={addDay} icon={<Plus size={15}/>}>Add another day</Button>
+    </div>
     <label className="adm-form-field is-wide">
       <span>Location<em>Required</em></span>
       <input name="location" type="text" placeholder="Building or room" value={values.location} onChange={set('location')}/>
@@ -298,7 +309,7 @@ function EventCommandBar({ event }) {
   const attendanceRate = event.attendanceCount ? event.attendanceRate : 0
   return <section className="adm-event-command" aria-label="Event at a glance">
     <div className="adm-event-command__facts">
-      <article><span><CalendarDays size={17}/></span><div><small>Schedule</small><b>{formatEventSchedule(event.startsAt, event.endsAt)}</b></div></article>
+      <article><span><CalendarDays size={17}/></span><div><small>Schedule</small><b>{formatEventSchedule(event.startsAt, event.endsAt, event.scheduleDays)}</b></div></article>
       <article><span><MapPin size={17}/></span><div><small>Location</small><b>{event.location}</b></div></article>
       <article><span><UserRound size={17}/></span><div><small>{event.speakers.length > 1 ? 'Facilitators' : 'Facilitator'}</small><b>{formatEventSpeakers(event.speakers)}</b></div></article>
     </div>
@@ -321,8 +332,8 @@ function OverviewTab({ event, history }) {
     ]}/>
     <div className="adm-event-overview-grid">
       <section className="adm-detail-section adm-event-information"><h4>Workshop information</h4><Facts items={[
-        ['Reference', event.ref], ['Schedule', formatEventSchedule(event.startsAt, event.endsAt)],
-        ...(isMultiDayEvent(event.startsAt, event.endsAt) ? [['Duration', formatEventDayCount(eventDayCount(event.startsAt, event.endsAt))]] : []),
+        ['Reference', event.ref], ['Schedule', formatEventSchedule(event.startsAt, event.endsAt, event.scheduleDays)],
+        ...(eventScheduleDays(event).length > 1 ? [['Days', <ol className="adm-event-days-list" key="days">{eventScheduleDays(event).map((day, index) => <li key={day.date}><b>Day {index + 1}</b>{formatScheduleDay(day)}</li>)}</ol>]] : []),
         ['Location', event.location], [event.speakers.length > 1 ? 'Facilitators' : 'Facilitator', formatEventSpeakers(event.speakers)],
         ['Visibility', event.visibility === 'internal' ? 'Internal' : 'Public'], ['Status', event.status],
         ['Created', eventCheckedAt(event.createdAt)], ['Last update', eventCheckedAt(event.updatedAt)],

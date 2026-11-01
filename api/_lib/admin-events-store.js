@@ -1,5 +1,5 @@
 const DIRECTORY_COLUMNS = [
-  'id', 'event_type', 'title', 'description', 'starts_at', 'ends_at', 'location', 'speaker_name', 'speaker_names',
+  'id', 'event_type', 'title', 'description', 'starts_at', 'ends_at', 'location', 'speaker_name', 'speaker_names', 'schedule_days',
   'visibility', 'status', 'invited_count', 'registered_count', 'present_count', 'not_checked_in_count',
   'absent_count', 'attendance_count', 'created_at', 'updated_at',
 ].join(', ')

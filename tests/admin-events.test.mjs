@@ -12,8 +12,8 @@ import {
 } from '../api/_lib/admin-events-validation.js'
 import { prepareStableWorkshopCredential, WORKSHOP_CREDENTIAL_DERIVATION_VERSION } from '../api/_lib/workshop-tokens.js'
 import {
-  buildEventPayload, eventDayCount, eventFormFieldValues, formatEventDateSpan, formatEventSchedule,
-  isMultiDayEvent, validateEventForm,
+  buildEventPayload, eventDayCount, eventFormFieldValues, eventScheduleDays, formatEventDateSpan, formatEventSchedule,
+  formatScheduleDay, isMultiDayEvent, validateEventDays, validateEventForm,
 } from '../src/admin/adminEventsModel.js'
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8')
@@ -121,12 +121,13 @@ test('workshop validation requires real fields and strict absolute datetimes', (
   ]) assert.equal(validateEventCreateBody(invalid).ok, false, JSON.stringify(invalid))
   assert.equal(validateEventUpdateBody({ ...workshop(), expectedUpdatedAt: NOW.toISOString() }).ok, true)
   assert.equal(validateEventUpdateBody({ ...workshop(), speakerName: '', expectedUpdatedAt: NOW.toISOString() }).ok, false)
-  assert.deepEqual(validateEventForm({ title: 'ML', startDate: '2026-02-30', startTime: '09:00', endDate: '', endTime: '', speakers: ['Dr Ahmed'], location: 'FMI' }).startDate, 'Choose the start date.')
-  assert.equal(buildEventPayload({ title: ' ML Workshop ', startDate: '2026-10-28', startTime: '09:00', endDate: '2026-10-28', endTime: '12:00', speakers: [' Dr Ahmed '], location: ' FMI ' }).startsAt, '2026-10-28T08:00:00.000Z')
+  assert.deepEqual(validateEventForm({ title: 'ML', days: [{ date: '2026-02-30', startTime: '09:00', endTime: '' }], speakers: ['Dr Ahmed'], location: 'FMI' }).days, { 0: { date: 'Choose the date.' } })
+  assert.equal(buildEventPayload({ title: ' ML Workshop ', days: [{ date: '2026-10-28', startTime: '09:00', endTime: '12:00' }], speakers: [' Dr Ahmed '], location: ' FMI ' }).startsAt, '2026-10-28T08:00:00.000Z')
 })
 
+const day = (date, startTime = '09:00', endTime = '12:00') => ({ date, startTime, endTime })
 const form = (changes = {}) => ({
-  title: 'Intro to ML', startDate: '2026-10-28', startTime: '09:00', endDate: '2026-10-28', endTime: '12:00',
+  title: 'Intro to ML', days: [day('2026-10-28')],
   speakers: ['Dr Ahmed'], location: 'FMI', ...changes,
 })
 
@@ -138,37 +139,90 @@ test('the event form no longer has a description and sends no description field'
   assert.equal('description' in validateEventCreateBody({ ...workshop(), description: 'kept?' }).value, false)
 })
 
-test('events can span one, two or more days in Africa/Algiers', () => {
-  // Same day, end time optional.
-  assert.deepEqual(validateEventForm(form({ endDate: '', endTime: '' })), {})
-  assert.equal(buildEventPayload(form({ endDate: '', endTime: '' })).endsAt, undefined)
-  // A blank end date means "same day as the start".
-  assert.equal(buildEventPayload(form({ endDate: '' })).endsAt, '2026-10-28T11:00:00.000Z')
-  // Two days and three days.
-  const twoDays = buildEventPayload(form({ endDate: '2026-10-29', endTime: '16:30' }))
-  assert.equal(twoDays.startsAt, '2026-10-28T08:00:00.000Z')
-  assert.equal(twoDays.endsAt, '2026-10-29T15:30:00.000Z')
-  assert.equal(eventDayCount(twoDays.startsAt, twoDays.endsAt), 2)
-  assert.equal(eventDayCount(twoDays.startsAt, buildEventPayload(form({ endDate: '2026-10-30', endTime: '10:00' })).endsAt), 3)
-  assert.equal(isMultiDayEvent(twoDays.startsAt, twoDays.endsAt), true)
-  assert.equal(isMultiDayEvent('2026-10-28T08:00:00.000Z', '2026-10-28T11:00:00.000Z'), false)
-  // Day counting follows the Algiers calendar (UTC+1), not 24h distance:
-  // 23:30 local and 00:30 local the next day are two days apart in the calendar.
+test('an event is a list of days, each with its own date, start and end time', () => {
+  // One day: end time optional.
+  assert.deepEqual(validateEventForm(form()), {})
+  assert.deepEqual(validateEventForm(form({ days: [day('2026-10-28', '09:00', '')] })), {})
+  const single = buildEventPayload(form({ days: [day('2026-10-28', '09:00', '')] }))
+  assert.equal(single.endsAt, undefined)
+  assert.deepEqual(single.scheduleDays, [{ date: '2026-10-28', startTime: '09:00', endTime: null }])
+
+  // Two and three days: the bounds are first start and last end; hours differ per day.
+  const days = [day('2026-10-28', '09:00', '12:00'), day('2026-10-29', '10:00', '16:30'), day('2026-10-30', '08:30', '11:00')]
+  assert.deepEqual(validateEventForm(form({ days })), {})
+  const payload = buildEventPayload(form({ days }))
+  assert.equal(payload.startsAt, '2026-10-28T08:00:00.000Z')
+  assert.equal(payload.endsAt, '2026-10-30T10:00:00.000Z')
+  assert.deepEqual(payload.scheduleDays.map((entry) => [entry.date, entry.startTime, entry.endTime]), [
+    ['2026-10-28', '09:00', '12:00'], ['2026-10-29', '10:00', '16:30'], ['2026-10-30', '08:30', '11:00'],
+  ])
+
+  // Days with a gap are still just two days.
+  const gap = buildEventPayload(form({ days: [day('2026-10-26'), day('2026-10-28')] }))
+  assert.equal(formatEventSchedule(gap.startsAt, gap.endsAt, gap.scheduleDays), '26 Oct → 28 Oct 2026 · 2 days')
+  assert.equal(formatEventSchedule('2026-10-28T08:00:00.000Z', '2026-10-28T11:00:00.000Z', [day('2026-10-28')]), '28 Oct 2026 · 09:00–12:00')
+  assert.equal(formatScheduleDay(day('2026-10-29', '10:00', '16:30')), '29 Oct 2026 · 10:00–16:30')
+  assert.equal(formatScheduleDay(day('2026-10-29', '10:00', '')), '29 Oct 2026 · 10:00')
+
+  // Row-level problems are reported on the right day and field.
+  assert.deepEqual(validateEventDays([]), { schedule: 'Add at least one day.' })
+  assert.deepEqual(validateEventDays(Array.from({ length: 15 }, (_, index) => day(`2026-11-${String(index + 1).padStart(2, '0')}`))), { schedule: 'Keep an event to 14 days at most.' })
+  assert.deepEqual(validateEventDays([day('2026-10-28', '', '')]), { days: { 0: { startTime: 'Choose a start time.' } } })
+  assert.deepEqual(validateEventDays([day('2026-10-28', '09:00', '08:00')]), { days: { 0: { endTime: 'The day must end after it starts.' } } })
+  assert.deepEqual(validateEventDays([day('2026-10-28', '09:00', '25:00')]), { days: { 0: { endTime: 'Choose a valid end time.' } } })
+  assert.deepEqual(validateEventDays([day('2026-10-28'), day('2026-10-28')]), { days: { 1: { date: 'This date is already in the list.' } } })
+  assert.deepEqual(validateEventDays([day('2026-10-29'), day('2026-10-28')]), { days: { 1: { date: 'Days must follow each other in order.' } } })
+  assert.deepEqual(validateEventDays([day('2026-10-28'), day('', '09:00', '10:00')]), { days: { 1: { date: 'Choose the date.' } } })
+  // With several days every day needs its end time; a lone day does not.
+  assert.deepEqual(validateEventDays([day('2026-10-28'), day('2026-10-29', '09:00', '')]), { days: { 1: { endTime: 'Add the time this day ends.' } } })
+
+  // The legacy window helpers still read old events.
   assert.equal(eventDayCount('2026-10-28T22:30:00.000Z', '2026-10-28T23:30:00.000Z'), 2)
-  // Spans across months and years read correctly.
-  assert.equal(formatEventDateSpan('2026-10-28T08:00:00.000Z', '2026-10-30T15:00:00.000Z'), '28 Oct → 30 Oct 2026')
+  assert.equal(isMultiDayEvent('2026-10-28T08:00:00.000Z', '2026-10-28T11:00:00.000Z'), false)
   assert.equal(formatEventDateSpan('2026-12-30T08:00:00.000Z', '2027-01-02T15:00:00.000Z'), '30 Dec 2026 → 02 Jan 2027')
   assert.equal(formatEventSchedule('2026-10-28T08:00:00.000Z', '2026-10-29T15:30:00.000Z'), '28 Oct 2026 · 09:00 → 29 Oct 2026 · 16:30')
-  assert.equal(formatEventSchedule('2026-10-28T08:00:00.000Z', '2026-10-28T11:00:00.000Z'), '28 Oct 2026 · 09:00–12:00')
-  // Invalid combinations.
-  assert.equal(validateEventForm(form({ endDate: '2026-10-27' })).endDate, 'The end date cannot be before the start date.')
-  assert.equal(validateEventForm(form({ endDate: '2026-02-30' })).endDate, 'Choose the end date.')
-  assert.equal(validateEventForm(form({ endTime: '08:00' })).endTime, 'The event must end after it starts.')
-  assert.equal(validateEventForm(form({ endDate: '2026-10-29', endTime: '' })).endTime, 'Add the time the event ends on its last day.')
-  assert.deepEqual(validateEventForm(form({ endDate: '2026-10-29', endTime: '08:00' })), {})
-  // The API accepts a multi-day window and still rejects an inverted one.
-  assert.equal(validateEventCreateBody(workshop({ endsAt: '2026-10-30T15:00:00.000Z' })).ok, true)
-  assert.equal(validateEventCreateBody(workshop({ endsAt: '2026-10-27T15:00:00.000Z' })).ok, false)
+})
+
+test('the server derives the event bounds from the day list and rejects inconsistent days', () => {
+  const body = (scheduleDays, changes = {}) => ({ ...workshop({ startsAt: '1999-01-01T00:00:00.000Z', endsAt: undefined }), scheduleDays, ...changes })
+  const threeDays = [
+    { date: '2026-10-28', startTime: '09:00', endTime: '12:00' },
+    { date: '2026-10-29', startTime: '10:00', endTime: '16:30' },
+    { date: '2026-10-30', startTime: '08:30', endTime: '11:00' },
+  ]
+  const created = validateEventCreateBody(body(threeDays))
+  assert.equal(created.ok, true)
+  // startsAt / endsAt sent by the client are ignored: the list decides.
+  assert.equal(created.value.startsAt, '2026-10-28T08:00:00.000Z')
+  assert.equal(created.value.endsAt, '2026-10-30T10:00:00.000Z')
+  assert.deepEqual(created.value.scheduleDays, threeDays)
+  const updated = validateEventUpdateBody({ ...body(threeDays.slice(0, 2)), expectedUpdatedAt: NOW.toISOString() })
+  assert.equal(updated.value.payload.endsAt, '2026-10-29T15:30:00.000Z')
+  assert.equal(updated.value.payload.scheduleDays.length, 2)
+
+  // One day may omit its end; the empty string and null mean the same.
+  const one = validateEventCreateBody(body([{ date: '2026-10-28', startTime: '09:00', endTime: '' }]))
+  assert.equal(one.ok, true)
+  assert.equal(one.value.endsAt, undefined)
+  assert.deepEqual(one.value.scheduleDays, [{ date: '2026-10-28', startTime: '09:00', endTime: null }])
+
+  // The legacy window (no scheduleDays) still works and stores an empty list.
+  assert.deepEqual(validateEventCreateBody(workshop()).value.scheduleDays, [])
+
+  for (const invalid of [
+    [], 'monday', [null], [[]],
+    Array.from({ length: 15 }, (_, index) => ({ date: `2026-11-${String(index + 1).padStart(2, '0')}`, startTime: '09:00', endTime: '10:00' })),
+    [{ date: '2026-02-30', startTime: '09:00', endTime: '10:00' }],
+    [{ date: '28/10/2026', startTime: '09:00', endTime: '10:00' }],
+    [{ date: '2026-10-28', startTime: '9:00', endTime: '10:00' }],
+    [{ date: '2026-10-28', startTime: '24:00', endTime: null }],
+    [{ date: '2026-10-28', startTime: '09:00', endTime: '09:00' }],
+    [{ date: '2026-10-28', startTime: '09:00', endTime: '08:00' }],
+    [{ date: '2026-10-28', startTime: '09:00', endTime: 1000 }],
+    [{ date: '2026-10-29', startTime: '09:00', endTime: '10:00' }, { date: '2026-10-28', startTime: '09:00', endTime: '10:00' }],
+    [{ date: '2026-10-28', startTime: '09:00', endTime: '10:00' }, { date: '2026-10-28', startTime: '11:00', endTime: '12:00' }],
+    [{ date: '2026-10-28', startTime: '09:00', endTime: '10:00' }, { date: '2026-10-29', startTime: '09:00', endTime: null }],
+  ]) assert.equal(validateEventCreateBody(body(invalid)).ok, false, JSON.stringify(invalid))
 })
 
 test('an event can have one or several facilitators', () => {
@@ -194,17 +248,25 @@ test('an event can have one or several facilitators', () => {
   assert.deepEqual(updated.value.payload.speakerNames, ['A1', 'B2'])
 })
 
-test('the edit form is rebuilt from the stored event, including multi-day windows and facilitators', () => {
-  const values = eventFormFieldValues({
-    title: 'Hackathon prep', startsAt: '2026-10-28T08:00:00.000Z', endsAt: '2026-10-30T15:00:00.000Z',
+test('the edit form is rebuilt from the stored days, or from the window of older events', () => {
+  const stored = eventFormFieldValues({
+    title: 'Hackathon prep', startsAt: '2026-10-28T08:00:00.000Z', endsAt: '2026-10-29T15:30:00.000Z',
+    scheduleDays: [day('2026-10-28', '09:00', '12:00'), day('2026-10-29', '10:00', '16:30')],
     location: 'FMI', speaker: 'A1, B2', speakers: ['A1', 'B2'],
   })
-  assert.deepEqual(values, { title: 'Hackathon prep', startDate: '2026-10-28', startTime: '09:00', endDate: '2026-10-30', endTime: '16:00', location: 'FMI', speakers: ['A1', 'B2'] })
-  // Legacy rows without an end or a speakers list still open cleanly.
-  const legacy = eventFormFieldValues({ title: 'Old', startsAt: '2026-10-28T08:00:00.000Z', endsAt: null, location: 'FMI', speaker: 'Dr Ahmed', speakers: [] })
-  assert.equal(legacy.endDate, '2026-10-28')
-  assert.equal(legacy.endTime, '')
+  assert.deepEqual(stored, {
+    title: 'Hackathon prep', days: [day('2026-10-28', '09:00', '12:00'), day('2026-10-29', '10:00', '16:30')],
+    location: 'FMI', speakers: ['A1', 'B2'],
+  })
+  // Older one-day event: a single day, end time kept (or left empty).
+  const legacy = eventFormFieldValues({ title: 'Old', startsAt: '2026-10-28T08:00:00.000Z', endsAt: null, scheduleDays: [], location: 'FMI', speaker: 'Dr Ahmed', speakers: [] })
+  assert.deepEqual(legacy.days, [day('2026-10-28', '09:00', '')])
   assert.deepEqual(legacy.speakers, ['Dr Ahmed'])
+  // Older multi-day window: one entry per calendar day, hours only where known.
+  assert.deepEqual(eventScheduleDays({ startsAt: '2026-10-28T08:00:00.000Z', endsAt: '2026-10-30T15:00:00.000Z' }), [
+    day('2026-10-28', '09:00', ''), day('2026-10-29', '', ''), day('2026-10-30', '', '16:00'),
+  ])
+  assert.deepEqual(eventScheduleDays({}), [])
 })
 
 test('the events service exposes the facilitator list and keeps the joined line', async () => {
@@ -213,6 +275,10 @@ test('the events service exposes the facilitator list and keeps the joined line'
   const service = createAdminEventsService({ store, now: () => NOW })
   const { data } = await service.list({ page: 1, limit: 12, sort: 'starts_desc', q: '' })
   assert.deepEqual(data[0].speakers, ['Dr Ahmed', 'Amel Benali'])
+  assert.deepEqual(data[0].scheduleDays, [])
+  store.row = eventRow({ schedule_days: [day('2026-10-28')] })
+  assert.deepEqual((await service.detail(EVENT_ID)).scheduleDays, [day('2026-10-28')])
+  store.row = eventRow({ speaker_name: 'Dr Ahmed, Amel Benali', speaker_names: ['Dr Ahmed', 'Amel Benali'] })
   assert.equal(data[0].speaker, 'Dr Ahmed, Amel Benali')
   // Rows from before the migration have no speaker_names yet.
   store.row = eventRow({ speaker_names: undefined })
@@ -932,4 +998,18 @@ test('dashboard Events workspace presents a structured operational view', async 
   assert.match(styles, /\.adm-event-command/)
   assert.match(styles, /\.adm-events-filter-rail/)
   assert.match(styles, /@container events \(max-width: 720px\)/)
+})
+
+test('the schedule days migration stores the day list and keeps the bounds', async () => {
+  const sql = await read('supabase/migrations/20261103120000_event_schedule_days.sql')
+  assert.match(sql, /add column if not exists schedule_days jsonb not null default '\[\]'::jsonb/)
+  assert.match(sql, /check \(jsonb_typeof\(schedule_days\) = 'array' and jsonb_array_length\(schedule_days\) <= 14\)/)
+  assert.match(sql, /create view public\.admin_club_events_directory[\s\S]*event\.schedule_days,[\s\S]*event\.speaker_names/)
+  assert.match(sql, /schedule_days = schedule_days_value/)
+  assert.match(sql, /starts_at = starts_at_value, ends_at = ends_at_value/)
+  assert.doesNotMatch(sql, /drop column|drop table/i)
+  // The RPCs never write the description column (the view still reads it).
+  assert.doesNotMatch(sql.slice(sql.indexOf('function public.admin_create_club_event')), /description/)
+  const store = await read('api/_lib/admin-events-store.js')
+  assert.match(store, /'speaker_names', 'schedule_days'/)
 })

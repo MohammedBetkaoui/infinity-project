@@ -1955,7 +1955,25 @@
 .adm-event-form > .is-wide { grid-column: 1 / -1; }
 .adm-event-duration { display: flex; align-items: center; gap: 8px; margin: -4px 0 0; color: var(--adm-secondary); font-size: 12px; line-height: 1.45; }
 .adm-event-duration svg { flex: none; color: var(--adm-accent-fg); }
-.adm-event-speakers { gap: 8px; }
+.adm-event-speakers, .adm-event-days { gap: 8px; }
+.adm-event-days .adm-event-duration { margin: 0; }
+/* One row per day: date, start, end. With several days a "Day n" label and a remove button join the row. */
+.adm-event-day-row { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: 8px; padding: 10px; background: var(--adm-surface-soft); border: 1px solid var(--adm-line); border-radius: var(--adm-radius-control); }
+.adm-event-day-row:has(.adm-event-day-row__label) { grid-template-columns: auto minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) auto; }
+.adm-event-day-row__label { align-self: center; min-width: 46px; color: var(--adm-accent-fg); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; }
+.adm-event-day-row .adm-event-speaker-remove { align-self: end; }
+@media (max-width: 640px) {
+  .adm-event-day-row, .adm-event-day-row:has(.adm-event-day-row__label) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .adm-event-day-row__label { grid-column: 1 / -1; }
+  .adm-event-day-row .adm-event-day-cell:first-of-type { grid-column: 1 / -1; }
+  .adm-event-day-row .adm-event-speaker-remove { grid-column: 1 / -1; width: 100%; }
+}
+.adm-event-day-cell { display: grid; gap: 4px; min-width: 0; }
+.adm-event-day-cell > small:first-child { color: var(--adm-muted); font-size: 11px; font-weight: 600; }
+.adm-event-day-cell .adm-form-error { margin: 0; }
+.adm-event-days-list { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.adm-event-days-list li { display: flex; flex-wrap: wrap; gap: 8px; }
+.adm-event-days-list b { min-width: 48px; color: var(--adm-muted); font-size: 11px; text-transform: uppercase; }
 .adm-event-speaker-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; }
 .adm-event-speaker-row:only-of-type { grid-template-columns: minmax(0, 1fr); }
 .adm-event-speaker-remove { display: grid; place-items: center; width: 44px; height: 44px; color: var(--adm-muted); background: var(--adm-surface-raised); border: 1px solid var(--adm-field-border); border-radius: var(--adm-radius-control); cursor: pointer; }

@@ -56,6 +56,53 @@ function speakerList(body) {
   return names
 }
 
+// Each day of an event has its own date and hours (Africa/Algiers, UTC+01 all
+// year). The event bounds are DERIVED here from that list: first day start and
+// last day end, so the two can never disagree. A body without scheduleDays
+// falls back to a plain startsAt / endsAt window.
+const MAX_DAYS = 14
+const ALGIERS_OFFSET = '+01:00'
+const DAY_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+const DAY_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
+const dayTimestamp = (date, time) => {
+  const value = `${date}T${time}:00${ALGIERS_OFFSET}`
+  return validTimestamp(value) ? new Date(value).toISOString() : null
+}
+function scheduleOf(body) {
+  if (body.scheduleDays === undefined) {
+    if (!validTimestamp(body.startsAt)) return null
+    const startsAt = new Date(body.startsAt).toISOString()
+    let endsAt
+    if (body.endsAt !== undefined && body.endsAt !== null && String(body.endsAt).trim() !== '') {
+      if (!validTimestamp(body.endsAt)) return null
+      endsAt = new Date(body.endsAt).toISOString()
+      if (new Date(endsAt).getTime() <= new Date(startsAt).getTime()) return null
+    }
+    return { startsAt, endsAt, scheduleDays: [] }
+  }
+  const days = body.scheduleDays
+  if (!Array.isArray(days) || days.length < 1 || days.length > MAX_DAYS) return null
+  const scheduleDays = []
+  let previousDate = ''
+  for (const day of days) {
+    if (!day || typeof day !== 'object' || Array.isArray(day)) return null
+    const { date, startTime } = day
+    const endTime = day.endTime === undefined || day.endTime === null || day.endTime === '' ? null : day.endTime
+    if (typeof date !== 'string' || !DAY_DATE_RE.test(date) || date <= previousDate) return null
+    if (typeof startTime !== 'string' || !DAY_TIME_RE.test(startTime)) return null
+    if (endTime === null ? days.length > 1 : (typeof endTime !== 'string' || !DAY_TIME_RE.test(endTime) || endTime <= startTime)) return null
+    if (!dayTimestamp(date, startTime) || (endTime && !dayTimestamp(date, endTime))) return null
+    scheduleDays.push({ date, startTime, endTime })
+    previousDate = date
+  }
+  const last = scheduleDays.at(-1)
+  return {
+    startsAt: dayTimestamp(scheduleDays[0].date, scheduleDays[0].startTime),
+    endsAt: last.endTime ? dayTimestamp(last.date, last.endTime) : undefined,
+    scheduleDays,
+  }
+}
+
 export const isEventId = (value) => UUID_RE.test(String(value || ''))
 
 export function parseEventListOptions(params) {
@@ -107,14 +154,8 @@ export function validateEventCreateBody(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return { ok: false }
   if (!CREATION_EVENT_TYPES.has(body.eventType)) return { ok: false }
   if (!text(body.title, 3, 160) || !text(body.location, 2, 160)) return { ok: false }
-  if (!validTimestamp(body.startsAt)) return { ok: false }
-  const startsAt = new Date(body.startsAt).toISOString()
-  let endsAt
-  if (body.endsAt !== undefined && body.endsAt !== null && String(body.endsAt).trim() !== '') {
-    if (!validTimestamp(body.endsAt)) return { ok: false }
-    endsAt = new Date(body.endsAt).toISOString()
-    if (new Date(endsAt).getTime() <= new Date(startsAt).getTime()) return { ok: false }
-  }
+  const schedule = scheduleOf(body)
+  if (!schedule) return { ok: false }
   const speakerNames = speakerList(body)
   if (!speakerNames) return { ok: false }
   if (body.status !== undefined && !CREATION_STATUSES.has(body.status)) return { ok: false }
@@ -123,8 +164,9 @@ export function validateEventCreateBody(body) {
     value: {
       eventType: body.eventType,
       title: body.title.trim(),
-      startsAt,
-      endsAt,
+      startsAt: schedule.startsAt,
+      endsAt: schedule.endsAt,
+      scheduleDays: schedule.scheduleDays,
       location: body.location.trim(),
       speakerNames,
       speakerName: speakerNames.join(', '),
@@ -137,14 +179,9 @@ export function validateEventUpdateBody(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return { ok: false }
   if (!CREATION_EVENT_TYPES.has(body.eventType)) return { ok: false }
   if (!text(body.title, 3, 160) || !text(body.location, 2, 160)) return { ok: false }
-  if (!validTimestamp(body.startsAt) || !validTimestamp(body.expectedUpdatedAt)) return { ok: false }
-  const startsAt = new Date(body.startsAt).toISOString()
-  let endsAt
-  if (body.endsAt !== undefined && body.endsAt !== null && String(body.endsAt).trim() !== '') {
-    if (!validTimestamp(body.endsAt)) return { ok: false }
-    endsAt = new Date(body.endsAt).toISOString()
-    if (new Date(endsAt).getTime() <= new Date(startsAt).getTime()) return { ok: false }
-  }
+  if (!validTimestamp(body.expectedUpdatedAt)) return { ok: false }
+  const schedule = scheduleOf(body)
+  if (!schedule) return { ok: false }
   const speakerNames = speakerList(body)
   if (!speakerNames) return { ok: false }
   if (body.status !== undefined && !EVENT_STATUSES.has(body.status)) return { ok: false }
@@ -154,8 +191,9 @@ export function validateEventUpdateBody(body) {
       payload: {
         eventType: body.eventType,
         title: body.title.trim(),
-        startsAt,
-        endsAt,
+        startsAt: schedule.startsAt,
+        endsAt: schedule.endsAt,
+        scheduleDays: schedule.scheduleDays,
         location: body.location.trim(),
         speakerNames,
         speakerName: speakerNames.join(', '),

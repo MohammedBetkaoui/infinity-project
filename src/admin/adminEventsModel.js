@@ -86,9 +86,14 @@ export const formatEventDateSpan = (startsAt, endsAt) => {
   const sameYear = eventDateInput(startsAt).slice(0, 4) === eventDateInput(endsAt).slice(0, 4)
   return `${sameYear ? eventDayMonth(startsAt) : eventDate(startsAt)} → ${eventDate(endsAt)}`
 }
-export const formatEventSchedule = (startsAt, endsAt) => isMultiDayEvent(startsAt, endsAt)
-  ? `${eventDate(startsAt)} · ${eventTime(startsAt)} → ${eventDate(endsAt)} · ${eventTime(endsAt)}`
-  : `${eventDate(startsAt)} · ${formatEventWindow(startsAt, endsAt)}`
+// scheduleDays (when the event has its own list of days) decides the day count:
+// two days on Monday and Wednesday are "2 days", not the 3 the calendar spans.
+export const formatEventSchedule = (startsAt, endsAt, scheduleDays = []) => {
+  if (scheduleDays.length > 1) return `${formatEventDateSpan(startsAt, endsAt)} · ${formatEventDayCount(scheduleDays.length)}`
+  return isMultiDayEvent(startsAt, endsAt)
+    ? `${eventDate(startsAt)} · ${eventTime(startsAt)} → ${eventDate(endsAt)} · ${eventTime(endsAt)}`
+    : `${eventDate(startsAt)} · ${formatEventWindow(startsAt, endsAt)}`
+}
 
 export const MAX_EVENT_SPEAKERS = 8
 export const cleanEventSpeakers = (speakers) => (Array.isArray(speakers) ? speakers : [])
@@ -106,6 +111,50 @@ const algiersIso = (date, time) => {
   return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : ''
 }
 
+export const MAX_EVENT_DAYS = 14
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+const cleanDay = (day) => ({
+  date: String(day?.date || '').trim(),
+  startTime: String(day?.startTime || '').trim(),
+  endTime: String(day?.endTime || '').trim(),
+})
+// "28 Oct 2026 · 09:00–12:00" for one entry of an event's day list.
+export const formatScheduleDay = (day) => {
+  const { date, startTime, endTime } = cleanDay(day)
+  const noon = algiersIso(date, '12:00')
+  const hours = startTime ? (endTime ? `${startTime}–${endTime}` : startTime) : ''
+  return [noon ? eventDate(noon) : date, hours].filter(Boolean).join(' · ')
+}
+
+// Each day carries its own date and hours. One day may omit its end time;
+// with several days every day needs one, and the dates must strictly increase.
+// Returns {} when valid, else { schedule } (list level) and/or { days: { [index]: {...} } }.
+export function validateEventDays(days) {
+  const rows = (Array.isArray(days) ? days : []).map(cleanDay)
+  if (!rows.length) return { schedule: 'Add at least one day.' }
+  if (rows.length > MAX_EVENT_DAYS) return { schedule: `Keep an event to ${MAX_EVENT_DAYS} days at most.` }
+  const dayErrors = {}
+  let previous = ''
+  rows.forEach((day, index) => {
+    const errors = {}
+    const dateValid = DATE_RE.test(day.date) && Boolean(algiersIso(day.date, '00:00'))
+    if (!dateValid) errors.date = 'Choose the date.'
+    else if (previous && day.date === previous) errors.date = 'This date is already in the list.'
+    else if (previous && day.date < previous) errors.date = 'Days must follow each other in order.'
+    if (dateValid && !errors.date) previous = day.date
+    if (!TIME_RE.test(day.startTime)) errors.startTime = 'Choose a start time.'
+    if (day.endTime) {
+      if (!TIME_RE.test(day.endTime)) errors.endTime = 'Choose a valid end time.'
+      else if (TIME_RE.test(day.startTime) && day.endTime <= day.startTime) errors.endTime = 'The day must end after it starts.'
+    } else if (rows.length > 1) {
+      errors.endTime = 'Add the time this day ends.'
+    }
+    if (Object.keys(errors).length) dayErrors[index] = errors
+  })
+  return Object.keys(dayErrors).length ? { days: dayErrors } : {}
+}
+
 export function validateEventForm(values) {
   const errors = {}
   const title = String(values.title || '').trim()
@@ -117,39 +166,21 @@ export function validateEventForm(values) {
   else if (speakers.length > MAX_EVENT_SPEAKERS) errors.speakers = `List at most ${MAX_EVENT_SPEAKERS} facilitators.`
   else if (speakers.some((name) => name.length < 2 || name.length > 120)) errors.speakers = 'Each facilitator name needs 2 to 120 characters.'
   else if (new Set(speakers.map((name) => name.toLowerCase())).size !== speakers.length) errors.speakers = 'List each facilitator only once.'
-
-  const startDate = String(values.startDate || '').trim()
-  const startDateValid = /^\d{4}-\d{2}-\d{2}$/.test(startDate) && Boolean(algiersIso(startDate, '00:00'))
-  if (!startDateValid) errors.startDate = 'Choose the start date.'
-  const startsAt = algiersIso(startDate, String(values.startTime || '').trim())
-  if (!startsAt) errors.startTime = 'Choose a start time.'
-
-  // A blank end date means the event ends the same day it starts.
-  const endDate = String(values.endDate || '').trim() || startDate
-  const endDateValid = /^\d{4}-\d{2}-\d{2}$/.test(endDate) && Boolean(algiersIso(endDate, '00:00'))
-  if (!endDateValid) errors.endDate = 'Choose the end date.'
-  else if (startDateValid && endDate < startDate) errors.endDate = 'The end date cannot be before the start date.'
-
-  const endTime = String(values.endTime || '').trim()
-  if (endTime) {
-    const endsAt = algiersIso(endDate, endTime)
-    if (!endsAt) errors.endTime = 'Choose a valid end time.'
-    else if (startsAt && new Date(endsAt).getTime() <= new Date(startsAt).getTime()) errors.endTime = 'The event must end after it starts.'
-  } else if (startDateValid && endDateValid && endDate > startDate) {
-    errors.endTime = 'Add the time the event ends on its last day.'
-  }
-  return errors
+  return { ...errors, ...validateEventDays(values.days) }
 }
 
+// startsAt / endsAt are the absolute bounds of the day list (first start, last
+// end); the server derives them again from scheduleDays and stores both.
 export function buildEventPayload(values, { statusKey } = {}) {
-  const startDate = String(values.startDate || '').trim()
-  const endDate = String(values.endDate || '').trim() || startDate
-  const endTime = String(values.endTime || '').trim()
+  const days = (Array.isArray(values.days) ? values.days : []).map(cleanDay)
+  const first = days[0]
+  const last = days.at(-1)
   return {
     eventType: 'workshop',
     title: String(values.title || '').trim(),
-    startsAt: algiersIso(startDate, String(values.startTime || '').trim()),
-    endsAt: endTime ? algiersIso(endDate, endTime) : undefined,
+    startsAt: first ? algiersIso(first.date, first.startTime) : '',
+    endsAt: last?.endTime ? algiersIso(last.date, last.endTime) : undefined,
+    scheduleDays: days.map((day) => ({ date: day.date, startTime: day.startTime, endTime: day.endTime || null })),
     location: String(values.location || '').trim(),
     speakerNames: cleanEventSpeakers(values.speakers),
     ...(statusKey ? { status: statusKey } : {}),
@@ -158,12 +189,29 @@ export function buildEventPayload(values, { statusKey } = {}) {
 
 const eventTimeInput = (iso) => new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: ALGIERS }).format(new Date(iso))
 
+// The day list of an event. Events saved before per-day hours existed have no
+// stored list, so one is rebuilt from their start and end: the first day keeps
+// the start time, the last day the end time, days in between are left to fill.
+export function eventScheduleDays(event) {
+  const stored = Array.isArray(event?.scheduleDays) ? event.scheduleDays : []
+  if (stored.length) return stored.map(cleanDay)
+  if (!event?.startsAt) return []
+  const firstDay = dayNumber(eventDateInput(event.startsAt))
+  const lastDay = Math.max(firstDay, dayNumber(eventDateInput(event.endsAt || event.startsAt)))
+  const days = []
+  for (let day = firstDay; day <= lastDay && days.length < MAX_EVENT_DAYS; day += 1) {
+    days.push({
+      date: new Date(day * 86_400_000).toISOString().slice(0, 10),
+      startTime: day === firstDay ? eventTimeInput(event.startsAt) : '',
+      endTime: day === lastDay && event.endsAt ? eventTimeInput(event.endsAt) : '',
+    })
+  }
+  return days
+}
+
 export const eventFormFieldValues = (event) => ({
   title: event.title,
-  startDate: eventDateInput(event.startsAt),
-  startTime: eventTimeInput(event.startsAt),
-  endDate: eventDateInput(event.endsAt || event.startsAt),
-  endTime: event.endsAt ? eventTimeInput(event.endsAt) : '',
+  days: eventScheduleDays(event),
   location: event.location,
   speakers: event.speakers?.length ? [...event.speakers] : [event.speaker || ''],
 })

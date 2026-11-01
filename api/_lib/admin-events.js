@@ -52,6 +52,9 @@ function mapEvent(row) {
     description: row.description || '',
     startsAt: row.starts_at,
     endsAt: row.ends_at || null,
+    // Per-day hours; [] for events saved before they existed (the UI rebuilds
+    // a day list from startsAt / endsAt in that case).
+    scheduleDays: Array.isArray(row.schedule_days) ? row.schedule_days : [],
     location: row.location,
     speaker: row.speaker_name || '',
     // speaker_names is the source of truth; speaker_name stays the joined
