@@ -136,7 +136,7 @@ export default function WorkshopRegistrationPage() {
                   maxLength={160}
                   minLength={2}
                   pattern="[\p{L}\p{N} .,'’\-\(\)+&\/]{2,160}"
-                  placeholder="e.g. Artificial Intelligence"
+                  placeholder="ST / MI / Computer Science / SNV / …"
                   required
                   value={form.universitySpeciality}
                   onChange={(e) => setForm({ ...form, universitySpeciality: e.target.value })}
