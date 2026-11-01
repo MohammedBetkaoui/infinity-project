@@ -236,7 +236,8 @@ export default function WorkshopScannerPage() {
     try {
       const { response, payload } = await api('/api/workshops/scanner/check-in', { sessionToken: sessionToken, qrPayload: value })
       if (!response.ok) {
-        const status = SCAN_STATUSES.includes(payload.status) ? payload.status : response.status >= 500 ? 'network_error' : 'invalid'
+        // A rate-limited request (429) says nothing about the badge: retry, never "Invalid badge".
+        const status = SCAN_STATUSES.includes(payload.status) ? payload.status : response.status >= 500 || response.status === 429 ? 'network_error' : 'invalid'
         showResult({ status, message: status === 'not_open' ? NOT_OPEN_NOTE : (payload.message || RESULT_COPY[status].description) })
       } else showResult(payload.result)
     } catch {

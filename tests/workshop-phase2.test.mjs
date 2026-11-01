@@ -631,7 +631,8 @@ test('scanner page maps every server status and merges every rejection into Inva
   assert.match(scanner, /not_open: \{ title: 'Check-in not open'/)
   assert.match(scanner, /The workshop has not started yet\./)
   assert.match(scanner, /SCAN_STATUSES\.includes\(payload\.status\)/)
-  assert.match(scanner, /response\.status >= 500 \? 'network_error' : 'invalid'/)
+  // Server errors and rate limiting (429) are retryable, never "Invalid badge".
+  assert.match(scanner, /response\.status >= 500 \|\| response\.status === 429 \? 'network_error' : 'invalid'/)
   assert.match(scanner, /catch \{[\s\S]*status: 'network_error'/)
   assert.match(scanner, /finally \{[\s\S]*loadContext\(sessionToken\)\.catch/)
 })
@@ -759,4 +760,51 @@ test('the web badge and the PNG share one layout planner and keep the QR payload
   assert.match(styles, /font-size: 1\.33cqw/)
   assert.match(styles, /margin-top: 2\.66cqw/)
   assert.match(styles, /font-size: 1\.9cqw/)
+})
+
+test('the shared scanner link keeps every phone signed in at the same time', async () => {
+  const sql = (await read('supabase/migrations/20261105120000_scanner_multi_device_sessions.sql')).toLowerCase()
+  const code = sql.replace(/--.*\n/g, '\n')
+  // One active session per link is no longer enforced.
+  assert.match(code, /drop index if exists public\.club_event_scanner_session_active_unique;/)
+  const exchange = code.slice(code.indexOf('create or replace function public.public_exchange_event_scanner_token'), code.indexOf('revoke all on function'))
+  // Opening the link on a new phone never revokes the sessions of the others…
+  assert.doesNotMatch(exchange, /set status = 'revoked'/)
+  // …it only tidies sessions that have already run out.
+  assert.match(exchange, /set status = 'expired'\s+where scanner_access_id = access_row\.id and status = 'active' and expires_at <= changed_at;/)
+  // The link itself is still verified, and the status gate of 20261104 is kept.
+  assert.match(exchange, /access_row\.status <> 'active' or access_row\.revoked_at is not null/)
+  assert.match(exchange, /access_row\.starts_at > changed_at or access_row\.expires_at <= changed_at/)
+  assert.match(exchange, /event_row\.status in \('completed','cancelled','archived'\)\s+then raise exception 'scanner_not_available'/)
+  assert.match(exchange, /least\(p_session_expires_at, access_row\.expires_at\)/)
+  assert.match(code, /grant execute on function public\.public_exchange_event_scanner_token\(text,text,timestamptz,timestamptz\) to service_role;/)
+  // Regenerating or revoking the link still ends every phone's session at once.
+  const linkSql = (await read('supabase/migrations/20261031120000_workshop_application_invitations.sql')).toLowerCase()
+  assert.match(linkSql, /update public\.club_event_scanner_sessions set status = 'revoked', revoked_at = changed_at\s+where event_id = p_event_id and status = 'active';/)
+  assert.match(linkSql, /update public\.club_event_scanner_sessions session set status = 'revoked', revoked_at = changed_at\s+where session\.event_id = p_event_id and session\.status = 'active';/)
+})
+
+test('scanner rate limits leave room for about ten phones on one venue IP', async () => {
+  const limits = {}
+  for (const kind of ['scanner-session', 'scanner-context', 'scanner-check-in']) {
+    const handler = createWorkshopHandler(kind, {
+      enabled: () => true, trustedOrigin: () => true,
+      rateLimit: async (scope, ip, limit) => { limits[kind] = limit; return { allowed: false, retryAfterSeconds: 5 } },
+      createService: () => { throw new Error('service_must_not_run') },
+    })
+    const req = Readable.from([Buffer.from('{}')])
+    req.method = 'POST'; req.url = '/api/join'
+    req.headers = { 'content-type': 'application/json', origin: 'https://club.test', host: 'club.test' }
+    req.socket = { remoteAddress: '127.0.0.89' }
+    const res = { statusCode: 0, headers: {}, body: null, setHeader(k, v) { this.headers[k.toLowerCase()] = v }, end(v) { this.body = JSON.parse(v) } }
+    await handler(req, res)
+    assert.equal(res.statusCode, 429, kind)
+  }
+  const fifteenMinutes = 15 * 60 * 1000
+  for (const limit of Object.values(limits)) assert.equal(limit.windowMs, fifteenMinutes)
+  // Each phone refreshes its context every 5 s (180 per 15 min) plus once per scan.
+  assert.ok(limits['scanner-context'].max >= 10 * 180, `context ${limits['scanner-context'].max}`)
+  // A busy door across all phones: at least one scan per second, sustained.
+  assert.ok(limits['scanner-check-in'].max >= 900, `check-in ${limits['scanner-check-in'].max}`)
+  assert.ok(limits['scanner-session'].max >= 30, `session ${limits['scanner-session'].max}`)
 })

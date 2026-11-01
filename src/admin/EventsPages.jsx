@@ -526,7 +526,7 @@ function ScannerTab({ event, onChanged }) {
       if (result.privateUrl) {
         setPrivateUrl(result.privateUrl)
         try { await navigator.clipboard.writeText(result.privateUrl); addToast('Workshop scanner link ready', 'The shared link was copied to the clipboard.') }
-        catch { addToast('Workshop scanner link ready', 'Copy the shared link below and open it on the door device.') }
+        catch { addToast('Workshop scanner link ready', 'Copy the shared link below and open it on each door phone.') }
       } else if (action === 'revoke') {
         setPrivateUrl('')
         addToast(result.revoked ? 'Workshop scanner link revoked' : 'Already revoked', result.revoked ? 'The shared link and any live scanner session stopped working.' : 'There was no active scanner link to revoke.')
@@ -540,7 +540,7 @@ function ScannerTab({ event, onChanged }) {
     catch { addToast('Copy unavailable', 'Select and copy the generated link manually.') }
   }
   return <>
-    <div className="adm-event-section-heading"><div><h4>Workshop scanner</h4><p>One shared check-in link for the whole workshop. It grants no administrator access.</p></div></div>
+    <div className="adm-event-section-heading"><div><h4>Workshop scanner</h4><p>One shared check-in link for the whole workshop. Open it on as many door phones as you need; it grants no administrator access.</p></div></div>
     {error ? <div className="adm-state-error" role="alert"><TriangleAlert size={22}/><p>{error}</p><Button variant="secondary" onClick={refresh}>Try again</Button></div>
       : loading ? <EventsSkeleton/>
       : <div className="adm-table-wrap">
@@ -552,7 +552,7 @@ function ScannerTab({ event, onChanged }) {
           {scanner?.lastUsedAt && <small>Last used {eventCheckedAt(scanner.lastUsedAt)}</small>}
         </div>
         {privateUrl && <div className="adm-private-link"><input readOnly value={privateUrl} aria-label="Shared workshop scanner link"/><button onClick={copyRevealed}><Copy size={14}/> Copy shared link</button></div>}
-        <p className="adm-muted">Regenerating stops the previous link and all live scanner sessions immediately. Revoke the link whenever the door device is unpaired.</p>
+        <p className="adm-muted">Every phone that opens the link keeps working at the same time. Regenerating or revoking the link stops it on all of them at once, so do it if the link reaches someone it shouldn't.</p>
         <div className="adm-event-invite-actions">
           <Button onClick={() => act('generate')} disabled={Boolean(pending)}>
             {pending === 'generate' ? 'Generating…' : copyable ? 'Reveal shared link' : 'Generate shared scanner link'}

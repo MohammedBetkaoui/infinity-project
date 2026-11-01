@@ -19,12 +19,17 @@ export function isStrictWorkshopOrigin(req, env = process.env) {
   try { const parsed = new URL(rawOrigin); return parsed.protocol === 'https:' && parsed.host === host } catch { return false }
 }
 
+// Scanner limits are per IP, and every phone at the door usually shares the
+// venue Wi-Fi's public IP. They are sized for about ten phones at once: each
+// one refreshes its context every 5 s (180 per 15 min) plus once per scan.
+// These endpoints need a 256-bit link or session token, so the limits only
+// bound flooding; they do not protect a guessable secret.
 const CONFIG = Object.freeze({
   invitation: { validate: validateInvitationTokenBody, limit: { max: 30, windowMs: 15 * 60 * 1000 } },
   register: { validate: validateWorkshopRegistrationBody, limit: { max: 10, windowMs: 15 * 60 * 1000 } },
-  'scanner-session': { validate: validateScannerSessionBody, limit: { max: 20, windowMs: 15 * 60 * 1000 } },
-  'scanner-context': { validate: validateScannerContextBody, limit: { max: 240, windowMs: 15 * 60 * 1000 } },
-  'scanner-check-in': { validate: validateWorkshopCheckInBody, limit: { max: 180, windowMs: 15 * 60 * 1000 } },
+  'scanner-session': { validate: validateScannerSessionBody, limit: { max: 60, windowMs: 15 * 60 * 1000 } },
+  'scanner-context': { validate: validateScannerContextBody, limit: { max: 3000, windowMs: 15 * 60 * 1000 } },
+  'scanner-check-in': { validate: validateWorkshopCheckInBody, limit: { max: 1800, windowMs: 15 * 60 * 1000 } },
 })
 
 export function createWorkshopHandler(kind, {
