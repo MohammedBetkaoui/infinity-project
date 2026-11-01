@@ -1952,7 +1952,16 @@
 .adm-events-type-grid small { min-height: 32px; color: var(--adm-muted); font-size: 12px; line-height: 1.45; }
 .adm-modal-intro { margin: 0 0 18px; padding: 12px 14px; color: var(--adm-secondary); background: var(--adm-surface-soft); border-radius: var(--adm-radius-control); font-size: 13px; line-height: 1.55; }
 .adm-event-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.adm-event-form > .adm-form-field:first-child, .adm-event-form > .adm-form-field:last-child { grid-column: 1 / -1; }
+.adm-event-form > .is-wide { grid-column: 1 / -1; }
+.adm-event-duration { display: flex; align-items: center; gap: 8px; margin: -4px 0 0; color: var(--adm-secondary); font-size: 12px; line-height: 1.45; }
+.adm-event-duration svg { flex: none; color: var(--adm-accent-fg); }
+.adm-event-speakers { gap: 8px; }
+.adm-event-speaker-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.adm-event-speaker-row:only-of-type { grid-template-columns: minmax(0, 1fr); }
+.adm-event-speaker-remove { display: grid; place-items: center; width: 44px; height: 44px; color: var(--adm-muted); background: var(--adm-surface-raised); border: 1px solid var(--adm-field-border); border-radius: var(--adm-radius-control); cursor: pointer; }
+.adm-event-speaker-remove:hover, .adm-event-speaker-remove:focus-visible { color: var(--adm-error); border-color: currentColor; outline: 0; }
+.adm-event-speakers .adm-event-speaker-add { width: max-content; }
+.adm-event-lead-more { color: var(--adm-muted); font-weight: 700; }
 .adm-form-error { color: var(--adm-error) !important; font-size: 12px; font-weight: 600; }
 .adm-events-table .adm-table td { height: 78px; }
 .adm-events-table .adm-table th:first-child, .adm-events-table .adm-table td:first-child { padding-left: 18px; }
@@ -2028,7 +2037,6 @@
 
 @container events (max-width: 720px) {
   .adm-event-form, .adm-event-overview-grid, .adm-event-command { grid-template-columns: 1fr; }
-  .adm-event-form > .adm-form-field:first-child, .adm-event-form > .adm-form-field:last-child { grid-column: auto; }
   .adm-event-command__attendance { border-top: 1px solid rgb(var(--adm-inverse-fg-rgb) / .12); }
   .adm-events-table .adm-table th:nth-child(3), .adm-events-table .adm-table td:nth-child(3) { display: none; }
 }

@@ -11,7 +11,10 @@ import {
   validateEventCreateBody, validateEventInviteBody, validateEventScannerActionBody, validateEventUpdateBody,
 } from '../api/_lib/admin-events-validation.js'
 import { prepareStableWorkshopCredential, WORKSHOP_CREDENTIAL_DERIVATION_VERSION } from '../api/_lib/workshop-tokens.js'
-import { buildEventPayload, validateEventForm } from '../src/admin/adminEventsModel.js'
+import {
+  buildEventPayload, eventDayCount, eventFormFieldValues, formatEventDateSpan, formatEventSchedule,
+  isMultiDayEvent, validateEventForm,
+} from '../src/admin/adminEventsModel.js'
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8')
 const ADMIN_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
@@ -27,7 +30,7 @@ const user = { id: ADMIN_ID, role: 'super_admin', username: 'root' }
 const eventRow = (changes = {}) => ({
   id: EVENT_ID, event_type: 'workshop', title: 'Introduction to Machine Learning', description: 'A practical introduction.',
   starts_at: '2026-10-28T08:00:00.000Z', ends_at: '2026-10-28T11:00:00.000Z', location: 'FMI · Room 03',
-  speaker_name: 'Dr Ahmed', visibility: 'internal', status: 'registration_open',
+  speaker_name: 'Dr Ahmed', speaker_names: ['Dr Ahmed'], visibility: 'internal', status: 'registration_open',
   invited_count: 0, registered_count: 0, present_count: 0, not_checked_in_count: 0, absent_count: 0,
   attendance_count: 0, created_at: NOW.toISOString(), updated_at: NOW.toISOString(), ...changes,
 })
@@ -110,8 +113,113 @@ test('workshop validation requires real fields and strict absolute datetimes', (
   ]) assert.equal(validateEventCreateBody(invalid).ok, false, JSON.stringify(invalid))
   assert.equal(validateEventUpdateBody({ ...workshop(), expectedUpdatedAt: NOW.toISOString() }).ok, true)
   assert.equal(validateEventUpdateBody({ ...workshop(), speakerName: '', expectedUpdatedAt: NOW.toISOString() }).ok, false)
-  assert.deepEqual(validateEventForm({ title: 'ML', date: '2026-02-30', start: '09:00', end: '', speaker: 'Dr Ahmed', location: 'FMI', description: '' }).date, 'Choose the event date.')
-  assert.equal(buildEventPayload({ title: ' ML Workshop ', date: '2026-10-28', start: '09:00', end: '12:00', speaker: ' Dr Ahmed ', location: ' FMI ', description: '' }).startsAt, '2026-10-28T08:00:00.000Z')
+  assert.deepEqual(validateEventForm({ title: 'ML', startDate: '2026-02-30', startTime: '09:00', endDate: '', endTime: '', speakers: ['Dr Ahmed'], location: 'FMI' }).startDate, 'Choose the start date.')
+  assert.equal(buildEventPayload({ title: ' ML Workshop ', startDate: '2026-10-28', startTime: '09:00', endDate: '2026-10-28', endTime: '12:00', speakers: [' Dr Ahmed '], location: ' FMI ' }).startsAt, '2026-10-28T08:00:00.000Z')
+})
+
+const form = (changes = {}) => ({
+  title: 'Intro to ML', startDate: '2026-10-28', startTime: '09:00', endDate: '2026-10-28', endTime: '12:00',
+  speakers: ['Dr Ahmed'], location: 'FMI', ...changes,
+})
+
+test('the event form no longer has a description and sends no description field', () => {
+  assert.deepEqual(validateEventForm(form()), {})
+  const payload = buildEventPayload(form({ description: 'ignored' }))
+  assert.equal('description' in payload, false)
+  assert.equal(validateEventCreateBody({ ...workshop(), description: 'x'.repeat(5000) }).ok, true)
+  assert.equal('description' in validateEventCreateBody({ ...workshop(), description: 'kept?' }).value, false)
+})
+
+test('events can span one, two or more days in Africa/Algiers', () => {
+  // Same day, end time optional.
+  assert.deepEqual(validateEventForm(form({ endDate: '', endTime: '' })), {})
+  assert.equal(buildEventPayload(form({ endDate: '', endTime: '' })).endsAt, undefined)
+  // A blank end date means "same day as the start".
+  assert.equal(buildEventPayload(form({ endDate: '' })).endsAt, '2026-10-28T11:00:00.000Z')
+  // Two days and three days.
+  const twoDays = buildEventPayload(form({ endDate: '2026-10-29', endTime: '16:30' }))
+  assert.equal(twoDays.startsAt, '2026-10-28T08:00:00.000Z')
+  assert.equal(twoDays.endsAt, '2026-10-29T15:30:00.000Z')
+  assert.equal(eventDayCount(twoDays.startsAt, twoDays.endsAt), 2)
+  assert.equal(eventDayCount(twoDays.startsAt, buildEventPayload(form({ endDate: '2026-10-30', endTime: '10:00' })).endsAt), 3)
+  assert.equal(isMultiDayEvent(twoDays.startsAt, twoDays.endsAt), true)
+  assert.equal(isMultiDayEvent('2026-10-28T08:00:00.000Z', '2026-10-28T11:00:00.000Z'), false)
+  // Day counting follows the Algiers calendar (UTC+1), not 24h distance:
+  // 23:30 local and 00:30 local the next day are two days apart in the calendar.
+  assert.equal(eventDayCount('2026-10-28T22:30:00.000Z', '2026-10-28T23:30:00.000Z'), 2)
+  // Spans across months and years read correctly.
+  assert.equal(formatEventDateSpan('2026-10-28T08:00:00.000Z', '2026-10-30T15:00:00.000Z'), '28 Oct → 30 Oct 2026')
+  assert.equal(formatEventDateSpan('2026-12-30T08:00:00.000Z', '2027-01-02T15:00:00.000Z'), '30 Dec 2026 → 02 Jan 2027')
+  assert.equal(formatEventSchedule('2026-10-28T08:00:00.000Z', '2026-10-29T15:30:00.000Z'), '28 Oct 2026 · 09:00 → 29 Oct 2026 · 16:30')
+  assert.equal(formatEventSchedule('2026-10-28T08:00:00.000Z', '2026-10-28T11:00:00.000Z'), '28 Oct 2026 · 09:00–12:00')
+  // Invalid combinations.
+  assert.equal(validateEventForm(form({ endDate: '2026-10-27' })).endDate, 'The end date cannot be before the start date.')
+  assert.equal(validateEventForm(form({ endDate: '2026-02-30' })).endDate, 'Choose the end date.')
+  assert.equal(validateEventForm(form({ endTime: '08:00' })).endTime, 'The event must end after it starts.')
+  assert.equal(validateEventForm(form({ endDate: '2026-10-29', endTime: '' })).endTime, 'Add the time the event ends on its last day.')
+  assert.deepEqual(validateEventForm(form({ endDate: '2026-10-29', endTime: '08:00' })), {})
+  // The API accepts a multi-day window and still rejects an inverted one.
+  assert.equal(validateEventCreateBody(workshop({ endsAt: '2026-10-30T15:00:00.000Z' })).ok, true)
+  assert.equal(validateEventCreateBody(workshop({ endsAt: '2026-10-27T15:00:00.000Z' })).ok, false)
+})
+
+test('an event can have one or several facilitators', () => {
+  assert.equal(validateEventForm(form({ speakers: [''] })).speakers, 'Name at least one facilitator.')
+  assert.equal(validateEventForm(form({ speakers: ['', '  '] })).speakers, 'Name at least one facilitator.')
+  assert.equal(validateEventForm(form({ speakers: ['A'] })).speakers, 'Each facilitator name needs 2 to 120 characters.')
+  assert.equal(validateEventForm(form({ speakers: ['Dr Ahmed', 'dr ahmed'] })).speakers, 'List each facilitator only once.')
+  assert.equal(validateEventForm(form({ speakers: Array.from({ length: 9 }, (_, index) => `Speaker ${index}`) })).speakers, 'List at most 8 facilitators.')
+  // Empty rows the user left behind are ignored, order is kept.
+  assert.deepEqual(buildEventPayload(form({ speakers: [' Dr Ahmed ', '', 'Amel  Benali'] })).speakerNames, ['Dr Ahmed', 'Amel Benali'])
+  assert.deepEqual(validateEventForm(form({ speakers: ['Dr Ahmed', '', 'Amel Benali'] })), {})
+
+  const several = validateEventCreateBody(workshop({ speakerName: undefined, speakerNames: ['Dr Ahmed', 'Amel Benali'] }))
+  assert.equal(several.ok, true)
+  assert.deepEqual(several.value.speakerNames, ['Dr Ahmed', 'Amel Benali'])
+  assert.equal(several.value.speakerName, 'Dr Ahmed, Amel Benali')
+  // A lone speakerName still works as a one-person list.
+  assert.deepEqual(validateEventCreateBody(workshop()).value.speakerNames, ['Dr Ahmed'])
+  for (const speakerNames of [[], ['x'], ['Dr Ahmed', 'dr ahmed'], [42], 'Dr Ahmed', Array.from({ length: 9 }, (_, index) => `Speaker ${index}`)]) {
+    assert.equal(validateEventCreateBody(workshop({ speakerName: undefined, speakerNames })).ok, false, JSON.stringify(speakerNames))
+  }
+  const updated = validateEventUpdateBody({ ...workshop({ speakerName: undefined, speakerNames: ['A1', 'B2'] }), expectedUpdatedAt: NOW.toISOString() })
+  assert.deepEqual(updated.value.payload.speakerNames, ['A1', 'B2'])
+})
+
+test('the edit form is rebuilt from the stored event, including multi-day windows and facilitators', () => {
+  const values = eventFormFieldValues({
+    title: 'Hackathon prep', startsAt: '2026-10-28T08:00:00.000Z', endsAt: '2026-10-30T15:00:00.000Z',
+    location: 'FMI', speaker: 'A1, B2', speakers: ['A1', 'B2'],
+  })
+  assert.deepEqual(values, { title: 'Hackathon prep', startDate: '2026-10-28', startTime: '09:00', endDate: '2026-10-30', endTime: '16:00', location: 'FMI', speakers: ['A1', 'B2'] })
+  // Legacy rows without an end or a speakers list still open cleanly.
+  const legacy = eventFormFieldValues({ title: 'Old', startsAt: '2026-10-28T08:00:00.000Z', endsAt: null, location: 'FMI', speaker: 'Dr Ahmed', speakers: [] })
+  assert.equal(legacy.endDate, '2026-10-28')
+  assert.equal(legacy.endTime, '')
+  assert.deepEqual(legacy.speakers, ['Dr Ahmed'])
+})
+
+test('the events service exposes the facilitator list and keeps the joined line', async () => {
+  const store = new MemoryEventsStore()
+  store.row = eventRow({ speaker_name: 'Dr Ahmed, Amel Benali', speaker_names: ['Dr Ahmed', 'Amel Benali'] })
+  const service = createAdminEventsService({ store, now: () => NOW })
+  const { data } = await service.list({ page: 1, limit: 12, sort: 'starts_desc', q: '' })
+  assert.deepEqual(data[0].speakers, ['Dr Ahmed', 'Amel Benali'])
+  assert.equal(data[0].speaker, 'Dr Ahmed, Amel Benali')
+  // Rows from before the migration have no speaker_names yet.
+  store.row = eventRow({ speaker_names: undefined })
+  assert.deepEqual((await service.detail(EVENT_ID)).speakers, ['Dr Ahmed'])
+})
+
+test('the facilitators and days migration is forward-only and keeps the description column', async () => {
+  const sql = await read('supabase/migrations/20261101120000_event_facilitators_and_days.sql')
+  assert.match(sql, /add column if not exists speaker_names text\[\] not null default '\{\}'/)
+  assert.match(sql, /update public\.club_events\s+set speaker_names = array\[speaker_name\]\s+where /)
+  assert.match(sql, /create view public\.admin_club_events_directory[\s\S]*event\.speaker_names/)
+  assert.match(sql, /speaker_name = array_to_string\(speaker_names_value, ', '\), speaker_names = speaker_names_value/)
+  assert.doesNotMatch(sql, /drop column|drop table/i)
+  const updateFunction = sql.slice(sql.indexOf('function public.admin_update_club_event'), sql.indexOf('revoke all on function public.admin_create_club_event'))
+  assert.doesNotMatch(updateFunction, /description/)
 })
 
 test('participant and attendance filters are bounded and registrations-only', () => {

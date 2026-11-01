@@ -37,9 +37,17 @@ const validTimestamp = (value) => {
   const offset = zone === 'Z' ? 0 : (sign === '-' ? -1 : 1) * (offsetHour * 60 + offsetMinute)
   return Number.isFinite(Date.parse(value)) && Date.parse(value) === Date.UTC(year, month - 1, day, hour, minute, second, milliseconds) - offset * 60_000
 }
-const optionalText = (value, min, max) => {
-  if (value === undefined || value === null || String(value).trim() === '') return undefined
-  return text(value, min, max) ? String(value).trim() : null
+const MAX_SPEAKERS = 8
+// Facilitators arrive as a list (speakerNames); a lone speakerName string is
+// still accepted as a one-person list. Returns null when the list is invalid.
+function speakerList(body) {
+  const raw = body.speakerNames !== undefined ? body.speakerNames : [body.speakerName]
+  if (!Array.isArray(raw) || raw.length < 1 || raw.length > MAX_SPEAKERS) return null
+  if (raw.some((name) => typeof name !== 'string')) return null
+  const names = raw.map((name) => name.replace(/\s+/g, ' ').trim())
+  if (names.some((name) => name.length < 2 || name.length > 120)) return null
+  if (new Set(names.map((name) => name.toLowerCase())).size !== names.length) return null
+  return names
 }
 
 export const isEventId = (value) => UUID_RE.test(String(value || ''))
@@ -97,21 +105,19 @@ export function validateEventCreateBody(body) {
     endsAt = new Date(body.endsAt).toISOString()
     if (new Date(endsAt).getTime() <= new Date(startsAt).getTime()) return { ok: false }
   }
-  const description = optionalText(body.description, 1, 2000)
-  if (description === null) return { ok: false }
-  const speakerName = optionalText(body.speakerName, 2, 120)
-  if (!speakerName) return { ok: false }
+  const speakerNames = speakerList(body)
+  if (!speakerNames) return { ok: false }
   if (body.status !== undefined && !CREATION_STATUSES.has(body.status)) return { ok: false }
   return {
     ok: true,
     value: {
       eventType: body.eventType,
       title: body.title.trim(),
-      description,
       startsAt,
       endsAt,
       location: body.location.trim(),
-      speakerName,
+      speakerNames,
+      speakerName: speakerNames.join(', '),
       status: body.status || 'planned',
     },
   }
@@ -129,10 +135,8 @@ export function validateEventUpdateBody(body) {
     endsAt = new Date(body.endsAt).toISOString()
     if (new Date(endsAt).getTime() <= new Date(startsAt).getTime()) return { ok: false }
   }
-  const description = optionalText(body.description, 1, 2000)
-  if (description === null) return { ok: false }
-  const speakerName = optionalText(body.speakerName, 2, 120)
-  if (!speakerName) return { ok: false }
+  const speakerNames = speakerList(body)
+  if (!speakerNames) return { ok: false }
   if (body.status !== undefined && !EVENT_STATUSES.has(body.status)) return { ok: false }
   return {
     ok: true,
@@ -140,11 +144,11 @@ export function validateEventUpdateBody(body) {
       payload: {
         eventType: body.eventType,
         title: body.title.trim(),
-        description,
         startsAt,
         endsAt,
         location: body.location.trim(),
-        speakerName,
+        speakerNames,
+        speakerName: speakerNames.join(', '),
         status: body.status,
       },
       expectedUpdatedAt: new Date(body.expectedUpdatedAt).toISOString(),

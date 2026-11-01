@@ -63,12 +63,38 @@ const ALGIERS_OFFSET = '+01:00'
 export const eventDate = (value) => new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: ALGIERS }).format(new Date(value))
 export const eventTime = (value) => new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: ALGIERS }).format(new Date(value))
 export const formatEventWindow = (startsAt, endsAt) => (endsAt ? `${eventTime(startsAt)}–${eventTime(endsAt)}` : eventTime(startsAt))
-export const formatEventSchedule = (startsAt, endsAt) => `${eventDate(startsAt)} · ${formatEventWindow(startsAt, endsAt)}`
 export const eventCheckedAt = (value) => value ? `${eventDate(value)} · ${eventTime(value)}` : '—'
 
 const halves = (iso) => [...new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: ALGIERS }).formatToParts(new Date(iso))]
   .filter((part) => part.type !== 'literal').map((part) => part.value)
 export const eventDateInput = (iso) => halves(iso).join('-')
+
+// An event runs from one absolute start to one absolute end and may cross
+// several Algiers calendar days. Day counts follow the local calendar, never
+// the 24h distance between the two instants.
+const dayNumber = (dateInput) => Date.parse(`${dateInput}T00:00:00Z`) / 86_400_000
+export const eventDayCount = (startsAt, endsAt) => {
+  if (!startsAt || !endsAt) return 1
+  return Math.max(1, Math.round(dayNumber(eventDateInput(endsAt)) - dayNumber(eventDateInput(startsAt))) + 1)
+}
+export const isMultiDayEvent = (startsAt, endsAt) => eventDayCount(startsAt, endsAt) > 1
+export const formatEventDayCount = (days) => `${days} day${days === 1 ? '' : 's'}`
+const eventDayMonth = (value) => new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', timeZone: ALGIERS }).format(new Date(value))
+// "28 Oct 2026" for one day, "28 Oct → 30 Oct 2026" across several.
+export const formatEventDateSpan = (startsAt, endsAt) => {
+  if (!isMultiDayEvent(startsAt, endsAt)) return eventDate(startsAt)
+  const sameYear = eventDateInput(startsAt).slice(0, 4) === eventDateInput(endsAt).slice(0, 4)
+  return `${sameYear ? eventDayMonth(startsAt) : eventDate(startsAt)} → ${eventDate(endsAt)}`
+}
+export const formatEventSchedule = (startsAt, endsAt) => isMultiDayEvent(startsAt, endsAt)
+  ? `${eventDate(startsAt)} · ${eventTime(startsAt)} → ${eventDate(endsAt)} · ${eventTime(endsAt)}`
+  : `${eventDate(startsAt)} · ${formatEventWindow(startsAt, endsAt)}`
+
+export const MAX_EVENT_SPEAKERS = 8
+export const cleanEventSpeakers = (speakers) => (Array.isArray(speakers) ? speakers : [])
+  .map((name) => String(name || '').replace(/\s+/g, ' ').trim()).filter(Boolean)
+// Facilitators are shown as one line wherever a single string is needed.
+export const formatEventSpeakers = (speakers) => cleanEventSpeakers(speakers).join(', ')
 
 const algiersIso = (date, time) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) return ''
@@ -86,31 +112,46 @@ export function validateEventForm(values) {
   if (title.length < 3 || title.length > 160) errors.title = 'Give the event a title of 3 to 160 characters.'
   const location = String(values.location || '').trim()
   if (location.length < 2 || location.length > 160) errors.location = 'Add where the event takes place.'
-  const speaker = String(values.speaker || '').trim()
-  if (speaker.length < 2 || speaker.length > 120) errors.speaker = 'Name the facilitator or lead.'
-  const date = String(values.date || '').trim()
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !algiersIso(date, '00:00')) errors.date = 'Choose the event date.'
-  const startsAt = algiersIso(date, String(values.start || '').trim())
-  if (!startsAt) errors.start = 'Choose a start time.'
-  if (String(values.end || '').trim()) {
-    const endsAt = algiersIso(date, String(values.end || '').trim())
-    if (!endsAt) errors.end = 'Choose a valid end time.'
-    else if (startsAt && new Date(endsAt).getTime() <= new Date(startsAt).getTime()) errors.end = 'The end time must be after the start time.'
+  const speakers = cleanEventSpeakers(values.speakers)
+  if (!speakers.length) errors.speakers = 'Name at least one facilitator.'
+  else if (speakers.length > MAX_EVENT_SPEAKERS) errors.speakers = `List at most ${MAX_EVENT_SPEAKERS} facilitators.`
+  else if (speakers.some((name) => name.length < 2 || name.length > 120)) errors.speakers = 'Each facilitator name needs 2 to 120 characters.'
+  else if (new Set(speakers.map((name) => name.toLowerCase())).size !== speakers.length) errors.speakers = 'List each facilitator only once.'
+
+  const startDate = String(values.startDate || '').trim()
+  const startDateValid = /^\d{4}-\d{2}-\d{2}$/.test(startDate) && Boolean(algiersIso(startDate, '00:00'))
+  if (!startDateValid) errors.startDate = 'Choose the start date.'
+  const startsAt = algiersIso(startDate, String(values.startTime || '').trim())
+  if (!startsAt) errors.startTime = 'Choose a start time.'
+
+  // A blank end date means the event ends the same day it starts.
+  const endDate = String(values.endDate || '').trim() || startDate
+  const endDateValid = /^\d{4}-\d{2}-\d{2}$/.test(endDate) && Boolean(algiersIso(endDate, '00:00'))
+  if (!endDateValid) errors.endDate = 'Choose the end date.'
+  else if (startDateValid && endDate < startDate) errors.endDate = 'The end date cannot be before the start date.'
+
+  const endTime = String(values.endTime || '').trim()
+  if (endTime) {
+    const endsAt = algiersIso(endDate, endTime)
+    if (!endsAt) errors.endTime = 'Choose a valid end time.'
+    else if (startsAt && new Date(endsAt).getTime() <= new Date(startsAt).getTime()) errors.endTime = 'The event must end after it starts.'
+  } else if (startDateValid && endDateValid && endDate > startDate) {
+    errors.endTime = 'Add the time the event ends on its last day.'
   }
-  const description = String(values.description || '').trim()
-  if (description.length > 2000) errors.description = 'Keep the description under 2000 characters.'
   return errors
 }
 
 export function buildEventPayload(values, { statusKey } = {}) {
+  const startDate = String(values.startDate || '').trim()
+  const endDate = String(values.endDate || '').trim() || startDate
+  const endTime = String(values.endTime || '').trim()
   return {
     eventType: 'workshop',
     title: String(values.title || '').trim(),
-    description: String(values.description || '').trim() || undefined,
-    startsAt: algiersIso(String(values.date || '').trim(), String(values.start || '').trim()),
-    endsAt: String(values.end || '').trim() ? algiersIso(String(values.date || '').trim(), String(values.end || '').trim()) : undefined,
+    startsAt: algiersIso(startDate, String(values.startTime || '').trim()),
+    endsAt: endTime ? algiersIso(endDate, endTime) : undefined,
     location: String(values.location || '').trim(),
-    speakerName: String(values.speaker || '').trim(),
+    speakerNames: cleanEventSpeakers(values.speakers),
     ...(statusKey ? { status: statusKey } : {}),
   }
 }
@@ -119,10 +160,10 @@ const eventTimeInput = (iso) => new Intl.DateTimeFormat('en-GB', { hour: '2-digi
 
 export const eventFormFieldValues = (event) => ({
   title: event.title,
-  description: event.description,
-  date: eventDateInput(event.startsAt),
-  start: eventTimeInput(event.startsAt),
-  end: event.endsAt ? eventTimeInput(event.endsAt) : '',
+  startDate: eventDateInput(event.startsAt),
+  startTime: eventTimeInput(event.startsAt),
+  endDate: eventDateInput(event.endsAt || event.startsAt),
+  endTime: event.endsAt ? eventTimeInput(event.endsAt) : '',
   location: event.location,
-  speaker: event.speaker,
+  speakers: event.speakers?.length ? [...event.speakers] : [event.speaker || ''],
 })

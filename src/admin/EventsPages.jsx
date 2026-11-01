@@ -1,7 +1,7 @@
 import { useDeferredValue, useMemo, useState } from 'react'
 import {
   ArrowLeft, CalendarDays, CheckCircle2, Copy, Download, MapPin,
-  Plus, RefreshCw, TriangleAlert, UserRound, UsersRound,
+  Plus, RefreshCw, TriangleAlert, UserRound, UsersRound, X,
 } from 'lucide-react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useAdmin } from './AdminStore'
@@ -11,23 +11,14 @@ import {
 } from './AdminUI'
 import {
   ATTENDANCE_FILTERS, ATTENDANCE_STATE_LABELS, EVENT_STATUS_FILTERS, EVENT_TYPE_FILTERS,
-  EVENT_TYPE_LABELS, EVENT_TYPES, buildEventPayload, eventCheckedAt, eventFormFieldValues,
-  formatEventSchedule, validateEventForm,
+  EVENT_TYPE_LABELS, EVENT_TYPES, MAX_EVENT_SPEAKERS, buildEventPayload, eventCheckedAt, eventDayCount,
+  eventFormFieldValues, formatEventDateSpan, formatEventDayCount, formatEventSchedule, formatEventSpeakers,
+  isMultiDayEvent, validateEventForm,
 } from './adminEventsModel'
 import {
   useAdminEvent, useAdminEventActions, useAdminEventAttendance,
   useAdminEventParticipants, useAdminEventScanner, useAdminEvents,
 } from './useAdminEvents'
-
-const SCHEDULE_FIELDS = [
-  { name: 'title', label: 'Title', placeholder: 'e.g. Introduction to React Hooks', required: true },
-  { name: 'date', label: 'Date', type: 'date', required: true },
-  { name: 'start', label: 'Start time', type: 'time', required: true },
-  { name: 'end', label: 'End time', type: 'time' },
-  { name: 'speaker', label: 'Facilitator / Lead', placeholder: 'Who guides the workshop?', required: true },
-  { name: 'location', label: 'Location', placeholder: 'Building or room', required: true },
-  { name: 'description', label: 'Description', type: 'textarea', placeholder: 'What members will learn and do...' },
-]
 
 const initialsFor = (name = '') => name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'EV'
 
@@ -45,19 +36,23 @@ const EventCell = ({ record }) => (
   </div>
 )
 
-const EventScheduleCell = ({ record }) => (
-  <div className="adm-event-schedule-cell">
-    <b>{formatEventSchedule(record.startsAt, record.endsAt)}</b>
-    <span>{record.typeLabel}</span>
+// One-day events show their time window; longer events show the day span
+// (the exact start and end stay in the tooltip and on the detail page).
+const EventScheduleCell = ({ record }) => {
+  const multiDay = isMultiDayEvent(record.startsAt, record.endsAt)
+  return <div className="adm-event-schedule-cell" title={formatEventSchedule(record.startsAt, record.endsAt)}>
+    <b>{multiDay ? formatEventDateSpan(record.startsAt, record.endsAt) : formatEventSchedule(record.startsAt, record.endsAt)}</b>
+    <span>{multiDay ? `${formatEventDayCount(eventDayCount(record.startsAt, record.endsAt))} · ` : ''}{record.typeLabel}</span>
   </div>
-)
+}
 
-const EventLeadCell = ({ record }) => (
-  <div className="adm-event-lead-cell">
-    <Avatar initials={initialsFor(record.speaker)} small/>
-    <span>{record.speaker || 'Not assigned'}</span>
+const EventLeadCell = ({ record }) => {
+  const [first, ...others] = record.speakers?.length ? record.speakers : (record.speaker ? [record.speaker] : [])
+  return <div className="adm-event-lead-cell" title={formatEventSpeakers(record.speakers)}>
+    <Avatar initials={initialsFor(first)} small/>
+    <span>{first || 'Not assigned'}{others.length > 0 && <small className="adm-event-lead-more"> +{others.length}</small>}</span>
   </div>
-)
+}
 
 const EventParticipationCell = ({ record }) => {
   const rate = record.attendanceCount ? record.attendanceRate : 0
@@ -73,18 +68,72 @@ function EventsSkeleton() {
   </div>
 }
 
-const FORM_INITIAL = Object.freeze({ title: '', date: '', start: '', end: '', speaker: '', location: '', description: '' })
+const FORM_INITIAL = Object.freeze({ title: '', startDate: '', startTime: '', endDate: '', endTime: '', location: '', speakers: Object.freeze(['']) })
+
+// Plain-language reminder of how long the event runs, shown under the dates.
+function eventDurationNote({ startDate, endDate }) {
+  if (!startDate) return 'Pick the first day. The end date follows it until you change it.'
+  const lastDay = endDate || startDate
+  if (lastDay < startDate) return ''
+  const days = Math.round((Date.parse(`${lastDay}T00:00:00Z`) - Date.parse(`${startDate}T00:00:00Z`)) / 86_400_000) + 1
+  return days === 1 ? 'One-day event.' : `${days}-day event, from the first day's start time to the last day's end time.`
+}
 
 // Shared step-2 form for creating and editing a workshop.
 function EventScheduleForm({ values, onChange, errors }) {
+  const set = (name) => (event) => onChange({ ...values, [name]: event.target.value })
+  // The end date tracks the start date until the user moves it on purpose, and
+  // is never left before the start.
+  const setStartDate = (event) => {
+    const startDate = event.target.value
+    const follows = !values.endDate || values.endDate === values.startDate || (startDate && values.endDate < startDate)
+    onChange({ ...values, startDate, endDate: follows ? startDate : values.endDate })
+  }
+  const setSpeaker = (index, name) => onChange({ ...values, speakers: values.speakers.map((current, position) => position === index ? name : current) })
+  const addSpeaker = () => onChange({ ...values, speakers: [...values.speakers, ''] })
+  const removeSpeaker = (index) => onChange({ ...values, speakers: values.speakers.filter((_, position) => position !== index) })
+  const durationNote = eventDurationNote(values)
   return <div className="adm-event-form">
-    {SCHEDULE_FIELDS.map((field) => <label className="adm-form-field" key={field.name}>
-      <span>{field.label}{field.required && <em>Required</em>}</span>
-      {field.type === 'textarea'
-        ? <textarea name={field.name} rows={3} maxLength={2000} placeholder={field.placeholder} value={values[field.name]} onChange={(event) => onChange({ ...values, [field.name]: event.target.value })}/>
-        : <input name={field.name} type={field.type || 'text'} placeholder={field.placeholder} value={values[field.name]} onChange={(event) => onChange({ ...values, [field.name]: event.target.value })}/>}
-      {errors[field.name] && <small role="alert" className="adm-form-error">{errors[field.name]}</small>}
-    </label>)}
+    <label className="adm-form-field is-wide">
+      <span>Title<em>Required</em></span>
+      <input name="title" type="text" placeholder="e.g. Introduction to React Hooks" value={values.title} onChange={set('title')}/>
+      {errors.title && <small role="alert" className="adm-form-error">{errors.title}</small>}
+    </label>
+    <label className="adm-form-field">
+      <span>Start date<em>Required</em></span>
+      <input name="startDate" type="date" value={values.startDate} onChange={setStartDate}/>
+      {errors.startDate && <small role="alert" className="adm-form-error">{errors.startDate}</small>}
+    </label>
+    <label className="adm-form-field">
+      <span>Start time<em>Required</em></span>
+      <input name="startTime" type="time" value={values.startTime} onChange={set('startTime')}/>
+      {errors.startTime && <small role="alert" className="adm-form-error">{errors.startTime}</small>}
+    </label>
+    <label className="adm-form-field">
+      <span>End date<em>Required</em></span>
+      <input name="endDate" type="date" min={values.startDate || undefined} value={values.endDate} onChange={set('endDate')}/>
+      {errors.endDate && <small role="alert" className="adm-form-error">{errors.endDate}</small>}
+    </label>
+    <label className="adm-form-field">
+      <span>End time{values.endDate && values.endDate > values.startDate ? <em>Required</em> : <small>Optional</small>}</span>
+      <input name="endTime" type="time" value={values.endTime} onChange={set('endTime')}/>
+      {errors.endTime && <small role="alert" className="adm-form-error">{errors.endTime}</small>}
+    </label>
+    {durationNote && <p className="adm-event-duration is-wide" aria-live="polite"><CalendarDays size={14}/>{durationNote}</p>}
+    <label className="adm-form-field is-wide">
+      <span>Location<em>Required</em></span>
+      <input name="location" type="text" placeholder="Building or room" value={values.location} onChange={set('location')}/>
+      {errors.location && <small role="alert" className="adm-form-error">{errors.location}</small>}
+    </label>
+    <div className="adm-form-field adm-event-speakers is-wide" role="group" aria-label="Facilitators">
+      <span>{values.speakers.length > 1 ? 'Facilitators' : 'Facilitator'}<em>Required</em></span>
+      {values.speakers.map((name, index) => <div className="adm-event-speaker-row" key={index}>
+        <input name={`speaker-${index}`} type="text" aria-label={`Facilitator ${index + 1}`} placeholder={index === 0 ? 'Who guides the workshop?' : 'Another facilitator'} value={name} onChange={(event) => setSpeaker(index, event.target.value)}/>
+        {values.speakers.length > 1 && <button type="button" className="adm-event-speaker-remove" aria-label={`Remove facilitator ${index + 1}`} onClick={() => removeSpeaker(index)}><X size={15}/></button>}
+      </div>)}
+      {errors.speakers && <small role="alert" className="adm-form-error">{errors.speakers}</small>}
+      <Button type="button" variant="secondary" className="adm-event-speaker-add" disabled={values.speakers.length >= MAX_EVENT_SPEAKERS} onClick={addSpeaker} icon={<Plus size={15}/>}>Add a facilitator</Button>
+    </div>
   </div>
 }
 
@@ -124,7 +173,7 @@ export function CreateEventModal({ open, onClose, onCreated }) {
         {option.value !== 'workshop' && <StatusBadge tone="neutral">Coming in a later phase</StatusBadge>}
       </button>)}
     </div> : <>
-      <p className="adm-modal-intro">Times are entered in Africa/Algiers (UTC+01:00). The workshop stays internal and is saved to the protected live database.</p>
+      <p className="adm-modal-intro">Times are entered in Africa/Algiers (UTC+01:00). An event can run over one day or several: set the day and time it starts, then the day and time it ends. The workshop stays internal and is saved to the protected live database.</p>
       <form id="adm-event-create-form" onSubmit={submit}>
         <EventScheduleForm values={values} onChange={setValues} errors={errors}/>
         {formError && <p role="alert" className="adm-form-error">{formError}</p>}
@@ -185,7 +234,7 @@ export default function EventsListPage() {
   const columns = useMemo(() => [
     { key: 'title', label: 'Event', render: (record) => <EventCell record={record}/> },
     { key: 'starts', label: 'Schedule', render: (record) => <EventScheduleCell record={record}/> },
-    { key: 'speaker', label: 'Facilitator / Lead', render: (record) => <EventLeadCell record={record}/> },
+    { key: 'speaker', label: 'Facilitators', render: (record) => <EventLeadCell record={record}/> },
     { key: 'present', label: 'Participation', render: (record) => <EventParticipationCell record={record}/> },
     { key: 'status', label: 'Status', render: (record) => <StatusBadge>{record.status}</StatusBadge> },
   ], [])
@@ -251,7 +300,7 @@ function EventCommandBar({ event }) {
     <div className="adm-event-command__facts">
       <article><span><CalendarDays size={17}/></span><div><small>Schedule</small><b>{formatEventSchedule(event.startsAt, event.endsAt)}</b></div></article>
       <article><span><MapPin size={17}/></span><div><small>Location</small><b>{event.location}</b></div></article>
-      <article><span><UserRound size={17}/></span><div><small>Facilitator / Lead</small><b>{event.speaker}</b></div></article>
+      <article><span><UserRound size={17}/></span><div><small>{event.speakers.length > 1 ? 'Facilitators' : 'Facilitator'}</small><b>{formatEventSpeakers(event.speakers)}</b></div></article>
     </div>
     <div className="adm-event-command__attendance">
       <div><span><UsersRound size={17}/></span><p><small>Live participation</small><b>{event.presentCount} present <em>of {event.registeredCount} registered</em></b></p><strong>{attendanceRate}%</strong></div>
@@ -273,9 +322,10 @@ function OverviewTab({ event, history }) {
     <div className="adm-event-overview-grid">
       <section className="adm-detail-section adm-event-information"><h4>Workshop information</h4><Facts items={[
         ['Reference', event.ref], ['Schedule', formatEventSchedule(event.startsAt, event.endsAt)],
-        ['Location', event.location], ['Facilitator / Lead', event.speaker],
+        ...(isMultiDayEvent(event.startsAt, event.endsAt) ? [['Duration', formatEventDayCount(eventDayCount(event.startsAt, event.endsAt))]] : []),
+        ['Location', event.location], [event.speakers.length > 1 ? 'Facilitators' : 'Facilitator', formatEventSpeakers(event.speakers)],
         ['Visibility', event.visibility === 'internal' ? 'Internal' : 'Public'], ['Status', event.status],
-        ['Description', event.description], ['Created', eventCheckedAt(event.createdAt)], ['Last update', eventCheckedAt(event.updatedAt)],
+        ['Created', eventCheckedAt(event.createdAt)], ['Last update', eventCheckedAt(event.updatedAt)],
       ]}/></section>
       <section className="adm-detail-section adm-event-operations-section"><h4>Operations summary</h4><div className="adm-event-operations">
         <p><span><UsersRound size={16}/></span><b>Participants</b><small>{statistics.totalRegistered} registered · {statistics.totalPresent} present · {statistics.totalNotCheckedIn} not checked in</small></p>

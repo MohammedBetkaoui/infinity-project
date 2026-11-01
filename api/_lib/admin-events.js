@@ -53,6 +53,11 @@ function mapEvent(row) {
     endsAt: row.ends_at || null,
     location: row.location,
     speaker: row.speaker_name || '',
+    // speaker_names is the source of truth; speaker_name stays the joined
+    // display line the public workshop pages already read.
+    speakers: Array.isArray(row.speaker_names) && row.speaker_names.length
+      ? row.speaker_names
+      : (row.speaker_name ? [row.speaker_name] : []),
     visibility: row.visibility,
     status: STATUS_LABELS[row.status] || row.status,
     statusKey: row.status,
