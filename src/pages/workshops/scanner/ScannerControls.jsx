@@ -6,6 +6,9 @@ export default function ScannerControls({
 }) {
   return (
     <div className={`scanner-controls ${active ? 'is-active' : ''}`} aria-label="Scanner controls">
+      <button type="button" onClick={onManual} className="is-manual">
+        <Keyboard aria-hidden="true" /><span>Manual check-in</span>
+      </button>
       {active && torchSupported && (
         <button type="button" onClick={onToggleTorch} aria-pressed={torchEnabled}>
           {torchEnabled ? <FlashlightOff aria-hidden="true" /> : <Flashlight aria-hidden="true" />}
@@ -24,11 +27,6 @@ export default function ScannerControls({
       {active && (
         <button type="button" onClick={onStop} className="is-stop">
           <Square aria-hidden="true" /><span>Stop</span>
-        </button>
-      )}
-      {!active && (
-        <button type="button" onClick={onManual} className="is-manual">
-          <Keyboard aria-hidden="true" /><span>Enter code manually</span>
         </button>
       )}
       {!active && <Camera className="scanner-controls__spacer" aria-hidden="true" />}

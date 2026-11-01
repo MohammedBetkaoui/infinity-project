@@ -8,14 +8,14 @@ export default function ScannerStats({ context, refreshing, onRefresh }) {
   return (
     <section className="scanner-overview" aria-label="Check-in statistics">
       <div className="scanner-stats">
-        <div><b>{registered}</b><span>Registered</span></div>
-        <div className="is-present"><b>{present}</b><span>Present</span></div>
+        <div className="is-present"><b>{present}</b><span>Checked in</span></div>
         <div><b>{context.remaining}</b><span>Remaining</span></div>
+        <div><b>{registered}</b><span>Registered</span></div>
       </div>
       <div className="scanner-progress">
         <div className="scanner-progress__head">
-          <span>Check-in progress</span>
-          <b>{attendanceRate}%</b>
+          <span><i aria-hidden="true" />Live · Updated just now</span>
+          <b>{attendanceRate}% complete</b>
         </div>
         <div
           className="scanner-progress__track"
@@ -27,13 +27,9 @@ export default function ScannerStats({ context, refreshing, onRefresh }) {
         >
           <span style={{ width: `${Math.min(100, attendanceRate)}%` }} />
         </div>
-        <div className="scanner-progress__meta">
-          <span><i aria-hidden="true" />Live · Updated just now</span>
-          <span>{present} of {registered} admitted</span>
-          <button type="button" onClick={onRefresh} disabled={refreshing} aria-label="Refresh statistics" title="Refresh statistics">
-            <RefreshCw className={refreshing ? 'is-spinning' : ''} aria-hidden="true" />
-          </button>
-        </div>
+        <button className="scanner-progress__refresh" type="button" onClick={onRefresh} disabled={refreshing} aria-label="Refresh statistics" title="Refresh statistics">
+          <RefreshCw className={refreshing ? 'is-spinning' : ''} aria-hidden="true" />
+        </button>
       </div>
     </section>
   )

@@ -18,6 +18,7 @@ export default function ScannerViewport({
     <section className={`scanner-viewport is-${cameraState} ${overlayResult ? `has-${overlayResult.tone}` : ''}`} aria-label="QR scanner camera">
       <video ref={videoRef} muted playsInline aria-label="Live camera preview" />
       <div className="scanner-viewport__shade" aria-hidden="true" />
+      <div className="scanner-viewport__label" aria-hidden="true"><i />Live camera</div>
       <div className="scanner-frame" aria-hidden="true">
         <i /><i /><i /><i />
         {active && <span className="scanner-frame__line" />}
@@ -27,9 +28,10 @@ export default function ScannerViewport({
         <div className="scanner-viewport__prompt">
           <span className="scanner-viewport__camera"><Camera aria-hidden="true" /></span>
           <div>
-            <h2>{canRetry ? cameraMessage.title : 'Ready to scan'}</h2>
+            <span className="scanner-viewport__eyebrow">Fast check-in</span>
+            <h2>{canRetry ? cameraMessage.title : 'Scan a workshop pass'}</h2>
             <p>{canRetry ? cameraMessage.detail : checkInOpen
-              ? 'Point the camera at a participant QR code.'
+              ? 'Start the camera, then hold each QR code inside the frame.'
               : 'Check-in opens when the workshop has started.'}</p>
           </div>
           <button type="button" onClick={onStart} disabled={!checkInOpen || isStarting}>

@@ -400,22 +400,24 @@ export default function WorkshopScannerPage() {
   return (
     <main className="workshop-scanner-page">
       <div className="workshop-scanner-shell">
-        <ScannerHeader eventTitle={context.eventTitle} location={context.location} />
+        <ScannerHeader eventTitle={context.eventTitle} location={context.location} checkInOpen={checkInOpen} online={online} />
         <ScannerStats context={context} refreshing={refreshing} onRefresh={refreshStats} />
         {!online && <section className="scanner-connectivity" role="alert"><WifiOff /><span><b>Offline</b> — QR verification unavailable</span></section>}
         {!checkInOpen && <section className="workshop-scanner-banner" role="status"><TriangleAlert /><div><h2>Check-in not open</h2><p>Check-in opens when the workshop is started. Current status: {context.eventStatus?.replaceAll('_', ' ') || 'scheduled'}.</p></div></section>}
         <div className="scanner-workspace">
           <div className="scanner-primary">
             <ScannerViewport videoRef={videoRef} cameraState={cameraState} cameraMessage={cameraMessage} checkInOpen={checkInOpen} scanState={scanState} overlayResult={overlayResult} onStart={() => startCamera()} />
-            <ScannerResult result={result} config={RESULT_COPY[result?.status]} formatTime={formatTime} />
             <ScannerControls
               active={cameraState === 'active'} soundEnabled={soundEnabled} torchEnabled={torchEnabled}
               torchSupported={torchSupported} canSwitchCamera={cameraDevices.length > 1}
               onToggleSound={toggleSound} onToggleTorch={toggleTorch} onSwitchCamera={switchCamera}
-              onStop={stopScanner} onManual={() => setManualOpen(true)}
+              onStop={stopScanner} onManual={() => { if (cameraState === 'active') stopScanner(); setManualOpen(true) }}
             />
           </div>
-          <RecentScans scans={recentScans} resultCopy={RESULT_COPY} formatTime={formatTime} />
+          <div className="scanner-side">
+            <ScannerResult result={result} config={RESULT_COPY[result?.status]} formatTime={formatTime} />
+            <RecentScans scans={recentScans} resultCopy={RESULT_COPY} formatTime={formatTime} />
+          </div>
         </div>
       </div>
       <ManualCheckIn open={manualOpen} validating={scanState === 'validating'} onClose={() => setManualOpen(false)} onSubmit={submitManual} />

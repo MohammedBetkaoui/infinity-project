@@ -39,8 +39,9 @@ export default function ManualCheckIn({ open, validating, onClose, onSubmit }) {
       <section className="scanner-manual" role="dialog" aria-modal="true" aria-labelledby="manual-title">
         <button type="button" className="scanner-manual__close" onClick={close} aria-label="Close manual verification"><X /></button>
         <Keyboard aria-hidden="true" />
-        <h2 id="manual-title">Enter pass manually</h2>
-        <p>Paste or enter the QR/pass value to use the same secure verification.</p>
+        <span className="scanner-manual__eyebrow">Quick fallback</span>
+        <h2 id="manual-title">Manual check-in</h2>
+        <p>Paste or type the value printed with the participant's QR code.</p>
         <form onSubmit={submit}>
           <label htmlFor="manual-pass">QR / pass value</label>
           <input
@@ -50,6 +51,7 @@ export default function ManualCheckIn({ open, validating, onClose, onSubmit }) {
             onChange={(event) => setValue(event.target.value)}
             autoComplete="off"
             spellCheck="false"
+            enterKeyHint="go"
             placeholder="Paste or enter code"
           />
           <div><button type="button" onClick={close}>Cancel</button><button type="submit" disabled={!value.trim() || validating}>{validating ? 'Verifying…' : 'Verify pass'}</button></div>

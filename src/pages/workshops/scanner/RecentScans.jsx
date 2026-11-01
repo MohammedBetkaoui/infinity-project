@@ -7,10 +7,10 @@ export default function RecentScans({ scans, resultCopy, formatTime }) {
     <aside className="scanner-recent" aria-labelledby="recent-scans-title">
       <div className="scanner-recent__head">
         <div><p>Session activity</p><h2 id="recent-scans-title">Recent scans</h2></div>
-        <span>{scans.length}/6</span>
+        <span>{scans.length ? `${scans.length} shown` : 'Live'}</span>
       </div>
       {scans.length === 0 ? (
-        <div className="scanner-recent__empty"><Clock3 aria-hidden="true" /><p>No scans yet.<br />The latest results will stay within reach.</p></div>
+        <div className="scanner-recent__empty"><Clock3 aria-hidden="true" /><p>No scans yet.<br />The six latest checks will stay here.</p></div>
       ) : (
         <ol>
           {scans.map((scan) => {
