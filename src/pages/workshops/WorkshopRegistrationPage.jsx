@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react'
-import {
-  ArrowRight, CalendarDays, CheckCircle2, Cpu, LockKeyhole, MapPin, ShieldCheck, Sparkles, UserRound,
-} from 'lucide-react'
+import { CheckCircle2, LockKeyhole } from 'lucide-react'
 import InfinityClubMark from '../../components/InfinityClubMark.jsx'
 import WorkshopPass from './WorkshopPass.jsx'
 import './workshop.css'
@@ -14,8 +12,34 @@ const api = async (path, body) => {
   const payload = await response.json().catch(() => ({}))
   return { response, payload }
 }
-const schedule = (value) => new Intl.DateTimeFormat('en-GB', { dateStyle: 'full', timeStyle: 'short', timeZone: 'Africa/Algiers' }).format(new Date(value))
+const ALGIERS = 'Africa/Algiers'
+const longDate = (value) => new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: ALGIERS }).format(new Date(value))
+const clock = (value) => new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: ALGIERS }).format(new Date(value))
+const dayKey = (value) => new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: ALGIERS }).format(new Date(value))
+// One line for the workshop window: a single day keeps its hours together
+// (word joiners stop "09:00–12:30" from breaking at the dash), a longer
+// workshop names both ends.
+const schedule = (startsAt, endsAt) => {
+  if (!endsAt) return `${longDate(startsAt)}, ${clock(startsAt)}`
+  if (dayKey(startsAt) === dayKey(endsAt)) return `${longDate(startsAt)}, ${clock(startsAt)}⁠–⁠${clock(endsAt)}`
+  return `${longDate(startsAt)}, ${clock(startsAt)} to ${longDate(endsAt)}, ${clock(endsAt)}`
+}
 const initials = (value) => String(value || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase()
+
+// The club's card back, taken from the event reel. The emblem is drawn in
+// vector over the artwork so it stays sharp and can light up when dealt.
+function DeckCard({ className = '' }) {
+  return <div className={`workshop-deck-card ${className}`} aria-hidden="true">
+    <img src="/assets/workshops/infinity-deck-card.webp" alt="" width="560" height="868" decoding="async" fetchPriority="high"/>
+    <span className="workshop-deck-card__glow"/>
+    <InfinityClubMark className="workshop-deck-card__mark" title=""/>
+  </div>
+}
+
+// Playing-card corner index: the participant's initials over the Infinity suit.
+function CardIndex({ value, end = false }) {
+  return <span className={`workshop-face__index${end ? ' is-end' : ''}`} aria-hidden="true">{value}<InfinityClubMark title=""/></span>
+}
 
 export default function WorkshopRegistrationPage() {
   const [state, setState] = useState({ loading: true, error: '', invitation: null, registration: null, event: null, pass: null })
@@ -66,90 +90,68 @@ export default function WorkshopRegistrationPage() {
     register(token, universitySpeciality)
   }
 
+  const title = state.event?.title || ''
+  const cardIndex = initials(state.invitation?.fullName)
+
   return <main className="workshop-private-page">
-    <div className="workshop-private-ambient" aria-hidden="true"><i/><i/><i/></div>
-    <div className="workshop-private-shell">
-      {state.loading ? <div className="workshop-private-state" role="status"><span className="workshop-loader"/>Validating your private invitation…</div>
-        : state.error ? <div className="workshop-private-state is-error"><span>∞</span><h1>Invitation unavailable</h1><p>{state.error}</p><small>Please contact Infinity Club if you believe this is a mistake.</small></div>
-        : state.pass ? <section className="workshop-pass-stage"><div className="workshop-success"><CheckCircle2/><p>Your registration is confirmed. Keep this personal pass ready on your phone.</p></div><WorkshopPass pass={state.pass}/></section>
-        : <section className="workshop-registration-experience">
-          <div className="workshop-registration-brand">
-            <div className="workshop-brand-signature"><InfinityClubMark className="workshop-mark"/><span><strong>Infinity Club</strong><small>Automation lab / Private access</small></span></div>
-            <span className="workshop-secure-chip"><LockKeyhole/>Secure invitation</span>
-          </div>
+    <div className="workshop-invite-vortex" aria-hidden="true"><i/><i/><i/><i/><i/><i/></div>
+    <header className="workshop-invite-bar">
+      <a className="workshop-invite-brand" href="/"><InfinityClubMark className="workshop-mark" title=""/>Infinity Club</a>
+      <span className="workshop-invite-privacy"><LockKeyhole aria-hidden="true"/>Private invitation</span>
+    </header>
 
-          <div className="workshop-registration-layout">
-            <aside className="workshop-concept-panel" aria-label="AI Automation workshop artwork">
-              <div className="workshop-concept-copy">
-                <p className="workshop-kicker"><Sparkles/>AI Automation workshop</p>
-                <h1>{state.event.title}</h1>
-                <p className="workshop-concept-intro">Turn repetitive work into intelligent systems. Your private invitation is the first step into the lab.</p>
-              </div>
+    <div className="workshop-invite-main">
+      {state.loading ? <div className="workshop-invite-state" role="status"><DeckCard className="is-waiting"/><p>Checking your invitation…</p></div>
+        : state.error ? <div className="workshop-invite-state is-error"><DeckCard className="is-closed"/><h1>Invitation unavailable</h1><p>{state.error}</p><small>If you think this is a mistake, contact Infinity Club.</small></div>
+        : state.pass ? <section className="workshop-pass-stage" aria-labelledby="workshop-pass-title">
+          <header className="workshop-success"><CheckCircle2 aria-hidden="true"/><h1 id="workshop-pass-title">Registration confirmed</h1><p>Show this pass at the entrance. It holds your personal check-in code.</p></header>
+          <WorkshopPass pass={state.pass}/>
+        </section>
+        : <section className="workshop-invite" aria-labelledby="workshop-event-title">
+          <h1 id="workshop-event-title" className={`workshop-invite-title${title.length > 34 ? ' is-long' : ''}`}>{title}</h1>
 
-              <div className="workshop-deck" aria-hidden="true">
-                <div className="workshop-deck-card is-shadow"/>
-                <div className="workshop-deck-card is-offset"/>
-                <div className="workshop-deck-card is-main">
-                  <span className="workshop-card-corner is-top">AI<small>∞</small></span>
-                  <span className="workshop-card-corner is-bottom">AI<small>∞</small></span>
-                  <div className="workshop-card-rays"/>
-                  <div className="workshop-card-orbit is-wide"/>
-                  <div className="workshop-card-orbit is-tight"/>
-                  <div className="workshop-card-core"><InfinityClubMark title="Infinity Club emblem"/></div>
-                  <div className="workshop-card-caption"><strong>AI Automation</strong><small>Infinity workshop / 2026</small></div>
-                </div>
-              </div>
-
-              <div className="workshop-concept-foot"><span>01 / Design the flow</span><span>02 / Automate the work</span><span>03 / Scale the idea</span></div>
-            </aside>
-
-            <div className="workshop-registration-panel">
-              <header className="workshop-registration-heading">
-                <p><span/>Invitation verified</p>
-                <h2>Reserve your place.</h2>
-                <small>Review the session details and complete the final field to generate your personal workshop pass.</small>
+          <div className="workshop-hand">
+            <DeckCard className="is-dealt"/>
+            <div className="workshop-face">
+              <CardIndex value={cardIndex}/>
+              <CardIndex value={cardIndex} end/>
+              <header className="workshop-face__head">
+                <h2>Reserve your place</h2>
+                <p>Registered to <strong>{state.invitation.fullName}</strong></p>
               </header>
 
-              <div className="workshop-event-facts" aria-label="Workshop details">
-                <div><span><CalendarDays/></span><p><small>Date &amp; time</small><strong>{schedule(state.event.startsAt)}</strong></p></div>
-                <div><span><MapPin/></span><p><small>Location</small><strong>{state.event.location}</strong></p></div>
-                <div><span><UserRound/></span><p><small>Workshop host</small><strong>{state.event.speaker}</strong></p></div>
-              </div>
+              <dl className="workshop-face__facts">
+                <div><dt>When</dt><dd>{schedule(state.event.startsAt, state.event.endsAt)}</dd></div>
+                <div><dt>Where</dt><dd>{state.event.location}</dd></div>
+                {state.event.speaker && <div><dt>Hosted by</dt><dd>{state.event.speaker}</dd></div>}
+              </dl>
 
-              <div className="workshop-invitee">
-                <span aria-hidden="true">{initials(state.invitation.fullName)}</span>
-                <p><small>Participant identity</small>Registered to <strong>{state.invitation.fullName}</strong></p>
-                <ShieldCheck aria-label="Verified identity"/>
-              </div>
-
-              <form className="workshop-registration-form" onSubmit={submit}>
-                <div className="workshop-field-heading"><label htmlFor="workshop-speciality">University speciality</label><span>Required</span></div>
-                <div className="workshop-input-wrap">
-                  <Cpu aria-hidden="true"/>
-                  <input
-                    id="workshop-speciality"
-                    aria-describedby="workshop-speciality-help"
-                    autoComplete="off"
-                    autoCapitalize="words"
-                    maxLength={160}
-                    minLength={2}
-                    pattern="[\p{L}\p{N} .,'’\-()+&/]{2,160}"
-                    placeholder="e.g. Artificial Intelligence"
-                    required
-                    value={form.universitySpeciality}
-                    onChange={(e) => setForm({ ...form, universitySpeciality: e.target.value })}
-                  />
-                </div>
-                <p id="workshop-speciality-help" className="workshop-field-help">This will appear on your personal workshop pass.</p>
-                <button className="workshop-register-button" disabled={submitting}>
-                  <span>{submitting ? 'Creating your pass…' : 'Confirm registration'}</span><ArrowRight aria-hidden="true"/>
-                </button>
+              <form className="workshop-face__form" onSubmit={submit}>
+                <label htmlFor="workshop-speciality">Your university speciality</label>
+                <input
+                  id="workshop-speciality"
+                  aria-describedby="workshop-speciality-help"
+                  autoComplete="off"
+                  autoCapitalize="words"
+                  maxLength={160}
+                  minLength={2}
+                  pattern="[\p{L}\p{N} .,'’\-\(\)+&\/]{2,160}"
+                  placeholder="e.g. Artificial Intelligence"
+                  required
+                  value={form.universitySpeciality}
+                  onChange={(e) => setForm({ ...form, universitySpeciality: e.target.value })}
+                />
+                <p id="workshop-speciality-help">It appears on your workshop pass.</p>
+                <button className="workshop-register-button" disabled={submitting}>{submitting ? 'Creating your pass…' : 'Confirm registration'}</button>
               </form>
 
-              <p className="workshop-privacy"><LockKeyhole/>Your name is securely resolved from this private invitation. Only your university speciality is added for the workshop.</p>
+              <p className="workshop-face__privacy"><LockKeyhole aria-hidden="true"/>Your name comes from this private invitation. The only thing you add is your speciality.</p>
             </div>
           </div>
         </section>}
     </div>
+
+    {/* The pass already carries the slogan; the page signs everything else. */}
+    {!state.pass && <p className="workshop-invite-sign">No limits for Infiniters</p>}
   </main>
 }

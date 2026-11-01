@@ -1,40 +1,36 @@
-/* Private workshop registration --------------------------------------------------- */
+/* Private workshop registration ------------------------------------------------------ */
+/* The look follows the event reel: a dark green felt, flying cards, the club's
+   card back with its sunburst and glowing emblem, chrome display type and the
+   club slogan in a classical serif. Everything people read sits on the paper
+   face of their card; the dark world around it is atmosphere only. */
 
 .workshop-private-page {
-  --workshop-deep: #03110d;
-  --workshop-green: #094a36;
-  --workshop-green-bright: #0d7253;
-  --workshop-mint: #8fd9b8;
-  --workshop-cream: #f4f0e5;
-  --workshop-paper: #fbf9f2;
-  --workshop-gold: #d8c58a;
+  --deck-felt: #0d1612;
+  --deck-sage: #c9d2bf;
+  --deck-sage-soft: rgba(201, 210, 191, .68);
+  --deck-glow: #63d394;
+  --deck-light: #e3eadc;
+  --deck-paper: #e8e9df;
+  --deck-paper-light: #f3f4ec;
+  --deck-ink: #18241d;
+  --deck-ink-soft: #536058;
+  --deck-suit: #1f6b47;
+  --deck-display: 'Archivo Black', 'Arial Black', Manrope, sans-serif;
+  --deck-serif: Cinzel, 'Trajan Pro', Georgia, serif;
+  --deck-sans: Manrope, Arial, sans-serif;
   position: relative;
   isolation: isolate;
   display: grid;
+  grid-template-rows: auto 1fr auto;
   min-height: 100svh;
   overflow: hidden;
-  padding: clamp(18px, 3vw, 42px);
-  background:
-    radial-gradient(circle at 16% 12%, rgba(18, 112, 81, .24), transparent 30%),
-    radial-gradient(circle at 86% 82%, rgba(143, 217, 184, .08), transparent 34%),
-    linear-gradient(145deg, #020a08 0%, #061712 54%, #020a08 100%);
-  color: var(--workshop-cream);
-  font-family: Manrope, Arial, sans-serif;
+  background: var(--deck-felt);
+  color: var(--deck-sage);
+  font-family: var(--deck-sans);
 }
 
-.workshop-private-page::before {
-  position: absolute;
-  z-index: -1;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(143, 217, 184, .025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(143, 217, 184, .025) 1px, transparent 1px);
-  background-size: 42px 42px;
-  content: '';
-  mask-image: radial-gradient(circle at center, #000 25%, transparent 78%);
-}
-
-.workshop-private-ambient {
+/* Flying cards from the reel, softened so they stay behind the content. */
+.workshop-invite-vortex {
   position: absolute;
   z-index: -1;
   inset: 0;
@@ -42,548 +38,406 @@
   pointer-events: none;
 }
 
-.workshop-private-ambient i {
-  position: absolute;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--workshop-mint);
-  box-shadow: 0 0 20px rgba(143, 217, 184, .72);
-  opacity: .55;
-  animation: workshop-pulse 4s ease-in-out infinite;
-}
-
-.workshop-private-ambient i::before,
-.workshop-private-ambient i::after {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  background: rgba(143, 217, 184, .34);
-  content: '';
-  transform: translate(-50%, -50%);
-}
-
-.workshop-private-ambient i::before { width: 24px; height: 1px; }
-.workshop-private-ambient i::after { width: 1px; height: 24px; }
-.workshop-private-ambient i:nth-child(1) { top: 16%; left: 6%; }
-.workshop-private-ambient i:nth-child(2) { right: 7%; bottom: 18%; animation-delay: -1.3s; }
-.workshop-private-ambient i:nth-child(3) { top: 47%; right: 2.5%; animation-delay: -2.6s; }
-
-.workshop-private-shell {
-  align-self: center;
-  width: min(100%, 1210px);
-  margin: auto;
-}
-
-.workshop-registration-experience {
-  overflow: hidden;
-  border: 1px solid rgba(216, 197, 138, .28);
-  border-radius: 30px;
-  background: rgba(4, 20, 15, .94);
-  box-shadow: 0 36px 120px rgba(0, 0, 0, .56), 0 0 0 1px rgba(143, 217, 184, .035) inset;
-  backdrop-filter: blur(20px);
-}
-
-.workshop-registration-brand {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  min-height: 76px;
-  padding: 14px clamp(22px, 3.2vw, 40px);
-  border-bottom: 1px solid rgba(216, 197, 138, .18);
-  background: rgba(2, 13, 10, .72);
-}
-
-.workshop-brand-signature {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.workshop-mark {
-  display: block;
-  width: 42px;
-  height: auto;
-  color: var(--workshop-cream);
-}
-
-.workshop-brand-signature span { display: grid; gap: 3px; }
-
-.workshop-brand-signature strong {
-  font-family: Rajdhani, Manrope, sans-serif;
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: .06em;
-  line-height: 1;
-  text-transform: uppercase;
-}
-
-.workshop-brand-signature small,
-.workshop-secure-chip,
-.workshop-kicker,
-.workshop-concept-foot,
-.workshop-registration-heading > p,
-.workshop-event-facts small,
-.workshop-invitee small,
-.workshop-field-heading span {
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  text-transform: uppercase;
-}
-
-.workshop-brand-signature small {
-  color: rgba(244, 240, 229, .48);
-  font-size: 8px;
-  letter-spacing: .12em;
-}
-
-.workshop-secure-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 12px;
-  border: 1px solid rgba(143, 217, 184, .22);
-  border-radius: 999px;
-  background: rgba(143, 217, 184, .06);
-  color: var(--workshop-mint);
-  font-size: 8px;
-  letter-spacing: .08em;
-}
-
-.workshop-secure-chip svg { width: 13px; height: 13px; }
-
-.workshop-registration-layout {
-  display: grid;
-  grid-template-columns: minmax(0, .92fr) minmax(480px, 1.08fr);
-  min-height: 680px;
-}
-
-.workshop-concept-panel {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  overflow: hidden;
-  padding: clamp(34px, 4vw, 52px);
-  border-right: 1px solid rgba(216, 197, 138, .18);
-  background:
-    radial-gradient(circle at 50% 54%, rgba(19, 116, 83, .30), transparent 33%),
-    linear-gradient(160deg, rgba(9, 74, 54, .20), rgba(1, 12, 9, .82));
-}
-
-.workshop-concept-panel::before {
+.workshop-invite-vortex::before,
+.workshop-invite-vortex::after {
   position: absolute;
   inset: 0;
-  background:
-    linear-gradient(125deg, transparent 0 42%, rgba(216, 197, 138, .055) 42.1% 42.35%, transparent 42.45%),
-    linear-gradient(55deg, transparent 0 64%, rgba(143, 217, 184, .045) 64.1% 64.3%, transparent 64.4%);
   content: '';
-  pointer-events: none;
 }
 
-.workshop-concept-copy,
-.workshop-concept-foot { position: relative; z-index: 3; }
-
-.workshop-kicker {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  margin: 0;
-  color: var(--workshop-mint);
-  font-size: 9px;
-  font-weight: 500;
-  letter-spacing: .11em;
+.workshop-invite-vortex::before {
+  background: url('/assets/workshops/infinity-deck-vortex.webp') center 42% / cover no-repeat;
 }
 
-.workshop-kicker svg { width: 14px; height: 14px; }
-
-.workshop-concept-copy h1 {
-  max-width: 9ch;
-  margin: 12px 0 0;
-  font-family: Rajdhani, Manrope, sans-serif;
-  font-size: clamp(50px, 5vw, 76px);
-  font-weight: 600;
-  letter-spacing: -.055em;
-  line-height: .84;
-  text-transform: uppercase;
-  text-wrap: balance;
-}
-
-.workshop-concept-intro {
-  max-width: 410px;
-  margin: 20px 0 0;
-  color: rgba(244, 240, 229, .58);
-  font-size: 12px;
-  line-height: 1.65;
-}
-
-.workshop-deck {
-  position: relative;
-  z-index: 2;
-  flex: 1;
-  min-height: 390px;
-  margin: 6px auto 0;
-  width: min(100%, 350px);
-  perspective: 1000px;
-}
-
-.workshop-deck-card {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 238px;
-  height: 342px;
-  border: 1px solid rgba(216, 197, 138, .52);
-  border-radius: 17px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, .48);
-}
-
-.workshop-deck-card.is-shadow {
-  background: linear-gradient(145deg, #0a2c22, #020b08);
-  opacity: .42;
-  transform: translate(-62%, -48%) rotate(-13deg);
-}
-
-.workshop-deck-card.is-offset {
+.workshop-invite-vortex::after {
   background:
-    repeating-linear-gradient(45deg, rgba(216, 197, 138, .025) 0 3px, transparent 3px 7px),
-    #05241a;
-  opacity: .72;
-  transform: translate(-39%, -51%) rotate(10deg);
+    radial-gradient(ellipse 55% 42% at 50% 44%, rgba(99, 211, 148, .1), transparent 72%),
+    radial-gradient(ellipse 95% 85% at 50% 45%, transparent 46%, rgba(6, 11, 9, .7) 100%),
+    linear-gradient(180deg, rgba(6, 11, 9, .38), transparent 18%, transparent 78%, rgba(6, 11, 9, .62));
 }
 
-.workshop-deck-card.is-main {
-  isolation: isolate;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 50% 40%, rgba(143, 217, 184, .13), transparent 25%),
-    linear-gradient(160deg, #0b4533, #02130e 72%);
-  transform: translate(-50%, -50%) rotate(2deg);
-  animation: workshop-card-float 5.5s ease-in-out infinite;
-}
-
-.workshop-deck-card.is-main::before,
-.workshop-deck-card.is-main::after {
-  position: absolute;
-  z-index: 4;
-  border-radius: 12px;
-  content: '';
-  pointer-events: none;
-}
-
-.workshop-deck-card.is-main::before {
-  inset: 8px;
-  border: 1px solid rgba(216, 197, 138, .62);
-}
-
-.workshop-deck-card.is-main::after {
-  inset: 13px;
-  border: 1px solid rgba(216, 197, 138, .20);
-}
-
-.workshop-card-rays {
-  position: absolute;
-  z-index: -1;
-  top: 49%;
-  left: 50%;
-  width: 320px;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  background: repeating-conic-gradient(from 2deg, rgba(244, 240, 229, .12) 0deg 8deg, transparent 8deg 19deg);
-  opacity: .7;
-  transform: translate(-50%, -50%);
-}
-
-.workshop-card-orbit {
+/* Glints like the ones drifting through the reel. */
+.workshop-invite-vortex i {
   position: absolute;
   z-index: 1;
-  top: 49%;
-  left: 50%;
-  border: 1px solid rgba(216, 197, 138, .34);
+  width: 3px;
+  height: 3px;
   border-radius: 50%;
-  transform: translate(-50%, -50%);
+  background: #eef4ea;
+  box-shadow: 0 0 10px 2px rgba(99, 211, 148, .42);
 }
 
-.workshop-card-orbit.is-wide { width: 154px; height: 154px; }
-.workshop-card-orbit.is-tight { width: 112px; height: 112px; border-style: dashed; opacity: .7; }
-
-.workshop-card-core {
+.workshop-invite-vortex i::before,
+.workshop-invite-vortex i::after {
   position: absolute;
+  top: 50%;
+  left: 50%;
+  background: rgba(238, 244, 234, .55);
+  content: '';
+  translate: -50% -50%;
+}
+
+.workshop-invite-vortex i::before { width: 17px; height: 1px; }
+.workshop-invite-vortex i::after { width: 1px; height: 17px; }
+.workshop-invite-vortex i:nth-child(1) { top: 13%; left: 18%; }
+.workshop-invite-vortex i:nth-child(2) { top: 31%; right: 12%; opacity: .7; }
+.workshop-invite-vortex i:nth-child(3) { top: 58%; left: 7%; opacity: .55; }
+.workshop-invite-vortex i:nth-child(4) { right: 22%; bottom: 17%; }
+.workshop-invite-vortex i:nth-child(5) { bottom: 9%; left: 31%; opacity: .5; }
+.workshop-invite-vortex i:nth-child(6) { top: 8%; right: 34%; opacity: .6; }
+
+.workshop-invite-bar {
+  position: relative;
   z-index: 2;
-  top: 49%;
-  left: 50%;
-  display: grid;
-  place-items: center;
-  width: 88px;
-  height: 88px;
-  border: 1px solid rgba(216, 197, 138, .72);
-  border-radius: 50%;
-  background: #051a13;
-  color: var(--workshop-cream);
-  box-shadow: 0 0 0 8px rgba(3, 17, 13, .38), 0 14px 30px rgba(0, 0, 0, .48);
-  transform: translate(-50%, -50%);
-}
-
-.workshop-card-core svg { width: 50px; height: auto; }
-
-.workshop-card-corner {
-  position: absolute;
-  z-index: 5;
-  display: grid;
-  justify-items: center;
-  color: rgba(244, 240, 229, .82);
-  font: 600 13px/1 Rajdhani, sans-serif;
-  letter-spacing: .04em;
-}
-
-.workshop-card-corner small { margin-top: 2px; color: var(--workshop-gold); font: 10px/1 Georgia, serif; }
-.workshop-card-corner.is-top { top: 21px; left: 21px; }
-.workshop-card-corner.is-bottom { right: 21px; bottom: 21px; transform: rotate(180deg); }
-
-.workshop-card-caption {
-  position: absolute;
-  z-index: 3;
-  right: 24px;
-  bottom: 26px;
-  left: 24px;
-  display: grid;
-  justify-items: center;
-  gap: 5px;
-  color: rgba(244, 240, 229, .84);
-  text-align: center;
-  text-transform: uppercase;
-}
-
-.workshop-card-caption strong { font: 600 14px/1 Rajdhani, sans-serif; letter-spacing: .15em; }
-.workshop-card-caption small { color: rgba(216, 197, 138, .68); font: 6px/1.2 'JetBrains Mono', monospace; letter-spacing: .16em; }
-
-.workshop-concept-foot {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  color: rgba(244, 240, 229, .34);
-  font-size: 6.5px;
-  letter-spacing: .07em;
-}
-
-.workshop-registration-panel {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  padding: clamp(36px, 4.4vw, 58px);
-  background:
-    radial-gradient(circle at 100% 0, rgba(216, 197, 138, .22), transparent 32%),
-    var(--workshop-paper);
-  color: #09261d;
-}
-
-.workshop-registration-heading > p {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  margin: 0;
-  color: #3b785f;
-  font-size: 8px;
-  letter-spacing: .10em;
-}
-
-.workshop-registration-heading > p span {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #1a9b6d;
-  box-shadow: 0 0 0 5px rgba(26, 155, 109, .10);
-}
-
-.workshop-registration-heading h2 {
-  margin: 13px 0 8px;
-  font-family: Rajdhani, Manrope, sans-serif;
-  font-size: clamp(38px, 4.2vw, 56px);
-  font-weight: 600;
-  letter-spacing: -.05em;
-  line-height: .96;
-}
-
-.workshop-registration-heading > small {
-  display: block;
-  max-width: 520px;
-  color: #607269;
-  font-size: 11px;
-  line-height: 1.65;
-}
-
-.workshop-event-facts {
-  display: grid;
-  grid-template-columns: 1.35fr .9fr .9fr;
-  gap: 10px;
-  margin-top: 30px;
-  padding-block: 18px;
-  border-block: 1px solid rgba(9, 74, 54, .13);
-}
-
-.workshop-event-facts > div {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  min-width: 0;
-  padding-right: 8px;
-}
-
-.workshop-event-facts > div > span {
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  width: 29px;
-  height: 29px;
-  border: 1px solid rgba(9, 74, 54, .14);
-  border-radius: 50%;
-  background: rgba(9, 74, 54, .055);
-  color: var(--workshop-green);
-}
-
-.workshop-event-facts svg { width: 14px; height: 14px; }
-.workshop-event-facts p { display: grid; gap: 4px; min-width: 0; margin: 0; }
-.workshop-event-facts small { color: #7a8b83; font-size: 6.5px; letter-spacing: .06em; }
-
-.workshop-event-facts strong {
-  color: #17362b;
-  font-size: 9px;
-  font-weight: 700;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-}
-
-.workshop-invitee {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 13px;
-  margin-top: 26px;
-  padding: 14px;
-  border: 1px solid rgba(9, 74, 54, .12);
-  border-radius: 14px;
-  background: rgba(9, 74, 54, .045);
-}
-
-.workshop-invitee > span {
-  display: grid;
-  place-items: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  background: var(--workshop-green);
-  color: var(--workshop-cream);
-  font-family: Rajdhani, sans-serif;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: .04em;
-}
-
-.workshop-invitee p { display: grid; gap: 3px; margin: 0; color: #536b60; font-size: 10px; line-height: 1.45; }
-.workshop-invitee small { color: #84948d; font-size: 6.5px; letter-spacing: .07em; }
-.workshop-invitee strong { color: #0c2d21; font-size: 12px; }
-.workshop-invitee > svg { width: 19px; height: 19px; color: #16885f; }
-
-.workshop-registration-form { margin-top: 28px; }
-
-.workshop-field-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 9px;
+  padding: 18px clamp(16px, 4vw, 44px) 0;
 }
 
-.workshop-field-heading label { color: #17362b; font-size: 11px; font-weight: 700; }
-.workshop-field-heading span { color: #7a8b83; font-size: 6.5px; letter-spacing: .08em; }
-
-.workshop-input-wrap {
-  position: relative;
-  display: flex;
+.workshop-invite-brand {
+  display: inline-flex;
   align-items: center;
+  gap: 10px;
+  color: var(--deck-light);
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
 }
 
-.workshop-input-wrap > svg {
+.workshop-invite-brand:focus-visible {
+  border-radius: 6px;
+  outline: 2px solid var(--deck-glow);
+  outline-offset: 4px;
+}
+
+.workshop-mark {
+  display: block;
+  width: 34px;
+  height: auto;
+}
+
+.workshop-invite-privacy {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--deck-sage-soft);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.workshop-invite-privacy svg { width: 15px; height: 15px; }
+
+.workshop-invite-main {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  padding: clamp(18px, 3vw, 30px) clamp(16px, 4vw, 44px);
+}
+
+.workshop-invite {
+  display: grid;
+  justify-items: center;
+  gap: clamp(22px, 3vw, 36px);
+  width: min(100%, 980px);
+}
+
+/* Chrome headline, as in the reel: one bevelled band per line of text. */
+.workshop-invite-title {
+  max-width: 17ch;
+  margin: 0;
+  background-image:
+    linear-gradient(105deg, transparent 42%, rgba(255, 255, 255, .85) 50%, transparent 58%),
+    linear-gradient(180deg, #f2f5f0 0%, #d3d9d3 36%, #8a948e 50%, #5e6963 53%, #b4bdb7 74%, #e6ebe6 100%);
+  background-position: 160% 0, 0 0;
+  background-repeat: no-repeat, repeat-y;
+  background-size: 260% 100%, 100% .94em;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font: 400 clamp(38px, 6vw, 82px)/.94 var(--deck-display);
+  letter-spacing: -.01em;
+  text-align: center;
+  text-transform: uppercase;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+  filter: drop-shadow(0 1px 0 #2a332e) drop-shadow(0 3px 0 #141b17) drop-shadow(0 16px 24px rgba(0, 0, 0, .6));
+}
+
+.workshop-invite-title.is-long { max-width: 24ch; font-size: clamp(28px, 3.8vw, 52px); }
+
+/* Two cards dealt on the felt: the club's back behind, the participant's face in front. */
+.workshop-hand {
+  --deal-rotate: -7deg;
+  display: grid;
+  grid-template-columns: minmax(0, 320px) minmax(0, 560px);
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.workshop-hand > .workshop-deck-card {
+  z-index: 1;
+  grid-area: 1 / 1;
+  width: 100%;
+  translate: 34px 14px;
+  rotate: var(--deal-rotate);
+}
+
+.workshop-deck-card {
+  position: relative;
+  width: min(100%, 320px);
+  aspect-ratio: 560 / 868;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #0b1611;
+  box-shadow: 0 0 0 1px rgba(201, 210, 191, .16), 0 28px 60px rgba(0, 0, 0, .62), 0 0 90px rgba(99, 211, 148, .12);
+}
+
+.workshop-deck-card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Medallion ring and emblem, positioned on the artwork's own medallion. */
+.workshop-deck-card__glow,
+.workshop-deck-card__mark {
   position: absolute;
-  left: 16px;
-  width: 17px;
-  height: 17px;
-  color: #56806d;
+  top: 46.66%;
+  left: 50.54%;
+  translate: -50% -50%;
   pointer-events: none;
 }
 
-.workshop-input-wrap input {
+.workshop-deck-card__glow {
+  width: 41.4%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  box-shadow: 0 0 26px 6px rgba(99, 211, 148, .32), inset 0 0 22px 2px rgba(99, 211, 148, .3);
+}
+
+.workshop-deck-card__mark {
+  width: 31.25%;
+  height: auto;
+  color: #dfe8db;
+  filter: drop-shadow(0 0 4px rgba(99, 211, 148, .6));
+}
+
+.workshop-face {
+  position: relative;
+  z-index: 2;
+  grid-area: 1 / 2;
+  min-width: 0;
+  margin-left: -40px;
+  padding: 54px 60px 64px;
+  border-radius: 20px;
+  background: radial-gradient(120% 90% at 0 0, var(--deck-paper-light), var(--deck-paper) 62%);
+  color: var(--deck-ink);
+  box-shadow: 0 34px 90px rgba(0, 0, 0, .6), 0 1px 0 rgba(255, 255, 255, .7) inset;
+}
+
+.workshop-face::before {
+  position: absolute;
+  inset: 10px;
+  border: 1px solid rgba(24, 36, 29, .16);
+  border-radius: 13px;
+  content: '';
+  pointer-events: none;
+}
+
+.workshop-face__index {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  color: var(--deck-ink);
+  font: 700 18px/1 var(--deck-serif);
+  letter-spacing: .02em;
+}
+
+.workshop-face__index svg {
+  width: 20px;
+  height: auto;
+  color: var(--deck-suit);
+}
+
+.workshop-face__index.is-end {
+  top: auto;
+  right: 18px;
+  bottom: 18px;
+  left: auto;
+  rotate: 180deg;
+}
+
+.workshop-face__head h2 {
+  margin: 0;
+  color: var(--deck-ink);
+  font: 700 clamp(25px, 2.6vw, 31px)/1.12 var(--deck-serif);
+  letter-spacing: .015em;
+}
+
+.workshop-face__head p {
+  margin: 10px 0 0;
+  color: var(--deck-ink-soft);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.workshop-face__head strong { color: var(--deck-ink); font-weight: 700; }
+
+.workshop-face__facts {
+  display: grid;
+  gap: 12px;
+  margin: 26px 0 0;
+  padding: 20px 0;
+  border-block: 1px solid rgba(24, 36, 29, .12);
+}
+
+.workshop-face__facts div {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  gap: 16px;
+}
+
+.workshop-face__facts dt { color: var(--deck-ink-soft); font-size: 14px; line-height: 1.45; }
+
+.workshop-face__facts dd {
+  margin: 0;
+  color: var(--deck-ink);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.workshop-face__form {
+  display: grid;
+  gap: 8px;
+  margin-top: 26px;
+}
+
+.workshop-face__form label { color: var(--deck-ink); font-size: 15px; font-weight: 700; }
+
+.workshop-face__form input {
   width: 100%;
-  min-height: 54px;
-  padding: 14px 16px 14px 46px;
-  border: 1px solid rgba(9, 74, 54, .22);
+  min-height: 52px;
+  padding: 12px 15px;
+  border: 1px solid rgba(24, 36, 29, .3);
   border-radius: 12px;
   outline: 0;
-  background: rgba(255, 255, 255, .75);
-  color: #09261d;
-  font: 600 13px/1.35 Manrope, sans-serif;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, .9) inset;
-  transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+  background: var(--deck-paper-light);
+  color: var(--deck-ink);
+  font: 600 16px/1.35 var(--deck-sans);
+  transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease;
 }
 
-.workshop-input-wrap input::placeholder { color: #9aa7a1; font-weight: 500; }
+.workshop-face__form input::placeholder { color: #87918b; font-weight: 500; }
 
-.workshop-input-wrap input:focus {
-  border-color: #18835f;
-  background: #fff;
-  box-shadow: 0 0 0 4px rgba(24, 131, 95, .10), 0 1px 0 #fff inset;
+.workshop-face__form input:focus {
+  border-color: var(--deck-suit);
+  background: #fbfbf7;
+  box-shadow: 0 0 0 4px rgba(31, 107, 71, .16);
 }
 
-.workshop-field-help { margin: 7px 0 0; color: #84928c; font-size: 8px; }
+.workshop-face__form input:user-invalid { border-color: #9b3b32; }
+.workshop-face__form > p { margin: 0; color: var(--deck-ink-soft); font-size: 13px; line-height: 1.5; }
 
 .workshop-register-button {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
   width: 100%;
-  min-height: 56px;
-  margin-top: 20px;
-  padding: 15px 18px 15px 22px;
-  border: 0;
+  min-height: 54px;
+  margin-top: 14px;
+  border: 1px solid #0b1410;
   border-radius: 12px;
-  background: linear-gradient(110deg, #064c38, #0b7555);
-  color: #fff;
-  font: 700 12px/1 Manrope, sans-serif;
+  background: linear-gradient(180deg, #24392d, #12201a);
+  color: var(--deck-light);
+  font: 700 16px/1 var(--deck-sans);
   cursor: pointer;
-  box-shadow: 0 14px 30px rgba(9, 74, 54, .20);
-  transition: transform .2s ease, box-shadow .2s ease, filter .2s ease;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .08) inset, 0 0 0 1px rgba(99, 211, 148, .16) inset, 0 12px 26px rgba(13, 22, 18, .28);
+  transition: filter .2s ease, translate .2s ease;
 }
 
-.workshop-register-button svg {
-  width: 18px;
-  height: 18px;
-  transition: transform .2s ease;
-}
+.workshop-register-button:hover:not(:disabled) { filter: brightness(1.14); translate: 0 -1px; }
+.workshop-register-button:focus-visible { outline: 3px solid var(--deck-suit); outline-offset: 3px; }
+.workshop-register-button:disabled { cursor: wait; opacity: .72; }
 
-.workshop-register-button:hover:not(:disabled) {
-  transform: translateY(-2px);
-  filter: saturate(1.08);
-  box-shadow: 0 18px 36px rgba(9, 74, 54, .28);
-}
-
-.workshop-register-button:hover:not(:disabled) svg { transform: translateX(3px); }
-.workshop-register-button:focus-visible { outline: 2px solid #18835f; outline-offset: 3px; }
-.workshop-register-button:disabled { cursor: wait; opacity: .62; }
-
-.workshop-privacy {
+.workshop-face__privacy {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  margin: auto 0 0;
-  padding-top: 24px;
-  color: #7d8e86;
-  font-size: 8px;
-  line-height: 1.55;
+  margin: 22px 0 0;
+  color: var(--deck-ink-soft);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
-.workshop-privacy svg { flex: 0 0 auto; width: 13px; height: 13px; margin-top: 1px; color: #4a7965; }
+.workshop-face__privacy svg { flex: 0 0 auto; width: 15px; height: 15px; margin-top: 2px; }
 
+/* Checking the link and dead links: the card alone, face down. */
+.workshop-invite-state {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  max-width: 460px;
+  text-align: center;
+}
+
+.workshop-invite-state .workshop-deck-card { width: min(46vw, 200px); margin-bottom: 12px; }
+.workshop-invite-state p { margin: 0; color: var(--deck-sage); font-size: 15px; line-height: 1.55; }
+.workshop-invite-state h1 { margin: 0; color: var(--deck-light); font: 700 clamp(26px, 5vw, 36px)/1.1 var(--deck-serif); }
+.workshop-invite-state small { color: var(--deck-sage-soft); font-size: 13px; line-height: 1.5; }
+.workshop-deck-card.is-closed img { filter: grayscale(.75) brightness(.6); }
+.workshop-deck-card.is-closed .workshop-deck-card__glow { display: none; }
+.workshop-deck-card.is-closed .workshop-deck-card__mark { color: rgba(201, 210, 191, .5); filter: none; }
+
+.workshop-pass-stage {
+  display: grid;
+  justify-items: center;
+  gap: 22px;
+  width: min(100%, 560px);
+}
+
+.workshop-success {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.workshop-success svg { width: 26px; height: 26px; color: var(--deck-glow); }
+.workshop-success h1 { margin: 0; color: var(--deck-light); font: 700 clamp(26px, 4.4vw, 38px)/1.1 var(--deck-serif); }
+.workshop-success p { max-width: 40ch; margin: 0; color: var(--deck-sage); font-size: 15px; line-height: 1.55; }
+
+/* The club slogan, engraved under the cards like the reel's last frame. */
+.workshop-invite-sign {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 8px 16px clamp(22px, 4vw, 36px);
+  color: rgba(201, 210, 191, .8);
+  font: 600 clamp(13px, 1.5vw, 17px)/1.2 var(--deck-serif);
+  letter-spacing: .18em;
+  text-align: center;
+  text-indent: .18em;
+  text-transform: uppercase;
+}
+
+.workshop-invite-sign::after {
+  width: 64px;
+  height: 1px;
+  background: currentColor;
+  content: '';
+  opacity: .55;
+}
+
+/* Shared with the scanner's loading and error screens. */
 .workshop-private-state {
   display: grid;
   place-content: center;
@@ -595,7 +449,7 @@
   text-align: center;
 }
 
-.workshop-private-state > span:not(.workshop-loader) { color: var(--workshop-mint); font-size: 64px; }
+.workshop-private-state > span:not(.workshop-loader) { color: #8fd9b8; font-size: 64px; }
 .workshop-private-state h1 { margin: 0; font-family: Rajdhani, sans-serif; font-size: clamp(34px, 7vw, 58px); }
 .workshop-private-state p { max-width: 520px; margin: 0; }
 .workshop-private-state small { color: rgba(217, 232, 223, .58); }
@@ -604,88 +458,67 @@
   width: 34px;
   height: 34px;
   border: 3px solid rgba(255, 255, 255, .18);
-  border-top-color: var(--workshop-mint);
+  border-top-color: #8fd9b8;
   border-radius: 50%;
   animation: workshop-spin .8s linear infinite;
 }
 
-.workshop-pass-stage { padding-block: 18px 28px; }
-
-.workshop-success {
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 9px;
-  max-width: 560px;
-  margin: 0 auto 16px;
-  color: #c8e8d8;
-  font-size: clamp(13px, 1.8vw, 15px);
-  line-height: 1.55;
-  text-align: left;
-}
-
-.workshop-success svg { flex: 0 0 auto; width: 20px; height: 20px; margin-top: 2px; color: var(--workshop-mint); }
-
 @keyframes workshop-spin { to { transform: rotate(360deg); } }
-@keyframes workshop-pulse { 50% { opacity: .18; transform: scale(.74); } }
 
-@keyframes workshop-card-float {
-  0%, 100% { transform: translate(-50%, -50%) rotate(2deg) translateY(0); }
-  50% { transform: translate(-50%, -50%) rotate(.4deg) translateY(-7px); }
+/* The deal: the camera pulls out of the card vortex, the club's card lands,
+   the participant's card slides out from under it and the emblem lights up.
+   One sequence when the page opens, then everything stays still. */
+@keyframes deck-pull { from { opacity: .3; scale: 1.16; } }
+@keyframes deck-land { from { opacity: 0; scale: .42; rotate: -32deg; } 60% { opacity: 1; } }
+@keyframes deck-slide { from { opacity: 0; translate: -56px 10px; } }
+@keyframes deck-flare { from { opacity: 0; scale: .7; } 45% { opacity: 1; scale: 1.08; } }
+@keyframes deck-sheen { to { background-position: -60% 0, 0 0; } }
+@keyframes deck-breathe { 50% { opacity: .3; } }
+
+@media (prefers-reduced-motion: no-preference) {
+  .workshop-invite-vortex::before { animation: deck-pull 1.6s cubic-bezier(.16, .84, .24, 1) both; }
+  .workshop-hand > .workshop-deck-card { animation: deck-land .95s cubic-bezier(.2, .9, .25, 1.12) .15s both; }
+  .workshop-face { animation: deck-slide .75s cubic-bezier(.2, .8, .2, 1) .55s both; }
+  .workshop-deck-card.is-dealt .workshop-deck-card__glow { animation: deck-flare .9s ease-out 1s both; }
+  .workshop-invite-title { animation: deck-sheen 1.3s ease-in-out .95s both; }
+  .workshop-deck-card.is-waiting .workshop-deck-card__glow { animation: deck-breathe 1.6s ease-in-out infinite; }
 }
 
-@media (max-width: 980px) {
-  .workshop-registration-layout { grid-template-columns: minmax(0, .82fr) minmax(440px, 1.18fr); }
-  .workshop-concept-panel { padding-inline: 34px; }
-  .workshop-concept-copy h1 { font-size: clamp(46px, 6vw, 62px); }
-  .workshop-deck-card { width: 215px; height: 310px; }
-  .workshop-concept-foot span:nth-child(2) { display: none; }
+@media (max-width: 860px) {
+  .workshop-hand {
+    --deal-rotate: -6deg;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+  }
+
+  .workshop-hand > .workshop-deck-card { width: min(50vw, 210px); translate: none; }
+  .workshop-face { grid-area: 2 / 1; width: min(100%, 560px); margin: -78px 0 0; }
 }
 
-@media (max-width: 820px) {
-  .workshop-private-page { overflow: visible; }
-  .workshop-registration-layout { grid-template-columns: 1fr; }
-  .workshop-concept-panel { min-height: 560px; border-right: 0; border-bottom: 1px solid rgba(216, 197, 138, .18); }
-  .workshop-concept-copy h1 { max-width: 11ch; }
-  .workshop-deck { position: absolute; right: 3%; bottom: 14px; width: 340px; min-height: 410px; opacity: .82; }
-  .workshop-concept-intro { position: relative; z-index: 4; max-width: 310px; }
-  .workshop-concept-foot { margin-top: auto; max-width: 280px; }
-  .workshop-registration-panel { min-height: 640px; }
+@media (max-width: 560px) {
+  .workshop-invite-bar { padding-top: 14px; }
+  .workshop-invite-main { padding-top: 28px; }
+  .workshop-invite { gap: 26px; }
+  .workshop-mark { width: 30px; }
+  .workshop-invite-title { font-size: clamp(32px, 10vw, 46px); }
+  .workshop-invite-title.is-long { font-size: clamp(26px, 7.6vw, 36px); }
+  .workshop-face { padding: 26px 20px 58px; border-radius: 18px; }
+  .workshop-face::before { inset: 8px; border-radius: 12px; }
+  .workshop-face__index { top: 16px; left: 16px; font-size: 16px; }
+  .workshop-face__index svg { width: 18px; }
+  .workshop-face__index.is-end { right: 16px; bottom: 16px; }
+  .workshop-face__head { padding-left: 34px; }
+  .workshop-face__facts div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
 }
 
-@media (max-width: 600px) {
-  .workshop-private-page { padding: 10px; }
-  .workshop-registration-experience { border-radius: 22px; }
-  .workshop-registration-brand { min-height: 68px; padding-inline: 18px; }
-  .workshop-mark { width: 36px; }
-  .workshop-brand-signature strong { font-size: 16px; }
-  .workshop-brand-signature small { font-size: 6.5px; }
-  .workshop-secure-chip { padding: 8px; font-size: 0; }
-  .workshop-secure-chip svg { width: 15px; height: 15px; }
-  .workshop-concept-panel { min-height: 500px; padding: 30px 24px; }
-  .workshop-concept-copy h1 { max-width: 8ch; font-size: clamp(44px, 14vw, 60px); }
-  .workshop-concept-intro { max-width: 260px; font-size: 10px; }
-  .workshop-deck { right: -24px; bottom: 6px; width: 270px; min-height: 350px; opacity: .78; }
-  .workshop-deck-card { width: 186px; height: 270px; }
-  .workshop-card-core { width: 72px; height: 72px; }
-  .workshop-card-core svg { width: 40px; }
-  .workshop-card-orbit.is-wide { width: 130px; height: 130px; }
-  .workshop-card-orbit.is-tight { width: 92px; height: 92px; }
-  .workshop-card-caption strong { font-size: 11px; }
-  .workshop-concept-foot { display: none; }
-  .workshop-registration-panel { min-height: 0; padding: 34px 22px; }
-  .workshop-event-facts { grid-template-columns: 1fr; gap: 13px; margin-top: 24px; }
-  .workshop-event-facts > div { padding-right: 0; }
-  .workshop-event-facts strong { font-size: 10px; }
-  .workshop-privacy { margin-top: 25px; }
+@media (forced-colors: active) {
+  .workshop-invite-title { background: none; color: CanvasText; filter: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .workshop-private-ambient i,
-  .workshop-deck-card.is-main,
   .workshop-loader { animation: none; }
   .workshop-register-button,
-  .workshop-register-button svg { transition: none; }
+  .workshop-face__form input { transition: none; }
 }
 
 /* Workshop scanner --------------------------------------------------------------- */
