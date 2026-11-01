@@ -224,7 +224,10 @@ export function createAdminEventsStore(supabase) {
     },
     async scannerAccess(eventId) {
       const { data, error } = await supabase.from('club_event_scanner_access')
-        .select('id, event_id, status, starts_at, expires_at, last_used_at, revoked_at, credential_version, credential_derivation_version, created_at, updated_at')
+        // token_hash is required: copying the shared link re-derives the token
+        // and compares its hash with the stored one. It never leaves the server
+        // (the service maps explicit fields to the browser).
+        .select('id, event_id, status, token_hash, starts_at, expires_at, last_used_at, revoked_at, credential_version, credential_derivation_version, created_at, updated_at')
         .eq('event_id', eventId)
         .maybeSingle()
       if (error) fail('events_scanner_state', error)

@@ -1013,3 +1013,43 @@ test('the schedule days migration stores the day list and keeps the bounds', asy
   const store = await read('api/_lib/admin-events-store.js')
   assert.match(store, /'speaker_names', 'schedule_days'/)
 })
+
+test('copying the shared scanner link works from the columns the real store selects', async () => {
+  const credential = prepareStableWorkshopCredential({ purpose: 'event-scanner', subjectId: EVENT_ID, credentialVersion: 1, env: LINK_ENV })
+  const stored = {
+    id: SCANNER_ID, event_id: EVENT_ID, status: 'active', token_hash: credential.tokenHash,
+    starts_at: NOW.toISOString(), expires_at: new Date(NOW.getTime() + 60 * 60 * 1000).toISOString(),
+    last_used_at: null, revoked_at: null, credential_version: 1, credential_derivation_version: WORKSHOP_CREDENTIAL_DERIVATION_VERSION,
+    created_at: NOW.toISOString(), updated_at: NOW.toISOString(),
+  }
+  // A Supabase double that only returns the columns the query asks for, like
+  // PostgREST does: a column missing from select() comes back undefined.
+  const realStore = createAdminEventsStore({
+    from: (table) => ({
+      select(columns) {
+        const wanted = columns.split(',').map((column) => column.trim())
+        return {
+          eq() { return this },
+          async maybeSingle() {
+            assert.equal(table, 'club_event_scanner_access')
+            return { data: Object.fromEntries(wanted.map((column) => [column, stored[column]])), error: null }
+          },
+        }
+      },
+    }),
+  })
+  const store = new MemoryEventsStore()
+  store.scannerAccess = (eventId) => realStore.scannerAccess(eventId)
+  const service = createAdminEventsService({ store, now: () => NOW, origin: ORIGIN, env: LINK_ENV })
+
+  const copied = await service.scannerAction(EVENT_ID, { action: 'copy' }, user)
+  assert.equal(copied.ok, true)
+  assert.equal(copied.privateUrl, `${ORIGIN}/workshops/scan?t=${credential.rawToken}`)
+  // Generating while the link is still valid reveals the same link, no rotation.
+  const generated = await service.scannerAction(EVENT_ID, { action: 'generate' }, user)
+  assert.equal(generated.ok, true)
+  assert.equal(generated.privateUrl, copied.privateUrl)
+  assert.deepEqual(store.calls.filter(([name]) => name === 'scanner-persist'), [])
+  // The hash never reaches the browser.
+  assert.equal(JSON.stringify(await service.scanner(EVENT_ID)).includes(credential.tokenHash), false)
+})
