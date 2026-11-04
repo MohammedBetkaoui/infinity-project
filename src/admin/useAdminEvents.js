@@ -87,7 +87,8 @@ export function useAdminEventParticipants({ eventId, page, limit = 50, search, t
 // How many applications are eligible, already have a private link, still wait
 // for one, or have a link that was never exported.
 const EMPTY_SECTION = Object.freeze({ members: 0, staff: 0, total: 0 })
-const EMPTY_OVERVIEW = Object.freeze({ eligible: EMPTY_SECTION, linked: EMPTY_SECTION, missing: EMPTY_SECTION, unexported: EMPTY_SECTION })
+const EMPTY_DELIVERY = Object.freeze({ pending: 0, processing: 0, delivered: 0, failed: 0, retryScheduled: 0 })
+const EMPTY_OVERVIEW = Object.freeze({ eligible: EMPTY_SECTION, linked: EMPTY_SECTION, missing: EMPTY_SECTION, unexported: EMPTY_SECTION, delivery: EMPTY_DELIVERY })
 export function useAdminEventInvitationOverview(eventId, active = true) {
   const { request } = useAdminAuth()
   const [state, setState] = useState({ overview: EMPTY_OVERVIEW, loading: true, error: '', resolvedKey: '' })
@@ -98,7 +99,7 @@ export function useAdminEventInvitationOverview(eventId, active = true) {
     const controller = new AbortController()
     request(`/api/admin/events/${encodeURIComponent(eventId)}/invitations`, { signal: controller.signal }).then(({ response, body }) => {
       if (!response.ok) throw new Error(body.message || 'Unable to load the private-link overview.')
-      setState({ overview: { ...EMPTY_OVERVIEW, ...(body.overview || {}) }, loading: false, error: '', resolvedKey: requestKey })
+      setState({ overview: { ...EMPTY_OVERVIEW, ...(body.overview || {}), delivery: { ...EMPTY_DELIVERY, ...(body.overview?.delivery || {}) } }, loading: false, error: '', resolvedKey: requestKey })
     }).catch((error) => {
       if (error.name !== 'AbortError') setState((current) => ({ ...current, loading: false, error: error.message, resolvedKey: requestKey }))
     })
@@ -205,6 +206,14 @@ export function useAdminEventActions() {
       return { ok: false, message: 'Unable to reach the administration service.' }
     } finally { release() }
   }, [requestRaw])
+  const queueExistingDeliveries = useCallback(async (eventId) => {
+    if (!guard(`${eventId}:queue-deliveries`)) return { ok: false, message: 'Another event action is still being saved.' }
+    return post(`/api/admin/events/${encodeURIComponent(eventId)}/invitations/deliveries/queue`, { confirm: true })
+  }, [post])
+  const retryInvitationDeliveries = useCallback(async (eventId) => {
+    if (!guard(`${eventId}:retry-deliveries`)) return { ok: false, message: 'Another event action is still being saved.' }
+    return post(`/api/admin/events/${encodeURIComponent(eventId)}/invitations/deliveries/retry`, { confirm: true })
+  }, [post])
   const scannerAccess = useCallback(async (eventId, action, confirm = false) => {
     if (!guard(`${eventId}:scanner-action`)) return { ok: false, message: 'Another scanner action is still running.' }
     return post(`/api/admin/events/${encodeURIComponent(eventId)}/scanner`, { action, confirm })
@@ -217,5 +226,5 @@ export function useAdminEventActions() {
     if (!guard(`${eventId}:attendance-finalize`)) return { ok: false, message: 'Another event action is still being saved.' }
     return post(`/api/admin/events/${encodeURIComponent(eventId)}/attendance/finalize`, { confirm: true })
   }, [post])
-  return { create, update, invite, invitationLink, exportInvitations, scannerAccess, transition, finalizeAttendance }
+  return { create, update, invite, invitationLink, exportInvitations, queueExistingDeliveries, retryInvitationDeliveries, scannerAccess, transition, finalizeAttendance }
 }

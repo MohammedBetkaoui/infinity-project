@@ -28,6 +28,12 @@
       "maxDuration": 60
     }
   },
+  "crons": [
+    {
+      "path": "/api/event-invitation-worker",
+      "schedule": "* * * * *"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
@@ -84,6 +90,7 @@
     { "source": "/api/workshops/scanner/session", "destination": "/api/join?__join_action=workshop-scanner-session" },
     { "source": "/api/workshops/scanner/context", "destination": "/api/join?__join_action=workshop-scanner-context" },
     { "source": "/api/workshops/scanner/check-in", "destination": "/api/join?__join_action=workshop-scanner-check-in" },
+    { "source": "/api/event-invitation-worker", "destination": "/api/join?__join_action=event-invitation-worker" },
     { "source": "/api/admin/:path*", "destination": "/api/admin-auth?__admin_path=:path*" },
     { "source": "/aivex", "destination": "/aivex/index.html" },
     { "source": "/aivex/register", "destination": "/aivex/register/index.html" },

@@ -141,6 +141,34 @@ export function createAdminEventsStore(supabase) {
       ])
       return { eligibleMembers, eligibleStaff, linkedMembers, linkedStaff, unexportedMembers, unexportedStaff }
     },
+    async invitationDeliveryCounts(eventId) {
+      const count = async (status) => {
+        const { count: total, error } = await supabase.from('event_invitation_delivery_jobs')
+          .select('id', { count: 'exact', head: true })
+          .eq('event_id', eventId)
+          .eq('delivery_status', status)
+        if (error) fail('events_invitation_delivery_counts', error)
+        return Number(total || 0)
+      }
+      const [pending, processing, delivered, failed, retryScheduled] = await Promise.all([
+        count('pending'), count('processing'), count('delivered'), count('failed'), count('retry_scheduled'),
+      ])
+      return { pending, processing, delivered, failed, retryScheduled }
+    },
+    async queueExistingInvitationDeliveries({ eventId, adminUserId, now }) {
+      const { data, error } = await supabase.rpc('admin_queue_existing_event_invitation_deliveries', {
+        p_event_id: eventId, p_admin_user_id: adminUserId, p_now: now.toISOString(),
+      })
+      if (error) fail('events_queue_existing_invitation_deliveries', error)
+      return Number(Array.isArray(data) ? data[0] : data)
+    },
+    async retryInvitationDeliveries({ eventId, adminUserId, now }) {
+      const { data, error } = await supabase.rpc('admin_retry_event_invitation_deliveries', {
+        p_event_id: eventId, p_admin_user_id: adminUserId, p_now: now.toISOString(),
+      })
+      if (error) fail('events_retry_invitation_deliveries', error)
+      return Number(Array.isArray(data) ? data[0] : data)
+    },
     async attendance(eventId, options) {
       const from = (options.page - 1) * options.limit
       let query = supabase.from('club_event_registrations')

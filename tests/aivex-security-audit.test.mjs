@@ -106,7 +106,7 @@ test('the AIVEX download endpoint is covered by the same no-public-URL / no-PII-
 
 test('no scheduled/automatic deletion exists: retention is a manual, organiser-side decision today', async () => {
   const vercelConfig = JSON.parse(await read('vercel.json'))
-  assert.equal(vercelConfig.crons, undefined, 'no Vercel Cron job is configured')
+  assert.equal((vercelConfig.crons || []).some(({ path }) => /aivex|purge|cleanup|retention/i.test(path)), false, 'no AIVEX deletion Cron job is configured')
   for (const file of ['api/_lib/aivex-document-generation.js', 'api/_lib/aivex-document-store.js', 'api/_lib/aivex-registration-v4.js', 'api/aivex/register.js', 'api/aivex/document.js']) {
     const source = await read(file)
     assert.doesNotMatch(source, /\bpurge\b|\bexpire[sd]?\(|setTimeout\(.*delete|automatic.*delet/i, file)

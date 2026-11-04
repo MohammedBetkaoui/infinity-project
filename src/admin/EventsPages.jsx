@@ -363,8 +363,8 @@ const typeBreakdown = ({ members, staff }) => `${plural(members, 'member')} · $
 
 // Where the private links stand for this event: first batch for everyone
 // already on the site, then only the applications that joined afterwards.
-function PrivateLinksPanel({ overview, loading, error, pending, onGenerate, onExport, onRetry }) {
-  const { eligible, linked, missing, unexported } = overview
+function PrivateLinksPanel({ overview, loading, error, pending, onGenerate, onExport, onQueueExisting, onRetryDeliveries, onRetry }) {
+  const { eligible, linked, missing, unexported, delivery } = overview
   const busy = Boolean(pending) || loading
   return <section className="adm-event-quick-invite adm-event-links" aria-label="Private registration links">
     <h4>Private registration links</h4>
@@ -375,6 +375,22 @@ function PrivateLinksPanel({ overview, loading, error, pending, onGenerate, onEx
         <div className={missing.total > 0 ? 'is-attention' : ''}><dt>Waiting for a link</dt><dd>{missing.total}</dd><small>{typeBreakdown(missing)}</small></div>
         <div><dt>Not exported yet</dt><dd>{unexported.total}</dd><small>{typeBreakdown(unexported)}</small></div>
       </dl>
+      <div className="adm-event-section-heading"><div><h4>Automatic email delivery</h4><p>Durable n8n jobs are dispatched server-side. CSV history remains independent.</p></div></div>
+      <dl className="adm-event-links__stats" aria-label="Invitation delivery status">
+        <div><dt>Pending</dt><dd>{delivery.pending}</dd></div>
+        <div><dt>Processing</dt><dd>{delivery.processing}</dd></div>
+        <div><dt>Delivered</dt><dd>{delivery.delivered}</dd></div>
+        <div className={delivery.failed > 0 ? 'is-attention' : ''}><dt>Failed</dt><dd>{delivery.failed}</dd></div>
+        <div><dt>Retry scheduled</dt><dd>{delivery.retryScheduled}</dd></div>
+      </dl>
+      <div className="adm-event-invite-actions">
+        <Button variant="secondary" disabled={busy || linked.total === 0} onClick={onQueueExisting}>
+          {pending === 'queue-existing' ? 'Queueingâ€¦' : 'Queue existing invitations'}
+        </Button>
+        <Button variant="secondary" disabled={busy || delivery.failed === 0} onClick={onRetryDeliveries}>
+          {pending === 'retry-deliveries' ? 'Retryingâ€¦' : `Retry failed deliveries${delivery.failed ? ` Â· ${delivery.failed}` : ''}`}
+        </Button>
+      </div>
       {linked.total === 0
         ? <>
           <p>No private link has been generated for this event yet. Generate them once for every member and staff application already on the site, then export them as a CSV.</p>
@@ -399,14 +415,14 @@ function PrivateLinksPanel({ overview, loading, error, pending, onGenerate, onEx
           {pending === 'export:all' ? 'Exporting…' : 'Export all links (CSV)'}
         </Button>
       </div>}
-      <p className="adm-muted">New links are the ones never written to a CSV. Each export remembers what it contained, so the next one can contain only what was added since. Links are hashed in storage and delivered manually.</p>
+      <p className="adm-muted">New registrations and newly eligible events are queued automatically. CSV export remains an optional fallback and keeps its own history. Private links are hashed in storage.</p>
     </>}
   </section>
 }
 
 function ParticipantsTab({ event, onChanged }) {
   const { addToast } = useAdmin()
-  const { invite, invitationLink, exportInvitations } = useAdminEventActions()
+  const { invite, invitationLink, exportInvitations, queueExistingDeliveries, retryInvitationDeliveries } = useAdminEventActions()
   const [search, setSearch] = useState('')
   const deferredSearch = useDeferredValue(search.trim())
   const [typeFilter, setTypeFilter] = useState('')
@@ -459,12 +475,34 @@ function ParticipantsTab({ event, onChanged }) {
       refreshAll()
     } finally { setPending('') }
   }
+  const deliveryAction = async (action) => {
+    if (pending) return
+    const isRetry = action === 'retry'
+    const label = isRetry ? 'retry-deliveries' : 'queue-existing'
+    if (!window.confirm(isRetry
+      ? 'Retry all currently failed invitation deliveries for this event?'
+      : 'Queue eligible existing invitations that have no delivery job yet?')) return
+    setPending(label)
+    try {
+      const result = isRetry
+        ? await retryInvitationDeliveries(event.id)
+        : await queueExistingDeliveries(event.id)
+      if (!result.ok) return addToast('Invitation delivery not updated', result.message)
+      const count = isRetry ? Number(result.retried || 0) : Number(result.queued || 0)
+      addToast(
+        isRetry ? 'Failed deliveries scheduled' : 'Existing invitations queued',
+        count ? `${plural(count, 'delivery')} ready for the worker.` : 'No eligible delivery needed to be added.',
+      )
+      refreshAll()
+    } finally { setPending('') }
+  }
   const changeFilter = (setter) => (value) => { setter(value); setSelected([]); setPage(1) }
   return <>
     <div className="adm-event-section-heading"><div><h4>Workshop participants</h4><p>Every member and staff application of the club, with its private link, registration and attendance.</p></div></div>
     <PrivateLinksPanel
       overview={overviewState.overview} loading={overviewState.loading} error={overviewState.error} pending={pending}
-      onGenerate={(label) => generated({ scope: 'all_applicants' }, label)} onExport={exportCsv} onRetry={overviewState.refresh}/>
+      onGenerate={(label) => generated({ scope: 'all_applicants' }, label)} onExport={exportCsv}
+      onQueueExisting={() => deliveryAction('queue')} onRetryDeliveries={() => deliveryAction('retry')} onRetry={overviewState.refresh}/>
     <div className="adm-toolbar">
       <SearchField value={search} onChange={(value) => { setSearch(value); setPage(1) }} placeholder="Search participants by name, email or speciality..." label="Search participants"/>
       <div className="adm-toolbar__filters">

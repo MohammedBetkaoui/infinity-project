@@ -23,6 +23,8 @@ const ACTION_TITLES = Object.freeze({
   event_updated: 'Event updated',
   workshop_applicants_invited: 'Member applicants invited to workshop',
   workshop_invitation_links_exported: 'Workshop invitation links exported',
+  workshop_invitation_deliveries_queued: 'Existing workshop invitation deliveries queued',
+  workshop_invitation_deliveries_retried: 'Failed workshop invitation deliveries retried',
   workshop_invitation_link_regenerated: 'Workshop invitation link regenerated',
   participant_registered: 'Participant registered',
   scanner_access_generated: 'Workshop scanner link generated',
@@ -302,7 +304,12 @@ export function createAdminEventsService({
   // Counts for the "private links" panel. missing = applications that joined
   // (or were never linked) and still have no private link for this event.
   const invitationOverview = async (eventId) => {
-    const counts = await store.invitationCounts(eventId)
+    const [counts, delivery] = await Promise.all([
+      store.invitationCounts(eventId),
+      store.invitationDeliveryCounts
+        ? store.invitationDeliveryCounts(eventId)
+        : Promise.resolve({ pending: 0, processing: 0, delivered: 0, failed: 0, retryScheduled: 0 }),
+    ])
     const section = (members, staff) => ({ members, staff, total: members + staff })
     return {
       eligible: section(counts.eligibleMembers, counts.eligibleStaff),
@@ -312,6 +319,7 @@ export function createAdminEventsService({
         Math.max(0, counts.eligibleStaff - counts.linkedStaff),
       ),
       unexported: section(counts.unexportedMembers, counts.unexportedStaff),
+      delivery,
     }
   }
   const detail = async (eventId) => {
@@ -417,6 +425,28 @@ export function createAdminEventsService({
             addedStaff: Number(result?.added_staff || 0),
           },
         }
+      } catch (error) {
+        const publicError = publicEventError(error)
+        if (publicError) return { ok: false, ...publicError }
+        throw error
+      }
+    },
+    async queueExistingDeliveries(eventId, user) {
+      if (!canManageEvents(user.role, 'manage_invitation_delivery')) return { ok: false, status: 403, message: 'You do not have permission to queue invitation deliveries.' }
+      try {
+        const queued = await store.queueExistingInvitationDeliveries({ eventId, adminUserId: user.id, now: now() })
+        return { ok: true, queued }
+      } catch (error) {
+        const publicError = publicEventError(error)
+        if (publicError) return { ok: false, ...publicError }
+        throw error
+      }
+    },
+    async retryDeliveries(eventId, user) {
+      if (!canManageEvents(user.role, 'manage_invitation_delivery')) return { ok: false, status: 403, message: 'You do not have permission to retry invitation deliveries.' }
+      try {
+        const retried = await store.retryInvitationDeliveries({ eventId, adminUserId: user.id, now: now() })
+        return { ok: true, retried }
       } catch (error) {
         const publicError = publicEventError(error)
         if (publicError) return { ok: false, ...publicError }

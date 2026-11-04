@@ -261,5 +261,5 @@ test('retention and staging cleanup are dry-run, explicit-execute and unschedule
     assert.doesNotMatch(source, /console\.log\([^\n]*(path|phone|email|rfid|token)/i)
   }
   const vercel = JSON.parse(await read('vercel.json'))
-  assert.equal(vercel.crons, undefined)
+  assert.equal((vercel.crons || []).some(({ path }) => /aivex|purge|cleanup|retention/i.test(path)), false)
 })

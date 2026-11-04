@@ -2,6 +2,7 @@ export const ADMIN_EVENT_ACTIONS = Object.freeze([
   'create_event',
   'update_event',
   'invite_applicants',
+  'manage_invitation_delivery',
   'manage_scanner',
 ])
 

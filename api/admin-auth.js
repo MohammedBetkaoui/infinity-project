@@ -610,12 +610,14 @@ export function createAdminEventsHandler({
     const invitationsMatch = path.match(/^events\/([0-9a-f-]+)\/invitations$/i)
     const invitationExportMatch = path.match(/^events\/([0-9a-f-]+)\/invitations\/export$/i)
     const invitationLinkMatch = path.match(/^events\/([0-9a-f-]+)\/invitations\/([0-9a-f-]+)\/link$/i)
+    const invitationQueueMatch = path.match(/^events\/([0-9a-f-]+)\/invitations\/deliveries\/queue$/i)
+    const invitationRetryMatch = path.match(/^events\/([0-9a-f-]+)\/invitations\/deliveries\/retry$/i)
     const scannerMatch = path.match(/^events\/([0-9a-f-]+)\/scanner$/i)
     const lifecycleMatch = path.match(/^events\/([0-9a-f-]+)\/lifecycle$/i)
     const statisticsMatch = path.match(/^events\/([0-9a-f-]+)\/statistics$/i)
     const attendanceMatch = path.match(/^events\/([0-9a-f-]+)\/attendance$/i)
     const attendanceFinalizeMatch = path.match(/^events\/([0-9a-f-]+)\/attendance\/finalize$/i)
-    const detailPath = rootMatch || detailMatch || participantsMatch || invitationsMatch || invitationExportMatch || invitationLinkMatch || scannerMatch || lifecycleMatch || statisticsMatch || attendanceMatch || attendanceFinalizeMatch
+    const detailPath = rootMatch || detailMatch || participantsMatch || invitationsMatch || invitationExportMatch || invitationLinkMatch || invitationQueueMatch || invitationRetryMatch || scannerMatch || lifecycleMatch || statisticsMatch || attendanceMatch || attendanceFinalizeMatch
     if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(req.method) && !trustedOrigin(req, env)) return sendAdminJson(res, 403, { success: false, message: 'Request rejected.' })
 
     try {
@@ -633,7 +635,7 @@ export function createAdminEventsHandler({
         if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: result.message })
         return sendAdminJson(res, 201, { success: true, event: result.event })
       }
-      const eventId = detailMatch?.[1] || participantsMatch?.[1] || invitationsMatch?.[1] || invitationExportMatch?.[1] || invitationLinkMatch?.[1] || scannerMatch?.[1] || lifecycleMatch?.[1] || statisticsMatch?.[1] || attendanceMatch?.[1] || attendanceFinalizeMatch?.[1]
+      const eventId = detailMatch?.[1] || participantsMatch?.[1] || invitationsMatch?.[1] || invitationExportMatch?.[1] || invitationLinkMatch?.[1] || invitationQueueMatch?.[1] || invitationRetryMatch?.[1] || scannerMatch?.[1] || lifecycleMatch?.[1] || statisticsMatch?.[1] || attendanceMatch?.[1] || attendanceFinalizeMatch?.[1]
       if (detailMatch && req.method === 'GET') {
         if (!isEventId(eventId)) return sendAdminJson(res, 404, { success: false, message: 'Event not found.' })
         const event = await service.detail(eventId, session.user)
@@ -688,6 +690,19 @@ export function createAdminEventsHandler({
         if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: result.message })
         return sendAdminJson(res, 200, { success: true, privateLink: result.privateLink, expiresAt: result.expiresAt })
       }
+      if ((invitationQueueMatch || invitationRetryMatch) && req.method === 'POST') {
+        if (!isEventId(eventId)) return sendAdminJson(res, 404, { success: false, message: 'Event not found.' })
+        if (!isJsonContentType(req)) return sendAdminJson(res, 415, { success: false, message: 'Unsupported request.' })
+        const body = await readJsonBody(req, MAX_EVENTS_BODY_BYTES)
+        if (!body || body.confirm !== true || Object.keys(body).some((key) => key !== 'confirm')) {
+          return sendAdminJson(res, 400, { success: false, message: 'Explicit confirmation is required.' })
+        }
+        const result = invitationQueueMatch
+          ? await service.queueExistingDeliveries(eventId, session.user)
+          : await service.retryDeliveries(eventId, session.user)
+        if (!result.ok) return sendAdminJson(res, result.status, { success: false, message: result.message })
+        return sendAdminJson(res, 200, { success: true, ...(invitationQueueMatch ? { queued: result.queued } : { retried: result.retried }) })
+      }
       if (scannerMatch && req.method === 'GET') {
         if (!isEventId(eventId)) return sendAdminJson(res, 404, { success: false, message: 'Event not found.' })
         const result = await service.scanner(eventId, session.user)
@@ -740,7 +755,7 @@ export function createAdminEventsHandler({
             ? 'GET'
             : scannerMatch || invitationsMatch
               ? 'GET, POST'
-              : invitationExportMatch || invitationLinkMatch || lifecycleMatch || attendanceFinalizeMatch
+              : invitationExportMatch || invitationLinkMatch || invitationQueueMatch || invitationRetryMatch || lifecycleMatch || attendanceFinalizeMatch
                 ? 'POST'
                 : 'GET')
       return sendAdminJson(res, detailPath ? 405 : 404, { success: false, message: detailPath ? 'Method not allowed.' : 'Not found.' })

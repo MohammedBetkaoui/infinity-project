@@ -31,6 +31,7 @@ import {
   createStaffConfirmationSubmitHandler, createStaffConfirmationVerifyHandler,
 } from './_lib/staff-confirmation-handlers.js'
 import { createWorkshopHandler } from './_lib/workshop-handlers.js'
+import { createEventInvitationWorkerHandler } from './_lib/event-invitation-worker.js'
 
 const MAX_BODY_BYTES = 65536
 const RATE_LIMIT = { max: 8, windowMs: 10 * 60 * 1000 }
@@ -414,6 +415,7 @@ const workshopRegistrationHandler = createWorkshopHandler('register')
 const workshopScannerSessionHandler = createWorkshopHandler('scanner-session')
 const workshopScannerContextHandler = createWorkshopHandler('scanner-context')
 const workshopScannerCheckInHandler = createWorkshopHandler('scanner-check-in')
+const eventInvitationWorkerHandler = createEventInvitationWorkerHandler()
 
 export default function handler(req, res) {
   const action = new URL(req.url || '/', 'http://localhost').searchParams.get('__join_action')
@@ -424,5 +426,6 @@ export default function handler(req, res) {
   if (action === 'workshop-scanner-session') return workshopScannerSessionHandler(req, res)
   if (action === 'workshop-scanner-context') return workshopScannerContextHandler(req, res)
   if (action === 'workshop-scanner-check-in') return workshopScannerCheckInHandler(req, res)
+  if (action === 'event-invitation-worker') return eventInvitationWorkerHandler(req, res)
   return joinApplicationHandler(req, res)
 }
