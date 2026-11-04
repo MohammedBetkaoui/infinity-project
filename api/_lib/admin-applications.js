@@ -136,9 +136,12 @@ function mapStaffConfirmation(row, now = new Date()) {
   }
 }
 
-function mapApplication(row, role, extras = {}) {
+// The derived status depends on the clock, and the service injects one ({@see now}).
+// Passing it through keeps admin views deterministic for any campaign deadline:
+// production uses the wall clock (default), tests use the fixed fixture.
+function mapApplication(row, role, extras = {}, now = new Date()) {
   const latestInterview = extras.interviews?.[0]
-  const staffConfirmation = mapStaffConfirmation(extras.staffConfirmation)
+  const staffConfirmation = mapStaffConfirmation(extras.staffConfirmation, now)
   const history = [
     {
       title: 'Application received', actor: 'Infinity Join form',
@@ -304,7 +307,7 @@ export function createAdminApplicationsService({
         ? store.staffConfirmation(applicationId, { submissions: true })
         : null,
     ])
-    return mapApplication(row, user.role, { notes, interviews, audit, staffConfirmation })
+    return mapApplication(row, user.role, { notes, interviews, audit, staffConfirmation }, now())
   }
 
   return {

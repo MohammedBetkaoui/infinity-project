@@ -2,8 +2,8 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { createAdminEventsService } from '../api/_lib/admin-events.js'
-import { createEventInvitationDeliveryService } from '../api/_lib/event-invitation-delivery.js'
-import { createN8nRegistrationDispatcher } from '../api/_lib/event-invitation-webhook.js'
+import { createEventInvitationDeliveryService, EVENT_INVITATION_WORKER_LIMITS } from '../api/_lib/event-invitation-delivery.js'
+import { createN8nRegistrationDispatcher, N8N_WEBHOOK_TIMEOUT_MS } from '../api/_lib/event-invitation-webhook.js'
 import { prepareStableWorkshopCredential } from '../api/_lib/workshop-tokens.js'
 import { createEventInvitationWorkerHandler } from '../api/_lib/event-invitation-worker.js'
 
@@ -235,4 +235,111 @@ test('worker endpoint requires a long server secret and leaks no credential deta
     assert.doesNotMatch(JSON.stringify(res.body), /SUPABASE|N8N|token|private|email/i)
     assert.equal(logs.length, 0)
   } finally { console.error = original }
+})
+
+test('worker endpoint answers 405 with an Allow GET hint and never touches secrets', async () => {
+  const handler = createEventInvitationWorkerHandler({ env: { CRON_SECRET: 'x'.repeat(32) } })
+  const res = { statusCode: 0, headers: {}, setHeader(k, v) { this.headers[k] = v }, end(value) { this.body = JSON.parse(value) } }
+  await handler({ method: 'POST', headers: { authorization: `Bearer ${'x'.repeat(32)}` } }, res)
+  assert.equal(res.statusCode, 405)
+  assert.equal(res.headers.Allow, 'GET')
+  assert.equal(res.body.success, false)
+})
+
+test('worker safety limits keep one invocation inside the Vercel Hobby duration, the lease, and the minute', () => {
+  const {
+    deliveryBatchSize, deliveryConcurrency, backfillBatchSize, backfillPageSize,
+    leaseSeconds, invocationTimeBudgetMs, deliveryMinReserveMs, backfillMinReserveMs,
+  } = EVENT_INVITATION_WORKER_LIMITS
+  // Bounded batches: 8 deliveries over 3 lanes stay far below the historical
+  // 25-delivery sequential batch that could run for ~200 s.
+  assert.equal(deliveryBatchSize, 8)
+  assert.equal(deliveryConcurrency, 3)
+  assert.equal(backfillBatchSize, 2)
+  assert.equal(backfillPageSize, 200)
+  // SQL claim functions accept leases between 15 and 240 seconds.
+  assert.ok(leaseSeconds >= 15 && leaseSeconds <= 240)
+  // Worst case: ceil(8/3) waves x webhook timeout + SQL margin fits the budget,
+  // the budget fits the lease, and everything fits the 60 s Hobby function cap.
+  const waves = Math.ceil(deliveryBatchSize / deliveryConcurrency)
+  assert.equal(waves, 3)
+  assert.ok(waves * N8N_WEBHOOK_TIMEOUT_MS + 6_000 <= invocationTimeBudgetMs)
+  assert.ok(invocationTimeBudgetMs < leaseSeconds * 1000)
+  assert.ok(invocationTimeBudgetMs < 60_000)
+  assert.equal(deliveryMinReserveMs, N8N_WEBHOOK_TIMEOUT_MS + 4_000)
+  assert.ok(backfillMinReserveMs > 0 && backfillMinReserveMs < invocationTimeBudgetMs)
+})
+
+test('deliveries run with bounded concurrency and hand the durable lease to the store', async () => {
+  const jobs = [deliveryJob(), deliveryJob({
+    job_id: '77777777-7777-4777-8777-777777777777',
+    invitation_id: '66666666-6666-4666-8666-666666666666',
+  }), deliveryJob({
+    job_id: '99999999-9999-4999-8999-999999999999',
+    invitation_id: 'aaaaaaa1-1111-4111-8111-111111111111',
+  })]
+  const store = new DeliveryStore(jobs)
+  const claimArgs = {}
+  store.claimDeliveries = async (input) => { Object.assign(claimArgs, input); return store.jobs }
+  let inflight = 0
+  let maxInflight = 0
+  const gates = []
+  const dispatcher = { dispatch: async () => {
+    inflight += 1
+    maxInflight = Math.max(maxInflight, inflight)
+    if (inflight < 3) await new Promise((release) => gates.push(release))
+    else while (gates.length) gates.pop()()
+    inflight -= 1
+    return { ok: true }
+  } }
+  const service = createEventInvitationDeliveryService({
+    store, dispatcher, origin: ORIGIN, env: ENV, now: () => NOW, randomUuid: () => LEASE_ID,
+  })
+  const summary = await service.processDeliveries()
+  assert.equal(summary.delivered, 3)
+  assert.equal(maxInflight, 3, 'dispatch stays bounded to the configured concurrent lanes')
+  assert.equal(claimArgs.leaseSeconds, EVENT_INVITATION_WORKER_LIMITS.leaseSeconds)
+  assert.equal(claimArgs.limit, EVENT_INVITATION_WORKER_LIMITS.deliveryBatchSize)
+  assert.equal(store.finished.length, 3)
+})
+
+test('the invocation budget stops dispatching mid-batch and leaves skipped jobs to lease recovery', async () => {
+  const jobs = [deliveryJob(), deliveryJob(), deliveryJob(), deliveryJob()]
+  const store = new DeliveryStore(jobs)
+  let nowMs = NOW.getTime()
+  const service = createEventInvitationDeliveryService({
+    store,
+    dispatcher: { dispatch: async () => { nowMs += 7_000; return { ok: true } } },
+    origin: ORIGIN, env: ENV, now: () => new Date(nowMs), randomUuid: () => LEASE_ID,
+    timeBudgetMs: 20_000,
+  })
+  const summary = await service.processDeliveries()
+  assert.equal(summary.claimed, 4)
+  assert.equal(summary.delivered, 2, 'only jobs that fit the remaining time budget are dispatched')
+  assert.equal(summary.budgetSkipped, 2, 'over-pessimistic skipping is bounded to the same batch')
+  assert.equal(store.finished.length, 2, 'skipped jobs are not marked failed; their lease simply expires and a later invocation reclaims them')
+})
+
+test('an exhausted budget claims nothing and touches no rows', async () => {
+  const store = new DeliveryStore([deliveryJob()])
+  const service = createEventInvitationDeliveryService({
+    store, dispatcher: { dispatch: async () => { throw new Error('must not dispatch') } },
+    origin: ORIGIN, env: ENV, now: () => NOW,
+    timeBudgetMs: 2_000,
+  })
+  assert.deepEqual(await service.processDeliveries(), { claimed: 0, delivered: 0, retryScheduled: 0, failed: 0 })
+  assert.deepEqual(await service.processBackfills(), { claimed: 0, processed: 0, invitationsAdded: 0, deliveriesQueued: 0, failed: 0 })
+  assert.equal(store.finished.length, 0)
+})
+
+test('an unexpected dispatcher throw becomes one bounded retryable failure, never a lost job', async () => {
+  const store = new DeliveryStore()
+  const service = createEventInvitationDeliveryService({
+    store, dispatcher: { dispatch: async () => { throw new Error('renderer crash') } },
+    origin: ORIGIN, env: ENV, now: () => NOW, randomUuid: () => LEASE_ID,
+  })
+  const summary = await service.processDeliveries()
+  assert.equal(summary.retryScheduled, 1)
+  assert.equal(store.finished[0].errorCode, 'dispatch_failed')
+  assert.equal(store.finished[0].retryable, true)
 })

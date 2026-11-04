@@ -20,7 +20,11 @@ export function createEventInvitationWorkerHandler({ env = process.env, fetchImp
       res.setHeader('Allow', 'GET')
       return sendJson(res, 405, { success: false, message: 'Method not allowed.' })
     }
-    if (!authorized(req, env)) return sendJson(res, 401, { success: false, message: 'Unauthorized.' })
+    if (!authorized(req, env)) {
+      // Fixed reason only: never echo the header, the provided or expected secret.
+      console.warn('[event-invitation-worker] Unauthorized trigger refused', { reason_code: 'bearer_rejected' })
+      return sendJson(res, 401, { success: false, message: 'Unauthorized.' })
+    }
 
     const supabaseUrl = env.SUPABASE_URL
     const supabaseSecret = env.SUPABASE_SECRET_KEY
@@ -30,6 +34,7 @@ export function createEventInvitationWorkerHandler({ env = process.env, fetchImp
       return sendJson(res, 503, { success: false, message: 'Worker configuration unavailable.' })
     }
 
+    const startedAt = Date.now()
     try {
       const dispatcher = createN8nRegistrationDispatcher({ env, fetchImpl })
       const supabase = createClient(supabaseUrl, supabaseSecret, {
@@ -40,6 +45,20 @@ export function createEventInvitationWorkerHandler({ env = process.env, fetchImp
       })
       const backfills = await service.processBackfills()
       const deliveries = await service.processDeliveries()
+      // Non-sensitive operational summary for Supabase Cron diagnostics:
+      // counts and duration only, never names, emails, tokens or links.
+      console.log('[event-invitation-worker] Tick completed', {
+        execution_status: 'completed',
+        duration_ms: Date.now() - startedAt,
+        claimed_jobs: deliveries.claimed,
+        delivered_jobs: deliveries.delivered,
+        retry_scheduled: deliveries.retryScheduled,
+        failed_jobs: deliveries.failed,
+        budget_skipped: deliveries.budgetSkipped || 0,
+        backfill_claims: backfills.claimed,
+        backfill_processed: backfills.processed,
+        backfill_deliveries_queued: backfills.deliveriesQueued,
+      })
       return sendJson(res, 200, { success: true, backfills, deliveries })
     } catch (error) {
       // Fixed categories only: never log a webhook URL, secret, email, name,

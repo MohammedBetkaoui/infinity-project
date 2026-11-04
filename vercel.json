@@ -1,6 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
+    "api/join.js": {
+      "maxDuration": 60
+    },
     "api/admin-auth.js": {
       "maxDuration": 60,
       "includeFiles": "public/word-form/**"
@@ -28,12 +31,6 @@
       "maxDuration": 60
     }
   },
-  "crons": [
-    {
-      "path": "/api/event-invitation-worker",
-      "schedule": "* * * * *"
-    }
-  ],
   "headers": [
     {
       "source": "/(.*)",
