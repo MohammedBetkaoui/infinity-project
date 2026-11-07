@@ -51,7 +51,7 @@ export default function WorkshopRegistrationPage() {
     setSubmitting(true)
     const { response, payload } = await api('/api/workshops/register', { token: registrationToken, universitySpeciality: speciality })
     setSubmitting(false)
-    if (!response.ok) { setState((current) => ({ ...current, loading: false, error: payload.message || 'Registration is unavailable.' })); return }
+    if (!response.ok) { setState((current) => ({ ...current, loading: false, closed: payload.status === 'closed', error: payload.message || 'Registration is unavailable.' })); return }
     sessionStorage.setItem(SPECIALITY_KEY, payload.pass.universitySpeciality || '')
     setState((current) => ({ ...current, loading: false, error: '', pass: payload.pass }))
   }
@@ -71,7 +71,12 @@ export default function WorkshopRegistrationPage() {
     // invitation; the form only asks for the university speciality.
     api('/api/workshops/invitation', { token: privateToken }).then(({ response, payload }) => {
       if (!active) return
-      if (!response.ok) { sessionStorage.removeItem(TOKEN_KEY); setState({ loading: false, error: payload.message || 'This private workshop link is invalid or no longer active.', invitation: null, registration: null, event: null, pass: null }); return }
+      if (!response.ok) {
+        const closed = payload.status === 'closed'
+        if (!closed) sessionStorage.removeItem(TOKEN_KEY)
+        setState({ loading: false, closed, error: payload.message || 'This private workshop link is invalid or no longer active.', invitation: null, registration: null, event: null, pass: null })
+        return
+      }
       const fullName = payload.invitation.fullName || ''
       const prefilled = payload.registration?.universitySpeciality
         || sessionStorage.getItem(SPECIALITY_KEY)
@@ -102,6 +107,7 @@ export default function WorkshopRegistrationPage() {
 
     <div className="workshop-invite-main">
       {state.loading ? <div className="workshop-invite-state" role="status"><DeckCard className="is-waiting"/><p>Checking your invitation…</p></div>
+        : state.closed ? <div className="workshop-invite-state is-closed"><DeckCard className="is-closed"/><h1>Registration is closed</h1><p>Registration for this workshop is now closed. We are no longer accepting new participants.</p><small>Already registered? Open your personal invitation link again to see your pass.</small></div>
         : state.error ? <div className="workshop-invite-state is-error"><DeckCard className="is-closed"/><h1>Invitation unavailable</h1><p>{state.error}</p><small>If you think this is a mistake, contact Infinity Club.</small></div>
         : state.pass ? <section className="workshop-pass-stage" aria-labelledby="workshop-pass-title">
           <header className="workshop-success"><CheckCircle2 aria-hidden="true"/><h1 id="workshop-pass-title">Registration confirmed</h1><p>Show this pass at the entrance. It holds your personal check-in code.</p></header>

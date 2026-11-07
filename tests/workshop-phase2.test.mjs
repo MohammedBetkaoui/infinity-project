@@ -27,7 +27,7 @@ const TOKEN_C = 'C'.repeat(43)
 const EVENT_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
 const INVITATION_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const NOW = new Date('2026-10-28T07:00:00.000Z')
-const LINK_ENV = { WORKSHOP_INVITATION_LINK_SECRET: 'correct-horse-battery-staple-workshop-secret-2026' }
+const LINK_ENV = { WORKSHOP_INVITATION_LINK_SECRET: 'correct-horse-battery-staple-workshop-secret-2026', WORKSHOP_REGISTRATION_OPEN: 'true' }
 const ORIGIN = 'https://www.infinty-bba.com'
 
 const stableInvitationCredential = (invitationId, credentialVersion = 1) => {
@@ -127,10 +127,40 @@ test('the invitation view serves the server-resolved identity and any stored reg
   assert.equal(result.invitation.fullName, 'Amel Benali')
   assert.deepEqual(result.registration, { status: 'registered', universitySpeciality: 'Software Engineering' })
   assert.equal(result.event.title, 'Introduction to Machine Learning')
-  const fresh = createWorkshopsService({ store: { openInvitation: async () => invitationRow() }, now: () => NOW, origin: ORIGIN })
+  const fresh = createWorkshopsService({ store: { openInvitation: async () => invitationRow() }, now: () => NOW, origin: ORIGIN, env: LINK_ENV })
   const notRegistered = await fresh.invitation(TOKEN_B)
   assert.equal(notRegistered.invitation.alreadyRegistered, false)
   assert.equal(notRegistered.registration, null)
+})
+
+test('closed registration turns away unregistered people but still serves registered participants their pass', async () => {
+  const registeredRow = invitationRow({ registration_status: 'registered', university_speciality: 'Software Engineering', qr_credential_version: 1, qr_derivation_version: 1 })
+  const closedMessage = { ok: false, status: 'closed', message: 'Workshop registration is closed.' }
+  for (const env of [{ ...LINK_ENV, WORKSHOP_REGISTRATION_OPEN: undefined }, { ...LINK_ENV, WORKSHOP_REGISTRATION_OPEN: 'false' }, {}]) {
+    let registerCalls = 0
+    const unregistered = createWorkshopsService({
+      store: { openInvitation: async () => invitationRow(), register: async () => { registerCalls += 1 } },
+      now: () => NOW, origin: ORIGIN, env,
+    })
+    assert.deepEqual(await unregistered.invitation(TOKEN_A), closedMessage)
+    assert.deepEqual(await unregistered.register({ token: TOKEN_A, universitySpeciality: 'Software Engineering' }), closedMessage)
+    assert.equal(registerCalls, 0, 'a closed registration never reaches the database')
+
+    const registered = createWorkshopsService({
+      store: {
+        openInvitation: async () => registeredRow,
+        register: async (input) => ({ ...registeredRow, already_registered: true, qr_expires_at: input.qrExpiresAt.toISOString() }),
+      },
+      now: () => NOW, origin: ORIGIN, env: { ...LINK_ENV, WORKSHOP_REGISTRATION_OPEN: undefined, ...env },
+    })
+    const view = await registered.invitation(TOKEN_A)
+    assert.equal(view.ok, true)
+    assert.equal(view.invitation.alreadyRegistered, true)
+    const pass = await registered.register({ token: TOKEN_A, universitySpeciality: 'Software Engineering' })
+    assert.equal(pass.ok, true)
+    assert.equal(pass.alreadyRegistered, true)
+    assert.equal(pass.pass.participantName, 'Amel Benali')
+  }
 })
 
 test('registration stores only the speciality, keeps identity server-resolved and repeats the opaque QR', async () => {

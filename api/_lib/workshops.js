@@ -18,6 +18,12 @@ const mappedError = (error, scanner = false) => {
   return scanner ? null : null
 }
 
+// New registrations are closed unless WORKSHOP_REGISTRATION_OPEN=true. Only
+// people who have no registration yet are turned away: anyone already
+// registered keeps opening their invitation to see (and re-download) the pass.
+const registrationOpen = (env) => String(env?.WORKSHOP_REGISTRATION_OPEN || '').trim().toLowerCase() === 'true'
+const closedError = () => ({ ok: false, status: 'closed', message: 'Workshop registration is closed.' })
+
 const eventView = (row) => ({
   id: row.event_id, title: row.event_title, startsAt: row.starts_at, endsAt: row.ends_at || null,
   location: row.location, speaker: row.speaker_name || '',
@@ -29,6 +35,7 @@ export function createWorkshopsService({ store, now = () => new Date(), origin, 
     async invitation(rawToken) {
       const row = await store.openInvitation({ tokenHash: hashWorkshopToken(rawToken), now: now() })
       if (!row) return genericPrivateError()
+      if (!row.registration_status && !registrationOpen(env)) return closedError()
       return {
         ok: true,
         invitation: {
@@ -53,6 +60,7 @@ export function createWorkshopsService({ store, now = () => new Date(), origin, 
         throw error
       }
       if (!invitation) return genericPrivateError()
+      if (!invitation.registration_status && !registrationOpen(env)) return closedError()
       // The opaque QR badge is derived from the registration's current stable
       // credential version, so a revisit re-derives the identical credential.
       const qrCredential = prepareStableWorkshopCredential({
