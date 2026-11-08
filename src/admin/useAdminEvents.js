@@ -226,5 +226,39 @@ export function useAdminEventActions() {
     if (!guard(`${eventId}:attendance-finalize`)) return { ok: false, message: 'Another event action is still being saved.' }
     return post(`/api/admin/events/${encodeURIComponent(eventId)}/attendance/finalize`, { confirm: true })
   }, [post])
-  return { create, update, invite, invitationLink, exportInvitations, queueExistingDeliveries, retryInvitationDeliveries, scannerAccess, transition, finalizeAttendance }
+  // Every checked-in participant (full name + email) as a CSV. The attendance
+  // API caps a page at 50 rows, so walk all pages of the "present" filter.
+  const exportPresentAttendance = useCallback(async (eventId, eventTitle = '') => {
+    if (!guard(`${eventId}:export-present`)) return { ok: false, message: 'Another event action is still being saved.' }
+    try {
+      const rows = []
+      let pages = 1
+      for (let page = 1; page <= pages; page += 1) {
+        const { response, body } = await request(`/api/admin/events/${encodeURIComponent(eventId)}/attendance?${attendanceQueryString({ page, limit: 50, status: 'present' })}`)
+        if (!response.ok) return { ok: false, status: response.status, message: body.message || 'The attendance export could not be created.' }
+        rows.push(...(body.data || []))
+        pages = Math.max(1, Number(body.pagination?.pages || 1))
+      }
+      const cell = (value) => {
+        let text = value == null ? '' : String(value).replace(/\r\n?/g, '\n')
+        if (/^[\t\r\n ]*[=+\-@]/.test(text)) text = `'${text}`
+        return `"${text.replace(/"/g, '""')}"`
+      }
+      const csv = ['﻿' + ['Full name', 'Email'].map(cell).join(','), ...rows.map((row) => [row.name, row.email].map(cell).join(','))].join('\r\n') + '\r\n'
+      const slug = String(eventTitle).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)
+      const fileName = `${slug || 'event'}-present-students-${new Date().toISOString().slice(0, 10)}.csv`
+      const href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+      const anchor = document.createElement('a')
+      anchor.href = href
+      anchor.download = fileName
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      window.setTimeout(() => URL.revokeObjectURL(href), 1000)
+      return { ok: true, rowCount: rows.length }
+    } catch {
+      return { ok: false, message: 'Unable to reach the administration service.' }
+    } finally { release() }
+  }, [request])
+  return { create, update, invite, invitationLink, exportInvitations, queueExistingDeliveries, retryInvitationDeliveries, scannerAccess, transition, finalizeAttendance, exportPresentAttendance }
 }

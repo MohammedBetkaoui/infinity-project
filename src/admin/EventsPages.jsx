@@ -609,10 +609,18 @@ function ScannerTab({ event, onChanged }) {
 
 function AttendanceTab({ event }) {
   const { addToast } = useAdmin()
-  const { finalizeAttendance } = useAdminEventActions()
+  const { finalizeAttendance, exportPresentAttendance } = useAdminEventActions()
   const [status, setStatus] = useState('')
   const [page, setPage] = useState(1)
   const [finalizing, setFinalizing] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const exportPresent = async () => {
+    setExporting(true)
+    const result = await exportPresentAttendance(event.id, event.title)
+    setExporting(false)
+    if (!result.ok) return addToast('Export failed', result.message)
+    addToast('Present students exported', `${result.rowCount} student${result.rowCount === 1 ? '' : 's'} (full name, email) in the CSV.`)
+  }
   const { records, summary, pagination, loading, error, refresh } = useAdminEventAttendance({ eventId: event.id, page, limit: 50, status })
   const columns = useMemo(() => [
     { key: 'name', label: 'Participant', render: (row) => <div className="adm-person-cell"><Avatar initials={row.initials} small/><span><b>{row.name}</b><small>{row.email || ''}</small></span></div> },
@@ -634,6 +642,7 @@ function AttendanceTab({ event }) {
       <p className="adm-toolbar-note">Registrations stay pending until scanned. Participants are never marked absent automatically.</p>
       <div className="adm-toolbar__filters">
         <Button variant="secondary" onClick={refresh} icon={<RefreshCw size={15}/>}>Refresh</Button>
+        {status === 'present' && <Button variant="secondary" disabled={exporting || !summary?.present} onClick={exportPresent} icon={<Download size={15}/>}>{exporting ? 'Exporting…' : 'Export present (CSV)'}</Button>}
         {event.statusKey === 'completed' && <Button variant="secondary" disabled={finalizing} onClick={async () => {
           if (!window.confirm('Finalize every remaining registration as absent? This action is explicit and auditable.')) return
           setFinalizing(true)
