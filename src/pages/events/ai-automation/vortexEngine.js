@@ -1,7 +1,9 @@
 // The deck from the workshop film, as a 2D canvas: cards rushing out of a
 // tunnel (hero) or raining down (finale). No WebGL, no per-frame allocation:
-// sprites are painted once, each frame is ~150 drawImage calls with a matrix.
+// sprites are painted once, each frame is a few dozen drawImage calls with a
+// matrix. The card count and resolution follow the device tier (perfTier.js).
 import { INFINITY_CLUB_PATH, INFINITY_CLUB_VIEWBOX } from '../../../components/infinity-club-geometry.js'
+import { isForced, lowerTier, perfTier, probeOnce, subscribeTier } from './perfTier'
 
 const [, , LOGO_W, LOGO_H] = INFINITY_CLUB_VIEWBOX.split(' ').map(Number)
 const SPRITE_W = 150
@@ -206,16 +208,53 @@ function sharedSprites(deckImageSrc) {
 
 const MODES = {
   // Hero: the camera looks down a tunnel of cards towards the Infinity card.
-  tunnel: { count: 150, compactCount: 70, near: .32, far: 6.2, speed: .42, swirl: .1 },
+  tunnel: { near: .32, far: 6.2, speed: .42, swirl: .1, minCards: 30 },
   // Finale: the cards settle, like the end of the film.
-  fall: { count: 70, compactCount: 34, near: .55, far: 2.6, speed: 1, swirl: 0 },
+  fall: { near: .55, far: 2.6, speed: 1, swirl: 0, minCards: 12 },
+}
+
+// Cards [desktop, compact] per tier and mode, and how each tier draws.
+const COUNTS = {
+  tunnel: { high: [150, 70], mid: [80, 45], low: [40, 28] },
+  fall: { high: [70, 34], mid: [38, 20], low: [20, 12] },
+}
+const QUALITY = {
+  high: { dprMax: 1.5, resolution: 1, every: 1 },
+  mid: { dprMax: 1, resolution: 1, every: 1 },
+  // Drawn small and stretched by CSS (the blur suits the film), every other frame.
+  low: { dprMax: 1, resolution: .75, every: 2 },
+}
+const PROBE_FRAMES = 90
+// The first frames are the page booting (React, images, the intro): not a verdict.
+const PROBE_WARMUP = 10
+// A device that is clearly struggling is judged early, not after the whole window.
+const PROBE_EARLY = 30
+// The slowest share of the window is dropped from the mean: a few hitches
+// (decoding an image, a GC) must not condemn a capable device.
+const PROBE_TRIM = .15
+const PROBE_LIMIT = 22
+const SLOW_FRAME = 20
+const SLOW_RUN = 30
+const SCALE_FLOOR = .65
+
+const byDepth = (a, b) => b.z - a.z
+
+// Mean of the fastest (1 - PROBE_TRIM) of the samples. Sorts the buffer in place.
+function trimmedMean(samples, count) {
+  const window = samples.subarray(0, count)
+  window.sort()
+  const keep = Math.max(1, Math.floor(count * (1 - PROBE_TRIM)))
+  let total = 0
+  for (let i = 0; i < keep; i++) total += window[i]
+  return total / keep
 }
 
 // The scroll scenes reach the engine of a canvas without a React handle.
 const engines = new WeakMap()
 export const vortexOf = (canvas) => (canvas ? engines.get(canvas) : null) || null
 
-export function createCardVortex(canvas, { mode = 'tunnel', compact = false, deckImageSrc, intensity = 1 } = {}) {
+// `still` is the single frame of reduced motion: it keeps the full deck, there is nothing to save.
+export function createCardVortex(canvas, { mode = 'tunnel', compact = false, deckImageSrc, intensity = 1, still = false } = {}) {
   const ctx = canvas.getContext('2d', { alpha: true })
   const config = MODES[mode] || MODES.tunnel
   const sprites = sharedSprites(deckImageSrc)
@@ -226,11 +265,29 @@ export function createCardVortex(canvas, { mode = 'tunnel', compact = false, dec
     camX: 0, camY: 0, camXTarget: 0, camYTarget: 0,
     intensity, intensityTarget: intensity,
   }
+  let tier = still ? 'high' : perfTier()
+  let quality = QUALITY[tier]
+  // The adaptive controller only ever removes: cards first, then resolution.
+  let trim = 1
+  let shrink = 1
   let cards = []
   let glints = []
+  let needsSort = true
   let frame = 0
   let last = 0
+  let lastRender = 0
+  let skip = false
   let running = false
+  // Frame-time watch: a probe on the hero's first frames, then a rolling mean.
+  let probing = !still && mode === 'tunnel' && !isForced() && probeOnce()
+  let probeSeen = 0
+  let probeFrames = 0
+  const probeSamples = new Float32Array(PROBE_FRAMES)
+  let mean = 1000 / 60
+  let slowRun = 0
+
+  const baseCount = () => COUNTS[mode][tier][compact ? 1 : 0]
+  const areaFactor = () => clamp((state.width * state.height) / (1440 * 900), .45, 1.25)
 
   function spawn(card, initial) {
     card.front = pick(sprites.fronts)
@@ -253,25 +310,34 @@ export function createCardVortex(canvas, { mode = 'tunnel', compact = false, dec
       card.vx = rand(-.012, .012)
       card.phase = rand(0, TAU)
     }
+    // A new card breaks the depth order: the next frame sorts once.
+    needsSort = true
     return card
   }
 
   function seed() {
-    const area = clamp((state.width * state.height) / (1440 * 900), .45, 1.25)
-    const count = Math.round((compact ? config.compactCount : config.count) * area)
+    const count = Math.round(baseCount() * areaFactor() * trim)
     cards = Array.from({ length: count }, () => spawn({}, true))
     glints = Array.from({ length: compact ? 12 : 24 }, () => ({ x: Math.random(), y: Math.random(), phase: rand(0, TAU), speed: rand(.6, 1.6), size: rand(3, 6) }))
+  }
+
+  function setBackingStore(force) {
+    state.dpr = Math.min(window.devicePixelRatio || 1, quality.dprMax) * quality.resolution * shrink
+    const w = Math.round(state.width * state.dpr)
+    const h = Math.round(state.height * state.dpr)
+    // Assigning width or height clears and reallocates the bitmap: only when it changed.
+    if (force || canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h }
   }
 
   function resize() {
     const rect = canvas.getBoundingClientRect()
     if (!rect.width || !rect.height) return
-    state.dpr = Math.min(window.devicePixelRatio || 1, compact ? 1.5 : 1.75)
+    // A mobile address bar resizes the box by a few dozen pixels: not worth a new bitmap.
+    if (compact && state.width && Math.abs(rect.width - state.width) < 1 && Math.abs(rect.height - state.height) <= 120) return
     state.width = rect.width
     state.height = rect.height
     state.unit = Math.min(rect.width, rect.height)
-    canvas.width = Math.round(rect.width * state.dpr)
-    canvas.height = Math.round(rect.height * state.dpr)
+    setBackingStore(false)
     if (!cards.length) seed()
   }
 
@@ -286,7 +352,8 @@ export function createCardVortex(canvas, { mode = 'tunnel', compact = false, dec
     state.intensity += (state.intensityTarget - state.intensity) * ease
     state.burst = Math.max(0, state.burst - dt * .9)
     const pace = 1 + state.warp * 7 + state.burst * 10
-    for (const card of cards) {
+    for (let i = 0; i < cards.length; i++) {
+      const card = cards[i]
       card.spin += card.spinSpeed * dt * (1 + state.warp * 1.5)
       card.flip += card.flipSpeed * dt * (1 + state.warp * 2)
       if (mode === 'tunnel') {
@@ -306,13 +373,18 @@ export function createCardVortex(canvas, { mode = 'tunnel', compact = false, dec
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     if (!width) return
-    // Far cards first. Order only changes on respawn: a cheap sort.
-    if (mode === 'tunnel') cards.sort((a, b) => b.z - a.z)
+    // Far cards first. Every card moves at the same pace, so the order only
+    // changes when one respawns: sort then, not on every frame.
+    if (needsSort) {
+      if (mode === 'tunnel') cards.sort(byDepth)
+      needsSort = false
+    }
     const baseW = unit * (mode === 'tunnel' ? .17 : compact ? .15 : .085)
     const cx = state.fx * width
     const cy = state.fy * height
     const tunnelRadius = Math.hypot(width, height) * .3
-    for (const card of cards) {
+    for (let i = 0; i < cards.length; i++) {
+      const card = cards[i]
       let x, y, scale, depth
       if (mode === 'tunnel') {
         scale = 1 / card.z
@@ -348,7 +420,8 @@ export function createCardVortex(canvas, { mode = 'tunnel', compact = false, dec
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.strokeStyle = '#e8f6ec'
     ctx.lineWidth = 1
-    for (const glint of glints) {
+    for (let i = 0; i < glints.length; i++) {
+      const glint = glints[i]
       const twinkle = Math.max(0, Math.sin(state.time * glint.speed + glint.phase))
       if (twinkle < .15) continue
       const gx = glint.x * width
@@ -363,13 +436,63 @@ export function createCardVortex(canvas, { mode = 'tunnel', compact = false, dec
     ctx.globalAlpha = 1
   }
 
+  // Removes load, never adds it back during the session.
+  function degrade() {
+    if (cards.length > config.minCards) {
+      const keep = Math.max(config.minCards, Math.floor(cards.length * .8))
+      trim *= keep / cards.length
+      // The farthest cards go first: small, dim, the least missed.
+      cards.splice(0, cards.length - keep)
+    } else if (shrink > SCALE_FLOOR) {
+      shrink = Math.max(SCALE_FLOOR, shrink * .85)
+      setBackingStore(true)
+    }
+  }
+
+  // Applies a lower tier chosen by the probe (or by another canvas).
+  function applyTier(next) {
+    tier = next
+    quality = QUALITY[tier]
+    const target = Math.round(baseCount() * areaFactor() * trim)
+    if (cards.length > target) cards.splice(0, cards.length - target)
+    if (state.width) setBackingStore(true)
+  }
+  const unsubscribe = still ? () => {} : subscribeTier(applyTier)
+
+  // `ms` is the display clock (time between animation frames), whatever we draw.
+  function watch(ms) {
+    if (probing && ++probeSeen > PROBE_WARMUP) {
+      probeSamples[probeFrames++] = ms
+      // Two verdicts at most: early for a clearly slow device, final at the end of the window.
+      if (probeFrames === PROBE_EARLY || probeFrames >= PROBE_FRAMES) {
+        const slow = trimmedMean(probeSamples, probeFrames) > PROBE_LIMIT
+        if (slow || probeFrames >= PROBE_FRAMES) probing = false
+        if (slow) lowerTier()
+      }
+    }
+    mean += (ms - mean) * .1
+    if (mean > SLOW_FRAME) {
+      slowRun += 1
+      if (slowRun >= SLOW_RUN) { slowRun = 0; mean = 1000 / 60; degrade() }
+    } else {
+      slowRun = 0
+    }
+  }
+
   function loop(now) {
     if (!running) return
-    const dt = last ? Math.min(.05, (now - last) / 1000) : 1 / 60
+    // The very first frame after a start has no previous one to compare with.
+    if (last) watch(Math.min(100, now - last))
     last = now
+    frame = requestAnimationFrame(loop)
+    if (quality.every === 2) {
+      skip = !skip
+      if (skip) return
+    }
+    const dt = lastRender ? Math.min(.05, (now - lastRender) / 1000) : 1 / 60
+    lastRender = now
     step(dt)
     draw()
-    frame = requestAnimationFrame(loop)
   }
 
   const unitShift = () => state.unit * .09
@@ -379,6 +502,7 @@ export function createCardVortex(canvas, { mode = 'tunnel', compact = false, dec
       if (running) return
       running = true
       last = 0
+      lastRender = 0
       frame = requestAnimationFrame(loop)
     },
     stop() {
@@ -399,6 +523,7 @@ export function createCardVortex(canvas, { mode = 'tunnel', compact = false, dec
     destroy() {
       running = false
       cancelAnimationFrame(frame)
+      unsubscribe()
       cards = []
       engines.delete(canvas)
     },

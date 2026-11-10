@@ -10,9 +10,10 @@ const pad = (value) => String(value).padStart(2, '0')
 const HERO_QUERIES = ['(min-height: 520px)', '(max-width: 900px)']
 const heroKey = () => HERO_QUERIES.map((query) => (window.matchMedia(query).matches ? 1 : 0)).join('')
 
-export default function useAIAutomationMotion(pageRef) {
+export default function useAIAutomationMotion(pageRef, tier = 'high') {
   const introComplete = useRef(false)
   const dealt = useRef(false)
+  const lastKey = useRef(null)
   const [heroLayout, setHeroLayout] = useState(heroKey)
   useEffect(() => {
     const lists = HERO_QUERIES.map((query) => window.matchMedia(query))
@@ -21,15 +22,23 @@ export default function useAIAutomationMotion(pageRef) {
     return () => lists.forEach((list) => list.removeEventListener('change', sync))
   }, [])
 
+  // 'low' rebuilds the scenes without the hero pin, skew and coverflow. A rebuild
+  // never replays an intro that was already running.
+  const rebuildKey = `${heroLayout}:${tier === 'low' ? 'low' : 'rich'}`
+
   useScrollAnimations(pageRef, (motion) => {
     const { gsap, ScrollTrigger, reduced, compact, canPin, select } = motion
+    if (lastKey.current !== null && lastKey.current !== rebuildKey) introComplete.current = true
+    lastKey.current = rebuildKey
     const page = pageRef.current
+    // Decorative images wait for the hero to paint (see data-fx in the CSS).
+    const fxTimer = window.setTimeout(() => { page.dataset.fx = 'ready' }, document.readyState === 'complete' ? 600 : 1800)
     const title = page.querySelector('.ai-hero-title')
     if (reduced) {
       title?.classList.add('is-lit')
-      return undefined
+      return () => window.clearTimeout(fxTimer)
     }
-    const cleanup = []
+    const cleanup = [() => window.clearTimeout(fxTimer)]
     const hero = page.querySelector('.ai-hero')
     // The canvas engine mounts after this layout effect: always resolve late.
     const heroVortex = () => vortexOf(page.querySelector('.ai-hero-vortex'))
@@ -47,7 +56,7 @@ export default function useAIAutomationMotion(pageRef) {
         .from(select('.ai-icard-core'), { scale: .2, opacity: 0, duration: 1, ease: 'back.out(2.2)' }, 1.2)
         .from(select('.ai-hero-title .ai-chrome-letter'), { yPercent: 115, rotationX: -88, opacity: 0, transformPerspective: 520, transformOrigin: '50% 100%', duration: 1.05, stagger: .045, ease: 'power4.out' }, .45)
         .call(() => title?.classList.add('is-lit'), null, 1.45)
-        .from(select('.ai-tagline .ai-chrome > span'), { opacity: 0, y: 10, ...(compact ? {} : { filter: 'blur(8px)', clearProps: 'filter' }), duration: .8, stagger: .022 }, 1.35)
+        .from(select('.ai-tagline .ai-chrome > span'), { opacity: 0, y: 10, ...(tier === 'high' ? { filter: 'blur(8px)', clearProps: 'filter' } : {}), duration: .8, stagger: .022 }, 1.35)
         .from(select('.ai-eyebrow, .ai-hero-lead, .ai-hero-description, .ai-actions'), { opacity: 0, y: 18, duration: .75, stagger: .08, clearProps: 'opacity,transform' }, 1.05)
         .from(select('.ai-topline, .ai-hero-meta'), { opacity: 0, duration: .9, clearProps: 'opacity' }, 1.5)
       // Keyboard and anchors never wait for the cinematic sequence.
@@ -61,7 +70,7 @@ export default function useAIAutomationMotion(pageRef) {
     // ── Leaving the hero: the camera dives, the card fills the frame and
     // bursts into the film's light, then the tunnel takes over again.
     // Same choreography on every screen tall enough to hold the stage.
-    const pinHero = !reduced && (canPin || window.innerHeight >= 520)
+    const pinHero = !reduced && tier !== 'low' && (canPin || window.innerHeight >= 520)
     const stage = page.querySelector('.ai-hero-stage')
     const card = page.querySelector('.ai-icard')
 
@@ -80,10 +89,20 @@ export default function useAIAutomationMotion(pageRef) {
     }
     placeFlash()
     ScrollTrigger.addEventListener('refresh', placeFlash)
+    // The flash rays only turn while the flash is lit; will-change only while
+    // the scene is active. Both are cheap attribute/class writes on change.
+    let flashOn = false
+    const lightFlash = (on) => {
+      if (on === flashOn || !stage) return
+      flashOn = on
+      stage.dataset.flash = on ? 'on' : 'off'
+    }
     cleanup.push(() => {
       ScrollTrigger.removeEventListener('refresh', placeFlash)
       stage?.style.removeProperty('--fx')
       stage?.style.removeProperty('--fy')
+      stage?.classList.remove('is-moving')
+      if (stage) delete stage.dataset.flash
     })
 
     if (pinHero) {
@@ -94,9 +113,13 @@ export default function useAIAutomationMotion(pageRef) {
         defaults: { ease: 'none' },
         scrollTrigger: {
           trigger: hero, pin: stage, start: 'top top',
-          end: () => `+=${Math.round(window.innerHeight * 1.1)}`, scrub: compact ? .6 : .8, anticipatePin: 1,
+          end: () => `+=${Math.round(window.innerHeight * 1.1)}`, scrub: .5, anticipatePin: 1,
           invalidateOnRefresh: true, refreshPriority: 2,
-          onUpdate: (self) => heroVortex()?.setWarp(self.progress * 1.3),
+          onToggle: (self) => stage.classList.toggle('is-moving', self.isActive),
+          onUpdate: (self) => {
+            heroVortex()?.setWarp(self.progress * 1.3)
+            lightFlash(self.progress > .43 && self.progress < .995)
+          },
         },
       })
       if (flat) {
@@ -114,7 +137,16 @@ export default function useAIAutomationMotion(pageRef) {
         .to(select('.ai-flash'), { opacity: 0, scale: 1.5, duration: .3, ease: 'power1.out' }, .72)
         .to(select('.ai-hero-vortex'), { opacity: .6, duration: .3 }, .7)
     } else {
-      gsap.timeline({ scrollTrigger: { trigger: hero, start: 'top top', end: 'bottom top', scrub: .5, onUpdate: (self) => heroVortex()?.setWarp(self.progress) } })
+      gsap.timeline({
+        scrollTrigger: {
+          trigger: hero, start: 'top top', end: 'bottom top', scrub: .5,
+          onToggle: (self) => stage.classList.toggle('is-moving', self.isActive),
+          onUpdate: (self) => {
+            heroVortex()?.setWarp(self.progress)
+            lightFlash(self.progress > .4 && self.progress < .995)
+          },
+        },
+      })
         .to(select('.ai-icard'), { scale: 1.2, y: -30, ease: 'none' }, 0)
         .fromTo(select('.ai-flash'), { opacity: 0, scale: .4 }, { opacity: .5, scale: 1, ease: 'power2.in' }, .35)
     }
@@ -227,7 +259,7 @@ export default function useAIAutomationMotion(pageRef) {
         const deal = gsap.timeline({ paused: true, onComplete: () => { dealt.current = true } })
         deal.to(cards, { x: 0, y: 0, rotation: 0, duration: 1.05, ease: 'power3.out', stagger: .14 })
           .to(turns, { rotationY: 0, duration: .85, ease: 'power2.inOut', stagger: .14, clearProps: 'transform' }, .32)
-        ScrollTrigger.create({ trigger: hand, start: 'top 80%', once: true, onEnter: () => deal.play() })
+        ScrollTrigger.create({ trigger: hand, start: 'top 80%', once: true, fastScrollEnd: true, onEnter: () => deal.play() })
       } else {
         dealt.current = true
       }
@@ -238,15 +270,22 @@ export default function useAIAutomationMotion(pageRef) {
       const turn = card.querySelector('.ai-pcard-turn')
       gsap.fromTo(turn, { rotationY: -180, rotationZ: index % 2 ? 7 : -7, scale: .86, transformPerspective: 1600 }, {
         rotationY: 0, rotationZ: 0, scale: 1, ease: 'power1.inOut',
-        scrollTrigger: { trigger: card, start: 'top 98%', end: 'top 48%', scrub: .6 },
+        scrollTrigger: {
+          trigger: card, start: 'top 98%', end: 'top 48%', scrub: true,
+          onToggle: (self) => turn.classList.toggle('is-moving', self.isActive),
+          // Face up for good: the card leaves the 3D scene (fewer layers).
+          onLeave: () => turn.classList.add('is-settled'),
+          onEnterBack: () => turn.classList.remove('is-settled'),
+        },
       })
-      gsap.fromTo(card.querySelector('.ai-pcard-lens'), { scale: 1.035 }, { scale: 1, ease: 'none', scrollTrigger: { trigger: card, start: 'top bottom', end: 'bottom 35%', scrub: .6 } })
+      const lens = card.querySelector('.ai-pcard-lens')
+      gsap.fromTo(lens, { scale: 1.035 }, { scale: 1, ease: 'none', scrollTrigger: { trigger: card, start: 'top bottom', end: 'bottom 35%', scrub: true, onToggle: (self) => lens.classList.toggle('is-moving', self.isActive) } })
     })
     const human = page.querySelector('.ai-interlude')
     if (human) {
       gsap.from(human.querySelectorAll('.ai-interlude-chrome .ai-chrome-letter'), {
         yPercent: 90, rotationX: -80, opacity: 0, transformPerspective: 500, transformOrigin: '50% 100%', stagger: .08, ease: 'power3.out',
-        scrollTrigger: { trigger: human, start: 'top 85%', end: 'top 45%', scrub: .5 },
+        scrollTrigger: { trigger: human, start: 'top 85%', end: 'top 45%', scrub: true },
       })
       gsap.from(human.querySelector('.ai-interlude-line'), { scaleY: 0, transformOrigin: '50% 0', ease: 'none', scrollTrigger: { trigger: human, start: 'top 60%', end: 'bottom 60%', scrub: true } })
     }
@@ -257,21 +296,25 @@ export default function useAIAutomationMotion(pageRef) {
     const viewport = page.querySelector('.ai-lab-viewport')
     if (canPin && lab && track && viewport) {
       lab.dataset.pinned = 'true'
-      cleanup.push(() => { delete lab.dataset.pinned })
+      cleanup.push(() => { delete lab.dataset.pinned; lab.classList.remove('is-moving') })
       const slides = select('.ai-lab-slide')
       const counter = page.querySelector('[data-lab-counter]')
       const bar = page.querySelector('.ai-lab-progress i')
       const distance = () => Math.max(0, track.scrollWidth - viewport.clientWidth)
-      const skewSet = gsap.quickSetter(slides, 'skewX', 'deg')
+      // The skew turns the wrapper around the track, not each of the slides.
+      // Low devices get neither the skew nor the coverflow.
+      const rich = tier !== 'low'
+      const skewSet = gsap.quickSetter(lab.querySelector('.ai-lab-skew'), 'skewX', 'deg')
       const skew = { value: 0 }
       let current = 1
       const spread = gsap.to(track, {
         x: () => -distance(), ease: 'none',
         scrollTrigger: {
           trigger: lab, pin: lab.querySelector('.ai-lab-pin'), start: 'top top', end: () => `+=${distance()}`,
-          scrub: .7, anticipatePin: 1, invalidateOnRefresh: true,
+          scrub: .4, anticipatePin: 1, invalidateOnRefresh: true,
+          onToggle: (self) => lab.classList.toggle('is-moving', self.isActive),
           onUpdate: (self) => {
-            const next = gsap.utils.clamp(-8, 8, self.getVelocity() / -320)
+            const next = rich ? gsap.utils.clamp(-8, 8, self.getVelocity() / -320) : 0
             if (Math.abs(next) > Math.abs(skew.value)) {
               skew.value = next
               gsap.to(skew, { value: 0, duration: .9, ease: 'power3', overwrite: true, onUpdate: () => skewSet(skew.value) })
@@ -283,7 +326,7 @@ export default function useAIAutomationMotion(pageRef) {
         },
       })
       // A coverflow: each card turns as it crosses the frame.
-      slides.forEach((slide) => {
+      if (rich) slides.forEach((slide) => {
         gsap.fromTo(slide.querySelector('.ai-pcard-turn'), { rotationY: 24, transformPerspective: 1200 }, {
           rotationY: -24, ease: 'none',
           scrollTrigger: { containerAnimation: spread, trigger: slide, start: 'left right', end: 'right left', scrub: true },
@@ -297,12 +340,13 @@ export default function useAIAutomationMotion(pageRef) {
       const next = items[index + 1]
       if (!next) return
       const top = () => parseFloat(getComputedStyle(next).top) || 0
-      gsap.timeline({ scrollTrigger: { trigger: next, start: 'top bottom', end: () => `top ${top()}px`, scrub: true, invalidateOnRefresh: true } })
-        .to(item.querySelector('.ai-stack-card'), { scale: .92, ease: 'none' }, 0)
+      const stackCard = item.querySelector('.ai-stack-card')
+      gsap.timeline({ scrollTrigger: { trigger: next, start: 'top bottom', end: () => `top ${top()}px`, scrub: true, invalidateOnRefresh: true, onToggle: (self) => stackCard.classList.toggle('is-moving', self.isActive) } })
+        .to(stackCard, { scale: .92, ease: 'none' }, 0)
         .to(item.querySelector('.ai-stack-dim'), { opacity: .62, ease: 'none' }, 0)
     })
     select('.ai-stack-symbol').forEach((symbol) => {
-      gsap.from(symbol, { scale: .4, rotation: -90, opacity: 0, ease: 'back.out(1.6)', duration: .9, scrollTrigger: { trigger: symbol, start: 'top 88%', once: true } })
+      gsap.from(symbol, { scale: .4, rotation: -90, opacity: 0, ease: 'back.out(1.6)', duration: .9, scrollTrigger: { trigger: symbol, start: 'top 88%', once: true, fastScrollEnd: true } })
     })
 
     // ── 06 The deck grid fades in as a whole; Framer owns each card.
@@ -311,15 +355,29 @@ export default function useAIAutomationMotion(pageRef) {
     // ── Finale: the rays open and the emblem ignites as it arrives.
     const finale = page.querySelector('.ai-finale')
     if (finale) {
-      gsap.timeline({ scrollTrigger: { trigger: finale, start: 'top 90%', end: 'center 55%', scrub: .6 } })
+      gsap.timeline({ scrollTrigger: { trigger: finale, start: 'top 90%', end: 'center 55%', scrub: true } })
         .fromTo(select('.ai-finale-rays'), { scale: .3, opacity: 0 }, { scale: 1, opacity: 1, ease: 'power2.out' }, 0)
         .fromTo(select('.ai-finale-emblem'), { scale: .55, opacity: .15 }, { scale: 1, opacity: 1, ease: 'power2.out' }, 0)
       gsap.from(select('.ai-finale-tagline .ai-chrome > span'), {
         opacity: 0, yPercent: 70, stagger: .03, ease: 'power3.out',
-        scrollTrigger: { trigger: page.querySelector('.ai-finale-tagline'), start: 'top 96%', end: 'top 72%', scrub: .5 },
+        scrollTrigger: { trigger: page.querySelector('.ai-finale-tagline'), start: 'top 96%', end: 'top 72%', scrub: true },
       })
     }
 
+    // Endless animations (rays, float, grain, sheen) run only while their
+    // section or word is on screen; the CSS pauses them otherwise.
+    if (typeof IntersectionObserver === 'function') {
+      const sections = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => { entry.target.dataset.active = entry.isIntersecting ? 'true' : 'false' })
+      }, { rootMargin: '100px 0px' })
+      page.querySelectorAll('.ai-hero, .ai-journey, .ai-finale').forEach((section) => sections.observe(section))
+      const words = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => { entry.target.dataset.sheen = entry.isIntersecting ? 'on' : 'off' })
+      })
+      page.querySelectorAll('.ai-chrome').forEach((word) => words.observe(word))
+      cleanup.push(() => { sections.disconnect(); words.disconnect() })
+    }
+
     return () => cleanup.forEach((dispose) => dispose())
-  }, { rebuildKey: heroLayout })
+  }, { rebuildKey })
 }

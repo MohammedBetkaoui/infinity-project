@@ -13,7 +13,7 @@ export default function CardVortex({ mode = 'tunnel', className = '', focusRef =
     if (!canvas || typeof canvas.getContext !== 'function') return undefined
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const compact = window.matchMedia('(max-width: 767px), (pointer: coarse)').matches
-    const engine = createCardVortex(canvas, { mode, compact, intensity, deckImageSrc: DECK_BACK })
+    const engine = createCardVortex(canvas, { mode, compact, intensity, deckImageSrc: DECK_BACK, still: reduced })
 
     // The vanishing point sits behind the focus element, measured without
     // its transforms (the slot is never animated, the card inside it is).

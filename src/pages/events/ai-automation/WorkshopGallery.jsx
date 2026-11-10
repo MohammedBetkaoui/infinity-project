@@ -75,6 +75,7 @@ export default function WorkshopGallery() {
                   <span className="ai-deck-photo"><WorkshopPhoto photo={photo} sizes="(max-width: 540px) 44vw, (max-width: 1100px) 30vw, 300px" /></span>
                   <span className="ai-deck-meta ai-mono" aria-hidden="true"><span>Day {photo.day}</span><span>{photo.category}</span></span>
                   <span className="ai-deck-glare" aria-hidden="true" />
+                  <span className="ai-deck-halo" aria-hidden="true" />
                   <span className="ai-deck-expand" aria-hidden="true"><ArrowUpRight size={16} /></span>
                 </button>
                 <p className="ai-deck-caption">{photo.caption}</p>

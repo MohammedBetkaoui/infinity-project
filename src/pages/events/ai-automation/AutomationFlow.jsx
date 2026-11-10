@@ -61,40 +61,43 @@ export default function AutomationFlow() {
     if (reduced) {
       cards.forEach((card) => setState(card, 'done'))
       setState(status, 'done')
-      board.querySelectorAll('.ai-wire-lit').forEach((wire) => { wire.style.strokeDashoffset = '0' })
+      board.querySelectorAll('.ai-wire-lit, .ai-wire-halo').forEach((wire) => { wire.style.strokeDashoffset = '0' })
       return undefined
     }
     const context = gsap.context(() => {
       const run = gsap.timeline({ repeat: -1, repeatDelay: 1.4, paused: true })
       run.call(() => { cards.forEach((card) => setState(card, 'idle')); setState(status, 'running') })
-        .set('.ai-wire-lit', { strokeDashoffset: 1, opacity: 1 })
-        .set('.ai-wire-packet', { opacity: 0 })
+        .set('.ai-wire-lit, .ai-wire-halo', { strokeDashoffset: 1, opacity: 1 })
+        .set('.ai-wire-packet, .ai-wire-glow', { opacity: 0 })
       cards.forEach((card, index) => {
         run.call(() => setState(card, 'running'))
           .to({}, { duration: .75 })
           .call(() => setState(card, 'done'))
         const wire = board.querySelectorAll('.ai-wire-track')[index]
         if (!wire) return
-        const lit = board.querySelectorAll('.ai-wire-lit')[index]
+        const lit = [board.querySelectorAll('.ai-wire-halo')[index], board.querySelectorAll('.ai-wire-lit')[index]]
         const packet = board.querySelectorAll('.ai-wire-packet')[index]
+        const glow = board.querySelectorAll('.ai-wire-glow')[index]
         const length = wire.getTotalLength()
         const travel = { t: 0 }
-        run.set(packet, { opacity: 1 })
+        run.set([packet, glow], { opacity: 1 })
           .to(travel, {
             t: 1, duration: 1.05, ease: 'power1.inOut',
             onUpdate: () => {
               const point = wire.getPointAtLength(travel.t * length)
               packet.setAttribute('cx', point.x)
               packet.setAttribute('cy', point.y)
+              glow.setAttribute('cx', point.x)
+              glow.setAttribute('cy', point.y)
             },
             onStart: () => { travel.t = 0 },
           })
           .to(lit, { strokeDashoffset: 0, duration: 1.05, ease: 'power1.inOut' }, '<')
-          .set(packet, { opacity: 0 })
+          .set([packet, glow], { opacity: 0 })
       })
       run.call(() => setState(status, 'done'))
         .to({}, { duration: 2.2 })
-        .to('.ai-wire-lit', { opacity: .25, duration: .5 })
+        .to('.ai-wire-lit, .ai-wire-halo', { opacity: .25, duration: .5 })
       const observer = new IntersectionObserver(([entry]) => (entry.isIntersecting ? run.play() : run.pause()), { threshold: .35 })
       observer.observe(board)
       return () => observer.disconnect()
@@ -112,13 +115,16 @@ export default function AutomationFlow() {
         {layout && (
           <svg className="ai-flow-wires" viewBox={`0 0 ${layout.width} ${layout.height}`} width={layout.width} height={layout.height} aria-hidden="true">
             <defs>
-              <filter id="ai-wire-glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+              {/* The packet glows through a gradient, not a blur filter. */}
+              <radialGradient id="ai-packet-glow"><stop offset="0" stopColor="#f0fff5" stopOpacity=".85" /><stop offset=".35" stopColor="#8af0b2" stopOpacity=".45" /><stop offset="1" stopColor="#8af0b2" stopOpacity="0" /></radialGradient>
             </defs>
             {layout.wires.map((d) => (
               <g key={d}>
                 <path className="ai-wire-track" d={d} />
+                <path className="ai-wire-halo" d={d} pathLength="1" />
                 <path className="ai-wire-lit" d={d} pathLength="1" />
-                <circle className="ai-wire-packet" r="5" cx="-20" cy="-20" filter="url(#ai-wire-glow)" />
+                <circle className="ai-wire-glow" r="15" cx="-20" cy="-20" fill="url(#ai-packet-glow)" />
+                <circle className="ai-wire-packet" r="5" cx="-20" cy="-20" />
               </g>
             ))}
           </svg>

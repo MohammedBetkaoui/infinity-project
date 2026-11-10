@@ -46,7 +46,10 @@ export default function useLenis() {
       // GSAP supplies seconds and Lenis expects milliseconds. There is only one RAF clock.
       const tick = (seconds) => lenis.raf(seconds * 1000)
       gsap.ticker.add(tick)
+      // Lenis + GSAP recommendation: one clock, no time jump after a long frame.
+      gsap.ticker.lagSmoothing(0)
       return () => {
+        gsap.ticker.lagSmoothing(500, 33)
         gsap.ticker.remove(tick)
         unsubscribe?.()
         lenis.destroy()
