@@ -54,6 +54,18 @@ const NOINDEX_NOFOLLOW = 'noindex,nofollow'
 // to themselves.
 export const ROUTES = [
   {
+    path: '/events/ai-automation-2026',
+    title: 'AI Automation — Workshop Experience | Infinity Club',
+    description: 'Beyond the prompt. Into the workflow. Explore the Infinity Club AI Automation workshop through real photographs, shared ideas and conversations about connected processes.',
+    robots: INDEX,
+    sitemap: true,
+    priority: '0.7',
+    image: { path: '/ai-automation/optimized/ai-automation-social.jpg', width: 1080, height: 1350, alt: 'A presenter and participants at the Infinity Club AI Automation workshop.' },
+    ogType: 'website',
+    // Deliberately no Event JSON-LD: date and venue are not confirmed.
+    // The existing WebPage schema is valid without inventing event facts.
+  },
+  {
     path: '/',
     title: 'Infinity Club — Science & Technology Club | University of Bordj Bou Arreridj',
     description: 'Infinity Club is the science and technology student club of the Faculty of Mathematics and Computer Science at the University of Bordj Bou Arreridj: events, competitions, workshops and student projects.',

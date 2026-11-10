@@ -25,7 +25,7 @@ function lift(store, print) {
   if (print) print.style.visibility = 'hidden'
 }
 
-export default function OpenDayLightbox({ photos, index, onChange, onClose, originOf }) {
+export default function OpenDayLightbox({ photos, index, onChange, onClose, originOf, title = 'Infinity Club / Open Day / 05 OCT 2026', className = '', showThumbnails = false }) {
   const panelRef = useRef(null)
   const closeRef = useRef(null)
   const imageRef = useRef(null)
@@ -33,8 +33,15 @@ export default function OpenDayLightbox({ photos, index, onChange, onClose, orig
   const lifted = useRef(null)
   const flight = useRef([])
   const closing = useRef(false)
+  const openingCancelled = useRef(false)
+  const touchStart = useRef(null)
   const [browsing, setBrowsing] = useState(false)
   const photo = photos[index]
+
+  useLayoutEffect(() => () => {
+    flight.current.forEach((tween) => tween.kill())
+    lift(lifted, null)
+  }, [])
 
   // Portal sits outside the inert site shell. Use the site's lock event so
   // Lenis also stops, and restore both the original styles and opener focus.
@@ -72,7 +79,7 @@ export default function OpenDayLightbox({ photos, index, onChange, onClose, orig
     flight.current = tweens
     gsap.set(image, { opacity: 0 })
     image.decode().catch(() => {}).then(() => {
-      if (cancelled || closing.current) return
+      if (cancelled || closing.current || openingCancelled.current) return
       gsap.set(image, { opacity: 1 })
       if (!print?.isConnected) return
       lift(lifted, print)
@@ -99,14 +106,35 @@ export default function OpenDayLightbox({ photos, index, onChange, onClose, orig
     flight.current.forEach((tween) => tween.kill())
     gsap.set(image, { clearProps: 'transform', opacity: 1 })
     lift(lifted, print)
-    gsap.timeline({ onComplete: onClose })
+    const closingFlight = gsap.timeline({ onComplete: onClose })
       .to(panelRef.current.querySelectorAll(`${CHROME}, .od-lightbox-ambient`), { opacity: 0, duration: .45, ease: 'power2.in' }, 0)
       .to(image, { ...offsetFrom(print, image), duration: .6, ease: 'expo.inOut' }, 0)
+    flight.current.push(closingFlight)
   }
 
-  const move = (direction) => {
+  const selectPhoto = (nextIndex) => {
+    if (closing.current) return
+    openingCancelled.current = true
+    flight.current.forEach((tween) => tween.kill())
+    lift(lifted, null)
+    gsap.set(imageRef.current, { clearProps: 'transform,opacity' })
+    gsap.set(panelRef.current.querySelectorAll(CHROME), { clearProps: 'opacity' })
     setBrowsing(true)
-    onChange((index + direction + photos.length) % photos.length)
+    onChange(nextIndex)
+  }
+  const move = (direction) => selectPhoto((index + direction + photos.length) % photos.length)
+
+  const startTouch = (event) => {
+    touchStart.current = event.touches.length === 1 ? { x: event.touches[0].clientX, y: event.touches[0].clientY } : null
+  }
+  const endTouch = (event) => {
+    const start = touchStart.current
+    touchStart.current = null
+    const end = event.changedTouches[0]
+    if (!start || !end) return
+    const dx = end.clientX - start.x
+    const dy = end.clientY - start.y
+    if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.5) move(dx < 0 ? 1 : -1)
   }
   const handleKey = (event) => {
     if (event.key === 'Escape') { event.preventDefault(); requestClose(); return }
@@ -125,17 +153,17 @@ export default function OpenDayLightbox({ photos, index, onChange, onClose, orig
   }
 
   return createPortal(
-    <div ref={panelRef} className="od-lightbox" role="dialog" aria-modal="true" aria-labelledby="od-viewer-title" aria-describedby="od-viewer-help" onKeyDown={handleKey} data-lenis-prevent="">
+    <div ref={panelRef} className={`od-lightbox ${className}`} role="dialog" aria-modal="true" aria-labelledby="od-viewer-title" aria-describedby="od-viewer-help" onKeyDown={handleKey} data-lenis-prevent="">
       <div className="od-lightbox-backdrop" onClick={requestClose} aria-hidden="true" />
       {/* The room takes the photo's colour: a deep blur of the same image. */}
       <div key={photo.id} className="od-lightbox-ambient" style={{ backgroundImage: `url(${photo.src})` }} aria-hidden="true" />
-      <header className="od-lightbox-head"><span id="od-viewer-title" className="od-label">Infinity Club / Open Day / 05 OCT 2026</span><button ref={closeRef} type="button" onClick={requestClose} aria-label="Close photo viewer"><X size={24} aria-hidden="true" /></button></header>
-      <p id="od-viewer-help" className="sr-only">Use the left and right arrow keys to browse images, and Escape to close.</p>
-      <figure className="od-lightbox-figure">
-        <img ref={imageRef} key={photo.id} className={browsing ? 'is-swap' : undefined} src={photo.src} width={photo.width} height={photo.height} alt={photo.alt} decoding="async" draggable="false" />
+      <header className="od-lightbox-head"><span id="od-viewer-title" className="od-label">{title}</span><button ref={closeRef} type="button" onClick={requestClose} aria-label="Close photo viewer"><X size={24} aria-hidden="true" /></button></header>
+      <p id="od-viewer-help" className="sr-only">Use the left and right arrow keys or swipe to browse images, and Escape to close.</p>
+      <figure className="od-lightbox-figure" onTouchStart={startTouch} onTouchEnd={endTouch} onTouchCancel={() => { touchStart.current = null }}>
+        <img ref={imageRef} key={photo.id} className={browsing ? 'is-swap' : undefined} src={photo.fullSrc || photo.src} width={photo.width} height={photo.height} alt={photo.alt} decoding="async" draggable="false" />
         <figcaption aria-live="polite" aria-atomic="true"><span>{String(index + 1).padStart(2, '0')} / {String(photos.length).padStart(2, '0')}</span><span>{photo.caption}</span></figcaption>
       </figure>
-      <div className="od-lightbox-controls"><button type="button" onClick={() => move(-1)} aria-label="Previous photo"><ChevronLeft size={24} aria-hidden="true" /></button><button type="button" onClick={() => move(1)} aria-label="Next photo"><ChevronRight size={24} aria-hidden="true" /></button></div>
+      <div className="od-lightbox-controls"><button type="button" onClick={() => move(-1)} aria-label="Previous photo"><ChevronLeft size={24} aria-hidden="true" /></button>{showThumbnails && <div className="ai-lightbox-thumbs" aria-label="Photographs">{photos.map((item, itemIndex) => <button type="button" key={item.id} onClick={() => selectPhoto(itemIndex)} aria-label={`View photograph ${itemIndex + 1}: ${item.caption}`} aria-current={index === itemIndex ? 'true' : undefined}><img src={item.thumb || item.src} width="40" height="50" alt="" loading="lazy" decoding="async" /></button>)}</div>}<button type="button" onClick={() => move(1)} aria-label="Next photo"><ChevronRight size={24} aria-hidden="true" /></button></div>
     </div>,
     document.body,
   )

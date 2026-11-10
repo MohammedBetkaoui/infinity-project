@@ -22,6 +22,7 @@ import PagePaused from './components/PagePaused'
 
 const CommunityPage = lazy(() => import('./pages/community/CommunityPage'))
 const OpenDayPage = lazy(() => import('./pages/events/open-day/OpenDayPage'))
+const AIAutomationPage = lazy(() => import('./pages/events/ai-automation/AIAutomationPage'))
 const ContactPage = lazy(() => import('./pages/contact/ContactPage'))
 const JoinPage = lazy(() => import('./pages/join/JoinPage'))
 const StaffConfirmationPage = lazy(() => import('./pages/join/StaffConfirmationPage'))
@@ -141,6 +142,7 @@ export default function App() {
         <Route path="/workshops/scan" element={<Suspense fallback={null}><WorkshopScannerPage /></Suspense>} />
         <Route path="/about" element={<SitePage motionTrigger="viewport"><AboutPage /></SitePage>} />
         <Route path="/events" element={<SitePage motionTrigger="viewport"><EventsPage /></SitePage>} />
+        <Route path="/events/ai-automation-2026" element={<SitePage motionTrigger="viewport"><Suspense fallback={<p className="page-container py-40" role="status">Opening the AI Automation experience...</p>}><AIAutomationPage /></Suspense></SitePage>} />
         <Route path="/events/open-day-2026" element={<SitePage motionTrigger="viewport"><Suspense fallback={<p className="page-container py-40" role="status">Opening the Open Day journal...</p>}>{OPEN_DAY_PAUSED ? <PagePaused label="Open Day 2026" /> : <OpenDayPage />}</Suspense></SitePage>} />
         <Route path="/community" element={<SitePage motionTrigger="viewport"><Suspense fallback={<p className="page-container py-40" role="status">Opening the community...</p>}><CommunityPage /></Suspense></SitePage>} />
         <Route path="/contact" element={<SitePage motionTrigger="viewport"><Suspense fallback={<p className="page-container py-40" role="status">Opening contact...</p>}><ContactPage /></Suspense></SitePage>} />

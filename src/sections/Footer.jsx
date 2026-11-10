@@ -26,6 +26,7 @@ export default function Footer() {
     '/community': 'community-page',
     '/contact': 'contact-page',
     '/events': 'events-page',
+    '/events/ai-automation-2026': 'ai-automation-page',
     '/join': 'join-page',
   }
   const topHref = `#${pageTopIds[pathname] || 'accueil'}`

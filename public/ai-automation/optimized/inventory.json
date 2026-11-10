@@ -1,0 +1,292 @@
+[
+  {
+    "source": "ai-automation/Day1-20261110T190451Z-1-001/Day1/01.png",
+    "sha256": "78d8847cfc318d7f0dd6b65eccf77b8e6a37f3996cbfbae1398a18861929533b",
+    "width": 1080,
+    "height": 1350,
+    "bytes": 2175435,
+    "selected": true,
+    "variants": [
+      {
+        "file": "conversation-160.webp",
+        "width": 160,
+        "height": 200,
+        "bytes": 4706
+      },
+      {
+        "file": "conversation-360.webp",
+        "width": 360,
+        "height": 450,
+        "bytes": 15352
+      },
+      {
+        "file": "conversation-720.webp",
+        "width": 720,
+        "height": 900,
+        "bytes": 43830
+      },
+      {
+        "file": "conversation-1080.webp",
+        "width": 1080,
+        "height": 1350,
+        "bytes": 111232
+      }
+    ]
+  },
+  {
+    "source": "ai-automation/Day1-20261110T190451Z-1-001/Day1/02.png",
+    "sha256": "b7015f9bb56190f81618b19adfbc7816d3dedd9846abf62988bc2dbc587baf46",
+    "width": 1080,
+    "height": 1350,
+    "bytes": 2066458,
+    "selected": true,
+    "variants": [
+      {
+        "file": "vector-search-160.webp",
+        "width": 160,
+        "height": 200,
+        "bytes": 3162
+      },
+      {
+        "file": "vector-search-360.webp",
+        "width": 360,
+        "height": 450,
+        "bytes": 9316
+      },
+      {
+        "file": "vector-search-720.webp",
+        "width": 720,
+        "height": 900,
+        "bytes": 26088
+      },
+      {
+        "file": "vector-search-1080.webp",
+        "width": 1080,
+        "height": 1350,
+        "bytes": 73274
+      }
+    ]
+  },
+  {
+    "source": "ai-automation/Day1-20261110T190451Z-1-001/Day1/03.png",
+    "sha256": "f39b9f1a4d43b2284cbc5945334d3d8edd678d3f5acc1eafe4ea495f290b9de2",
+    "width": 1080,
+    "height": 1350,
+    "bytes": 2115685,
+    "selected": true,
+    "variants": [
+      {
+        "file": "attention-160.webp",
+        "width": 160,
+        "height": 200,
+        "bytes": 3582
+      },
+      {
+        "file": "attention-360.webp",
+        "width": 360,
+        "height": 450,
+        "bytes": 11534
+      },
+      {
+        "file": "attention-720.webp",
+        "width": 720,
+        "height": 900,
+        "bytes": 36316
+      },
+      {
+        "file": "attention-1080.webp",
+        "width": 1080,
+        "height": 1350,
+        "bytes": 101096
+      }
+    ]
+  },
+  {
+    "source": "ai-automation/Day1-20261110T190451Z-1-001/Day1/04.png",
+    "sha256": "909297a4d61a45a6561c19e1b9c71c1437bce029588a53b969940df9d89f3370",
+    "width": 1080,
+    "height": 1350,
+    "bytes": 2172105,
+    "selected": true,
+    "variants": [
+      {
+        "file": "sharing-160.webp",
+        "width": 160,
+        "height": 200,
+        "bytes": 4398
+      },
+      {
+        "file": "sharing-360.webp",
+        "width": 360,
+        "height": 450,
+        "bytes": 13392
+      },
+      {
+        "file": "sharing-720.webp",
+        "width": 720,
+        "height": 900,
+        "bytes": 37316
+      },
+      {
+        "file": "sharing-1080.webp",
+        "width": 1080,
+        "height": 1350,
+        "bytes": 96486
+      }
+    ]
+  },
+  {
+    "source": "ai-automation/Day1-20261110T190451Z-1-001/Day1/05.png",
+    "sha256": "56aba352acd8f2278aad63b26129371d3a0a8dea46964dc89c448d18a80fe19e",
+    "width": 1080,
+    "height": 1350,
+    "bytes": 2174670,
+    "selected": true,
+    "variants": [
+      {
+        "file": "explaining-160.webp",
+        "width": 160,
+        "height": 200,
+        "bytes": 3090
+      },
+      {
+        "file": "explaining-360.webp",
+        "width": 360,
+        "height": 450,
+        "bytes": 9538
+      },
+      {
+        "file": "explaining-720.webp",
+        "width": 720,
+        "height": 900,
+        "bytes": 29100
+      },
+      {
+        "file": "explaining-1080.webp",
+        "width": 1080,
+        "height": 1350,
+        "bytes": 88456
+      }
+    ]
+  },
+  {
+    "source": "ai-automation/Day1-20261110T190451Z-1-001/Day1/06.png",
+    "sha256": "8e393e015726f843ef44b70ee919b62b4a7e79fa856f3ad5ceeed44a694ced23",
+    "width": 1080,
+    "height": 1350,
+    "bytes": 2216644,
+    "selected": true,
+    "variants": [
+      {
+        "file": "listening-160.webp",
+        "width": 160,
+        "height": 200,
+        "bytes": 4464
+      },
+      {
+        "file": "listening-360.webp",
+        "width": 360,
+        "height": 450,
+        "bytes": 13938
+      },
+      {
+        "file": "listening-720.webp",
+        "width": 720,
+        "height": 900,
+        "bytes": 45418
+      },
+      {
+        "file": "listening-1080.webp",
+        "width": 1080,
+        "height": 1350,
+        "bytes": 115862
+      }
+    ]
+  },
+  {
+    "source": "ai-automation/Day1-20261110T190451Z-1-001/Day1/07.png",
+    "sha256": "c2bcf2d5418c664de29516309f54842e4dc6b3810454dedb837607ae1069c6b4",
+    "width": 1080,
+    "height": 1350,
+    "bytes": 2177032,
+    "selected": true,
+    "variants": [
+      {
+        "file": "in-the-room-160.webp",
+        "width": 160,
+        "height": 200,
+        "bytes": 4448
+      },
+      {
+        "file": "in-the-room-360.webp",
+        "width": 360,
+        "height": 450,
+        "bytes": 13884
+      },
+      {
+        "file": "in-the-room-720.webp",
+        "width": 720,
+        "height": 900,
+        "bytes": 39226
+      },
+      {
+        "file": "in-the-room-1080.webp",
+        "width": 1080,
+        "height": 1350,
+        "bytes": 105064
+      }
+    ]
+  },
+  {
+    "source": "ai-automation/Day1-20261110T190451Z-1-001/Day1/09.png",
+    "sha256": "05036e83386ceada89c4f1ce2128af2fa96f22f74658f244e9a954ab13d82a9d",
+    "width": 1080,
+    "height": 1350,
+    "bytes": 2235789,
+    "selected": true,
+    "variants": [
+      {
+        "file": "together-160.webp",
+        "width": 160,
+        "height": 200,
+        "bytes": 6420
+      },
+      {
+        "file": "together-360.webp",
+        "width": 360,
+        "height": 450,
+        "bytes": 21566
+      },
+      {
+        "file": "together-720.webp",
+        "width": 720,
+        "height": 900,
+        "bytes": 60102
+      },
+      {
+        "file": "together-1080.webp",
+        "width": 1080,
+        "height": 1350,
+        "bytes": 126868
+      }
+    ]
+  },
+  {
+    "source": "ai-automation/Day1-20261110T190451Z-1-001/Day1/11.png",
+    "sha256": "16318ce33e9e5b7a286b0cb17f575e734efd69e160c87b5621388b11908de4dc",
+    "width": 1080,
+    "height": 1350,
+    "bytes": 2181474,
+    "selected": false,
+    "variants": []
+  },
+  {
+    "source": "ai-automation/Day1-20261110T190451Z-1-001/Day1/7.png",
+    "sha256": "81f9c15d5412c2c481a43e03362452e5e9e378ce5790994a9b1b9cd7526b9537",
+    "width": 1080,
+    "height": 1350,
+    "bytes": 2185368,
+    "selected": false,
+    "variants": []
+  }
+]
