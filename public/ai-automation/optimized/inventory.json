@@ -1,5 +1,6 @@
 [
   {
+    "day": "day1",
     "source": "ai-automation/Day1-20261110T190451Z-1-001/Day1/01.png",
     "sha256": "78d8847cfc318d7f0dd6b65eccf77b8e6a37f3996cbfbae1398a18861929533b",
     "width": 1080,
@@ -34,6 +35,7 @@
     ]
   },
   {
+    "day": "day1",
     "source": "ai-automation/Day1-20261110T190451Z-1-001/Day1/02.png",
     "sha256": "b7015f9bb56190f81618b19adfbc7816d3dedd9846abf62988bc2dbc587baf46",
     "width": 1080,
@@ -68,6 +70,7 @@
     ]
   },
   {
+    "day": "day1",
     "source": "ai-automation/Day1-20261110T190451Z-1-001/Day1/03.png",
     "sha256": "f39b9f1a4d43b2284cbc5945334d3d8edd678d3f5acc1eafe4ea495f290b9de2",
     "width": 1080,
@@ -102,6 +105,7 @@
     ]
   },
   {
+    "day": "day1",
     "source": "ai-automation/Day1-20261110T190451Z-1-001/Day1/04.png",
     "sha256": "909297a4d61a45a6561c19e1b9c71c1437bce029588a53b969940df9d89f3370",
     "width": 1080,
@@ -136,6 +140,7 @@
     ]
   },
   {
+    "day": "day1",
     "source": "ai-automation/Day1-20261110T190451Z-1-001/Day1/05.png",
     "sha256": "56aba352acd8f2278aad63b26129371d3a0a8dea46964dc89c448d18a80fe19e",
     "width": 1080,
@@ -170,6 +175,7 @@
     ]
   },
   {
+    "day": "day1",
     "source": "ai-automation/Day1-20261110T190451Z-1-001/Day1/06.png",
     "sha256": "8e393e015726f843ef44b70ee919b62b4a7e79fa856f3ad5ceeed44a694ced23",
     "width": 1080,
@@ -204,6 +210,7 @@
     ]
   },
   {
+    "day": "day1",
     "source": "ai-automation/Day1-20261110T190451Z-1-001/Day1/07.png",
     "sha256": "c2bcf2d5418c664de29516309f54842e4dc6b3810454dedb837607ae1069c6b4",
     "width": 1080,
@@ -238,6 +245,7 @@
     ]
   },
   {
+    "day": "day1",
     "source": "ai-automation/Day1-20261110T190451Z-1-001/Day1/09.png",
     "sha256": "05036e83386ceada89c4f1ce2128af2fa96f22f74658f244e9a954ab13d82a9d",
     "width": 1080,
@@ -272,6 +280,7 @@
     ]
   },
   {
+    "day": "day1",
     "source": "ai-automation/Day1-20261110T190451Z-1-001/Day1/11.png",
     "sha256": "16318ce33e9e5b7a286b0cb17f575e734efd69e160c87b5621388b11908de4dc",
     "width": 1080,
@@ -281,6 +290,7 @@
     "variants": []
   },
   {
+    "day": "day1",
     "source": "ai-automation/Day1-20261110T190451Z-1-001/Day1/7.png",
     "sha256": "81f9c15d5412c2c481a43e03362452e5e9e378ce5790994a9b1b9cd7526b9537",
     "width": 1080,
@@ -288,5 +298,530 @@
     "bytes": 2185368,
     "selected": false,
     "variants": []
+  },
+  {
+    "day": "day2",
+    "source": "ai-automation/Day2-20261110T190453Z-1-001/Day2/1(1).png",
+    "sha256": "9c2c9c01b8de9af0d1b2e0adc66ef10e444aa8bc118693ba4c5af9c3061a0dd4",
+    "width": 1080,
+    "height": 1350,
+    "bytes": 2193447,
+    "selected": true,
+    "variants": [
+      {
+        "file": "lab-guidance-160.webp",
+        "width": 160,
+        "height": 200,
+        "bytes": 6188
+      },
+      {
+        "file": "lab-guidance-360.webp",
+        "width": 360,
+        "height": 450,
+        "bytes": 17922
+      },
+      {
+        "file": "lab-guidance-720.webp",
+        "width": 720,
+        "height": 900,
+        "bytes": 47086
+      },
+      {
+        "file": "lab-guidance-1080.webp",
+        "width": 1080,
+        "height": 1350,
+        "bytes": 109672
+      }
+    ]
+  },
+  {
+    "day": "day2",
+    "source": "ai-automation/Day2-20261110T190453Z-1-001/Day2/1.png",
+    "sha256": "32671b8e968cc6d353c8b16bd3dea752b4705f65842f8cacd2924cac6853bfc1",
+    "width": 1080,
+    "height": 1350,
+    "bytes": 2079923,
+    "selected": true,
+    "variants": [
+      {
+        "file": "lab-side-by-side-160.webp",
+        "width": 160,
+        "height": 200,
+        "bytes": 4008
+      },
+      {
+        "file": "lab-side-by-side-360.webp",
+        "width": 360,
+        "height": 450,
+        "bytes": 11442
+      },
+      {
+        "file": "lab-side-by-side-720.webp",
+        "width": 720,
+        "height": 900,
+        "bytes": 30872
+      },
+      {
+        "file": "lab-side-by-side-1080.webp",
+        "width": 1080,
+        "height": 1350,
+        "bytes": 90750
+      }
+    ]
+  },
+  {
+    "day": "day2",
+    "source": "ai-automation/Day2-20261110T190453Z-1-001/Day2/2(1).png",
+    "sha256": "1d3957038f98f930520f4af274324274bdabd1cf8951025ecd94b37d8ccd2458",
+    "width": 1080,
+    "height": 1350,
+    "bytes": 2147569,
+    "selected": true,
+    "variants": [
+      {
+        "file": "lab-focus-160.webp",
+        "width": 160,
+        "height": 200,
+        "bytes": 5094
+      },
+      {
+        "file": "lab-focus-360.webp",
+        "width": 360,
+        "height": 450,
+        "bytes": 15232
+      },
+      {
+        "file": "lab-focus-720.webp",
+        "width": 720,
+        "height": 900,
+        "bytes": 44122
+      },
+      {
+        "file": "lab-focus-1080.webp",
+        "width": 1080,
+        "height": 1350,
+        "bytes": 106724
+      }
+    ]
+  },
+  {
+    "day": "day2",
+    "source": "ai-automation/Day2-20261110T190453Z-1-001/Day2/2.png",
+    "sha256": "968bc6bacbfa82011a1a06f7482aee08bfa8a46ad47ebd04e2f6c04139a60c98",
+    "width": 1080,
+    "height": 1350,
+    "bytes": 2138258,
+    "selected": true,
+    "variants": [
+      {
+        "file": "lab-workstation-160.webp",
+        "width": 160,
+        "height": 200,
+        "bytes": 4318
+      },
+      {
+        "file": "lab-workstation-360.webp",
+        "width": 360,
+        "height": 450,
+        "bytes": 12762
+      },
+      {
+        "file": "lab-workstation-720.webp",
+        "width": 720,
+        "height": 900,
+        "bytes": 34662
+      },
+      {
+        "file": "lab-workstation-1080.webp",
+        "width": 1080,
+        "height": 1350,
+        "bytes": 95166
+      }
+    ]
+  },
+  {
+    "day": "day2",
+    "source": "ai-automation/Day2-20261110T190453Z-1-001/Day2/3(1).png",
+    "sha256": "8c7b87c2dbbfbc9b4e6d5b79f167abe57e72721301b622470243532d42a5bb6f",
+    "width": 1080,
+    "height": 1350,
+    "bytes": 2303894,
+    "selected": true,
+    "variants": [
+      {
+        "file": "lab-row-160.webp",
+        "width": 160,
+        "height": 200,
+        "bytes": 7290
+      },
+      {
+        "file": "lab-row-360.webp",
+        "width": 360,
+        "height": 450,
+        "bytes": 24932
+      },
+      {
+        "file": "lab-row-720.webp",
+        "width": 720,
+        "height": 900,
+        "bytes": 72022
+      },
+      {
+        "file": "lab-row-1080.webp",
+        "width": 1080,
+        "height": 1350,
+        "bytes": 154512
+      }
+    ]
+  },
+  {
+    "day": "day2",
+    "source": "ai-automation/Day2-20261110T190453Z-1-001/Day2/3.png",
+    "sha256": "a55915e1b9388d3c727df04c2f6f1b18f225803617db1d21f6163536f8400bfe",
+    "width": 1080,
+    "height": 1350,
+    "bytes": 2187195,
+    "selected": true,
+    "variants": [
+      {
+        "file": "lab-debug-160.webp",
+        "width": 160,
+        "height": 200,
+        "bytes": 5982
+      },
+      {
+        "file": "lab-debug-360.webp",
+        "width": 360,
+        "height": 450,
+        "bytes": 18602
+      },
+      {
+        "file": "lab-debug-720.webp",
+        "width": 720,
+        "height": 900,
+        "bytes": 47896
+      },
+      {
+        "file": "lab-debug-1080.webp",
+        "width": 1080,
+        "height": 1350,
+        "bytes": 114046
+      }
+    ]
+  },
+  {
+    "day": "day2",
+    "source": "ai-automation/Day2-20261110T190453Z-1-001/Day2/4(1).png",
+    "sha256": "176d5ba887e0b9c228686129df2254df6a1064c08e876ebaa68dcc5cdf018e0d",
+    "width": 1080,
+    "height": 1350,
+    "bytes": 2300801,
+    "selected": true,
+    "variants": [
+      {
+        "file": "lab-card-160.webp",
+        "width": 160,
+        "height": 200,
+        "bytes": 4830
+      },
+      {
+        "file": "lab-card-360.webp",
+        "width": 360,
+        "height": 450,
+        "bytes": 17842
+      },
+      {
+        "file": "lab-card-720.webp",
+        "width": 720,
+        "height": 900,
+        "bytes": 57934
+      },
+      {
+        "file": "lab-card-1080.webp",
+        "width": 1080,
+        "height": 1350,
+        "bytes": 151620
+      }
+    ]
+  },
+  {
+    "day": "day2",
+    "source": "ai-automation/Day2-20261110T190453Z-1-001/Day2/4.png",
+    "sha256": "298eb08f44f136f2b7094f9dc8358606beb712aa9403f0a38c22f8283bb9c205",
+    "width": 1080,
+    "height": 1350,
+    "bytes": 2194410,
+    "selected": true,
+    "variants": [
+      {
+        "file": "lab-smile-160.webp",
+        "width": 160,
+        "height": 200,
+        "bytes": 4732
+      },
+      {
+        "file": "lab-smile-360.webp",
+        "width": 360,
+        "height": 450,
+        "bytes": 14224
+      },
+      {
+        "file": "lab-smile-720.webp",
+        "width": 720,
+        "height": 900,
+        "bytes": 39104
+      },
+      {
+        "file": "lab-smile-1080.webp",
+        "width": 1080,
+        "height": 1350,
+        "bytes": 109772
+      }
+    ]
+  },
+  {
+    "day": "day2",
+    "source": "ai-automation/Day2-20261110T190453Z-1-001/Day2/5(1).png",
+    "sha256": "ae8eaddc717039dc31c32764a6620894ccb93fd2bbc795731dd070793be1277b",
+    "width": 1080,
+    "height": 1350,
+    "bytes": 2285744,
+    "selected": true,
+    "variants": [
+      {
+        "file": "lab-room-160.webp",
+        "width": 160,
+        "height": 200,
+        "bytes": 5726
+      },
+      {
+        "file": "lab-room-360.webp",
+        "width": 360,
+        "height": 450,
+        "bytes": 20158
+      },
+      {
+        "file": "lab-room-720.webp",
+        "width": 720,
+        "height": 900,
+        "bytes": 58346
+      },
+      {
+        "file": "lab-room-1080.webp",
+        "width": 1080,
+        "height": 1350,
+        "bytes": 133012
+      }
+    ]
+  },
+  {
+    "day": "day2",
+    "source": "ai-automation/Day2-20261110T190453Z-1-001/Day2/5.png",
+    "sha256": "d889caf7cb026aad2df23c95390ecaf154f18acc1532affb82f0a5ca3129a901",
+    "width": 1080,
+    "height": 1350,
+    "bytes": 2276096,
+    "selected": true,
+    "variants": [
+      {
+        "file": "lab-laptops-160.webp",
+        "width": 160,
+        "height": 200,
+        "bytes": 7180
+      },
+      {
+        "file": "lab-laptops-360.webp",
+        "width": 360,
+        "height": 450,
+        "bytes": 21656
+      },
+      {
+        "file": "lab-laptops-720.webp",
+        "width": 720,
+        "height": 900,
+        "bytes": 56996
+      },
+      {
+        "file": "lab-laptops-1080.webp",
+        "width": 1080,
+        "height": 1350,
+        "bytes": 127734
+      }
+    ]
+  },
+  {
+    "day": "day2",
+    "source": "ai-automation/Day2-20261110T190453Z-1-001/Day2/6(1).png",
+    "sha256": "1ab3d070dc130fbd2640d02660ae50436120043925861890ec0b313cb45bc4e3",
+    "width": 1080,
+    "height": 1350,
+    "bytes": 2352083,
+    "selected": true,
+    "variants": [
+      {
+        "file": "lab-attention-160.webp",
+        "width": 160,
+        "height": 200,
+        "bytes": 6978
+      },
+      {
+        "file": "lab-attention-360.webp",
+        "width": 360,
+        "height": 450,
+        "bytes": 24602
+      },
+      {
+        "file": "lab-attention-720.webp",
+        "width": 720,
+        "height": 900,
+        "bytes": 69876
+      },
+      {
+        "file": "lab-attention-1080.webp",
+        "width": 1080,
+        "height": 1350,
+        "bytes": 125210
+      }
+    ]
+  },
+  {
+    "day": "day2",
+    "source": "ai-automation/Day2-20261110T190453Z-1-001/Day2/6.png",
+    "sha256": "d5a2441eaf125eb6aebe23074970e045dc8920824d406b6ea623262a7c3743f7",
+    "width": 1080,
+    "height": 1350,
+    "bytes": 2242225,
+    "selected": true,
+    "variants": [
+      {
+        "file": "lab-testing-160.webp",
+        "width": 160,
+        "height": 200,
+        "bytes": 7372
+      },
+      {
+        "file": "lab-testing-360.webp",
+        "width": 360,
+        "height": 450,
+        "bytes": 23094
+      },
+      {
+        "file": "lab-testing-720.webp",
+        "width": 720,
+        "height": 900,
+        "bytes": 59894
+      },
+      {
+        "file": "lab-testing-1080.webp",
+        "width": 1080,
+        "height": 1350,
+        "bytes": 124064
+      }
+    ]
+  },
+  {
+    "day": "day2",
+    "source": "ai-automation/Day2-20261110T190453Z-1-001/Day2/7.png",
+    "sha256": "de25091259e38391d1693b27d6b89c78fa0914e0f3a587368bd182d64dfe4d77",
+    "width": 1080,
+    "height": 1350,
+    "bytes": 2325337,
+    "selected": true,
+    "variants": [
+      {
+        "file": "lab-thinking-160.webp",
+        "width": 160,
+        "height": 200,
+        "bytes": 6486
+      },
+      {
+        "file": "lab-thinking-360.webp",
+        "width": 360,
+        "height": 450,
+        "bytes": 20890
+      },
+      {
+        "file": "lab-thinking-720.webp",
+        "width": 720,
+        "height": 900,
+        "bytes": 58150
+      },
+      {
+        "file": "lab-thinking-1080.webp",
+        "width": 1080,
+        "height": 1350,
+        "bytes": 137498
+      }
+    ]
+  },
+  {
+    "day": "day2",
+    "source": "ai-automation/Day2-20261110T190453Z-1-001/Day2/8.png",
+    "sha256": "2e01b8ae6c06c746ccd5f5fe7c932963f0157717f2afe8e42596e589638273d7",
+    "width": 1080,
+    "height": 1350,
+    "bytes": 2122656,
+    "selected": true,
+    "variants": [
+      {
+        "file": "lab-mentor-160.webp",
+        "width": 160,
+        "height": 200,
+        "bytes": 3864
+      },
+      {
+        "file": "lab-mentor-360.webp",
+        "width": 360,
+        "height": 450,
+        "bytes": 12004
+      },
+      {
+        "file": "lab-mentor-720.webp",
+        "width": 720,
+        "height": 900,
+        "bytes": 32568
+      },
+      {
+        "file": "lab-mentor-1080.webp",
+        "width": 1080,
+        "height": 1350,
+        "bytes": 92938
+      }
+    ]
+  },
+  {
+    "day": "day2",
+    "source": "ai-automation/Day2-20261110T190453Z-1-001/Day2/9.png",
+    "sha256": "077df969dbfb741fc1e4f4d63b5a91379cd4947ac178dfe2615f3a2bbebf6bad",
+    "width": 1080,
+    "height": 1350,
+    "bytes": 2275830,
+    "selected": true,
+    "variants": [
+      {
+        "file": "lab-listening-160.webp",
+        "width": 160,
+        "height": 200,
+        "bytes": 5452
+      },
+      {
+        "file": "lab-listening-360.webp",
+        "width": 360,
+        "height": 450,
+        "bytes": 17436
+      },
+      {
+        "file": "lab-listening-720.webp",
+        "width": 720,
+        "height": 900,
+        "bytes": 52800
+      },
+      {
+        "file": "lab-listening-1080.webp",
+        "width": 1080,
+        "height": 1350,
+        "bytes": 130344
+      }
+    ]
   }
 ]

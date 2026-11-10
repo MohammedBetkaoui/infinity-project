@@ -11,9 +11,11 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url))
 
 test('AI Automation derivatives preserve the supplied originals, dimensions and a useful byte budget', async () => {
   const inventory = JSON.parse(await read('public/ai-automation/optimized/inventory.json'))
-  assert.equal(inventory.length, 10)
-  assert.equal(aiAutomationGallery.length, 8)
-  assert.equal(new Set(aiAutomationGallery.map((photo) => photo.id)).size, 8)
+  assert.equal(inventory.length, 25)
+  assert.equal(aiAutomationGallery.length, 23)
+  assert.equal(new Set(aiAutomationGallery.map((photo) => photo.id)).size, 23)
+  assert.equal(aiAutomationGallery.filter((photo) => photo.day === '01').length, 8)
+  assert.equal(aiAutomationGallery.filter((photo) => photo.day === '02').length, 15)
   for (const item of inventory) {
     const original = await read(`public/${item.source}`)
     assert.equal(createHash('sha256').update(original).digest('hex'), item.sha256, 'original stays intact')
@@ -21,7 +23,7 @@ test('AI Automation derivatives preserve the supplied originals, dimensions and 
     assert.equal(original.readUInt32BE(20), item.height)
   }
   for (const photo of aiAutomationGallery) {
-    assert.match(photo.original, /^\/ai-automation\/Day1-20261110T190451Z-1-001\/Day1\//)
+    assert.match(photo.original, photo.day === '01' ? /^\/ai-automation\/Day1-20261110T190451Z-1-001\/Day1\// : /^\/ai-automation\/Day2-20261110T190453Z-1-001\/Day2\//)
     assert.ok(photo.alt.length > 50)
     assert.ok(photo.category && photo.caption)
     const item = inventory.find((entry) => `/${entry.source}` === photo.original)

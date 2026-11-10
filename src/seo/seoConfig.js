@@ -56,7 +56,7 @@ export const ROUTES = [
   {
     path: '/events/ai-automation-2026',
     title: 'AI Automation — Workshop Experience | Infinity Club',
-    description: 'Beyond the prompt. Into the workflow. Explore the Infinity Club AI Automation workshop through real photographs, shared ideas and conversations about connected processes.',
+    description: 'Beyond the prompt. Into the workflow. Two days of the Infinity Club AI Automation workshop — talks on AI and automation, then a hands-on lab — through real photographs.',
     robots: INDEX,
     sitemap: true,
     priority: '0.7',

@@ -41,7 +41,7 @@ const realEvents = [
     category: 'AI / Workshop',
     status: 'past',
     href: '/events/ai-automation-2026',
-    description: 'Beyond the prompt. Into the workflow. A photographic look inside the Infinity Club AI Automation workshop.',
+    description: 'Beyond the prompt. Into the workflow. Two days inside the Infinity Club AI Automation workshop: the talks, then the lab.',
     image: {
       src: '/ai-automation/optimized/in-the-room-720.webp',
       srcSet: '/ai-automation/optimized/in-the-room-360.webp 360w, /ai-automation/optimized/in-the-room-720.webp 720w, /ai-automation/optimized/in-the-room-1080.webp 1080w',

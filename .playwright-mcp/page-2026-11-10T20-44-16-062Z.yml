@@ -1,0 +1,48 @@
+- generic [ref=e3]:
+  - banner:
+    - navigation "Main navigation" [ref=e4]:
+      - link "Infinity Club - Home" [ref=e5] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e9]:
+          - strong [ref=e10]: INFINITY
+          - generic [ref=e11]: MI Faculty · BBA
+      - list [ref=e12]:
+        - listitem [ref=e13]:
+          - link "Home" [ref=e14] [cursor=pointer]:
+            - /url: /
+        - listitem [ref=e15]:
+          - link "About" [ref=e16] [cursor=pointer]:
+            - /url: /about
+        - listitem [ref=e17]:
+          - link "Community" [ref=e18] [cursor=pointer]:
+            - /url: /community
+        - listitem [ref=e19]:
+          - link "Events" [ref=e20] [cursor=pointer]:
+            - /url: /events
+        - listitem [ref=e21]:
+          - link "Contact" [ref=e22] [cursor=pointer]:
+            - /url: /contact
+      - link "Join the club" [ref=e24] [cursor=pointer]:
+        - /url: /join
+  - main [ref=e29]:
+    - status [ref=e30]: Opening the AI Automation experience...
+  - contentinfo [ref=e31]:
+    - generic [ref=e32]:
+      - generic [ref=e33]:
+        - link "Infinity Club - Home" [ref=e35] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e40]: INFINITY
+        - generic [ref=e42]:
+          - link "Home" [ref=e43] [cursor=pointer]:
+            - /url: /
+          - link "About" [ref=e44] [cursor=pointer]:
+            - /url: /about
+          - link "Community" [ref=e45] [cursor=pointer]:
+            - /url: /community
+          - link "Events" [ref=e46] [cursor=pointer]:
+            - /url: /events
+        - link "Back to top" [ref=e47] [cursor=pointer]:
+          - /url: "#ai-automation-page"
+      - generic [ref=e50]:
+        - paragraph [ref=e51]: © 2026 Infinity Club. All rights reserved.
+        - paragraph [ref=e52]: No Limits For Infiniters
